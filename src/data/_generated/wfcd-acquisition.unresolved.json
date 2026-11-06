@@ -1,28 +1,4 @@
 {
-  "abating link trinity": {
-    "itemName": "Abating Link (Trinity)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "abundant mutation nidus": {
-    "itemName": "Abundant Mutation (Nidus)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "accumulating whipclaw khora": {
-    "itemName": "Accumulating Whipclaw (Khora)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
   "adramal alloy x20 blueprint": {
     "itemName": "Adramal Alloy X20 Blueprint",
     "count": 1,
@@ -37,22 +13,6 @@
       "Syndicate Vendor: Solaris United (Solaris United (The Business), Doer)"
     ]
   },
-  "afterburn chroma": {
-    "itemName": "Afterburn (Chroma)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "airburst rounds zephyr": {
-    "itemName": "Airburst Rounds (Zephyr)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "anchored glide zephyr": {
     "itemName": "Anchored Glide (Zephyr)",
     "count": 2,
@@ -61,27 +21,11 @@
       "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
-  "ancient healer specter": {
-    "itemName": "5x Ancient Healer Specter",
+  "arbiter of hexis sigil": {
+    "itemName": "Arbiter Of Hexis Sigil",
     "count": 1,
     "examples": [
-      "Syndicate Vendor: New Loka (New Loka, Humane)"
-    ]
-  },
-  "antimatter absorb nova": {
-    "itemName": "Antimatter Absorb (Nova)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "assimilate nyx": {
-    "itemName": "Assimilate (Nyx)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
+      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Principled)"
     ]
   },
   "astralbond companion": {
@@ -112,38 +56,6 @@
       "Syndicate Vendor: Solaris United (Solaris United (Smokefinger), Neutral)"
     ]
   },
-  "axios javelineers styanax": {
-    "itemName": "Axios Javelineers (Styanax)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "balefire surge hildryn": {
-    "itemName": "Balefire Surge (Hildryn)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "ballistic bullseye mesa": {
-    "itemName": "Ballistic Bullseye (Mesa)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "beguiling lantern titania": {
-    "itemName": "Beguiling Lantern (Titania)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "bhisajbalparis prime": {
     "itemName": "Bhisaj-Bal(Paris Prime)",
     "count": 1,
@@ -151,51 +63,11 @@
       "Syndicate Vendor: Entrati (Entrati (Father), Friend)"
     ]
   },
-  "biting frost frost": {
-    "itemName": "Biting Frost (Frost)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
   "blade of truth jaw sword": {
     "itemName": "Blade of Truth (Jaw Sword)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Crusader)"
-    ]
-  },
-  "blazing pillage hildryn": {
-    "itemName": "Blazing Pillage (Hildryn)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "blending talons garuda": {
-    "itemName": "Blending Talons (Garuda)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "blinding reave revenant": {
-    "itemName": "Blinding Reave (Revenant)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "blood forge garuda": {
-    "itemName": "Blood Forge (Garuda)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "bright purity skana": {
@@ -212,115 +84,11 @@
       "Syndicate Vendor: Entrati (Entrati (Otak), Associate)"
     ]
   },
-  "calm frenzy equinox": {
-    "itemName": "Calm & Frenzy (Equinox)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "capacitance volt": {
-    "itemName": "Capacitance (Volt)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "cataclysmic continuum limbo": {
-    "itemName": "Cataclysmic Continuum (Limbo)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
-    ]
-  },
-  "catapult grendel": {
-    "itemName": "Catapult (Grendel)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "cathode current gyre": {
-    "itemName": "Cathode Current (Gyre)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "celestial stomp wukong": {
-    "itemName": "Celestial Stomp (Wukong)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "champions blessing trinity": {
-    "itemName": "Champion's Blessing (Trinity)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "chaos sphere nyx": {
-    "itemName": "Chaos Sphere (Nyx)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "chilling globe frost": {
-    "itemName": "Chilling Globe (Frost)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "chromatic blade excalibur": {
-    "itemName": "Chromatic Blade (Excalibur)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "concentrated arrow ivara": {
-    "itemName": "Concentrated Arrow (Ivara)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
   "conclave loadout slot": {
     "itemName": "Conclave Loadout Slot",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Conclave (Conclave, Typhoon)"
-    ]
-  },
-  "conductor octavia": {
-    "itemName": "Conductor (Octavia)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "contagion cloud saryn": {
-    "itemName": "Contagion Cloud (Saryn)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "contagious bond companion": {
@@ -334,8 +102,8 @@
     "itemName": "Controlled Slide (Nezha)",
     "count": 2,
     "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
+      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
+      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
     ]
   },
   "coprite alloy x20 blueprint": {
@@ -345,35 +113,11 @@
       "Syndicate Vendor: Ostron (Ostron (Old Man Suumbaat), Offworlder)"
     ]
   },
-  "counter pulse mag": {
-    "itemName": "Counter Pulse (Mag)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "covert bond companion": {
     "itemName": "Covert Bond (Companion)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Ostron (Ostron (Master Teasonai), Trusted)"
-    ]
-  },
-  "creeping terrify nekros": {
-    "itemName": "Creeping Terrify (Nekros)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "critical surge wisp": {
-    "itemName": "Critical Surge (Wisp)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "damage decoy loki": {
@@ -398,20 +142,11 @@
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Senior Executive)"
     ]
   },
-  "desiccations curse inaros": {
-    "itemName": "Desiccation's Curse (Inaros)",
-    "count": 2,
+  "defender of the earth": {
+    "itemName": "Defender of the Earth",
+    "count": 1,
     "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "despoil nekros": {
-    "itemName": "Despoil (Nekros)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
+      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "devolved namalon x20 blueprint": {
@@ -419,6 +154,13 @@
     "count": 1,
     "examples": [
       "Syndicate Vendor: Entrati (Entrati (Otak), Stranger)"
+    ]
+  },
+  "diplomatic merchant": {
+    "itemName": "Diplomatic Merchant",
+    "count": 1,
+    "examples": [
+      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
     ]
   },
   "disarming purity panthera": {
@@ -432,24 +174,8 @@
     "itemName": "Divine Retribution (Nezha)",
     "count": 2,
     "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "dread ward garuda": {
-    "itemName": "Dread Ward (Garuda)",
-    "count": 2,
-    "examples": [
       "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "duality equinox": {
-    "itemName": "Duality (Equinox)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
+      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
     ]
   },
   "duplex bond companion": {
@@ -464,46 +190,6 @@
     "count": 1,
     "examples": [
       "Syndicate Vendor: Operational Supply (Operational Supply, Collaborator)"
-    ]
-  },
-  "elemental sandstorm inaros": {
-    "itemName": "Elemental Sandstorm (Inaros)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "elusive retribution baruuk": {
-    "itemName": "Elusive Retribution (Baruuk)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "empowered quiver ivara": {
-    "itemName": "Empowered Quiver (Ivara)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "endless lullaby baruuk": {
-    "itemName": "Endless Lullaby (Baruuk)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "energy transfer equinox": {
-    "itemName": "Energy Transfer (Equinox)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "enraged valkyr": {
@@ -542,12 +228,11 @@
       "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Wise)"
     ]
   },
-  "enveloping cloud wukong": {
-    "itemName": "Enveloping Cloud (Wukong)",
-    "count": 2,
+  "eradicator of corruption": {
+    "itemName": "Eradicator of Corruption",
+    "count": 1,
     "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
+      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "eroding blight embolist": {
@@ -557,35 +242,11 @@
       "Syndicate Vendor: Red Veil (Red Veil, Revered)"
     ]
   },
-  "escape velocity nova": {
-    "itemName": "Escape Velocity (Nova)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
   "esher devar x10 blueprint": {
     "itemName": "Esher Devar x10 Blueprint",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Ostron (Ostron (Old Man Suumbaat), Offworlder)"
-    ]
-  },
-  "eternal war valkyr": {
-    "itemName": "Eternal War (Valkyr)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "everlasting ward chroma": {
-    "itemName": "Everlasting Ward (Chroma)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
     ]
   },
   "exceptional sentient core conversion": {
@@ -595,22 +256,6 @@
       "Syndicate Vendor: The Quills (The Quills, Neutral)"
     ]
   },
-  "exothermic ember": {
-    "itemName": "Exothermic (Ember)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "explosive legerdemain mirage": {
-    "itemName": "Explosive Legerdemain (Mirage)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
-    ]
-  },
   "faceted tiametrite x10 blueprint": {
     "itemName": "Faceted Tiametrite X10 Blueprint",
     "count": 1,
@@ -618,34 +263,11 @@
       "Syndicate Vendor: Entrati (Entrati (Otak), Neutral)"
     ]
   },
-  "fatal teleport ash": {
-    "itemName": "Fatal Teleport (Ash)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
   "fersteel alloy x20 blueprint": {
     "itemName": "Fersteel Alloy x20 Blueprint",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Ostron (Ostron (Old Man Suumbaat), Visitor)"
-    ]
-  },
-  "fireball frenzy ember": {
-    "itemName": "Fireball Frenzy (Ember)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "fluctus limb": {
-    "itemName": "Fluctus Limb",
-    "count": 1,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Esteemed)"
     ]
   },
   "fosfor blau x20 blueprint": {
@@ -660,46 +282,6 @@
     "count": 1,
     "examples": [
       "Syndicate Vendor: Operational Supply (Operational Supply, Neutral)"
-    ]
-  },
-  "fracturing crush mag": {
-    "itemName": "Fracturing Crush (Mag)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "freeze force frost": {
-    "itemName": "Freeze Force (Frost)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "funnel clouds zephyr": {
-    "itemName": "Funnel Clouds (Zephyr)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "furious javelin excalibur": {
-    "itemName": "Furious Javelin (Excalibur)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "fused reservoir wisp": {
-    "itemName": "Fused Reservoir (Wisp)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "gilded truth burston prime": {
@@ -730,22 +312,6 @@
       "Syndicate Vendor: Solaris United (Solaris United (Smokefinger), Outworlder)"
     ]
   },
-  "gourmand grendel": {
-    "itemName": "Gourmand (Grendel)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "greedy pull mag": {
-    "itemName": "Greedy Pull (Mag)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "guardian armor chroma": {
     "itemName": "Guardian Armor (Chroma)",
     "count": 2,
@@ -754,51 +320,11 @@
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
     ]
   },
-  "guided effigy chroma": {
-    "itemName": "Guided Effigy (Chroma)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "hall of malevolence mirage": {
-    "itemName": "Hall of Malevolence (Mirage)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
-    ]
-  },
-  "hallowed eruption oberon": {
-    "itemName": "Hallowed Eruption (Oberon)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "hallowed reckoning oberon": {
-    "itemName": "Hallowed Reckoning (Oberon)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "hatasatya soma prime": {
     "itemName": "Hata-Satya (Soma Prime)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Entrati (Entrati (Father), Friend)"
-    ]
-  },
-  "healing flame ember": {
-    "itemName": "Healing Flame (Ember)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "heart noctrul x10 blueprint": {
@@ -813,14 +339,6 @@
     "count": 1,
     "examples": [
       "Syndicate Vendor: Ostron (Ostron (Old Man Suumbaat), Surah)"
-    ]
-  },
-  "hearty nourishment grendel": {
-    "itemName": "Hearty Nourishment (Grendel)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "hespazym alloy x20 blueprint": {
@@ -858,104 +376,8 @@
       "Syndicate Vendor: The Quills (The Quills, Architect)"
     ]
   },
-  "hushed invisibility loki": {
-    "itemName": "Hushed Invisibility (Loki)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "hysterical assault valkyr": {
-    "itemName": "Hysterical Assault (Valkyr)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "ice wave impedance frost": {
-    "itemName": "Ice Wave Impedance (Frost)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "icy avalanche frost": {
-    "itemName": "Icy Avalanche (Frost)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "immolated radiance ember": {
-    "itemName": "Immolated Radiance (Ember)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "infiltrate ivara": {
-    "itemName": "Infiltrate (Ivara)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "insatiable nidus": {
-    "itemName": "Insatiable (Nidus)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "intrepid stand styanax": {
-    "itemName": "Intrepid Stand (Styanax)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "iron shrapnel rhino": {
-    "itemName": "Iron Shrapnel (Rhino)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "ironclad charge rhino": {
-    "itemName": "Ironclad Charge (Rhino)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
   "ironclad flight titania": {
     "itemName": "Ironclad Flight (Titania)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "irradiating disarm loki": {
-    "itemName": "Irradiating Disarm (Loki)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "jet stream zephyr": {
-    "itemName": "Jet Stream (Zephyr)",
     "count": 2,
     "examples": [
       "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
@@ -974,13 +396,6 @@
     "count": 1,
     "examples": [
       "Syndicate Vendor: Entrati (Entrati (Father), Neutral)"
-    ]
-  },
-  "kinetic siphon trap x 10": {
-    "itemName": "Kinetic Siphon Trap x 10",
-    "count": 1,
-    "examples": [
-      "Syndicate Vendor: Cephalon Simaris (Cephalon Simaris, Kinetic Siphon Trap x 10)"
     ]
   },
   "kubrodon ventikid apparel blueprint": {
@@ -1018,27 +433,18 @@
       "Syndicate Vendor: Ventkids (Ventkids, Neutral)"
     ]
   },
-  "larva burst nidus": {
-    "itemName": "Larva Burst (Nidus)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "lasting covenant harrow": {
-    "itemName": "Lasting Covenant (Harrow)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
   "lasting purity vulkar": {
     "itemName": "Lasting Purity (Vulkar)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: New Loka (New Loka, Pure)"
+    ]
+  },
+  "liberated grineer": {
+    "itemName": "Liberated Grineer",
+    "count": 1,
+    "examples": [
+      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
     ]
   },
   "lokan armor set": {
@@ -1053,22 +459,6 @@
     "count": 2,
     "examples": [
       "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "mach crash gauss": {
-    "itemName": "Mach Crash (Gauss)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "magnetized discharge mag": {
-    "itemName": "Magnetized Discharge (Mag)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
       "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
@@ -1100,58 +490,10 @@
       "Syndicate Vendor: Entrati (Entrati (Son), Friend)"
     ]
   },
-  "mending splinters gara": {
-    "itemName": "Mending Splinters (Gara)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "meridian armor set": {
     "itemName": "Meridian Armor Set",
     "count": 1,
     "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "merulina guardian yareli": {
-    "itemName": "Merulina Guardian (Yareli)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "mesas waltz mesa": {
-    "itemName": "Mesa's Waltz (Mesa)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "mesmer shield revenant": {
-    "itemName": "Mesmer Shield (Revenant)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "mind freak nyx": {
-    "itemName": "Mind Freak (Nyx)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "molecular fission nova": {
-    "itemName": "Molecular Fission (Nova)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
       "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
     ]
   },
@@ -1169,27 +511,11 @@
       "Syndicate Vendor: The Quills (The Quills, Neutral)"
     ]
   },
-  "muzzle flash mesa": {
-    "itemName": "Muzzle Flash (Mesa)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
   "mystic bond companion": {
     "itemName": "Mystic Bond (Companion)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Ostron (Ostron (Master Teasonai), Trusted)"
-    ]
-  },
-  "negation armor inaros": {
-    "itemName": "Negation Armor (Inaros)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
     ]
   },
   "neutralizing justice miter": {
@@ -1199,20 +525,12 @@
       "Syndicate Vendor: Steel Meridian (Steel Meridian, Protector)"
     ]
   },
-  "neutron star nova": {
-    "itemName": "Neutron Star (Nova)",
+  "noctua swarm dante": {
+    "itemName": "Noctua Swarm (Dante)",
     "count": 2,
     "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "ore gaze atlas": {
-    "itemName": "Ore Gaze (Atlas)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
+      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
+      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
     ]
   },
   "ostron armor set": {
@@ -1222,123 +540,11 @@
       "Syndicate Vendor: Ostron (Ostron (Hok), Kin)"
     ]
   },
-  "pacifying bolts nyx": {
-    "itemName": "Pacifying Bolts (Nyx)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "parasitic vitality nidus": {
-    "itemName": "Parasitic Vitality (Nidus)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "partitioned mallet octavia": {
-    "itemName": "Partitioned Mallet (Octavia)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "path of statues atlas": {
-    "itemName": "Path of Statues (Atlas)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "peaceful provocation equinox": {
-    "itemName": "Peaceful Provocation (Equinox)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "perrin armor set": {
     "itemName": "Perrin Armor Set",
     "count": 1,
     "examples": [
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "phoenix renewal oberon": {
-    "itemName": "Phoenix Renewal (Oberon)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "photon repeater vauban": {
-    "itemName": "Photon Repeater (Vauban)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "piercing navigator ivara": {
-    "itemName": "Piercing Navigator (Ivara)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "piercing roar rhino": {
-    "itemName": "Piercing Roar (Rhino)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "pilfering strangledome khora": {
-    "itemName": "Pilfering Strangledome (Khora)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "pilfering swarm hydroid": {
-    "itemName": "Pilfering Swarm (Hydroid)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "pool of life trinity": {
-    "itemName": "Pool Of Life (Trinity)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "primal rage wukong": {
-    "itemName": "Primal Rage (Wukong)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "prolonged paralysis valkyr": {
-    "itemName": "Prolonged Paralysis (Valkyr)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "purged dagonic x10 blueprint": {
@@ -1355,14 +561,6 @@
       "Syndicate Vendor: Entrati (Entrati (Otak), Stranger)"
     ]
   },
-  "pyroclastic flow nezha": {
-    "itemName": "Pyroclastic Flow (Nezha)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
   "pyrotic alloy x20 blueprint": {
     "itemName": "Pyrotic Alloy x20 Blueprint",
     "count": 1,
@@ -1377,14 +575,6 @@
       "Syndicate Vendor: Ostron (Ostron (Old Man Suumbaat), Surah)"
     ]
   },
-  "radiant finish excalibur": {
-    "itemName": "Radiant Finish (Excalibur)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
   "radiant zodian x3 blueprint": {
     "itemName": "Radiant Zodian X3 Blueprint",
     "count": 1,
@@ -1392,50 +582,10 @@
       "Syndicate Vendor: Solaris United (Solaris United (Smokefinger), Doer)"
     ]
   },
-  "razorwing blitz titania": {
-    "itemName": "Razorwing Blitz (Titania)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "reactive storm baruuk": {
-    "itemName": "Reactive Storm (Baruuk)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "reaping chakram nezha": {
-    "itemName": "Reaping Chakram (Nezha)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "recrystalize citrine": {
-    "itemName": "Recrystalize (Citrine)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
   "red veil armor set": {
     "itemName": "Red Veil Armor Set",
     "count": 1,
     "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "regenerative molt saryn": {
-    "itemName": "Regenerative Molt (Saryn)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
       "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
@@ -1446,41 +596,17 @@
       "Syndicate Vendor: Solaris United (Solaris United (The Business), Doer)"
     ]
   },
-  "reinforcing stomp rhino": {
-    "itemName": "Reinforcing Stomp (Rhino)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
   "relic pack 3 x random void relics": {
     "itemName": "Relic Pack (3 x Random Void Relics)",
     "count": 3,
     "examples": [
       "Syndicate Vendor: Ostron (Ostron (Old Man Suumbaat), Trusted)",
-      "Syndicate Vendor: Entrati (Entrati (Otak), Acquaintance)",
-      "Syndicate Vendor: Solaris United (Solaris United (Smokefinger), Rapscallion)"
-    ]
-  },
-  "repair dispensary protea": {
-    "itemName": "Repair Dispensary (Protea)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
+      "Syndicate Vendor: Solaris United (Solaris United (Smokefinger), Rapscallion)",
+      "Syndicate Vendor: Entrati (Entrati (Otak), Acquaintance)"
     ]
   },
   "repelling bastille vauban": {
     "itemName": "Repelling Bastille (Vauban)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "resonance banshee": {
-    "itemName": "Resonance (Banshee)",
     "count": 2,
     "examples": [
       "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
@@ -1510,76 +636,12 @@
       "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
-  "rift haven limbo": {
-    "itemName": "Rift Haven (Limbo)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
-    ]
-  },
-  "rift torrent limbo": {
-    "itemName": "Rift Torrent (Limbo)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
-    ]
-  },
-  "rising storm ash": {
-    "itemName": "Rising Storm (Ash)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "rousing plunder hydroid": {
-    "itemName": "Rousing Plunder (Hydroid)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "rubble heap atlas": {
-    "itemName": "Rubble Heap (Atlas)",
+  "rhythm guard temple": {
+    "itemName": "Rhythm Guard (Temple)",
     "count": 2,
     "examples": [
       "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "safeguard nezha": {
-    "itemName": "Safeguard (Nezha)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "safeguard switch loki": {
-    "itemName": "Safeguard Switch (Loki)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "savage silence banshee": {
-    "itemName": "Savage Silence (Banshee)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "savior decoy loki": {
-    "itemName": "Savior Decoy (Loki)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
+      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "scattered justice hek": {
@@ -1589,12 +651,11 @@
       "Syndicate Vendor: Steel Meridian (Steel Meridian, Protector)"
     ]
   },
-  "seeking shuriken ash": {
-    "itemName": "Seeking Shuriken (Ash)",
-    "count": 2,
+  "seeker of truth": {
+    "itemName": "Seeker of Truth",
+    "count": 1,
     "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
+      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)"
     ]
   },
   "seismic bond companion": {
@@ -1611,22 +672,6 @@
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Senior Executive)"
     ]
   },
-  "shadow haze sevagoth": {
-    "itemName": "Shadow Haze (Sevagoth)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "shattered storm gara": {
-    "itemName": "Shattered Storm (Gara)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "shattering justice sobek": {
     "itemName": "Shattering Justice (Sobek)",
     "count": 1,
@@ -1634,65 +679,18 @@
       "Syndicate Vendor: Steel Meridian (Steel Meridian, Protector)"
     ]
   },
-  "shield of shadows nekros": {
-    "itemName": "Shield of Shadows (Nekros)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "shock trooper volt": {
-    "itemName": "Shock Trooper (Volt)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "shocking speed volt": {
-    "itemName": "Shocking Speed (Volt)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "simaris helios skin": {
-    "itemName": "Simaris Helios Skin",
-    "count": 1,
-    "examples": [
-      "Syndicate Vendor: Cephalon Simaris (Cephalon Simaris, Simaris Helios Skin\n)"
-    ]
-  },
   "simaris offerings console": {
     "itemName": "Simaris Offerings Console",
     "count": 1,
     "examples": [
-      "Syndicate Vendor: Cephalon Simaris (Cephalon Simaris, Simaris Offerings Console\n)"
+      "Syndicate Vendor: Cephalon Simaris (Cephalon Simaris)"
     ]
   },
   "simaris research console": {
     "itemName": "Simaris Research Console",
     "count": 1,
     "examples": [
-      "Syndicate Vendor: Cephalon Simaris (Cephalon Simaris, Simaris Research Console\n)"
-    ]
-  },
-  "smite infusion oberon": {
-    "itemName": "Smite Infusion (Oberon)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "smoke shadow ash": {
-    "itemName": "Smoke Shadow (Ash)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
+      "Syndicate Vendor: Cephalon Simaris (Cephalon Simaris)"
     ]
   },
   "smooth phasmin x10 blueprint": {
@@ -1707,46 +705,6 @@
     "count": 1,
     "examples": [
       "Syndicate Vendor: Solaris United (Solaris United (Rude Zuud), Old Mate)"
-    ]
-  },
-  "sonic fracture banshee": {
-    "itemName": "Sonic Fracture (Banshee)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "soul survivor nekros": {
-    "itemName": "Soul Survivor (Nekros)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "spectrosiphon gara": {
-    "itemName": "Spectrosiphon (Gara)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "spellbound harvest titania": {
-    "itemName": "Spellbound Harvest (Titania)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Exalted)"
-    ]
-  },
-  "staggering shield mesa": {
-    "itemName": "Staggering Shield (Mesa)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "star amarast x6 blueprint": {
@@ -1791,45 +749,13 @@
       "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
     ]
   },
-  "surging blades yareli": {
-    "itemName": "Surging Blades (Yareli)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "surging dash excalibur": {
-    "itemName": "Surging Dash (Excalibur)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "swift bite lavos": {
-    "itemName": "Swift Bite (Lavos)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "swing line valkyr": {
-    "itemName": "Swing Line (Valkyr)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
   "syndicate relic pack 3 x random void relics": {
-    "itemName": "Syndicate Relic Pack (3 x Random Void Relics)",
+    "itemName": "Syndicate Relic Pack (3 X Random Void Relics)",
     "count": 6,
     "examples": [
+      "Syndicate Vendor: Steel Meridian (Steel Meridian, Valiant)",
       "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Authentic)",
       "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Intriguing)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, Valiant)",
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Senior Associate)",
       "Syndicate Vendor: Red Veil (Red Veil, Honored)",
       "Syndicate Vendor: New Loka (New Loka, Bountiful)"
@@ -1842,26 +768,11 @@
       "Syndicate Vendor: Conclave (Conclave, Mistral)"
     ]
   },
-  "synthesis scanner x 25": {
-    "itemName": "Synthesis Scanner x 25",
-    "count": 1,
-    "examples": [
-      "Syndicate Vendor: Cephalon Simaris (Cephalon Simaris, Synthesis Scanner x 25)"
-    ]
-  },
   "tandem bond beast": {
     "itemName": "Tandem Bond (Beast)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Ostron (Ostron (Master Teasonai), Trusted)"
-    ]
-  },
-  "target fixation zephyr": {
-    "itemName": "Target Fixation (Zephyr)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "tear azurite x10 blueprint": {
@@ -1871,22 +782,6 @@
       "Syndicate Vendor: Ostron (Ostron (Old Man Suumbaat), Neutral)"
     ]
   },
-  "tectonic fracture atlas": {
-    "itemName": "Tectonic Fracture (Atlas)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "teeming virulence nidus": {
-    "itemName": "Teeming Virulence (Nidus)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
   "tempered bapholite x20 blueprint": {
     "itemName": "Tempered Bapholite X20 Blueprint",
     "count": 1,
@@ -1894,27 +789,11 @@
       "Syndicate Vendor: Entrati (Entrati (Otak), Neutral)"
     ]
   },
-  "temporal erosion protea": {
-    "itemName": "Temporal Erosion (Protea)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
   "tenacious bond companion": {
     "itemName": "Tenacious Bond (companion)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Solaris United (Solaris United (The Business), Doer)"
-    ]
-  },
-  "tesla bank vauban": {
-    "itemName": "Tesla Bank (Vauban)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
     ]
   },
   "thaumic distillate x20 blueprint": {
@@ -1931,51 +810,10 @@
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
     ]
   },
-  "the relentless lost xaku": {
-    "itemName": "The Relentless Lost (Xaku)",
-    "count": 2,
+  "thirst for knowledge": {
+    "itemName": "Thirst for Knowledge",
+    "count": 1,
     "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "thermal transfer gauss": {
-    "itemName": "Thermal Transfer (Gauss)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "thrall pact revenant": {
-    "itemName": "Thrall Pact (Revenant)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
-  "tidal impunity hydroid": {
-    "itemName": "Tidal Impunity (Hydroid)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "titanic rumbler atlas": {
-    "itemName": "Titanic Rumbler (Atlas)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "total eclipse mirage": {
-    "itemName": "Total Eclipse (Mirage)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
       "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)"
     ]
   },
@@ -1993,14 +831,6 @@
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Senior Executive)"
     ]
   },
-  "transistor shield volt": {
-    "itemName": "Transistor Shield (Volt)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
   "trapezium xenorhast x3 blueprint": {
     "itemName": "Trapezium Xenorhast X3 Blueprint",
     "count": 1,
@@ -2015,67 +845,11 @@
       "Syndicate Vendor: Solaris United (Solaris United (Smokefinger), Neutral)"
     ]
   },
-  "tribunal harrow": {
-    "itemName": "Tribunal (Harrow)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "ulfruns endurance voruna": {
-    "itemName": "Ulfrun's Endurance (Voruna)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "valence formation lavos": {
-    "itemName": "Valence Formation (Lavos)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "vampire leech trinity": {
-    "itemName": "Vampire Leech (Trinity)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "vampiric grasp xaku": {
-    "itemName": "Vampiric Grasp (Xaku)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)"
-    ]
-  },
-  "venari bodyguard khora": {
-    "itemName": "Venari Bodyguard (Khora)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
   "venerdo alloy x20 blueprint": {
     "itemName": "Venerdo Alloy X20 Blueprint",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Solaris United (Solaris United (Smokefinger), Outworlder)"
-    ]
-  },
-  "venom dose saryn": {
-    "itemName": "Venom Dose (Saryn)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "vent pobber ventikid apparel blueprint": {
@@ -2113,34 +887,11 @@
       "Syndicate Vendor: Ventkids (Ventkids, Neutral)"
     ]
   },
-  "ventkids ginty sigil": {
-    "itemName": "Ventkids Ginty Sigil",
-    "count": 1,
-    "examples": [
-      "Syndicate Vendor: Ventkids (Ventkids, Glinty)"
-    ]
-  },
-  "vexing retaliation chroma": {
-    "itemName": "Vexing Retaliation (Chroma)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)"
-    ]
-  },
   "vicious bond companion": {
     "itemName": "Vicious Bond (Companion)",
     "count": 1,
     "examples": [
       "Syndicate Vendor: Entrati (Entrati (Son), Associate)"
-    ]
-  },
-  "viral tempest hydroid": {
-    "itemName": "Viral Tempest (Hydroid)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "voidrig necramech blueprint": {
@@ -2168,28 +919,12 @@
     "itemName": "Vosfor Cache (200x)",
     "count": 6,
     "examples": [
+      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
       "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
       "Syndicate Vendor: Cephalon Suda (Cephalon Suda, Genius)",
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
       "Syndicate Vendor: The Perrin Sequence (The Perrin Sequence, Partner)",
       "Syndicate Vendor: Red Veil (Red Veil, Exalted)",
       "Syndicate Vendor: New Loka (New Loka, Flawless)"
-    ]
-  },
-  "warding thurible harrow": {
-    "itemName": "Warding Thurible (Harrow)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
-    ]
-  },
-  "warriors rest excalibur umbra": {
-    "itemName": "Warrior's Rest (Excalibur Umbra)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Arbiters of Hexis (Arbiters of Hexis, Maxim)",
-      "Syndicate Vendor: Red Veil (Red Veil, Exalted)"
     ]
   },
   "winds of purity furis": {
@@ -2197,14 +932,6 @@
     "count": 1,
     "examples": [
       "Syndicate Vendor: New Loka (New Loka, Pure)"
-    ]
-  },
-  "wrath of ukko kullervo": {
-    "itemName": "Wrath of Ukko (Kullervo)",
-    "count": 2,
-    "examples": [
-      "Syndicate Vendor: Steel Meridian (Steel Meridian, General)",
-      "Syndicate Vendor: New Loka (New Loka, Flawless)"
     ]
   },
   "zazvatkar akstiletto prime": {

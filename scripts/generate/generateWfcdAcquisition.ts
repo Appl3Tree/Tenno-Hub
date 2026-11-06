@@ -15,10 +15,15 @@
  * where label = "Syndicate Vendor: ${syndicateName} (${place})"
  */
 
-import { readFile, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import { createHash } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
+import { writeFileAtomically } from "../lib/warframeItemsData";
+import {
+    normalizeWfcdAcquisitionName as normalizeNoPunct,
+    resolveWfcdAcquisitionItemName as resolveItemName,
+} from "../lib/wfcdAcquisition";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -39,20 +44,12 @@ function sha1Hex(s: string): string {
     return createHash("sha1").update(s, "utf8").digest("hex");
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function sourceIdFromLabel(label: string): string {
     return `data:drop:${sha1Hex(label).slice(0, 10)}`;
-}
-
-function foldDiacritics(s: string): string {
-    return s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function normalizeNoPunct(s: string): string {
-    return foldDiacritics(s.trim())
-        .toLowerCase()
-        .replace(/[^a-z0-9 ]+/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
 }
 
 /** Strip leading quantity prefixes like "5x", "300X" */
@@ -106,29 +103,6 @@ async function buildNameIndex(): Promise<Map<string, string>> {
 // Resolve an item name string to a catalogId
 // ---------------------------------------------------------------------------
 
-function resolveItemName(
-    rawName: string,
-    nameIndex: Map<string, string>
-): string | null {
-    const noQty = stripQty(rawName);
-
-    const attempts = [
-        noQty,
-        rawName.trim(),
-        noQty.replace(/\bBlueprint\b/gi, "").trim(),
-    ];
-
-    for (const attempt of attempts) {
-        if (!attempt) continue;
-        const key = normalizeNoPunct(attempt);
-        if (!key) continue;
-        const cid = nameIndex.get(key);
-        if (cid) return cid;
-    }
-
-    return null;
-}
-
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -139,9 +113,15 @@ async function main(): Promise<void> {
     console.log(`  Name index: ${nameIndex.size} entries`);
 
     console.log("Reading syndicates.json...");
-    const syndicatesFile: { syndicates?: Record<string, Array<Record<string, unknown>>> } =
-        JSON.parse(await readFile(SYNDICATES_INPUT, "utf-8"));
-    const syndicates = syndicatesFile.syndicates ?? (syndicatesFile as any);
+    const parsedSyndicates: unknown = JSON.parse(await readFile(SYNDICATES_INPUT, "utf-8"));
+    const syndicatesValue = isRecord(parsedSyndicates) && "syndicates" in parsedSyndicates
+        ? parsedSyndicates.syndicates
+        : parsedSyndicates;
+    if (!isRecord(syndicatesValue)) {
+        throw new Error("syndicates.json must be an object or contain an object-valued syndicates field");
+    }
+    const syndicateEntries = Object.entries(syndicatesValue).filter(([, entries]) => Array.isArray(entries));
+    if (syndicateEntries.length === 0) throw new Error("syndicates.json contains no vendor entry arrays");
 
     // sourceId → label
     const labelMap: Record<string, string> = {};
@@ -153,11 +133,9 @@ async function main(): Promise<void> {
     let resolved = 0;
     let unresolvedCount = 0;
 
-    for (const [synName, entries] of Object.entries(syndicates)) {
-        if (!Array.isArray(entries)) continue;
-
+    for (const [synName, entries] of syndicateEntries) {
         for (const entry of entries) {
-            if (!entry || typeof entry !== "object") continue;
+            if (!isRecord(entry)) continue;
 
             const place = typeof entry.place === "string" ? entry.place : "";
             const itemName = typeof entry.item === "string" ? entry.item.trim() : "";
@@ -204,13 +182,13 @@ async function main(): Promise<void> {
     }
 
     // Write outputs
-    await writeFile(LABEL_MAP_OUTPUT, JSON.stringify(labelMap, null, 2), "utf-8");
+    await writeFileAtomically(LABEL_MAP_OUTPUT, JSON.stringify(labelMap, null, 2));
     console.log(`\nwfcd-source-label-map: ${Object.keys(labelMap).length} source entries`);
 
-    await writeFile(ACQUISITION_OUTPUT, JSON.stringify(acquisitionOut, null, 2), "utf-8");
+    await writeFileAtomically(ACQUISITION_OUTPUT, JSON.stringify(acquisitionOut, null, 2));
     console.log(`wfcd-acquisition: ${Object.keys(acquisitionOut).length} catalog entries (${resolved} resolved item-source pairs)`);
 
-    await writeFile(UNRESOLVED_OUTPUT, JSON.stringify(unresolvedOut, null, 2), "utf-8");
+    await writeFileAtomically(UNRESOLVED_OUTPUT, JSON.stringify(unresolvedOut, null, 2));
     console.log(`wfcd-acquisition.unresolved: ${unresolvedCount} unresolved item-source pairs (${unresolved.size} unique names)`);
 }
 

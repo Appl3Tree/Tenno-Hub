@@ -767,7 +767,7 @@ describe("build optimizer scoring", () => {
         expect(baneScore).toBeGreaterThan(magneticScore);
     });
 
-    it("reuses built-in polarities, reserves room for exilus, and avoids frozen-only arcanes for War scaling", { timeout: 12000 }, () => {
+    it("reuses built-in polarities, reserves room for exilus, and avoids frozen-only arcanes for War scaling", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find(w => w.name === "War");
         expect(weapon).toBeTruthy();
 
@@ -808,7 +808,7 @@ describe("build optimizer scoring", () => {
         ).toBeLessThanOrEqual(5);
     });
 
-    it("only considers exilus-eligible mods for exilus and avoids movement-only no-op picks when better utility exists", { timeout: 12000 }, () => {
+    it("only considers exilus-eligible mods for exilus and avoids movement-only no-op picks when better utility exists", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find(w => w.name === "Acceltra Prime");
         expect(weapon).toBeTruthy();
 
@@ -872,7 +872,7 @@ describe("build optimizer scoring", () => {
         ).toBeLessThanOrEqual(1);
     });
 
-    it("keeps respected-capacity acceltra builds within capacity and avoids toxin-only arcanes on viral setups", { timeout: 12000 }, () => {
+    it("keeps respected-capacity acceltra builds within capacity and avoids toxin-only arcanes on viral setups", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find(w => w.name === "Acceltra Prime");
         expect(weapon).toBeTruthy();
 

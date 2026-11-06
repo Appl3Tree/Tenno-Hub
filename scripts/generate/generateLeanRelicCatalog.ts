@@ -1,6 +1,8 @@
-import { readFile, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { writeFileAtomically } from "../lib/warframeItemsData";
+import { collectRelicMissionRewardRows, validateRelicMissionRewardReferences } from "../lib/relicData";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -47,17 +49,8 @@ type LeanRelicEntry = {
     }>;
 };
 
-interface RewardEntry {
-    itemName?: string;
-    chance?: number;
-}
-
-interface NodeInfo {
-    rewards?: Record<string, RewardEntry[]> | RewardEntry[];
-}
-
 interface MissionRewardsFile {
-    missionRewards: Record<string, Record<string, NodeInfo>>;
+    missionRewards: unknown;
 }
 
 function normalizeSpaces(s: string): string {
@@ -99,50 +92,25 @@ function toRelicKey(tier: string, relicName: string): string {
     return `${tier.toLowerCase()} ${relicName.toLowerCase()}`;
 }
 
-function toMissionRelicKey(itemName: string): string {
-    return itemName.replace(/\s+relic$/i, "").trim().toLowerCase();
-}
-
 async function main(): Promise<void> {
     console.log("Reading", INPUT);
     const parsed = JSON.parse(await readFile(INPUT, "utf-8")) as { relics?: RawRelicEntry[] } | RawRelicEntry[];
     const rows = Array.isArray(parsed) ? parsed : parsed.relics ?? [];
     console.log("Reading", MISSION_INPUT);
     const missionFile = JSON.parse(await readFile(MISSION_INPUT, "utf-8")) as MissionRewardsFile;
-    const missionRewards = missionFile.missionRewards ?? {};
-
+    validateRelicMissionRewardReferences(missionFile.missionRewards, parsed);
     const missionsByRelicKey = new Map<string, Array<{ pathLabel: string; rotation: string; chance: number }>>();
 
-    for (const [planet, nodes] of Object.entries(missionRewards)) {
-        for (const [node, info] of Object.entries(nodes ?? {})) {
-            const rewards = info?.rewards;
-            if (!rewards) continue;
+    for (const row of collectRelicMissionRewardRows(missionFile.missionRewards)) {
+        const existing = missionsByRelicKey.get(row.relicKey) ?? [];
+        existing.push({ pathLabel: row.pathLabel, rotation: row.rotation, chance: row.chance });
+        missionsByRelicKey.set(row.relicKey, existing);
+    }
 
-            // Non-rotation nodes have rewards as a flat array; rotation nodes have
-            // rewards as { A: [...], B: [...], C: [...] }.  Normalise both to the
-            // same [rotation, rewardList] shape so the loop below handles both.
-            const rotationEntries: Array<[string, RewardEntry[]]> = Array.isArray(rewards)
-                ? [["", rewards]]
-                : Object.entries(rewards).filter(([, v]) => Array.isArray(v)) as Array<[string, RewardEntry[]]>;
-
-            for (const [rotation, rewardList] of rotationEntries) {
-                for (const reward of rewardList) {
-                    const name = String(reward?.itemName ?? "").trim();
-                    if (!/\bRelic\b/i.test(name)) continue;
-                    const relicKey = toMissionRelicKey(name);
-                    const existing = missionsByRelicKey.get(relicKey) ?? [];
-                    // Non-rotation path omits the trailing rotation segment
-                    const pathLabel = rotation
-                        ? `missionRewards / ${planet} / ${node} / ${rotation}`
-                        : `missionRewards / ${planet} / ${node}`;
-                    existing.push({
-                        pathLabel,
-                        rotation,
-                        chance: Number(reward?.chance ?? 0),
-                    });
-                    missionsByRelicKey.set(relicKey, existing);
-                }
-            }
+    for (let index = 0; index < rows.length; index++) {
+        const row = rows[index]!;
+        if (row?.state === "Intact" && (!row?.tier || !row?.relicName)) {
+            console.warn(`[upstream integrity defect] relics.json[${index}] is missing ${!row?.tier ? "tier" : "relicName"}; no canonical relic identity can be generated`);
         }
     }
 
@@ -164,7 +132,7 @@ async function main(): Promise<void> {
         .sort((a, b) => `${a.tier} ${a.relicName}`.localeCompare(`${b.tier} ${b.relicName}`));
 
     const json = JSON.stringify(lean, null, 2);
-    await writeFile(OUTPUT, json, "utf-8");
+    await writeFileAtomically(OUTPUT, json);
 
     const inKB = Math.round((await readFile(INPUT)).length / 1024);
     const outKB = Math.round(Buffer.byteLength(json) / 1024);

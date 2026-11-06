@@ -147,10 +147,10 @@ export const MANUAL_ACQUISITION_BY_CATALOG_ID: Record<string, string[]> = {
     "items:/Lotus/Types/Items/MiscItems/FormaOmega": ["data:unobtainable/dev-only"],
     "items:/Lotus/Types/Recipes/Components/FormaOmegaBlueprint": ["data:unobtainable/dev-only"],
 
-    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaBlueprint": ["data:quest/the-new-strange", "data:vendor/simaris", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaChassisBlueprint": ["data:vendor/simaris", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaHelmetBlueprint": ["data:vendor/simaris", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaSystemsBlueprint": ["data:vendor/simaris", "data:duviri/circuit"],
+    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaBlueprint": ["data:quest/the-new-strange", "data:vendor/simaris", "data:duviri/circuit/warframe-rewards"],
+    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaChassisBlueprint": ["data:vendor/simaris", "data:duviri/circuit/warframe-rewards"],
+    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaHelmetBlueprint": ["data:vendor/simaris", "data:duviri/circuit/warframe-rewards"],
+    "items:/Lotus/Types/Recipes/WarframeRecipes/ChromaSystemsBlueprint": ["data:vendor/simaris", "data:duviri/circuit/warframe-rewards"],
 
     "items:/Lotus/Types/Recipes/WarframeRecipes/DagathBlueprint": ["data:dojo/dagaths-hollow"],
     "items:/Lotus/Types/Recipes/WarframeRecipes/DagathChassisBlueprint": ["data:dojo/dagaths-hollow"],
@@ -478,18 +478,37 @@ export const MANUAL_ACQUISITION_BY_CATALOG_ID: Record<string, string[]> = {
     "items:/Lotus/Types/Recipes/Weapons/DarkDaggerBlueprint": ["data:nightwave/cred-offerings","data:market/credits"],
     "items:/Lotus/Types/Recipes/Weapons/GlaiveBlueprint": ["data:nightwave/cred-offerings","data:market/credits"],
 
+    // Nightwave landing craft blueprint and component blueprints are now permanent Cred Offerings.
+    "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipBlueprint": ["data:nightwave/cred-offerings"],
+    "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsComponent": ["data:nightwave/cred-offerings"],
+    "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesComponent": ["data:nightwave/cred-offerings"],
+    "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageComponent": ["data:nightwave/cred-offerings"],
+
+    // Update 44 Cephalon Melica classroom supplies (all parts are blueprint purchases).
+    "items:/Lotus/Weapons/Tenno/Bows/DuelistBow/DuelistBow": ["data:crafting"], // Nunchasa
+    "items:/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Weapons/Tenno/Pistols/DuelistPistols/DuelistPistols": ["data:crafting"], // Aksondol
+    "items:/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink": ["data:vendor/zariman/cephalon-melica"],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver": ["data:vendor/zariman/cephalon-melica"],
+
 
     // ----------------------------
     // Duviri / Circuit / Abyss / Arbitration (coarse)
     // ----------------------------
-    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriMaceShieldBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriTwoHandedKatanaBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriPolearmBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriAsymmetricalLongBowPlayerWeaponBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriHammerBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/Weapons/DuviriDualSwordsBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriKatanaBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
-    "items:/Lotus/Types/Recipes/Weapons/PaxDuviricusShotgunBlueprint": ["data:duviri/experience", "data:duviri/circuit"],
+    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriMaceShieldBlueprint": ["data:vendor/duviri/teshins-cave"],
+    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriTwoHandedKatanaBlueprint": ["data:vendor/duviri/teshins-cave", "data:vendor/simaris"],
+    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriPolearmBlueprint": ["data:vendor/duviri/teshins-cave", "data:vendor/simaris"],
+    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriAsymmetricalLongBowPlayerWeaponBlueprint": ["data:duviri/enigma"],
+    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriHammerBlueprint": ["data:vendor/duviri/teshins-cave", "data:vendor/simaris"],
+    "items:/Lotus/Types/Recipes/Weapons/DuviriDualSwordsBlueprint": ["data:quest/the-duviri-paradox", "data:vendor/simaris"],
+    "items:/Lotus/Types/Recipes/Weapons/DaxDuviriKatanaBlueprint": ["data:vendor/duviri/teshins-cave", "data:vendor/simaris"],
+    "items:/Lotus/Types/Recipes/Weapons/PaxDuviricusShotgunBlueprint": ["data:vendor/duviri/acrithis"],
 
     "items:/Lotus/Powersuits/PaxDuviricus/PaxDuviricus": ["data:duviri/kullervo"],
     "items:/Lotus/Types/Recipes/WarframeRecipes/PaxDuviricusChassisComponent": ["data:duviri/kullervo"],

@@ -31,7 +31,8 @@ describe("custom rivens", () => {
     };
 
     const scaledEntry = buildCustomRivenEntry(record, acceltra!);
-    expect(scaledEntry.statsLabel).toContain("+118.2% Damage");
+    const expectedDamage = (100 * acceltra!.disposition / acceltraPrime!.disposition).toFixed(1);
+    expect(scaledEntry.statsLabel).toContain(`+${expectedDamage}% Damage`);
   });
 
   it("treats coda progenitor weapons as overlevel-capable", () => {

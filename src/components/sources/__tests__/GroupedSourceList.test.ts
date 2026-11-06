@@ -122,13 +122,20 @@ describe("inventory cache normalization", () => {
         expect(drops.some((drop) => drop.location === "Ceres/Ker (Caches), Rotation C" && drop.chance === 4.4)).toBe(true);
     });
 
-    it("does not hydrate recipe parts from unrelated global items that share a generic name", () => {
+    it("uses the drop record attached to the exact Archwing recipe component", () => {
         const drops = resolveComponentDrops({
             uniqueName: "/Lotus/Types/Recipes/Weapons/WeaponParts/ArchLongRifleStock",
             name: "Stock",
         });
 
-        expect(drops).toEqual([]);
+        expect(drops).toEqual([
+            {
+                location: "New Loka, Bountiful",
+                type: "Phaedra Stock",
+                chance: 100,
+                rarity: "Common",
+            },
+        ]);
     });
 
     it("hydrates missing resource drop rows from the derived reverse-drop index", () => {
@@ -375,7 +382,7 @@ describe("inventory cache normalization", () => {
                 badges: expect.arrayContaining([expect.objectContaining({ label: "Rot C" })]),
             }),
             expect.objectContaining({
-                title: "Jupiter/Ganymede (Disruption)",
+                title: "Mission: Jupiter/Ganymede (Disruption)",
                 dedupeKey: "mission:jupiter/ganymede",
             }),
         ]));

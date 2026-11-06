@@ -15,7 +15,7 @@ export function deriveSynthicatorBlueprintAcquisitionByCatalogId(): Record<strin
         const path = safeString(rec?.path) ?? safeString(rec?.raw?.rawLotus?.path);
         if (!path?.startsWith(SYNTHICATOR_RECIPE_PREFIX)) continue;
 
-        out[catalogId] = { sources: ["data:vendor/cetus/nakak"] };
+        out[catalogId] = { sources: ["data:vendor/cetus/nakak/synthicator-blueprints"] };
     }
 
     return out;

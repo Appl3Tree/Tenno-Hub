@@ -11,6 +11,10 @@
     "displayName": "35mm Film",
     "edges": []
   },
+  "items:/Lotus/Types/Items/SongItems/NightwaveFablesSongItem": {
+    "displayName": "A Byte-Sized Adventure",
+    "edges": []
+  },
   "items:/Lotus/Types/Restoratives/Consumable/BaseSpearFishingSpear": {
     "displayName": "A Fishing Spear",
     "edges": []
@@ -464,6 +468,48 @@
         "count": 2
       }
     ]
+  },
+  "items:/Lotus/Weapons/Tenno/LongGuns/PrimeAfentis/PrimeAfentisWeapon": {
+    "displayName": "Afentis Prime",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBarrel": {
+    "displayName": "Afentis Prime Barrel",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBlade": {
+    "displayName": "Afentis Prime Blade",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint": {
+    "displayName": "Afentis Prime Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBarrel",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBlade",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 10
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeHandle": {
+    "displayName": "Afentis Prime Handle",
+    "edges": []
   },
   "items:/Lotus/Types/StoreItems/Boosters/AffinityBoosterStoreItem": {
     "displayName": "Affinityboosterstoreitem",
@@ -1053,6 +1099,44 @@
     "displayName": "Aksomati Prime Receiver",
     "edges": []
   },
+  "items:/Lotus/Weapons/Tenno/Pistols/DuelistPistols/DuelistPistols": {
+    "displayName": "Aksondol",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel": {
+    "displayName": "Aksondol Barrel",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint": {
+    "displayName": "Aksondol Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel",
+        "count": 2
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver",
+        "count": 2
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink": {
+    "displayName": "Aksondol Link",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver": {
+    "displayName": "Aksondol Receiver",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Tenno/Pistols/TennoUzi/TennoUzi": {
     "displayName": "Akstiletto",
     "edges": [
@@ -1507,6 +1591,10 @@
   },
   "items:/Lotus/Types/Items/Deimos/AnimalTagInfestedNexiferaCommon": {
     "displayName": "Amethyst Nexifera Tag",
+    "edges": []
+  },
+  "items:/Lotus/Types/Items/MiscItems/NoraIntermissionSixteenCreds": {
+    "displayName": "Amir's Shockwave Cred",
     "edges": []
   },
   "items:/Lotus/Types/Items/MiscItems/WeaponAmpArcaneUnlocker": {
@@ -2256,6 +2344,10 @@
     "displayName": "Artillery Battery Scene",
     "edges": []
   },
+  "items:/Lotus/Types/Challenges/Seasons/Daily/SeasonDailyArtist": {
+    "displayName": "Artist",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Infested/Melee/InfWarfan/InfWarfanWeapon": {
     "displayName": "Arum Spinosa",
     "edges": [
@@ -2615,6 +2707,40 @@
         "count": 5
       }
     ]
+  },
+  "items:/Lotus/Weapons/Tenno/Pistols/PrimeAthodai/PrimeAthodaiPistolWeapon": {
+    "displayName": "Athodai Prime",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeBarrel": {
+    "displayName": "Athodai Prime Barrel",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint": {
+    "displayName": "Athodai Prime Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeBarrel",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeReceiver",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeReceiver": {
+    "displayName": "Athodai Prime Receiver",
+    "edges": []
   },
   "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPistolReceiver": {
     "displayName": "Athodai Receiver",
@@ -3004,6 +3130,10 @@
     "displayName": "Avionics",
     "edges": []
   },
+  "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsComponent": {
+    "displayName": "Avionics",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Lasria/AK47/TC2024AK47Weapon": {
     "displayName": "Ax-52",
     "edges": [
@@ -3311,6 +3441,10 @@
         "count": 1200
       }
     ]
+  },
+  "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/Secondary/BallisticaIncarnonUnlocker": {
+    "displayName": "Ballistica Incarnon Genesis",
+    "edges": []
   },
   "items:/Lotus/Weapons/Tenno/Pistols/PrimeBallistica/PrimeBallistica": {
     "displayName": "Ballistica Prime",
@@ -3831,6 +3965,10 @@
         "count": 20
       }
     ]
+  },
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardBattleHardened": {
+    "displayName": "Battle Hardened",
+    "edges": []
   },
   "items:/Lotus/Types/Items/Eidolon/AnimalTagVampireKavatUncommon": {
     "displayName": "Bau Vasca Kavat Tag",
@@ -4566,6 +4704,10 @@
   },
   "items:/Lotus/Types/Items/SyndicateDogTags/NewLokaUncommonDogTag": {
     "displayName": "Bountiful Seed",
+    "edges": []
+  },
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyBowOffense": {
+    "displayName": "Bow Offense",
     "edges": []
   },
   "items:/Lotus/Types/Items/RailjackMiscItems/BracoidRailjackItem": {
@@ -5858,6 +6000,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/SongItems/CelestialClashSongItem": {
+    "displayName": "Celestial Clash",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Tenno/Archwing/Melee/Archswordandshield/ArchSwordShield": {
     "displayName": "Centaur",
     "edges": [
@@ -6646,6 +6792,60 @@
       }
     ]
   },
+  "items:/Lotus/Powersuits/Geode/CitrinePrime": {
+    "displayName": "Citrine Prime",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint": {
+    "displayName": "Citrine Prime Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsComponent",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisComponent": {
+    "displayName": "Citrine Prime Chassis",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisBlueprint": {
+    "displayName": "Citrine Prime Chassis Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent": {
+    "displayName": "Citrine Prime Neuroptics",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetBlueprint": {
+    "displayName": "Citrine Prime Neuroptics Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsComponent": {
+    "displayName": "Citrine Prime Systems",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsBlueprint": {
+    "displayName": "Citrine Prime Systems Blueprint",
+    "edges": []
+  },
   "items:/Lotus/Types/Recipes/WarframeRecipes/GeodeSystemsComponent": {
     "displayName": "Citrine Systems",
     "edges": [
@@ -6961,10 +7161,6 @@
   },
   "items:/Lotus/Types/Gameplay/Eidolon/Resources/BirdOfPreyPartItem": {
     "displayName": "Condroc Wing",
-    "edges": []
-  },
-  "items:/Lotus/Types/Challenges/Seasons/Daily/SeasonDailyHijackCrewship": {
-    "displayName": "Confiscated",
     "edges": []
   },
   "items:/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemC": {
@@ -7417,6 +7613,48 @@
     "displayName": "Corufell Handle",
     "edges": []
   },
+  "items:/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon": {
+    "displayName": "Corufell Prime",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint": {
+    "displayName": "Corufell Prime Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 15
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeReceiver",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeHandle": {
+    "displayName": "Corufell Prime Handle",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeReceiver": {
+    "displayName": "Corufell Prime Receiver",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel": {
+    "displayName": "Corufell Prime Stock",
+    "edges": []
+  },
   "items:/Lotus/Types/Recipes/Weapons/WeaponParts/GunScytheReceiver": {
     "displayName": "Corufell Receiver",
     "edges": []
@@ -7569,6 +7807,10 @@
   },
   "items:/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalAmar": {
     "displayName": "Crimson Archon Shard",
+    "edges": []
+  },
+  "items:/Lotus/Types/JadeShadowsPart2Mission/Gameplay/Resources/GarudaFavor": {
+    "displayName": "Crimson Talent",
     "edges": []
   },
   "items:/Lotus/Types/Items/Gems/Eidolon/RareGemAItem": {
@@ -8864,6 +9106,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/Melee/DestrezaIncarnonUnlocker": {
+    "displayName": "Destreza Incarnon Genesis",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Tenno/Melee/Swords/PRapier/DestrezaPrime": {
     "displayName": "Destreza Prime",
     "edges": [
@@ -9118,6 +9364,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/SongItems/DevourerSongItem": {
+    "displayName": "Devourer",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Tenno/Melee/Swords/DexTheSecond/DexTheSecond": {
     "displayName": "Dex Dakra",
     "edges": []
@@ -9363,6 +9613,10 @@
         "count": 60
       }
     ]
+  },
+  "items:/Lotus/Types/Items/PhotoBooth/Vania/PhotoboothTileMallHubTennoProtoRelayBase": {
+    "displayName": "Dominion of Höllvandeim Scene",
+    "edges": []
   },
   "items:/Lotus/Types/Gameplay/DuviriMITW/Resources/DuviriMurmurItemEvent": {
     "displayName": "Dominus Aureus",
@@ -10696,6 +10950,10 @@
     "displayName": "Elemental Vice",
     "edges": []
   },
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardElementaryMyDear": {
+    "displayName": "Elementary, My Dear",
+    "edges": []
+  },
   "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyCompleteExterminate": {
     "displayName": "Eliminator",
     "edges": []
@@ -11016,6 +11274,10 @@
     "displayName": "Emerald Archon Shard",
     "edges": []
   },
+  "items:/Lotus/Types/JadeShadowsPart2Mission/Gameplay/Resources/AshFavor": {
+    "displayName": "Emerald Talent",
+    "edges": []
+  },
   "items:/Lotus/Types/Items/MiscItems/NoraInfestedCreds": {
     "displayName": "Emissary Cred",
     "edges": []
@@ -11107,6 +11369,10 @@
     "displayName": "Engines",
     "edges": []
   },
+  "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesComponent": {
+    "displayName": "Engines",
+    "edges": []
+  },
   "items:/Lotus/Types/Gameplay/Duviri/Resource/DuviriPuzzleItem": {
     "displayName": "Enigma Gyrum",
     "edges": []
@@ -11171,6 +11437,10 @@
   },
   "items:/Lotus/Types/Gameplay/EntratiLab/Resources/EntratiLabDogTag": {
     "displayName": "Entratilabdogtag",
+    "edges": []
+  },
+  "items:/Lotus/Types/Gameplay/Zariman/Resources/EntropicKuvaItem": {
+    "displayName": "Entropic Kuva",
     "edges": []
   },
   "items:/Lotus/Weapons/Tenno/Pistols/TnWraitheSidearm/TnWraitheSidearmWeapon": {
@@ -11382,7 +11652,7 @@
       }
     ]
   },
-  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyEternalGuardian": {
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardEternalGuardian": {
     "displayName": "Eternal Guardian",
     "edges": []
   },
@@ -13003,10 +13273,6 @@
       }
     ]
   },
-  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyRailjackHijackDestroyThree": {
-    "displayName": "Friendly Fire",
-    "edges": []
-  },
   "items:/Lotus/Types/Items/Solaris/AnimalTagSawgawRare": {
     "displayName": "Frogmouthed Sawgaw Tag",
     "edges": []
@@ -13380,6 +13646,10 @@
     "edges": []
   },
   "items:/Lotus/Types/Recipes/LandingCraftRecipes/ZarimanShip/ZarimanShipFuselageComponent": {
+    "displayName": "Fuselage",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageComponent": {
     "displayName": "Fuselage",
     "edges": []
   },
@@ -14536,6 +14806,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/PhotoBooth/Zariman/PhotoboothTileZarMelicaLabTreasureRoom": {
+    "displayName": "Glacial Laboratory Scene",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Tenno/Melee/Glaives/LightGlaive/LightGlaiveWeapon": {
     "displayName": "Glaive",
     "edges": [
@@ -14764,6 +15038,10 @@
         "count": 10
       }
     ]
+  },
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardGoingDown": {
+    "displayName": "Going Down",
+    "edges": []
   },
   "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyCompleteClemMission": {
     "displayName": "Good Friend",
@@ -15898,6 +16176,10 @@
     "displayName": "Gyromag Systems",
     "edges": []
   },
+  "items:/Lotus/Weapons/Sentients/SentOctaMiniGun/SentOctaMiniGun": {
+    "displayName": "Haalvu",
+    "edges": []
+  },
   "items:/Lotus/Types/Gameplay/Duviri/Resource/Fish/DuviriFishCItem": {
     "displayName": "Haav",
     "edges": []
@@ -16940,7 +17222,7 @@
     "displayName": "Higasa Stock",
     "edges": []
   },
-  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyHighGround": {
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardHighGround": {
     "displayName": "High Ground",
     "edges": []
   },
@@ -17332,6 +17614,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardHoldTheMushrooms": {
+    "displayName": "Hold The Mushrooms",
+    "edges": []
+  },
   "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardKuvaSurvivalNoCapsules": {
     "displayName": "Hold Your Breath",
     "edges": []
@@ -17493,6 +17779,32 @@
   "items:/Lotus/Types/Items/MiscItems/PhotoboothTileBardBossArena": {
     "displayName": "Hunhow's Datascape Scene",
     "edges": []
+  },
+  "items:/Lotus/Types/JadeShadowsPart2Mission/Gameplay/Resources/HunhowTrinketMiscItem": {
+    "displayName": "Hunhow's Trinket",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/HunhowTrinketBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/HunhowTrinketBlueprint": {
+    "displayName": "Hunhow's Trinket Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/ArgonCrystal",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Alertium",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 1
+      }
+    ]
   },
   "items:/Lotus/Types/Game/KubrowPet/FurtiveKubrowPetPowerSuit": {
     "displayName": "Huras Kubrow",
@@ -17797,6 +18109,10 @@
         "count": 15
       }
     ]
+  },
+  "items:/Lotus/Types/Items/SongItems/IceSpeakerSongItem": {
+    "displayName": "Ice Speaker",
+    "edges": []
   },
   "items:/Lotus/Types/Gameplay/Tau/Resources/CoHResourceCommonItem": {
     "displayName": "Ignia",
@@ -20985,6 +21301,10 @@
     "displayName": "Kuva Twin Stubbas Blueprint",
     "edges": []
   },
+  "items:/Lotus/Types/Items/PhotoBooth/JadeShadows/PhotoboothTileJS2GarShipInterior": {
+    "displayName": "Kuva Wytch Scene",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Zarr/KuvaZarr": {
     "displayName": "Kuva Zarr",
     "edges": []
@@ -21654,6 +21974,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/MassDriver/AutoCannon/LavanAutoCannonTierD": {
+    "displayName": "Lavan Apoc Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/Blaster/LavanBlasterTierA": {
     "displayName": "Lavan Carcinnox Mk I",
     "edges": [
@@ -21716,6 +22040,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/Laser/Blaster/LavanBlasterTierD": {
+    "displayName": "Lavan Carcinnox Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/Laser/Blaster/LavanBlasterShotgunTierA": {
     "displayName": "Lavan Cryophon Mk I",
@@ -21780,6 +22108,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/Blaster/LavanBlasterShotgunTierD": {
+    "displayName": "Lavan Cryophon Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/IceSniper/LavanIceSniperCannonTierA": {
     "displayName": "Lavan Glazio Mk I",
     "edges": [
@@ -21842,6 +22174,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/IceSniper/LavanIceSniperCannonTierD": {
+    "displayName": "Lavan Glazio Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/ShrapnelShotgun/LavanShrapnelShotgunTierA": {
     "displayName": "Lavan Laith Mk I",
@@ -21906,6 +22242,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/ShrapnelShotgun/LavanShrapnelShotgunTierD": {
+    "displayName": "Lavan Laith Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/Beam/LavanRailJackBeamWeaponTierA": {
     "displayName": "Lavan Photor Mk I",
     "edges": [
@@ -21968,6 +22308,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/Laser/Beam/LavanRailJackBeamWeaponTierD": {
+    "displayName": "Lavan Photor Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/Laser/PulseLaser/LavanPulseLaserTierA": {
     "displayName": "Lavan Pulsar Mk I",
@@ -22032,6 +22376,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/PulseLaser/LavanPulseLaserTierD": {
+    "displayName": "Lavan Pulsar Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/GatlingLaser/LavanGatlingLaserTierA": {
     "displayName": "Lavan Talyn Mk I",
     "edges": [
@@ -22095,6 +22443,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/GatlingLaser/LavanGatlingLaserTierD": {
+    "displayName": "Lavan Talyn Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/ElectricTether/LavanElectricTetherCannonTierA": {
     "displayName": "Lavan Vort Mk I",
     "edges": [
@@ -22157,6 +22509,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/ElectricTether/LavanElectricTetherCannonTierD": {
+    "displayName": "Lavan Vort Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Types/Items/PhotoBooth/Vania/PhotoboothTileVaniaIntMallReptilia": {
     "displayName": "Lavo's Playplace Scene",
@@ -24126,6 +24482,10 @@
     "displayName": "Melee Upgrade Segment",
     "edges": []
   },
+  "items:/Lotus/Types/Items/PhotoBooth/Zariman/PhotoboothTileZarMelicaLab": {
+    "displayName": "Melica's Laboratory Scene",
+    "edges": []
+  },
   "items:/Lotus/Types/Challenges/Seasons/Daily/SeasonDailyKillEnemiesWithCorrosive": {
     "displayName": "Meltdown",
     "edges": []
@@ -24874,6 +25234,10 @@
     "displayName": "Mood Crystal",
     "edges": []
   },
+  "items:/Lotus/Types/Gameplay/Events/RoadToTauEvent/RoadToTauEventResource": {
+    "displayName": "Moonflesh",
+    "edges": []
+  },
   "items:/Lotus/Types/Items/Plants/MiscItems/UnCommonNightPlantItem": {
     "displayName": "Moonlight Dragonlily",
     "edges": []
@@ -25452,6 +25816,60 @@
     "displayName": "Naramon Lens",
     "edges": []
   },
+  "items:/Lotus/Powersuits/Duelist/Duelist": {
+    "displayName": "Narin",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/NarinBlueprint": {
+    "displayName": "Narin Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent": {
+    "displayName": "Narin Chassis",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/NarinChassisBlueprint": {
+    "displayName": "Narin Chassis Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent": {
+    "displayName": "Narin Neuroptics",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetBlueprint": {
+    "displayName": "Narin Neuroptics Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent": {
+    "displayName": "Narin Systems",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsBlueprint": {
+    "displayName": "Narin Systems Blueprint",
+    "edges": []
+  },
   "items:/Lotus/Types/Items/MiscItems/NarmerBountyResource": {
     "displayName": "Narmer Isoplast",
     "edges": []
@@ -25783,6 +26201,10 @@
         "count": 220
       }
     ]
+  },
+  "items:/Lotus/Types/Items/SongItems/NeotesDanceSongItem": {
+    "displayName": "Neote's Dance",
+    "edges": []
   },
   "items:/Lotus/Weapons/Archon/Melee/DualDaggers/ArchonDualDaggersPlayerWep": {
     "displayName": "Nepheri",
@@ -26318,7 +26740,33 @@
   },
   "items:/Lotus/Types/Items/Ships/NoraShip": {
     "displayName": "Nightwave",
-    "edges": []
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipBlueprint": {
+    "displayName": "Nightwave Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 1
+      }
+    ]
   },
   "items:/Lotus/Types/Items/SyndicateDogTags/NoraWolfDogTag": {
     "displayName": "Nightwave Standing",
@@ -27031,6 +27479,52 @@
     "displayName": "Numb",
     "edges": []
   },
+  "items:/Lotus/Weapons/Tenno/Bows/DuelistBow/DuelistBow": {
+    "displayName": "Nunchasa",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint": {
+    "displayName": "Nunchasa Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip": {
+    "displayName": "Nunchasa Grip",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb": {
+    "displayName": "Nunchasa Lower Limb",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString": {
+    "displayName": "Nunchasa String",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb": {
+    "displayName": "Nunchasa Upper Limb",
+    "edges": []
+  },
   "items:/Lotus/Types/Items/ShipFeatureItems/GeneticFoundryUpgradeFeatureItem": {
     "displayName": "Nutrio Incubator Upgrade Segment",
     "edges": [
@@ -27484,6 +27978,10 @@
         "count": 300
       }
     ]
+  },
+  "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/Melee/ObexIncarnonUnlocker": {
+    "displayName": "Obex Incarnon Genesis",
+    "edges": []
   },
   "items:/Lotus/Powersuits/Bard/Bard": {
     "displayName": "Octavia",
@@ -28307,6 +28805,10 @@
   },
   "items:/Lotus/Types/Items/MiscItems/PhotoboothTilePlayerShip": {
     "displayName": "Orbiter Scene",
+    "edges": []
+  },
+  "items:/Lotus/Powersuits/SiriusOrion/OrionSuit": {
+    "displayName": "Orion & Sirius",
     "edges": []
   },
   "items:/Lotus/Types/Recipes/Weapons/WeaponParts/PrimeBoOrnament": {
@@ -29371,7 +29873,7 @@
     "displayName": "Perita Manifestation Scene",
     "edges": []
   },
-  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardPerplexed": {
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyPerplexed": {
     "displayName": "Perplexed",
     "edges": []
   },
@@ -30193,6 +30695,10 @@
     "displayName": "Polymer Bundle",
     "edges": []
   },
+  "items:/Lotus/Types/Items/PhotoBooth/JadeShadows/PhotoboothTileJS2Hub": {
+    "displayName": "Pontis Tower Scene",
+    "edges": []
+  },
   "items:/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackNacelleLeftFeatureItem": {
     "displayName": "Port Nacelle",
     "edges": [
@@ -30334,6 +30840,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/MiscItems/PhotoboothTileQuestTauNarmerThroneRoom": {
+    "displayName": "Praghasa Awakened Scene",
+    "edges": []
+  },
   "items:/Lotus/Types/Items/MiscItems/PhotoboothTileTNWBallasThroneRoomEnding": {
     "displayName": "Praghasa Throne Room Scene",
     "edges": []
@@ -30344,6 +30854,44 @@
   },
   "items:/Lotus/Types/Restoratives/Conservation/Deimos/InfestedPredatorRarityBoost": {
     "displayName": "Predasite Pheromone Gland",
+    "edges": []
+  },
+  "items:/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnSiriusScytheWeapon": {
+    "displayName": "Pride",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SiriusScytheBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBladeBlueprint": {
+    "displayName": "Pride Blade Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/SiriusScytheBlueprint": {
+    "displayName": "Pride Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandle": {
+    "displayName": "Pride Handle",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandleBlueprint": {
+    "displayName": "Pride Handle Blueprint",
     "edges": []
   },
   "items:/Lotus/Types/Items/MiscItems/WeaponPrimaryArcaneUnlocker": {
@@ -32489,6 +33037,10 @@
     "displayName": "Rifle Ammo Box",
     "edges": []
   },
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyRifleOffense": {
+    "displayName": "Rifle Offense",
+    "edges": []
+  },
   "items:/Lotus/Types/Recipes/Weapons/WeaponParts/FuraxWraithRightGauntlet": {
     "displayName": "Right Gauntlet",
     "edges": []
@@ -32571,6 +33123,10 @@
   },
   "items:/Lotus/Types/Items/MiscItems/RivenFragment": {
     "displayName": "Riven Sliver",
+    "edges": []
+  },
+  "items:/Lotus/Types/Items/MiscItems/RivenSplicer": {
+    "displayName": "Riven Splicer",
     "edges": []
   },
   "items:/Lotus/Types/Gameplay/Eidolon/Resources/SentientSecretItem": {
@@ -32787,6 +33343,10 @@
     "displayName": "Rune Marrow",
     "edges": []
   },
+  "items:/Lotus/Types/Items/SongItems/NightwaveRunningLateSongItem": {
+    "displayName": "Running Late",
+    "edges": []
+  },
   "items:/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCDeck": {
     "displayName": "Runway",
     "edges": [
@@ -32849,6 +33409,10 @@
   },
   "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyCompleteSabotage": {
     "displayName": "Saboteur",
+    "edges": []
+  },
+  "items:/Lotus/Types/Items/SongItems/SacredLightSongItem": {
+    "displayName": "Sacred Light",
     "edges": []
   },
   "items:/Lotus/Types/Keys/MummyQuest/MummyArtifact01GearItem": {
@@ -33422,6 +33986,10 @@
         "count": 1
       }
     ]
+  },
+  "items:/Lotus/Types/Items/PhotoBooth/JadeShadows/PhotoboothTileJS2AshShipInterior": {
+    "displayName": "Scoria's Angel Scene",
+    "edges": []
   },
   "items:/Lotus/Types/Restoratives/Consumable/MacheteWomanBall": {
     "displayName": "Scorpion Specter",
@@ -34263,6 +34831,10 @@
     "displayName": "Shotgun Ammo Box",
     "edges": []
   },
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyShotgunOffense": {
+    "displayName": "Shotgun Offense",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartB": {
     "displayName": "Shraksun Scaffold",
     "edges": [
@@ -34607,6 +35179,60 @@
       }
     ]
   },
+  "items:/Lotus/Powersuits/SiriusOrion/SiriusSuit": {
+    "displayName": "Sirius & Orion",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionBlueprint": {
+    "displayName": "Sirius & Orion Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 3
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsComponent",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisComponent": {
+    "displayName": "Sirius & Orion Chassis",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisBlueprint": {
+    "displayName": "Sirius & Orion Chassis Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetComponent": {
+    "displayName": "Sirius & Orion Neuroptics",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetBlueprint": {
+    "displayName": "Sirius & Orion Neuroptics Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsComponent": {
+    "displayName": "Sirius & Orion Systems",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsBlueprint": {
+    "displayName": "Sirius & Orion Systems Blueprint",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Operator/Pistols/DrifterPistol/DrifterPistolPlayerWeapon": {
     "displayName": "Sirocco",
     "edges": []
@@ -34829,6 +35455,10 @@
   },
   "items:/Lotus/Types/Restoratives/SelfSniperAmmo": {
     "displayName": "Sniper Ammo Box",
+    "edges": []
+  },
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklySniperOffense": {
+    "displayName": "Sniper Offense",
     "edges": []
   },
   "items:/Lotus/Weapons/Tenno/Rifle/SniperRifle": {
@@ -35183,6 +35813,10 @@
   },
   "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardFastCapture": {
     "displayName": "Speedster",
+    "edges": []
+  },
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardSpiderHunt": {
+    "displayName": "Spider Hunt",
     "edges": []
   },
   "items:/Lotus/Types/Items/Fish/Deimos/FishParts/DeimosOrokinFishBPartItem": {
@@ -35988,6 +36622,48 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/Tenno/LongGuns/PrimeSteflos/PrimeSteflosShotgun": {
+    "displayName": "Steflos Prime",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeBarrel": {
+    "displayName": "Steflos Prime Barrel",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint": {
+    "displayName": "Steflos Prime Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeBarrel",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeReceiver",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeStock",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeReceiver": {
+    "displayName": "Steflos Prime Receiver",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeStock": {
+    "displayName": "Steflos Prime Stock",
+    "edges": []
+  },
   "items:/Lotus/Types/Recipes/Weapons/WeaponParts/TnoLotusPodShotgunReceiver": {
     "displayName": "Steflos Receiver",
     "edges": []
@@ -36360,6 +37036,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/Secondary/StugIncarnonUnlocker": {
+    "displayName": "Stug Incarnon Genesis",
+    "edges": []
+  },
   "items:/Lotus/Types/Restoratives/Consumable/RobofishSpearC": {
     "displayName": "Stunna Fishing Spear",
     "edges": [
@@ -36461,6 +37141,60 @@
         "count": 5
       }
     ]
+  },
+  "items:/Lotus/Powersuits/Hoplite/StyanaxPrime": {
+    "displayName": "Styanax Prime",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeBlueprint": {
+    "displayName": "Styanax Prime Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsComponent",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisComponent": {
+    "displayName": "Styanax Prime Chassis",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisBlueprint": {
+    "displayName": "Styanax Prime Chassis Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetComponent": {
+    "displayName": "Styanax Prime Neuroptics",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetBlueprint": {
+    "displayName": "Styanax Prime Neuroptics Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsComponent": {
+    "displayName": "Styanax Prime Systems",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsBlueprint": {
+    "displayName": "Styanax Prime Systems Blueprint",
+    "edges": []
   },
   "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxSystemsComponent": {
     "displayName": "Styanax Systems",
@@ -36680,6 +37414,32 @@
   "items:/Lotus/Weapons/Corpus/LongGuns/Machinegun/SupraVandal": {
     "displayName": "Supra Vandal",
     "edges": []
+  },
+  "items:/Lotus/Types/Restoratives/Consumable/SurgeEximusBall": {
+    "displayName": "Surge Eximus Specter",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Components/SurgeEximusBallBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Components/SurgeEximusBallBlueprint": {
+    "displayName": "Surge Eximus Specter Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Ferrite",
+        "count": 2500
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Nanospores",
+        "count": 2500
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Salvage",
+        "count": 2500
+      }
+    ]
   },
   "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardFriendsSurvival": {
     "displayName": "Survival",
@@ -37289,15 +38049,15 @@
     "displayName": "Technocyte Coda Token",
     "edges": []
   },
+  "items:/Lotus/Types/Game/Nemesis/KuvaLich/CapturedInfestedLichToken": {
+    "displayName": "Technocyte Coda Token",
+    "edges": []
+  },
   "items:/Lotus/Types/Game/Nemesis/KuvaLich/CapturedInfestedPacketToken": {
     "displayName": "Technocyte Coda Token",
     "edges": []
   },
   "items:/Lotus/Types/Game/Nemesis/KuvaLich/CapturedInfestedZekeToken": {
-    "displayName": "Technocyte Coda Token",
-    "edges": []
-  },
-  "items:/Lotus/Types/Game/Nemesis/KuvaLich/CapturedInfestedLichToken": {
     "displayName": "Technocyte Coda Token",
     "edges": []
   },
@@ -37927,10 +38687,6 @@
     "displayName": "The Abandoned Vessel Scene",
     "edges": []
   },
-  "items:/Lotus/Types/Items/SongItems/TheAwakeningSongItem": {
-    "displayName": "The Awakening",
-    "edges": []
-  },
   "items:/Lotus/Types/Items/DangerRoom/DangerRoomTileArena": {
     "displayName": "The Ballroom Simulacrum",
     "edges": []
@@ -37971,7 +38727,7 @@
     "displayName": "The Great Kim",
     "edges": []
   },
-  "items:/Lotus/Types/Challenges/Seasons/Daily/SeasonDailyPickUpMedallion": {
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyPickUpMedallion": {
     "displayName": "The Hunt Is on",
     "edges": []
   },
@@ -38687,6 +39443,10 @@
     "displayName": "Tnwarchonitembase",
     "edges": []
   },
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyToAshes": {
+    "displayName": "To Ashes",
+    "edges": []
+  },
   "items:/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelBPart": {
     "displayName": "Tombfinger",
     "edges": [
@@ -38959,6 +39719,10 @@
   },
   "items:/Lotus/Types/Items/Gems/Solaris/SolarisCommonOreAItem": {
     "displayName": "Travoride",
+    "edges": []
+  },
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardTreasureFromThePast": {
+    "displayName": "Treasure From The Past",
     "edges": []
   },
   "items:/Lotus/Types/Items/RelayRebuild/PhaseThreeEarthEssence": {
@@ -40808,6 +41572,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/Primary/VectisIncarnonUnlocker": {
+    "displayName": "Vectis Incarnon Genesis",
+    "edges": []
+  },
   "items:/Lotus/Weapons/Tenno/LongGuns/PrimeVectis/PrimeVectisRifle": {
     "displayName": "Vectis Prime",
     "edges": [
@@ -41453,6 +42221,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/MassDriver/AutoCannon/VidarAutoCannonTierD": {
+    "displayName": "Vidar Apoc Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/Blaster/VidarBlasterTierA": {
     "displayName": "Vidar Carcinnox Mk I",
     "edges": [
@@ -41515,6 +42287,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/Laser/Blaster/VidarBlasterTierD": {
+    "displayName": "Vidar Carcinnox Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/Laser/Blaster/VidarBlasterShotgunTierA": {
     "displayName": "Vidar Cryophon Mk I",
@@ -41579,6 +42355,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/Blaster/VidarBlasterShotgunTierD": {
+    "displayName": "Vidar Cryophon Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/IceSniper/VidarIceSniperCannonTierA": {
     "displayName": "Vidar Glazio Mk I",
     "edges": [
@@ -41641,6 +42421,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/IceSniper/VidarIceSniperCannonTierD": {
+    "displayName": "Vidar Glazio Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/ShrapnelShotgun/VidarShrapnelShotgunTierA": {
     "displayName": "Vidar Laith Mk I",
@@ -41705,6 +42489,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/ShrapnelShotgun/VidarShrapnelShotgunTierD": {
+    "displayName": "Vidar Laith Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/Beam/VidarRailJackBeamWeaponTierA": {
     "displayName": "Vidar Photor Mk I",
     "edges": [
@@ -41767,6 +42555,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/Laser/Beam/VidarRailJackBeamWeaponTierD": {
+    "displayName": "Vidar Photor Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/Laser/PulseLaser/VidarPulseLaserTierA": {
     "displayName": "Vidar Pulsar Mk I",
@@ -41831,6 +42623,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/PulseLaser/VidarPulseLaserTierD": {
+    "displayName": "Vidar Pulsar Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/GatlingLaser/VidarGatlingLaserTierA": {
     "displayName": "Vidar Talyn Mk I",
     "edges": [
@@ -41894,6 +42690,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/GatlingLaser/VidarGatlingLaserTierD": {
+    "displayName": "Vidar Talyn Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/ElectricTether/VidarElectricTetherCannonTierA": {
     "displayName": "Vidar Vort Mk I",
     "edges": [
@@ -41956,6 +42756,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/ElectricTether/VidarElectricTetherCannonTierD": {
+    "displayName": "Vidar Vort Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon": {
     "displayName": "Vinquibus",
@@ -42143,6 +42947,10 @@
   },
   "items:/Lotus/Types/Items/Deimos/AnimalTagInfestedPredatorCommon": {
     "displayName": "Vizier Predasite Tag",
+    "edges": []
+  },
+  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyVoidNet": {
+    "displayName": "Void Net",
     "edges": []
   },
   "items:/Lotus/Types/Items/ShipFeatureItems/VoidProjectionFeatureItem": {
@@ -42939,6 +43747,10 @@
     "displayName": "War Hilt",
     "edges": []
   },
+  "items:/Lotus/Weapons/Tenno/Melee/Swords/PrimeWar/PrimeWarWeapon": {
+    "displayName": "War Prime",
+    "edges": []
+  },
   "items:/Lotus/Types/Challenges/Seasons/Daily/SeasonDailyKillEnemies": {
     "displayName": "Warning Shot",
     "edges": []
@@ -42969,6 +43781,10 @@
   },
   "items:/Lotus/Types/Items/Solaris/AnimalTagVirminkCommon": {
     "displayName": "White-Breasted Virmink Tag",
+    "edges": []
+  },
+  "items:/Lotus/Types/Challenges/Seasons/Daily/SeasonDailyWholeArsenal": {
+    "displayName": "Whole Arsenal",
     "edges": []
   },
   "items:/Lotus/Types/Items/MiscItems/PhotoboothTileDuviriIsleCapC": {
@@ -43251,6 +44067,52 @@
   },
   "items:/Lotus/Types/Items/PhotoBooth/TauOldPeace/PhotoboothTileTauOldPeaceIntTerraformerEgg": {
     "displayName": "World-Seeder Scene",
+    "edges": []
+  },
+  "items:/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnOrionScytheWeapon": {
+    "displayName": "Wrath",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/OrionScytheBlueprint",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade": {
+    "displayName": "Wrath Blade",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade": {
+    "displayName": "Wrath Blade",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBladeBlueprint": {
+    "displayName": "Wrath Blade Blueprint",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/OrionScytheBlueprint": {
+    "displayName": "Wrath Blueprint",
+    "edges": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade",
+        "count": 1
+      }
+    ]
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandle": {
+    "displayName": "Wrath Handle",
+    "edges": []
+  },
+  "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandleBlueprint": {
+    "displayName": "Wrath Handle Blueprint",
     "edges": []
   },
   "items:/Lotus/Powersuits/MonkeyKing/MonkeyKing": {
@@ -43946,6 +44808,10 @@
       }
     ]
   },
+  "items:/Lotus/Types/Items/SongItems/YareliPrimeSongItem": {
+    "displayName": "Yareli Prime Theme Waverider",
+    "edges": []
+  },
   "items:/Lotus/Types/Recipes/WarframeRecipes/YareliSystemsComponent": {
     "displayName": "Yareli Systems",
     "edges": [
@@ -43969,6 +44835,10 @@
   },
   "items:/Lotus/Types/Items/Fish/Eidolon/FishParts/DayCommonFishCPartItem": {
     "displayName": "Yogwun Stomach",
+    "edges": []
+  },
+  "items:/Lotus/Types/Items/MiscItems/PhotoboothTileTWWMountainPeakHub": {
+    "displayName": "Yuvan Peak Scene",
     "edges": []
   },
   "items:/Lotus/Weapons/Tenno/Pistols/TnGuandoPistol/TnGuandoPistolGun": {
@@ -44089,7 +44959,7 @@
     "displayName": "Zariman Angel Roost Scene",
     "edges": []
   },
-  "items:/Lotus/Types/Challenges/Seasons/Weekly/SeasonWeeklyZarimanBountyHunter": {
+  "items:/Lotus/Types/Challenges/Seasons/WeeklyHard/SeasonWeeklyHardZarimanBountyHunter": {
     "displayName": "Zariman Bounty Hunter",
     "edges": []
   },
@@ -44488,6 +45358,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/MassDriver/AutoCannon/ZektiAutoCannonTierD": {
+    "displayName": "Zetki Apoc Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/Blaster/ZektiBlasterTierA": {
     "displayName": "Zetki Carcinnox Mk I",
     "edges": [
@@ -44550,6 +45424,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/Laser/Blaster/ZektiBlasterTierD": {
+    "displayName": "Zetki Carcinnox Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/Laser/Blaster/ZektiBlasterShotgunTierA": {
     "displayName": "Zetki Cryophon Mk I",
@@ -44614,6 +45492,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/Blaster/ZektiBlasterShotgunTierD": {
+    "displayName": "Zetki Cryophon Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/IceSniper/ZektiIceSniperCannonTierA": {
     "displayName": "Zetki Glazio Mk I",
     "edges": [
@@ -44676,6 +45558,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/IceSniper/ZektiIceSniperCannonTierD": {
+    "displayName": "Zetki Glazio Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/ShrapnelShotgun/ZektiShrapnelShotgunTierA": {
     "displayName": "Zetki Laith Mk I",
@@ -44740,6 +45626,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/ShrapnelShotgun/ZektiShrapnelShotgunTierD": {
+    "displayName": "Zetki Laith Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/Beam/ZektiRailJackBeamWeaponTierA": {
     "displayName": "Zetki Photor Mk I",
     "edges": [
@@ -44802,6 +45692,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/Laser/Beam/ZektiRailJackBeamWeaponTierD": {
+    "displayName": "Zetki Photor Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/CrewShip/Laser/PulseLaser/ZektiPulseLaserTierA": {
     "displayName": "Zetki Pulsar Mk I",
@@ -44866,6 +45760,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/PulseLaser/ZektiPulseLaserTierD": {
+    "displayName": "Zetki Pulsar Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/Laser/GatlingLaser/ZektiGatlingLaserTierA": {
     "displayName": "Zetki Talyn Mk I",
     "edges": [
@@ -44929,6 +45827,10 @@
       }
     ]
   },
+  "items:/Lotus/Weapons/CrewShip/Laser/GatlingLaser/ZektiGatlingLaserTierD": {
+    "displayName": "Zetki Talyn Mk Iv",
+    "edges": []
+  },
   "items:/Lotus/Weapons/CrewShip/ElectricTether/ZektiElectricTetherCannonTierA": {
     "displayName": "Zetki Vort Mk I",
     "edges": [
@@ -44991,6 +45893,10 @@
         "count": 600
       }
     ]
+  },
+  "items:/Lotus/Weapons/CrewShip/ElectricTether/ZektiElectricTetherCannonTierD": {
+    "displayName": "Zetki Vort Mk Iv",
+    "edges": []
   },
   "items:/Lotus/Weapons/Tenno/LongGuns/RepeatingCrossbow/RepeatingCrossbow": {
     "displayName": "Zhuge",

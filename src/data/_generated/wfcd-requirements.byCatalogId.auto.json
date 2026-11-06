@@ -2271,6 +2271,28 @@
     ],
     "note": "WFCD recipe (Gear.json)"
   },
+  "items:/Lotus/Types/Restoratives/Consumable/SurgeEximusBall": {
+    "outputCatalogId": "items:/Lotus/Types/Restoratives/Consumable/SurgeEximusBall",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Components/SurgeEximusBallBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Ferrite",
+        "count": 2500
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Nanospores",
+        "count": 2500
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Salvage",
+        "count": 2500
+      }
+    ],
+    "note": "WFCD recipe (Gear.json)"
+  },
   "items:/Lotus/Types/Restoratives/Consumable/Toxins/NightUnCommonAntitoxin": {
     "outputCatalogId": "items:/Lotus/Types/Restoratives/Consumable/Toxins/NightUnCommonAntitoxin",
     "components": [
@@ -3092,6 +3114,32 @@
       },
       {
         "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/GunScytheReceiver",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Melee.json)"
+  },
+  "items:/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 15
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeReceiver",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel",
         "count": 1
       }
     ],
@@ -6363,6 +6411,28 @@
     ],
     "note": "WFCD recipe (Melee.json)"
   },
+  "items:/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnSiriusScytheWeapon": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnSiriusScytheWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SiriusScytheBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Melee.json)"
+  },
   "items:/Lotus/Weapons/ClanTech/Energy/ElectroProd": {
     "outputCatalogId": "items:/Lotus/Weapons/ClanTech/Energy/ElectroProd",
     "components": [
@@ -8027,6 +8097,28 @@
       {
         "catalogId": "items:/Lotus/Types/Items/MiscItems/Alertium",
         "count": 5
+      }
+    ],
+    "note": "WFCD recipe (Melee.json)"
+  },
+  "items:/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnOrionScytheWeapon": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnOrionScytheWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/OrionScytheBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade",
+        "count": 1
       }
     ],
     "note": "WFCD recipe (Melee.json)"
@@ -10203,6 +10295,32 @@
       {
         "catalogId": "items:/Lotus/Types/Items/MiscItems/Salvage",
         "count": 25000
+      }
+    ],
+    "note": "WFCD recipe (Misc.json)"
+  },
+  "items:/Lotus/Types/Items/Ships/NoraShip": {
+    "outputCatalogId": "items:/Lotus/Types/Items/Ships/NoraShip",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 1
       }
     ],
     "note": "WFCD recipe (Misc.json)"
@@ -13113,6 +13231,32 @@
     ],
     "note": "WFCD recipe (Primary.json)"
   },
+  "items:/Lotus/Weapons/Tenno/LongGuns/PrimeAfentis/PrimeAfentisWeapon": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/LongGuns/PrimeAfentis/PrimeAfentisWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBarrel",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBlade",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeHandle",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 10
+      }
+    ],
+    "note": "WFCD recipe (Primary.json)"
+  },
   "items:/Lotus/Weapons/Tenno/LongGuns/GyreRifle/GyreRifleWeapon": {
     "outputCatalogId": "items:/Lotus/Weapons/Tenno/LongGuns/GyreRifle/GyreRifleWeapon",
     "components": [
@@ -15157,6 +15301,32 @@
     ],
     "note": "WFCD recipe (Primary.json)"
   },
+  "items:/Lotus/Weapons/Tenno/Bows/DuelistBow/DuelistBow": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/Bows/DuelistBow/DuelistBow",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Primary.json)"
+  },
   "items:/Lotus/Weapons/ClanTech/Chemical/RocketLauncher": {
     "outputCatalogId": "items:/Lotus/Weapons/ClanTech/Chemical/RocketLauncher",
     "components": [
@@ -16046,6 +16216,32 @@
       },
       {
         "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/TnoLotusPodShotgunStock",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Primary.json)"
+  },
+  "items:/Lotus/Weapons/Tenno/LongGuns/PrimeSteflos/PrimeSteflosShotgun": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/LongGuns/PrimeSteflos/PrimeSteflosShotgun",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeBarrel",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeReceiver",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeStock",
         "count": 1
       }
     ],
@@ -17615,6 +17811,28 @@
     ],
     "note": "WFCD recipe (Resources.json)"
   },
+  "items:/Lotus/Types/JadeShadowsPart2Mission/Gameplay/Resources/HunhowTrinketMiscItem": {
+    "outputCatalogId": "items:/Lotus/Types/JadeShadowsPart2Mission/Gameplay/Resources/HunhowTrinketMiscItem",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/ArgonCrystal",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/HunhowTrinketBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/Alertium",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Resources.json)"
+  },
   "items:/Lotus/Types/Items/RailjackMiscItems/IsosRailjackItem": {
     "outputCatalogId": "items:/Lotus/Types/Items/RailjackMiscItems/IsosRailjackItem",
     "components": [
@@ -18519,6 +18737,28 @@
     ],
     "note": "WFCD recipe (Secondary.json)"
   },
+  "items:/Lotus/Weapons/Tenno/Pistols/DuelistPistols/DuelistPistols": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/Pistols/DuelistPistols/DuelistPistols",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel",
+        "count": 2
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver",
+        "count": 2
+      }
+    ],
+    "note": "WFCD recipe (Secondary.json)"
+  },
   "items:/Lotus/Weapons/Tenno/Pistols/TennoUzi/TennoUzi": {
     "outputCatalogId": "items:/Lotus/Weapons/Tenno/Pistols/TennoUzi/TennoUzi",
     "components": [
@@ -18706,6 +18946,28 @@
       },
       {
         "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPistolReceiver",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Secondary.json)"
+  },
+  "items:/Lotus/Weapons/Tenno/Pistols/PrimeAthodai/PrimeAthodaiPistolWeapon": {
+    "outputCatalogId": "items:/Lotus/Weapons/Tenno/Pistols/PrimeAthodai/PrimeAthodaiPistolWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeBarrel",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeReceiver",
         "count": 1
       }
     ],
@@ -20935,110 +21197,6 @@
     ],
     "note": "WFCD recipe (Secondary.json)"
   },
-  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/CryoxionWeapon": {
-    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/CryoxionWeapon",
-    "components": [
-      {
-        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SentinelCryoxionWeaponBlueprint",
-        "count": 1
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/OrokinFishSaganModuleItem",
-        "count": 5
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/CommonGemBCutAItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/CorpusFishRotobladeItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisCommonGemBCutItem",
-        "count": 10
-      }
-    ],
-    "note": "WFCD recipe (SentinelWeapons.json)"
-  },
-  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/SwarmerWeapon": {
-    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/SwarmerWeapon",
-    "components": [
-      {
-        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SwarmerWeaponBlueprint",
-        "count": 1
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/SolarisFishNeuralRelayItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisRareGemACutItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/RareGemACutAItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/OrokinFishEcosynthAnalyzerItem",
-        "count": 1
-      }
-    ],
-    "note": "WFCD recipe (SentinelWeapons.json)"
-  },
-  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/TazronWeapon": {
-    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/TazronWeapon",
-    "components": [
-      {
-        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SentinelTazronWeaponBlueprint",
-        "count": 1
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/CommonGemBCutAItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/SolarisFishLatheCoogulantItem",
-        "count": 5
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/SolarisFishNeuralRelayItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisCommonGemACutItem",
-        "count": 10
-      }
-    ],
-    "note": "WFCD recipe (SentinelWeapons.json)"
-  },
-  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": {
-    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon",
-    "components": [
-      {
-        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SentinelThermocorWeaponBlueprint",
-        "count": 1
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisUncommonGemACutItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/CorpusFishThermalLaserItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/UncommonGemACutAItem",
-        "count": 10
-      },
-      {
-        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/OrokinFishEntroplasmaItem",
-        "count": 5
-      }
-    ],
-    "note": "WFCD recipe (SentinelWeapons.json)"
-  },
   "items:/Lotus/Types/Sentinels/SentinelPowersuits/CarrierPowerSuit": {
     "outputCatalogId": "items:/Lotus/Types/Sentinels/SentinelPowersuits/CarrierPowerSuit",
     "components": [
@@ -21450,6 +21608,110 @@
       }
     ],
     "note": "WFCD recipe (Sentinels.json)"
+  },
+  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/CryoxionWeapon": {
+    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/CryoxionWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SentinelCryoxionWeaponBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/OrokinFishSaganModuleItem",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/CommonGemBCutAItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/CorpusFishRotobladeItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisCommonGemBCutItem",
+        "count": 10
+      }
+    ],
+    "note": "WFCD recipe (SentinelWeapons.json)"
+  },
+  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/SwarmerWeapon": {
+    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/SwarmerWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SwarmerWeaponBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/SolarisFishNeuralRelayItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisRareGemACutItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/RareGemACutAItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/OrokinFishEcosynthAnalyzerItem",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (SentinelWeapons.json)"
+  },
+  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/TazronWeapon": {
+    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/TazronWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SentinelTazronWeaponBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/CommonGemBCutAItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/SolarisFishLatheCoogulantItem",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/SolarisFishNeuralRelayItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisCommonGemACutItem",
+        "count": 10
+      }
+    ],
+    "note": "WFCD recipe (SentinelWeapons.json)"
+  },
+  "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": {
+    "outputCatalogId": "items:/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Weapons/SentinelThermocorWeaponBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Solaris/SolarisUncommonGemACutItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/CorpusFishThermalLaserItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Gems/Eidolon/UncommonGemACutAItem",
+        "count": 10
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/Fish/Solaris/FishParts/OrokinFishEntroplasmaItem",
+        "count": 5
+      }
+    ],
+    "note": "WFCD recipe (SentinelWeapons.json)"
   },
   "items:/Lotus/Types/Items/ShipDecos/NokkoMushroomScrawlPosterG": {
     "outputCatalogId": "items:/Lotus/Types/Items/ShipDecos/NokkoMushroomScrawlPosterG",
@@ -24993,6 +25255,24 @@
       {
         "catalogId": "items:/Lotus/Types/Items/MiscItems/Rubedo",
         "count": 1200
+      }
+    ],
+    "note": "WFCD recipe (Skins.json)"
+  },
+  "items:/Lotus/Upgrades/Skins/Scarves/SiriusOrionBothSyandana": {
+    "outputCatalogId": "items:/Lotus/Upgrades/Skins/Scarves/SiriusOrionBothSyandana",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/Syandanas/SiriusOrionBothSyandanaBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Upgrades/Skins/Scarves/SiriusOrionLeftSyandana",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Upgrades/Skins/Scarves/SiriusOrionRightSyandana",
+        "count": 1
       }
     ],
     "note": "WFCD recipe (Skins.json)"
@@ -29183,6 +29463,32 @@
     ],
     "note": "WFCD recipe (Warframes.json)"
   },
+  "items:/Lotus/Powersuits/Geode/CitrinePrime": {
+    "outputCatalogId": "items:/Lotus/Powersuits/Geode/CitrinePrime",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsComponent",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Warframes.json)"
+  },
   "items:/Lotus/Powersuits/Frumentarius/Frumentarius": {
     "outputCatalogId": "items:/Lotus/Powersuits/Frumentarius/Frumentarius",
     "components": [
@@ -30453,6 +30759,32 @@
     ],
     "note": "WFCD recipe (Warframes.json)"
   },
+  "items:/Lotus/Powersuits/Duelist/Duelist": {
+    "outputCatalogId": "items:/Lotus/Powersuits/Duelist/Duelist",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Warframes.json)"
+  },
   "items:/Lotus/Powersuits/Necro/Necro": {
     "outputCatalogId": "items:/Lotus/Powersuits/Necro/Necro",
     "components": [
@@ -31155,6 +31487,32 @@
     ],
     "note": "WFCD recipe (Warframes.json)"
   },
+  "items:/Lotus/Powersuits/SiriusOrion/SiriusSuit": {
+    "outputCatalogId": "items:/Lotus/Powersuits/SiriusOrion/SiriusSuit",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 3
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsComponent",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Warframes.json)"
+  },
   "items:/Lotus/Powersuits/Hoplite/Hoplite": {
     "outputCatalogId": "items:/Lotus/Powersuits/Hoplite/Hoplite",
     "components": [
@@ -31176,6 +31534,32 @@
       },
       {
         "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxSystemsComponent",
+        "count": 1
+      }
+    ],
+    "note": "WFCD recipe (Warframes.json)"
+  },
+  "items:/Lotus/Powersuits/Hoplite/StyanaxPrime": {
+    "outputCatalogId": "items:/Lotus/Powersuits/Hoplite/StyanaxPrime",
+    "components": [
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeBlueprint",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetComponent",
+        "count": 1
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Items/MiscItems/OrokinCell",
+        "count": 5
+      },
+      {
+        "catalogId": "items:/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsComponent",
         "count": 1
       }
     ],
