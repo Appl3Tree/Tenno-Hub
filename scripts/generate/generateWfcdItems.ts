@@ -1,99 +1,66 @@
 /**
- * generateWfcdItems.ts
- *
- * Source: external/warframe-items/raw/*.json (individual category files)
+ * Index all WFCD item categories, including the separate Components catalog.
+ * Source: external/warframe-items/raw/*.json (except generated All and i18n)
  * Output: src/data/_generated/wfcd-items.byCatalogId.auto.json
- *
- * Indexes every item from the warframe-items npm package by CatalogId
- * ("items:${uniqueName}"), keeping only the metadata fields the app uses.
- *
- * Fields kept per entry:
- *   name, category, productCategory, type, tags, masteryReq,
- *   masterable, tradable, wfcdFile, source
  */
 
-import { readFile, writeFile, readdir } from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { writeFileAtomically, readWarframeItemsFiles, buildResolvedWarframeItemsAll } from "../lib/warframeItemsData";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "../..");
-
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(SCRIPT_DIR, "../..");
 const RAW_DIR = path.join(ROOT, "external/warframe-items/raw");
-const OUTPUT  = path.join(ROOT, "src/data/_generated/wfcd-items.byCatalogId.auto.json");
+const OUTPUT = path.join(ROOT, "src/data/_generated/wfcd-items.byCatalogId.auto.json");
 
-// All.json is a union of the individual files — skip it to avoid duplicates.
-const SKIP_FILES = new Set(["All.json"]);
-
-function safeStr(v: unknown): string | null {
-    return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
+function safeStr(value: unknown): string | null {
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-function safeNum(v: unknown): number | null {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    return null;
+function safeNum(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function safeBool(v: unknown): boolean {
-    return v === true;
+function safeBool(value: unknown): boolean {
+    return value === true;
 }
 
-function safeTags(v: unknown): string[] {
-    if (!Array.isArray(v)) return [];
-    return v.filter((x): x is string => typeof x === "string");
+function safeTags(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((tag): tag is string => typeof tag === "string");
 }
 
 async function main(): Promise<void> {
-    const files = (await readdir(RAW_DIR))
-        .filter((f) => f.endsWith(".json") && !SKIP_FILES.has(f))
-        .sort();
-
-    console.log(`Processing ${files.length} category files from ${RAW_DIR}`);
+    const files = await readWarframeItemsFiles(RAW_DIR);
+    // Keep this generator fail-closed on unresolved references and duplicate
+    // canonical paths, even though the output itself is a flat index.
+    const all = buildResolvedWarframeItemsAll(files);
+    const sourceByUniqueName = new Map<string, string>();
+    for (const [file, records] of files) {
+        for (const record of records) sourceByUniqueName.set(String((record as Record<string, unknown>).uniqueName), file);
+    }
 
     const out: Record<string, unknown> = {};
-    let total = 0;
-
-    for (const file of files) {
-        const filePath = path.join(RAW_DIR, file);
-        const items: unknown[] = JSON.parse(await readFile(filePath, "utf-8"));
-
-        if (!Array.isArray(items)) {
-            console.warn(`  Skipping ${file} — not an array`);
-            continue;
-        }
-
-        let count = 0;
-        for (const item of items) {
-            if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-            const rec = item as Record<string, unknown>;
-
-            const uniqueName = safeStr(rec.uniqueName);
-            if (!uniqueName) continue;
-
-            const catalogId = `items:${uniqueName}`;
-
-            out[catalogId] = {
-                name:            safeStr(rec.name),
-                category:        safeStr(rec.category),
-                productCategory: safeStr(rec.productCategory) ?? null,
-                type:            safeStr(rec.type),
-                tags:            safeTags(rec.tags),
-                masteryReq:      safeNum(rec.masteryReq),
-                masterable:      safeBool(rec.masterable),
-                tradable:        safeBool(rec.tradable),
-                wfcdFile:        file,
-                source:          "wfcd",
-            };
-            count++;
-        }
-
-        console.log(`  ${file}: ${count} items`);
-        total += count;
+    for (const item of all) {
+        const catalogId = `items:${item.uniqueName}`;
+        if (out[catalogId]) throw new Error(`Duplicate canonical item ${catalogId} while generating WFCD item index`);
+        out[catalogId] = {
+            name: safeStr(item.name),
+            category: safeStr(item.category),
+            productCategory: safeStr(item.productCategory) ?? null,
+            type: safeStr(item.type),
+            tags: safeTags(item.tags),
+            masteryReq: safeNum(item.masteryReq),
+            masterable: safeBool(item.masterable),
+            tradable: safeBool(item.tradable),
+            wfcdFile: sourceByUniqueName.get(item.uniqueName) ?? "unknown",
+            source: "wfcd",
+        };
     }
 
     const json = JSON.stringify(out, null, 2);
-    await writeFile(OUTPUT, json, "utf-8");
-    console.log(`\nDone: ${total} total entries written to ${OUTPUT}`);
+    await writeFileAtomically(OUTPUT, json);
+    console.log(`WFCD items: ${Object.keys(out).length} unique entries from ${files.size} source files; All.json validated (${all.length} records).`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((error) => { console.error((error as Error).message); process.exitCode = 1; });

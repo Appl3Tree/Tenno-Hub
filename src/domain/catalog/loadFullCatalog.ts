@@ -277,7 +277,10 @@ const GENERIC_COMPONENT_SLOT_NAMES = new Set<string>([
     "blueprint"
 ]);
 
-function buildFoundryOverrides(wfdataRaw: any): FoundryOverrides {
+function buildFoundryOverrides(
+    wfdataRaw: any,
+    wfcdItemsByPath: Record<string, { name?: unknown }>
+): FoundryOverrides {
     const byPath: Record<string, string> = {};
     const byResultItemType: Record<string, string> = {};
 
@@ -291,9 +294,13 @@ function buildFoundryOverrides(wfdataRaw: any): FoundryOverrides {
         if (!Array.isArray(comps) || comps.length === 0) continue;
 
         for (const c of comps) {
-            const slotName = safeString(c?.name);
             const path = safeString(c?.uniqueName);
-            if (!slotName || !path) continue;
+            if (!path) continue;
+            // WFCD's category files now keep recipe component references
+            // lightweight. Resolve their slot name through Components.json
+            // before generating the item-specific display label.
+            const slotName = safeString(c?.name) ?? safeString(wfcdItemsByPath[path]?.name);
+            if (!slotName) continue;
 
             const slotNorm = slotName.trim().toLowerCase();
 
@@ -493,7 +500,7 @@ export function buildFullCatalog(): FullCatalog {
     const lotusItemsByPath = parseJsonMap("items", lotusItemsJson);
 
     const wfdataJson = buildWfdataFromExternal();
-    const foundryOverrides = buildFoundryOverrides(wfdataJson);
+    const foundryOverrides = buildFoundryOverrides(wfdataJson, wfcdItemsByPath);
 
     const allowBase = buildInventoryAllowSetFromWfdata(wfdataJson);
     const inventoryAllow = extendAllowWithRecipesProducingAllowed(allowBase, lotusItemsByPath);

@@ -1,5 +1,7 @@
 // ===== FILE: src/catalog/sources/curatedSources.ts =====
 
+import { PR } from "../../domain/ids/prereqIds";
+
 export type CuratedRawSource = {
     id: string;
     label: string;
@@ -62,6 +64,10 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:junction/sedna-eris", label: "Earn from completing the Sedna -> Eris Junction", type: "other", prereqIds: ["junction_sedna_eris"] },
     { id: "data:lua/challenge-room", label: "Complete an Orokin Moon challenge room", type: "drop", prereqIds: ["quest_the_second_dream"] },
     { id: "data:duviri/circuit/steel-path", label: "Earn from The Steel Path Circuit", type: "drop", prereqIds: ["quest_the_duviri_paradox", "activity_steel_path", "hub_zariman"] },
+    { id: "data:duviri/circuit/warframe-rewards", label: "Earn Warframe blueprints from The Circuit", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
+    { id: "data:duviri/enigma", label: "Solve Enigma puzzles in Duviri", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
+    { id: "data:vendor/duviri/teshins-cave", label: "Buy a Duviri melee weapon blueprint from Teshin (Pathos Clamps)", type: "vendor", prereqIds: ["quest_the_duviri_paradox"] },
+    { id: "data:vendor/zariman/cephalon-melica", label: "Buy Narin, Nunchasa, and Aksondol blueprints from Cephalon Melica (Entropic Kuva)", type: "vendor", prereqIds: [PR.ANGELS_ZARIMAN, PR.WHISPERS_WALL] },
 
     // Time-gated / vendors
     { id: "data:baro/void-trader", label: "Buy from Baro Ki’Teer (Ducats + Credits)", type: "vendor", prereqIds: ["hub_relay"] },
@@ -72,6 +78,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:nightwave/standing", label: "Earn Nightwave standing", type: "other", prereqIds: ["activity_nightwave"] },
     { id: "data:nightwave/glassmaker", label: "Legacy Glassmaker / Nihil reward path (no longer generally obtainable)", type: "other" },
     { id: "data:vendor/cetus/nakak/operational-supply", label: "Buy from Nakak (Operational Supply / Plague Star)", type: "vendor", prereqIds: ["hub_cetus"] },
+    { id: "data:vendor/cetus/nakak/synthicator-blueprints", label: "Buy Synthicator blueprints from Nakak (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
 
     // Quests
     { id: "data:quest/the-sacrifice", label: "Earn from completing The Sacrifice quest", type: "other", prereqIds: ["quest_apostasy_prologue"] },
@@ -104,8 +111,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:operator/amp-starter", label: "Receive as a starter amp component", type: "other" },
 
     // Duviri
-    { id: "data:duviri/experience", label: "Run Duviri Experience", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
-    { id: "data:duviri/circuit", label: "Earn from The Circuit", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
+    { id: "data:duviri/circuit", label: "The Circuit", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
     { id: "data:duviri/kullervo", label: "Farm Kullervo in Duviri", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
     { id: "data:vendor/duviri/acrithis", label: "Buy from Acrithis (Duviri)", type: "vendor", prereqIds: ["quest_the_duviri_paradox"] },
 
@@ -133,7 +139,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:vendor/cetus/ostron", label: "Buy from Ostrons (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
     { id: "data:vendor/cetus/quills", label: "Buy from The Quills (Cetus)", type: "vendor", prereqIds: ["quest_sayas_vigil", "quest_the_war_within"] },
     { id: "data:vendor/cetus/hai-luk", label: "Buy from Hai-Luk (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
-    { id: "data:vendor/cetus/nakak", label: "Buy from Nakak (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
+    { id: "data:vendor/cetus/nakak", label: "Nakak (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
     { id: "data:vendor/cetus/koumei-shrine", label: "Buy from Koumei's Shrine (Cetus)", type: "vendor", prereqIds: ["hub_cetus", "activity_steel_path"] },
     { id: "data:vendor/cetus/teasonai", label: "Buy from Master Teasonai (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
     { id: "data:vendor/cetus/suumbaat", label: "Buy from Old Man Suumbaat (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },

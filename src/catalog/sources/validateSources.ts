@@ -76,13 +76,21 @@ function isActionableLabel(label: string): boolean {
         "sister",
         "teshin",
         "simaris",
+        "unlock",
+        "receive",
     ];
 
     return actionTokens.some((x) => t.includes(x));
 }
 
-function isClearlyNonActionableId(_sourceId: string): boolean {
-    return false;
+function isClearlyNonActionableId(sourceId: string): boolean {
+    // Synthetic set-bonus metadata is not a route for obtaining an item.
+    return sourceId === "data:system/set-bonus-record";
+}
+
+function isExpectedNonAcquisitionMetadataUse(catalogId: string, sourceId: string): boolean {
+    return sourceId === "data:system/set-bonus-record"
+        && catalogId.startsWith("items:/Lotus/Upgrades/Mods/Sets/");
 }
 
 function isExpectedUnusedCuratedLeaf(sourceId: string): boolean {
@@ -148,7 +156,7 @@ export function validateSources(): { issues: ValidationIssue[] } {
         const label = SOURCE_INDEX[id]?.label ?? "";
         if (!label) continue;
 
-        if (!isActionableLabel(label)) {
+        if (!isClearlyNonActionableId(sid) && !isActionableLabel(label)) {
             issues.push({
                 code: "leaf_not_actionable",
                 sourceId: sid,
@@ -167,7 +175,7 @@ export function validateSources(): { issues: ValidationIssue[] } {
         for (const sid of srcs ?? []) {
             used.set(sid, (used.get(sid) ?? 0) + 1);
 
-            if (parentSet.has(sid) || isClearlyNonActionableId(sid)) {
+            if (parentSet.has(sid) || (isClearlyNonActionableId(sid) && !isExpectedNonAcquisitionMetadataUse(cid, sid))) {
                 if (forbiddenUsed.length < 25) forbiddenUsed.push({ sid, exampleCid: cid });
             }
         }

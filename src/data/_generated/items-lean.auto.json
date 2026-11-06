@@ -104460,6 +104460,63 @@
       "type": "Pets"
     }
   },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBarrel": {
+    "name": "Afentis Prime Barrel",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBarrel",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBarrel",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBlade": {
+    "name": "Afentis Prime Blade",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBlade",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeBlade",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint": {
+    "name": "Afentis Prime Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/LongGuns/PrimeAfentis/PrimeAfentisWeapon",
+      "type": "Primary"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeHandle": {
+    "name": "Afentis Prime Handle",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeHandle",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/AfentisPrimeHandle",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
   "/Lotus/Types/StoreItems/Consumables/LisetAirSupportBlueprint": {
     "name": "Air Support Charges Blueprint",
     "path": "/Lotus/Types/StoreItems/Consumables/LisetAirSupportBlueprint",
@@ -104473,6 +104530,63 @@
       "ProductCategory": "Recipes",
       "resultItemType": "/Lotus/Types/Restoratives/LisetAirSupport",
       "type": "Gear"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel": {
+    "name": "Aksondol Barrel",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel",
+    "category": "Secondary",
+    "data": {
+      "ProductCategory": "Pistols",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint": {
+    "name": "Aksondol Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint",
+    "category": "Secondary",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/Pistols/DuelistPistols/DuelistPistols",
+      "type": "Secondary"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink": {
+    "name": "Aksondol Link",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink",
+    "category": "Secondary",
+    "data": {
+      "ProductCategory": "Pistols",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver": {
+    "name": "Aksondol Receiver",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver",
+    "category": "Secondary",
+    "data": {
+      "ProductCategory": "Pistols",
+      "type": "Component"
     }
   },
   "/Lotus/Types/Recipes/WeaponSkins/ForestCamoAkVastoBlueprint": {
@@ -104532,6 +104646,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Deimos/InfestedCommonDFishItemLargeBlueprint": {
+    "name": "Amniophysi Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonDFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/InfestedCommonDFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonDFishItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Items/Fish/Deimos/TrophyBlueprints/FishTrophyInfestedCommonDBlueprint": {
@@ -104606,6 +104735,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Deimos/HybridRareAFishItemLargeBlueprint": {
+    "name": "Aquapulmo Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/HybridRareAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/HybridRareAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/HybridRareAFishItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Items/Fish/Deimos/TrophyBlueprints/FishTrophyHybridRareABlueprint": {
@@ -105176,6 +105320,49 @@
       "type": "Pets"
     }
   },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeBarrel": {
+    "name": "Athodai Prime Barrel",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeBarrel",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeBarrel",
+    "category": "Secondary",
+    "data": {
+      "ProductCategory": "Pistols",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint": {
+    "name": "Athodai Prime Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint",
+    "category": "Secondary",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/Pistols/PrimeAthodai/PrimeAthodaiPistolWeapon",
+      "type": "Secondary"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeReceiver": {
+    "name": "Athodai Prime Receiver",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeReceiver",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/AthodaiPrimeReceiver",
+    "category": "Secondary",
+    "data": {
+      "ProductCategory": "Pistols",
+      "type": "Component"
+    }
+  },
   "/Lotus/Types/Recipes/Helmets/BrawlerAltTwoHelmetBlueprint": {
     "name": "Atlas Shikoro Helmet Blueprint",
     "path": "/Lotus/Types/Recipes/Helmets/BrawlerAltTwoHelmetBlueprint",
@@ -105352,6 +105539,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/InfestedCommonBFishItemLargeBlueprint": {
+    "name": "Barbisteo Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonBFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/InfestedCommonBFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonBFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Items/Fish/Deimos/TrophyBlueprints/FishTrophyInfestedCommonBBlueprint": {
     "name": "Barbisteo Trophy Blueprint",
     "path": "/Lotus/Types/Items/Fish/Deimos/TrophyBlueprints/FishTrophyInfestedCommonBBlueprint",
@@ -105516,6 +105718,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Eidolon/GrineerBootItemBlueprint": {
+    "name": "Boot Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/GrineerBootItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/GrineerBootItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/GrineerBootItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Items/Fish/Solaris/TrophyBlueprints/CrewmanBootTrophyBlueprint": {
     "name": "Boot Trophy Blueprint",
     "path": "/Lotus/Types/Items/Fish/Solaris/TrophyBlueprints/CrewmanBootTrophyBlueprint",
@@ -105587,6 +105804,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishBLargeItemBlueprint": {
+    "name": "Brickie Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishBLargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishBLargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishBLargeItem",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/Weapons/Skins/BurstonSolsticeSkinBlueprint": {
@@ -105783,6 +106015,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Solaris/OrokinBothRareFishALargeItemBlueprint": {
+    "name": "Charamote Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/OrokinBothRareFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/OrokinBothRareFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/OrokinBothRareFishALargeItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Items/Fish/Eidolon/TrophyBlueprints/BothCommonFishATrophyBlueprint": {
     "name": "Charc Eel Trophy Blueprint",
     "path": "/Lotus/Types/Items/Fish/Eidolon/TrophyBlueprints/BothCommonFishATrophyBlueprint",
@@ -105810,6 +106057,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Eidolon/BothCommonFishAItemLargeBlueprint": {
+    "name": "Charc Eel Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/BothCommonFishAItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/BothCommonFishAItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/BothCommonFishAItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/Components/ChargerBallBlueprint": {
@@ -105869,6 +106131,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Deimos/OrokinUncommonAFishItemLargeBlueprint": {
+    "name": "Chondricord Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/OrokinUncommonAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/OrokinUncommonAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/OrokinUncommonAFishItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/Helmets/ChromaAltBHelmetBlueprint": {
@@ -105944,6 +106221,108 @@
       "ProductCategory": "Recipes",
       "resultItemType": "/Lotus/Upgrades/Skins/Geode/GeodeAltHelmet",
       "type": "Skins"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint": {
+    "name": "Citrine Prime Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Powersuits/Geode/CitrinePrime",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisComponent": {
+    "name": "Citrine Prime Chassis",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisBlueprint": {
+    "name": "Citrine Prime Chassis Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent": {
+    "name": "Citrine Prime Neuroptics",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetBlueprint": {
+    "name": "Citrine Prime Neuroptics Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsComponent": {
+    "name": "Citrine Prime Systems",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsBlueprint": {
+    "name": "Citrine Prime Systems Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsComponent",
+      "type": "Warframes"
     }
   },
   "/Lotus/Types/Keys/DojoKeyBlueprint": {
@@ -106066,6 +106445,63 @@
       "type": "Gear"
     }
   },
+  "/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint": {
+    "name": "Corufell Prime Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon",
+      "type": "Melee"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeHandle": {
+    "name": "Corufell Prime Handle",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeHandle",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeHandle",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Melee",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeReceiver": {
+    "name": "Corufell Prime Receiver",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeReceiver",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeReceiver",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Melee",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel": {
+    "name": "Corufell Prime Stock",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Melee",
+      "type": "Component"
+    }
+  },
   "/Lotus/Types/Recipes/Components/PlatinumSpectreBlueprint": {
     "name": "Cosmic Specter Blueprint",
     "path": "/Lotus/Types/Recipes/Components/PlatinumSpectreBlueprint",
@@ -106110,6 +106546,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/InfestedCommonAFishItemLargeBlueprint": {
+    "name": "Cryptosuctus Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/InfestedCommonAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonAFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Fishing/FishBaits/NightRareFishBaitBBlueprint": {
     "name": "Cuthol Bait Blueprint",
     "path": "/Lotus/Types/Recipes/Fishing/FishBaits/NightRareFishBaitBBlueprint",
@@ -106152,6 +106603,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Eidolon/NightRareFishBItemLargeBlueprint": {
+    "name": "Cuthol Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/NightRareFishBItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/NightRareFishBItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/NightRareFishBItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/Weapons/Skins/CycronSolsticeSkinBlueprint": {
@@ -106556,6 +107022,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/OrokinRareAFishItemLargeBlueprint": {
+    "name": "Duroid Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/OrokinRareAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/OrokinRareAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/OrokinRareAFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Components/UmbraEchoesBlueprint": {
     "name": "Echoes Of Umbra Blueprint",
     "path": "/Lotus/Types/Recipes/Components/UmbraEchoesBlueprint",
@@ -106598,6 +107079,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishALargeItemBlueprint": {
+    "name": "Echowinder Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/CorpusWarmCommonFishALargeItem",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/ArmourAttachments/EdoChestPlateBlueprint": {
@@ -107279,6 +107775,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Solaris/CorpusCoolUncommonFishALargeItemBlueprint": {
+    "name": "Eye-Eye Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/CorpusCoolUncommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/CorpusCoolUncommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/CorpusCoolUncommonFishALargeItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Items/MushroomJournal/HeatMushroomJournalItem": {
     "name": "Blister Stalk",
     "path": "/Lotus/Types/Items/MushroomJournal/HeatMushroomJournalItem",
@@ -107423,6 +107934,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Deimos/InfestedRareAFishItemLargeBlueprint": {
+    "name": "Flagellocanth Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/InfestedRareAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/InfestedRareAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/InfestedRareAFishItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusADeckBlueprint": {
@@ -107842,6 +108368,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Eidolon/NightLegendaryFishAItemLargeBlueprint": {
+    "name": "Glappid Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/NightLegendaryFishAItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/NightLegendaryFishAItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/NightLegendaryFishAItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Items/Fish/Deimos/TrophyBlueprints/FishTrophyInfestedUncommonABlueprint": {
     "name": "Glutinox Trophy Blueprint",
     "path": "/Lotus/Types/Items/Fish/Deimos/TrophyBlueprints/FishTrophyInfestedUncommonABlueprint",
@@ -107871,6 +108412,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/InfestedUncommonAFishItemLargeBlueprint": {
+    "name": "Glutinox Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/InfestedUncommonAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/InfestedUncommonAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/InfestedUncommonAFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Items/Fish/Eidolon/TrophyBlueprints/BothCommonFishBTrophyBlueprint": {
     "name": "Goopolla Trophy Blueprint",
     "path": "/Lotus/Types/Items/Fish/Eidolon/TrophyBlueprints/BothCommonFishBTrophyBlueprint",
@@ -107898,6 +108454,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Eidolon/BothCommonFishBItemLargeBlueprint": {
+    "name": "Goopolla Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/BothCommonFishBItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/BothCommonFishBItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/BothCommonFishBItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/Weapons/Skins/GramSolsticeSkinBlueprint": {
@@ -108615,6 +109186,21 @@
       "type": "Gear"
     }
   },
+  "/Lotus/Types/Recipes/HunhowTrinketBlueprint": {
+    "name": "Hunhow's Trinket Blueprint",
+    "path": "/Lotus/Types/Recipes/HunhowTrinketBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/HunhowTrinketBlueprint",
+    "category": "Resources",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/JadeShadowsPart2Mission/Gameplay/Resources/HunhowTrinketMiscItem",
+      "type": "Resources"
+    }
+  },
   "/Lotus/Types/Recipes/Helmets/PirateAltBHelmetBlueprint": {
     "name": "Hydroid Ketos Helmet Blueprint",
     "path": "/Lotus/Types/Recipes/Helmets/PirateAltBHelmetBlueprint",
@@ -108765,6 +109351,49 @@
       "type": "Skins"
     }
   },
+  "/Lotus/Types/Recipes/Syandanas/SiriusOrionBothSyandanaBlueprint": {
+    "name": "Jade's Victory Syandana Blueprint",
+    "path": "/Lotus/Types/Recipes/Syandanas/SiriusOrionBothSyandanaBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Syandanas/SiriusOrionBothSyandanaBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Upgrades/Skins/Scarves/SiriusOrionBothSyandana",
+      "type": "Skins"
+    }
+  },
+  "/Lotus/Upgrades/Skins/Scarves/SiriusOrionLeftSyandana": {
+    "name": "Orion's Swaddle Syandana",
+    "path": "/Lotus/Upgrades/Skins/Scarves/SiriusOrionLeftSyandana",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Upgrades/Skins/Scarves/SiriusOrionLeftSyandana",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "MiscItems",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Upgrades/Skins/Scarves/SiriusOrionRightSyandana": {
+    "name": "Sirius' Swaddle Syandana",
+    "path": "/Lotus/Upgrades/Skins/Scarves/SiriusOrionRightSyandana",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Upgrades/Skins/Scarves/SiriusOrionRightSyandana",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "MiscItems",
+      "type": "Component"
+    }
+  },
   "/Lotus/Types/Gameplay/EntratiLab/Quest/GargoyleRecipeItem": {
     "name": "Jahu Gargoyle Blueprint",
     "path": "/Lotus/Types/Gameplay/EntratiLab/Quest/GargoyleRecipeItem",
@@ -108899,6 +109528,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishBItemLargeBlueprint": {
+    "name": "Karkina Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishBItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishBItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishBItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABlueprint": {
     "name": "Kavasa Prime Kubrow Collar Blueprint",
     "path": "/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABlueprint",
@@ -108956,6 +109600,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishBItemLargeBlueprint": {
+    "name": "Khut-Khut Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishBItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/DayCommonFishBItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishBItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIIReloadIClipPartBlueprint": {
@@ -109060,6 +109719,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Solaris/CorpusWarmUncommonFishALargeItemBlueprint": {
+    "name": "Kriller Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/CorpusWarmUncommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/CorpusWarmUncommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/CorpusWarmUncommonFishALargeItem",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineKrisysBlueprint": {
@@ -109541,6 +110215,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/InfestedCommonCFishItemLargeBlueprint": {
+    "name": "Kymaeros Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonCFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/InfestedCommonCFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonCFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleTwoBlueprint": {
     "name": "Laka Blueprint",
     "path": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleTwoBlueprint",
@@ -109765,6 +110454,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/InfestedCommonEFishItemLargeBlueprint": {
+    "name": "Lobotriscid Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonEFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/InfestedCommonEFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/InfestedCommonEFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/StoreItems/Consumables/Restoratives/MapMarkerBlueprint": {
     "name": "Loc-Pin Blueprint",
     "path": "/Lotus/Types/StoreItems/Consumables/Restoratives/MapMarkerBlueprint",
@@ -109955,6 +110659,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Solaris/SolarisWarmRareFishALargeItemBlueprint": {
+    "name": "Longwinder Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/SolarisWarmRareFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/SolarisWarmRareFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/SolarisWarmRareFishALargeItem",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/SolarisRecipes/Nokko/NokkoMushroomScrawlFBlueprint": {
@@ -110323,6 +111042,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishAItemLargeBlueprint": {
+    "name": "Mawfish Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishAItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/DayCommonFishAItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishAItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Helmets/CowgirlAltHelmetBlueprint": {
     "name": "Mesa Longhorn Helmet Blueprint",
     "path": "/Lotus/Types/Recipes/Helmets/CowgirlAltHelmetBlueprint",
@@ -110412,6 +111146,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Solaris/CorpusBothUncommonFishALargeItemBlueprint": {
+    "name": "Mirewinder Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/CorpusBothUncommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/CorpusBothUncommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/CorpusBothUncommonFishALargeItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Components/MoaBallBlueprint": {
     "name": "Moa Specter Blueprint",
     "path": "/Lotus/Types/Recipes/Components/MoaBallBlueprint",
@@ -110469,6 +111218,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishBItemLargeBlueprint": {
+    "name": "Mortus Lungfish Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishBItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishBItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishBItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadMunitronBlueprint": {
@@ -110530,6 +111294,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Eidolon/BothRareFishAItemLargeBlueprint": {
+    "name": "Murkray Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/BothRareFishAItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/BothRareFishAItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/BothRareFishAItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Keys/InfestedAladVQuest/InfestedAladKeyBlueprint": {
     "name": "Mutalist Alad V Assassinate Blueprint",
     "path": "/Lotus/Types/Keys/InfestedAladVQuest/InfestedAladKeyBlueprint",
@@ -110574,6 +111353,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/OrokinLegendaryAFishItemLargeBlueprint": {
+    "name": "Myxostomata Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/OrokinLegendaryAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/OrokinLegendaryAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/OrokinLegendaryAFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/WarframeSkins/AvatarBatBlueprint": {
     "name": "Naberus Ephemera Blueprint",
     "path": "/Lotus/Types/Recipes/WarframeSkins/AvatarBatBlueprint",
@@ -110587,6 +111381,108 @@
       "ProductCategory": "Recipes",
       "resultItemType": "/Lotus/Upgrades/Skins/Effects/BatsEphemera",
       "type": "Skins"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NarinBlueprint": {
+    "name": "Narin Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/NarinBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/NarinBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Powersuits/Duelist/Duelist",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent": {
+    "name": "Narin Chassis",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NarinChassisBlueprint": {
+    "name": "Narin Chassis Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/NarinChassisBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/NarinChassisBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent": {
+    "name": "Narin Neuroptics",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetBlueprint": {
+    "name": "Narin Neuroptics Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent": {
+    "name": "Narin Systems",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsBlueprint": {
+    "name": "Narin Systems Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent",
+      "type": "Warframes"
     }
   },
   "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBDeckBlueprint": {
@@ -110709,6 +111605,63 @@
       "type": "Gear"
     }
   },
+  "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsComponent": {
+    "name": "Avionics",
+    "path": "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsComponent",
+    "category": "Misc",
+    "data": {
+      "ProductCategory": "MiscItems",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipBlueprint": {
+    "name": "Nightwave Blueprint",
+    "path": "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipBlueprint",
+    "category": "Misc",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Ships/NoraShip",
+      "type": "Misc"
+    }
+  },
+  "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesComponent": {
+    "name": "Engines",
+    "path": "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesComponent",
+    "category": "Misc",
+    "data": {
+      "ProductCategory": "MiscItems",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageComponent": {
+    "name": "Fuselage",
+    "path": "/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageComponent",
+    "category": "Misc",
+    "data": {
+      "ProductCategory": "MiscItems",
+      "type": "Component"
+    }
+  },
   "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBFrontBlueprint": {
     "name": "Nodulite Blueprint",
     "path": "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBFrontBlueprint",
@@ -110783,6 +111736,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Eidolon/NightRareFishAItemLargeBlueprint": {
+    "name": "Norg Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/NightRareFishAItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/NightRareFishAItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/NightRareFishAItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/MiningLaserBlueprint": {
     "name": "Nosam Cutter Blueprint",
     "path": "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/MiningLaserBlueprint",
@@ -110855,6 +111823,77 @@
       "ProductCategory": "Recipes",
       "resultItemType": "/Lotus/Upgrades/Skins/AntiMatter/NovaSlipstreamHelmet",
       "type": "Skins"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint": {
+    "name": "Nunchasa Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/Bows/DuelistBow/DuelistBow",
+      "type": "Primary"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip": {
+    "name": "Nunchasa Grip",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb": {
+    "name": "Nunchasa Lower Limb",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString": {
+    "name": "Nunchasa String",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb": {
+    "name": "Nunchasa Upper Limb",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
     }
   },
   "/Lotus/Upgrades/Skins/Jade/JadeHelmetAlt": {
@@ -111002,6 +112041,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Deimos/HybridUncommonAFishItemLargeBlueprint": {
+    "name": "Ostimyr Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/HybridUncommonAFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/HybridUncommonAFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/HybridUncommonAFishItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/OperatorArmour/Solaris/SmelterBodyBlueprint": {
@@ -111540,6 +112594,108 @@
       "type": "Pets"
     }
   },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade": {
+    "name": "Pride Blade",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Melee",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBladeBlueprint": {
+    "name": "Pride Blade Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBladeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBladeBlueprint",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheBlade",
+      "type": "Melee"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/SiriusScytheBlueprint": {
+    "name": "Pride Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/SiriusScytheBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/SiriusScytheBlueprint",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnSiriusScytheWeapon",
+      "type": "Melee"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandle": {
+    "name": "Pride Handle",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandle",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandle",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Melee",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandleBlueprint": {
+    "name": "Pride Handle Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandleBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandleBlueprint",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/Weapons/WeaponParts/SiriusScytheHandle",
+      "type": "Melee"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade": {
+    "name": "Pride Blade",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Melee",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBladeBlueprint": {
+    "name": "Wrath Blade Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBladeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBladeBlueprint",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheBlade",
+      "type": "Melee"
+    }
+  },
   "/Lotus/Types/Game/FishBait/Infested/InfestedFishBaitBBlueprint": {
     "name": "Processed Fass Residue Blueprint",
     "path": "/Lotus/Types/Game/FishBait/Infested/InfestedFishBaitBBlueprint",
@@ -111824,6 +112980,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Solaris/SolarisCoolUncommonFishALargeItemBlueprint": {
+    "name": "Recaster Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/SolarisCoolUncommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/SolarisCoolUncommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/SolarisCoolUncommonFishALargeItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/StoreItems/Consumables/Restoratives/NpcBuffs/CloakingBuffBlueprint": {
     "name": "Refract Stim Blueprint",
     "path": "/Lotus/Types/StoreItems/Consumables/Restoratives/NpcBuffs/CloakingBuffBlueprint",
@@ -112061,6 +113232,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Solaris/CorpusCoolCommonFishALargeItemBlueprint": {
+    "name": "Sapcaddy Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/CorpusCoolCommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/CorpusCoolCommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/CorpusCoolCommonFishALargeItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Weapons/WeaponParts/SarofangPrimeBlade": {
     "name": "Sarofang Prime Blade",
     "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SarofangPrimeBlade",
@@ -112266,6 +113452,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Solaris/SolarisBothCommonFishALargeItemBlueprint": {
+    "name": "Scrubber Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/SolarisBothCommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/SolarisBothCommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/SolarisBothCommonFishALargeItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/WarframeSkins/FootstepsPetalsBlueprint": {
     "name": "Seeding Step Ephemera Blueprint",
     "path": "/Lotus/Types/Recipes/WarframeSkins/FootstepsPetalsBlueprint",
@@ -112353,6 +113554,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishAItemLargeBlueprint": {
+    "name": "Sharrac Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishAItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishAItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/BothUncommonFishAItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/Weapons/GrineerCombatKnifeSortieBlueprint": {
@@ -112473,6 +113689,108 @@
       "ProductCategory": "Recipes",
       "resultItemType": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartB",
       "type": "Misc"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionBlueprint": {
+    "name": "Sirius & Orion Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Powersuits/SiriusOrion/SiriusSuit",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisComponent": {
+    "name": "Sirius & Orion Chassis",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisBlueprint": {
+    "name": "Sirius & Orion Chassis Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionChassisComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetComponent": {
+    "name": "Sirius & Orion Neuroptics",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetBlueprint": {
+    "name": "Sirius & Orion Neuroptics Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionHelmetComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsComponent": {
+    "name": "Sirius & Orion Systems",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsBlueprint": {
+    "name": "Sirius & Orion Systems Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/SiriusOrionSystemsComponent",
+      "type": "Warframes"
     }
   },
   "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIClipPartBlueprint": {
@@ -112895,6 +114213,63 @@
       "type": "Misc"
     }
   },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeBarrel": {
+    "name": "Steflos Prime Barrel",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeBarrel",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeBarrel",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint": {
+    "name": "Steflos Prime Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/LongGuns/PrimeSteflos/PrimeSteflosShotgun",
+      "type": "Primary"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeReceiver": {
+    "name": "Steflos Prime Receiver",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeReceiver",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeReceiver",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeStock": {
+    "name": "Steflos Prime Stock",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeStock",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeStock",
+    "category": "Primary",
+    "data": {
+      "ProductCategory": "LongGuns",
+      "type": "Component"
+    }
+  },
   "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAJetBlueprint": {
     "name": "Step Tens Blueprint",
     "path": "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAJetBlueprint",
@@ -112968,6 +114343,108 @@
       "ProductCategory": "Recipes",
       "resultItemType": "/Lotus/Upgrades/Skins/Hoplite/HopliteAltDHelmet",
       "type": "Skins"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeBlueprint": {
+    "name": "Styanax Prime Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Powersuits/Hoplite/StyanaxPrime",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisComponent": {
+    "name": "Styanax Prime Chassis",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisBlueprint": {
+    "name": "Styanax Prime Chassis Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetComponent": {
+    "name": "Styanax Prime Neuroptics",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetBlueprint": {
+    "name": "Styanax Prime Neuroptics Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetComponent",
+      "type": "Warframes"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsComponent": {
+    "name": "Styanax Prime Systems",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsComponent",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsComponent",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Suits",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsBlueprint": {
+    "name": "Styanax Prime Systems Blueprint",
+    "path": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsBlueprint",
+    "category": "Warframes",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsComponent",
+      "type": "Warframes"
     }
   },
   "/Lotus/Types/Recipes/Helmets/StyanaxAltHelmetBlueprint": {
@@ -113044,6 +114521,21 @@
       "type": "Misc"
     }
   },
+  "/Lotus/Types/Recipes/Components/SurgeEximusBallBlueprint": {
+    "name": "Surge Eximus Specter Blueprint",
+    "path": "/Lotus/Types/Recipes/Components/SurgeEximusBallBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Components/SurgeEximusBallBlueprint",
+    "category": "Gear",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Restoratives/Consumable/SurgeEximusBall",
+      "type": "Gear"
+    }
+  },
   "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIClipPartBlueprint": {
     "name": "Swiftfire Blueprint",
     "path": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIClipPartBlueprint",
@@ -113086,6 +114578,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Solaris/OrokinBothLegendaryFishALargeItemBlueprint": {
+    "name": "Synathid Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/OrokinBothLegendaryFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/OrokinBothLegendaryFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/OrokinBothLegendaryFishALargeItem",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackTailFeatureItemBlueprint": {
@@ -113581,6 +115088,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Solaris/SolarisCoolCommonFishALargeItemBlueprint": {
+    "name": "Tink Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/SolarisCoolCommonFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/SolarisCoolCommonFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/SolarisCoolCommonFishALargeItem",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Drones/BasicResourceDroneBlueprint": {
     "name": "Titan Extractor Blueprint",
     "path": "/Lotus/Types/Recipes/Drones/BasicResourceDroneBlueprint",
@@ -113700,6 +115222,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishAItemLargeBlueprint": {
+    "name": "Tralok Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishAItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishAItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/DayUncommonFishAItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleDPartBlueprint": {
     "name": "Tremor Blueprint",
     "path": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleDPartBlueprint",
@@ -113800,6 +115337,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Solaris/OrokinCoolRareFishALargeItemBlueprint": {
+    "name": "Tromyzon Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Solaris/OrokinCoolRareFishALargeItemBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Solaris/OrokinCoolRareFishALargeItemBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Solaris/OrokinCoolRareFishALargeItem",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadCryoxionBlueprint": {
@@ -114502,6 +116054,21 @@
       "type": "Component"
     }
   },
+  "/Lotus/Types/Items/Fish/Deimos/HybridUncommonBFishItemLargeBlueprint": {
+    "name": "Vitreospina Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Deimos/HybridUncommonBFishItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Deimos/HybridUncommonBFishItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Deimos/HybridUncommonBFishItemLarge",
+      "type": "Skins"
+    }
+  },
   "/Lotus/Types/Recipes/Components/EliteAlertShipDecoBlueprint": {
     "name": "Vitus Illumina Blueprint",
     "path": "/Lotus/Types/Recipes/Components/EliteAlertShipDecoBlueprint",
@@ -114752,6 +116319,50 @@
       "type": "Skins"
     }
   },
+  "/Lotus/Types/Recipes/Weapons/OrionScytheBlueprint": {
+    "name": "Wrath Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/OrionScytheBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/OrionScytheBlueprint",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Weapons/Tenno/Melee/HeavyScythe/TnOrionSiriusScythe/TnOrionScytheWeapon",
+      "type": "Melee"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandle": {
+    "name": "Wrath Handle",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandle",
+    "categories": [
+      "component"
+    ],
+    "parent": "/Lotus/Types/Items/MiscItems/MiscItemBase",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandle",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Melee",
+      "type": "Component"
+    }
+  },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandleBlueprint": {
+    "name": "Wrath Handle Blueprint",
+    "path": "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandleBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandleBlueprint",
+    "category": "Melee",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Recipes/Weapons/WeaponParts/OrionScytheHandle",
+      "type": "Melee"
+    }
+  },
   "/Lotus/Types/Recipes/Helmets/WukongAltHelmetBlueprint": {
     "name": "Wukong Dasheng Helmet Blueprint",
     "path": "/Lotus/Types/Recipes/Helmets/WukongAltHelmetBlueprint",
@@ -114854,6 +116465,21 @@
     "data": {
       "ProductCategory": "MiscItems",
       "type": "Component"
+    }
+  },
+  "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishCItemLargeBlueprint": {
+    "name": "Yogwun Trophy Blueprint",
+    "path": "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishCItemLargeBlueprint",
+    "categories": [
+      "blueprint"
+    ],
+    "parent": "/Lotus/Types/Game/RecipeItem",
+    "storeItemType": "/Lotus/StoreItems/Types/Lotus/Types/Items/Fish/Eidolon/DayCommonFishCItemLargeBlueprint",
+    "category": "Skins",
+    "data": {
+      "ProductCategory": "Recipes",
+      "resultItemType": "/Lotus/Types/Items/Fish/Eidolon/DayCommonFishCItemLarge",
+      "type": "Skins"
     }
   },
   "/Lotus/Types/Recipes/Syandanas/YomoSyandanaBlueprint": {

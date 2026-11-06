@@ -1,6 +1,6 @@
-import { writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { writeFileAtomically } from "../lib/warframeItemsData";
 
 import { FULL_CATALOG } from "../../src/domain/catalog/loadFullCatalog";
 import { resolveItemRequirementGraph } from "../../src/catalog/items/itemRequirements";
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     }
 
     const json = JSON.stringify(index, null, 2);
-    await writeFile(OUTPUT, json, "utf-8");
+    await writeFileAtomically(OUTPUT, json);
     console.log(`Done: ${Object.keys(index).length} entries written to ${OUTPUT}`);
 }
 

@@ -1,6 +1,6 @@
-import { writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { writeFileAtomically } from "../lib/warframeItemsData";
 
 import { buildAcquisitionIndex } from "../../src/catalog/items/buildAcquisitionIndex";
 
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
     const acquisition = buildAcquisitionIndex();
     const compact = compactAcquisitionIndex(acquisition);
 
-    await writeFile(OUTPUT, JSON.stringify(compact, null, 2), "utf-8");
+    await writeFileAtomically(OUTPUT, JSON.stringify(compact, null, 2));
     console.log(
         `Done: ${Object.keys(acquisition).length} acquisition entries, ${compact.sourcePool.length} pooled sources written to ${OUTPUT}`,
     );

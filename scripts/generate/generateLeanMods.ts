@@ -14,9 +14,10 @@
  * (other top-level fields like tag, texture, storeData are not used by mod consumers)
  */
 
-import { readFile, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { writeFileAtomically } from "../lib/warframeItemsData";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -68,7 +69,7 @@ async function main(): Promise<void> {
     }
 
     const json = JSON.stringify(out, null, 2);
-    await writeFile(OUTPUT, json, "utf-8");
+    await writeFileAtomically(OUTPUT, json);
 
     const inKB  = Math.round((await readFile(INPUT)).length / 1024);
     const outKB = Math.round(Buffer.byteLength(json) / 1024);

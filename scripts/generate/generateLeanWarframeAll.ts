@@ -8,9 +8,10 @@
  * while dropping the large amount of unused data carried by the raw WFCD dump.
  */
 
-import { readFile, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { writeFileAtomically } from "../lib/warframeItemsData";
 import { WARFRAME_ALL_COMPONENT_FIELDS, WARFRAME_ALL_TOP_LEVEL_FIELDS } from "./leanFieldContracts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -130,7 +131,7 @@ async function main(): Promise<void> {
   const lean = raw.map(pruneEntry).filter(Boolean);
 
   const json = JSON.stringify(lean, null, 2);
-  await writeFile(OUTPUT, json, "utf-8");
+  await writeFileAtomically(OUTPUT, json);
 
   const inKB = Math.round((await readFile(INPUT)).length / 1024);
   const outKB = Math.round(Buffer.byteLength(json) / 1024);

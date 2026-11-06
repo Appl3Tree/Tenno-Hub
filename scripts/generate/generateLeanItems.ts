@@ -16,9 +16,10 @@
  * storeItemType, tag, texture, texture_new, ProductCategory, id) are kept as-is.
  */
 
-import { readFile, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { writeFileAtomically } from "../lib/warframeItemsData";
 import { ITEMS_LEAN_DATA_FIELDS } from "./leanFieldContracts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -200,7 +201,7 @@ async function main(): Promise<void> {
     const syntheticCount = synthesizeMissingComponentEntries(out, allItems);
 
     const json = JSON.stringify(out, null, 2);
-    await writeFile(OUTPUT, json, "utf-8");
+    await writeFileAtomically(OUTPUT, json);
 
     const inKB  = Math.round((await readFile(INPUT)).length / 1024);
     const outKB = Math.round(Buffer.byteLength(json) / 1024);
