@@ -8,18 +8,20 @@ import { CUSTOM_RIVEN_STAT_DEFS, formatRivenStatValue, generateCustomRivenName, 
 import { withManualReleaseDateFallback } from "../catalog/items/manualReleaseDates";
 import MODS_RAW from "../data/_generated/mods-lean.auto.json";
 import ALL_RAW from "../data/_generated/warframe-items-all-lean.auto.json";
-import { WorkspaceAction, WorkspaceFilterGroup, WorkspacePillButton, WorkspaceSection } from "../components/workspace/WorkspaceChrome";
+import { WorkspaceAction, WorkspaceFilterGroup, WorkspacePillButton } from "../components/workspace/WorkspaceChrome";
 import {
-  COLLECTION_LEDGER_SHELL_CLASS,
   CollectionChipRail,
+  CollectionActiveFilterSummary,
+  CollectionFilterDisclosure,
   CollectionModeBand,
   CollectionModeButton,
   CollectionRefineBand,
   CollectionRefineGroup,
-  CollectionResultsBand,
-  CollectionUtilityBand,
-  CollectionUtilityPanel,
+  CollectionScrollSurface,
+  type CollectionActiveFilter,
 } from "../components/collection/CollectionLedgerShell";
+import { CollectionCatalogToolbar } from "../components/collection/CollectionCatalogToolbar";
+import { useCollectionVirtualWindow } from "../components/collection/useCollectionVirtualWindow";
 import { getEntityImageUrl } from "../utils/entityImage";
 import {
   GroupedSourceList,
@@ -1202,26 +1204,6 @@ const MOD_ENTRIES: ModEntry[] = [...MOD_ENTRIES_BASE, ...ALL_MODS_SUPPLEMENT];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Section({
-  title,
-  subtitle,
-  children,
-  className,
-  bodyClassName,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  className?: string;
-  bodyClassName?: string;
-}) {
-  return (
-    <WorkspaceSection title={title} subtitle={subtitle} headingLevel={1} className={className} bodyClassName={bodyClassName}>
-      {children}
-    </WorkspaceSection>
-  );
-}
-
 function SubPill({
   label,
   active,
@@ -1311,129 +1293,52 @@ function matchesOwnershipFilter(totalOwned: number, filter: OwnershipFilter): bo
   return true;
 }
 
-function baseLedgerShellClassName() {
-  return COLLECTION_LEDGER_SHELL_CLASS;
-}
-
 function CatalogControlBand({
   query,
   onQueryChange,
   queryPlaceholder,
-  ownershipFilter,
-  onOwnershipChange,
   sortValue,
   onSortChange,
   sortOptions,
   onClearDetail,
   extraAction,
+  rowCount,
+  activeFilterCount,
+  filtersExpanded,
+  onToggleFilters,
+  filterPanelId,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
   queryPlaceholder: string;
-  ownershipFilter: OwnershipFilter;
-  onOwnershipChange: (value: OwnershipFilter) => void;
   sortValue: string;
   onSortChange: (value: string) => void;
   sortOptions: Array<{ value: string; label: string }>;
   onClearDetail: () => void;
   extraAction?: ReactNode;
+  rowCount: number;
+  activeFilterCount: number;
+  filtersExpanded: boolean;
+  onToggleFilters: () => void;
+  filterPanelId: string;
 }) {
-  return (
-    <CollectionUtilityBand
-      columnsClassName="xl:grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.9fr)]"
-      primary={
-        <CollectionUtilityPanel>
-          <label className="block">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Search Catalog
-            </span>
-            <input
-              className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-base text-slate-100 placeholder:text-slate-500"
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder={queryPlaceholder}
-            />
-          </label>
-
-          <div className="mt-3 grid gap-2 lg:grid-cols-[auto_1fr] lg:items-start">
-            <div className="pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Ownership
-            </div>
-            <WorkspaceFilterGroup className="gap-2">
-              <OwnershipPill label="All" active={ownershipFilter === "all"} onClick={() => onOwnershipChange("all")} />
-              <OwnershipPill label="Owned" active={ownershipFilter === "owned"} onClick={() => onOwnershipChange("owned")} />
-              <OwnershipPill label="Unowned" active={ownershipFilter === "unowned"} onClick={() => onOwnershipChange("unowned")} />
-            </WorkspaceFilterGroup>
-          </div>
-        </CollectionUtilityPanel>
-      }
-      secondary={
-        <CollectionUtilityPanel className="grid gap-3">
-          <label className="block">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Sort Rows
-            </span>
-            <select
-              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-              value={sortValue}
-              onChange={(event) => onSortChange(event.target.value)}
-            >
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <WorkspaceAction
-              className="rounded-full border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-slate-100"
-              onClick={onClearDetail}
-            >
-              Clear Detail
-            </WorkspaceAction>
-            {extraAction}
-          </div>
-        </CollectionUtilityPanel>
-      }
-    />
-  );
-}
-
-function LedgerResultsBand({
-  rowsLabel,
-  filterCount,
-  onResetFilters,
-  extraAction,
-}: {
-  rowsLabel: string;
-  filterCount: number;
-  onResetFilters: () => void;
-  extraAction?: ReactNode;
-}) {
-  return (
-    <CollectionResultsBand
-      actions={
-        <WorkspaceFilterGroup className="text-xs text-slate-400">
-          <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5">
-            {rowsLabel}
-          </span>
-          <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5">
-            Filters: {filterCount}
-          </span>
-          <WorkspaceAction
-            className="rounded-full border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={filterCount === 0}
-            onClick={onResetFilters}
-          >
-            Clear filters
-          </WorkspaceAction>
-          {extraAction}
-        </WorkspaceFilterGroup>
-      }
-    />
-  );
+  return <CollectionCatalogToolbar
+    searchLabel="Search mod catalog"
+    searchPlaceholder={queryPlaceholder}
+    query={query}
+    onQueryChange={onQueryChange}
+    sortLabel="Sort mod catalog"
+    sortValue={sortValue}
+    onSortChange={onSortChange}
+    sortOptions={sortOptions}
+    rowCount={rowCount}
+    activeFilterCount={activeFilterCount}
+    filtersExpanded={filtersExpanded}
+    onToggleFilters={onToggleFilters}
+    filterPanelId={filterPanelId}
+    onClearDetail={onClearDetail}
+    extraAction={extraAction}
+  />;
 }
 
 function makeRivenId(): string {
@@ -2406,39 +2311,6 @@ const MOD_SORT_OPTIONS: Array<{ value: ModSortKey; label: string }> = [
   { value: "rank-desc", label: "Max Rank: High → Low" },
 ];
 
-function useVirtualLedgerWindow(totalRows: number, rowHeight = LEDGER_ROW_HEIGHT) {
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const [windowState, setWindowState] = useState({ start: 0, end: 50 });
-
-  const recompute = () => {
-    const el = listRef.current;
-    if (!el) return;
-    const viewportHeight = el.clientHeight;
-    const scrollTop = el.scrollTop;
-    const start = Math.max(0, Math.floor(scrollTop / rowHeight) - LEDGER_OVERSCAN);
-    const end = Math.min(
-      totalRows,
-      start + Math.ceil(viewportHeight / rowHeight) + LEDGER_OVERSCAN * 2,
-    );
-    setWindowState((current) =>
-      current.start === start && current.end === end ? current : { start, end },
-    );
-  };
-
-  useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = 0;
-    requestAnimationFrame(() => recompute());
-  }, [totalRows]);
-
-  useEffect(() => {
-    const onResize = () => recompute();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [totalRows]);
-
-  return { listRef, windowState, recompute };
-}
-
 function countTriStateFilters<T extends string>(filters: Partial<Record<T, TagFilterState>>) {
   return Object.keys(filters).length;
 }
@@ -2460,6 +2332,7 @@ function ModsPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ModSortKey>("az");
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>("all");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedMod, setSelectedMod] = useState<ModEntry | null>(null);
   const addGoalCatalog = useTrackerStore((s) => s.addGoalCatalog);
   const [editingRiven, setEditingRiven] = useState<CustomRivenInventoryRecord | null>(null);
@@ -2632,7 +2505,14 @@ function ModsPage() {
     sortKey,
   ]);
 
-  const { listRef, windowState, recompute } = useVirtualLedgerWindow(filteredMods.length);
+  const {
+    scrollportRef,
+    contentRef,
+    rowsAnchorRef,
+    windowState,
+    recompute,
+    resetScroll,
+  } = useCollectionVirtualWindow(filteredMods.length, LEDGER_ROW_HEIGHT, LEDGER_OVERSCAN);
   const showPolarityFilter =
     modGroup !== "all" &&
     modGroup !== "antique" &&
@@ -2650,12 +2530,71 @@ function ModsPage() {
   const modBrowseGridTemplate = "minmax(260px,1.7fr) 140px 140px 110px 120px 120px 40px";
 
   const resetFilters = () => {
+    setModGroup("all");
     setModSubtypeFilters({});
     setModSpecialFlagFilters({});
     setModPolarityFilters({});
     setParazonFilters({});
     setOwnershipFilter("all");
+    setSelectedMod(null);
   };
+
+  const selectModGroup = (group: ModGroup) => {
+    setModGroup(group);
+    setModSubtypeFilters({});
+    setModSpecialFlagFilters({});
+    setModPolarityFilters({});
+    setParazonFilters({});
+    setSelectedMod(null);
+  };
+
+  useEffect(() => {
+    resetScroll();
+  }, [
+    modGroup,
+    modSubtypeFilters,
+    modSpecialFlagFilters,
+    modPolarityFilters,
+    parazonFilters,
+    ownershipFilter,
+    query,
+    sortKey,
+    resetScroll,
+  ]);
+
+  const activeFilters: CollectionActiveFilter[] = [];
+  const removeTag = <T extends string>(
+    setter: React.Dispatch<React.SetStateAction<Partial<Record<T, TagFilterState>>>>,
+    key: T,
+  ) => setter((current) => {
+    const next = { ...current };
+    delete next[key];
+    return next;
+  });
+  if (modGroup !== "all") {
+    activeFilters.push({
+      id: "group",
+      label: `Category: ${MOD_GROUPS.find((group) => group.key === modGroup)?.label ?? modGroup}`,
+      onRemove: () => selectModGroup("all"),
+    });
+  }
+  for (const [key, state] of Object.entries(modSubtypeFilters) as Array<[Exclude<ModSubtype, "all">, TagFilterState]>) {
+    activeFilters.push({ id: `subtype-${key}`, label: `Item type: ${MOD_SUBTYPE_LABELS[key]} ${state === "include" ? "included" : "excluded"}`, onRemove: () => removeTag(setModSubtypeFilters, key) });
+  }
+  for (const [key, state] of Object.entries(modSpecialFlagFilters) as Array<[ModSpecialFlag, TagFilterState]>) {
+    activeFilters.push({ id: `flag-${key}`, label: `${MOD_SPECIAL_FLAG_LABELS[key]} ${state === "include" ? "included" : "excluded"}`, onRemove: () => removeTag(setModSpecialFlagFilters, key) });
+  }
+  for (const [key, state] of Object.entries(modPolarityFilters) as Array<[Polarity, TagFilterState]>) {
+    const label = POLARITIES.find((polarity) => polarity.key === key)?.label ?? key;
+    activeFilters.push({ id: `polarity-${key}`, label: `Polarity: ${label} ${state === "include" ? "included" : "excluded"}`, onRemove: () => removeTag(setModPolarityFilters, key) });
+  }
+  for (const [key, state] of Object.entries(parazonFilters) as Array<[ParazonFilter, TagFilterState]>) {
+    const label = key === "requiem" ? "Requiem" : "Antivirus";
+    activeFilters.push({ id: `parazon-${key}`, label: `Parazon: ${label} ${state === "include" ? "included" : "excluded"}`, onRemove: () => removeTag(setParazonFilters, key) });
+  }
+  if (ownershipFilter !== "all") {
+    activeFilters.push({ id: "ownership", label: ownershipFilter === "owned" ? "Owned" : "Unowned", onRemove: () => setOwnershipFilter("all") });
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -2680,26 +2619,33 @@ function ModsPage() {
         }}
       />
 
-      <Section
-        title="Mods"
-        subtitle="Browse mods, Rivens, set bonuses, and acquisition details from one searchable catalog."
-        className="flex h-full min-h-0 flex-col md:min-h-[42rem]"
-        bodyClassName="flex min-h-0 flex-1 flex-col"
+      <CollectionScrollSurface
+        scrollportRef={scrollportRef}
+        contentRef={contentRef}
+        onScroll={recompute}
+        ariaLabel="Mods catalog and results"
+        className="bg-[color:var(--wf-bg-canvas)]"
       >
-        <div className={baseLedgerShellClassName()}>
-          <CatalogControlBand
+        <section aria-labelledby="mods-page-title">
+          <h1 id="mods-page-title" className="px-3 py-1 text-lg font-semibold text-[color:var(--wf-text-strong)]">Mods</h1>
+          <div>
+            <div className="sticky top-0 z-30 bg-[color:var(--wf-surface-1)]/95 shadow-sm backdrop-blur">
+              <CatalogControlBand
             query={query}
             onQueryChange={(value) => {
               setQuery(value);
               setSelectedMod(null);
             }}
             queryPlaceholder="Search mods, sets, or weapon families..."
-            ownershipFilter={ownershipFilter}
-            onOwnershipChange={setOwnershipFilter}
             sortValue={sortKey}
             onSortChange={(value) => setSortKey(value as ModSortKey)}
             sortOptions={MOD_SORT_OPTIONS}
             onClearDetail={() => setSelectedMod(null)}
+            rowCount={modGroup === "rivens" ? filteredCustomRivens.length : filteredMods.length}
+            activeFilterCount={activeFilterCount}
+            filtersExpanded={filtersExpanded}
+            onToggleFilters={() => setFiltersExpanded((open) => !open)}
+            filterPanelId="mods-advanced-filters"
             extraAction={
               modGroup === "rivens" ? (
                 <WorkspaceAction
@@ -2714,28 +2660,31 @@ function ModsPage() {
               ) : undefined
             }
           />
-
-          <div className="flex min-h-0 flex-1 flex-col">
-            <CollectionModeBand>
+              <CollectionModeBand className="overflow-x-auto" segmentedClassName="!w-max !min-w-full !flex-nowrap">
               <div className="contents">
                 {MOD_GROUPS.map((group) => (
                   <CollectionModeButton
                     key={group.key}
                     active={modGroup === group.key}
-                    onClick={() => {
-                      setModGroup(group.key);
-                      setModSubtypeFilters({});
-                      setModSpecialFlagFilters({});
-                      setModPolarityFilters({});
-                      setParazonFilters({});
-                      setSelectedMod(null);
-                    }}
+                    onClick={() => selectModGroup(group.key)}
                   >
                     {group.label}
                   </CollectionModeButton>
                 ))}
               </div>
-            </CollectionModeBand>
+              </CollectionModeBand>
+            </div>
+
+            <CollectionActiveFilterSummary filters={activeFilters} onClear={resetFilters} />
+            <CollectionFilterDisclosure id="mods-advanced-filters" expanded={filtersExpanded}>
+              <div className="grid gap-3">
+                <CollectionRefineGroup label="Ownership">
+                  <WorkspaceFilterGroup className="gap-2">
+                    <OwnershipPill label="All" active={ownershipFilter === "all"} onClick={() => setOwnershipFilter("all")} />
+                    <OwnershipPill label="Owned" active={ownershipFilter === "owned"} onClick={() => setOwnershipFilter("owned")} />
+                    <OwnershipPill label="Unowned" active={ownershipFilter === "unowned"} onClick={() => setOwnershipFilter("unowned")} />
+                  </WorkspaceFilterGroup>
+                </CollectionRefineGroup>
 
             {showRefineBand ? (
               <CollectionRefineBand title={`Refine ${MOD_GROUPS.find((group) => group.key === modGroup)?.label ?? "Mods"}`}>
@@ -2864,11 +2813,8 @@ function ModsPage() {
               </CollectionRefineBand>
             ) : null}
 
-            <LedgerResultsBand
-              rowsLabel={modGroup === "rivens" ? `Rows: ${filteredCustomRivens.length}` : `Rows: ${filteredMods.length}`}
-              filterCount={activeFilterCount}
-              onResetFilters={resetFilters}
-            />
+              </div>
+            </CollectionFilterDisclosure>
 
             {modGroup === "rivens" ? (
               filteredCustomRivens.length === 0 ? (
@@ -2876,7 +2822,7 @@ function ModsPage() {
                   No owned rivens match the current filters.
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-auto border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)] p-3 pr-2">
+                <div className="border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)] p-3 pr-2">
                   <div className="space-y-2">
                     {filteredCustomRivens.map((riven) => (
                       <div key={riven.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3">
@@ -2918,14 +2864,10 @@ function ModsPage() {
                 No mods match the current filters.
               </div>
             ) : (
-              <div
-                ref={listRef}
-                className="min-h-0 flex-1 overflow-auto border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]"
-                onScroll={recompute}
-              >
+              <div className="border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]">
                 <div className="min-w-[980px]">
                   <div
-                    className="sticky top-0 z-10 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur"
+                    className="sticky top-36 z-20 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur sm:top-44 lg:top-28"
                     style={{ gridTemplateColumns: modBrowseGridTemplate }}
                   >
                     <div>Item</div>
@@ -2936,7 +2878,7 @@ function ModsPage() {
                     <div>Rank</div>
                     <div />
                   </div>
-                  <div className="relative" style={{ height: filteredMods.length * LEDGER_ROW_HEIGHT }}>
+                  <div ref={rowsAnchorRef} className="relative" style={{ height: filteredMods.length * LEDGER_ROW_HEIGHT }}>
                     <div
                       className="absolute left-0 right-0 px-4 py-2"
                       style={{ transform: `translateY(${windowState.start * LEDGER_ROW_HEIGHT}px)` }}
@@ -2951,7 +2893,7 @@ function ModsPage() {
                         const maxRank = modMaxRank(entry);
                         const ownedRank = ownedCount > 0 ? clampModOwnedRank(maxRank, modRanksMap[entry.path]) : 0;
                         return (
-                          <div key={entry.path} className="mb-1 grid items-center gap-2" style={{ gridTemplateColumns: modBrowseGridTemplate }}>
+                          <div key={entry.path} className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: modBrowseGridTemplate }}>
                             <button
                               className={[
                                 "flex min-w-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
@@ -3052,8 +2994,8 @@ function ModsPage() {
               </div>
             )}
           </div>
-        </div>
-      </Section>
+        </section>
+      </CollectionScrollSurface>
     </div>
   );
 }

@@ -123,6 +123,7 @@ export default function Shell(props: { children: React.ReactNode }) {
 
     const activeRoute = getRouteByKey(activePage);
     const wideWorkspace = activeRoute.mode === "planning" || activeRoute.mode === "collection";
+    const singleScrollCatalogRoute = ["inventory", "mods", "arcanes"].includes(activeRoute.key);
 
     return (
         <div className="wf-app-shell h-dvh flex flex-col overflow-hidden text-[color:var(--wf-text)]">
@@ -141,9 +142,9 @@ export default function Shell(props: { children: React.ReactNode }) {
 
                 <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
-                <main className={["wf-workspace min-w-0 flex-1", mobileNavOpen ? "overflow-hidden" : "overflow-y-auto"].join(" ")}>
+                <main className={["wf-workspace min-w-0 flex-1", singleScrollCatalogRoute || mobileNavOpen ? "overflow-hidden" : "overflow-y-auto"].join(" ")}>
                     <div className={[
-                        "min-h-full py-4 lg:h-full",
+                        singleScrollCatalogRoute ? "h-full min-h-0 py-2 lg:py-3" : "min-h-full py-4 lg:h-full",
                         wideWorkspace
                             ? "px-3 md:px-5 xl:px-7"
                             : "mx-auto max-w-[1600px] px-4 md:px-5 xl:px-6",

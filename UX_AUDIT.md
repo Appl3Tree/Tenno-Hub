@@ -73,4 +73,69 @@ The table below records the state before implementation; the implementation and 
 - Do not change canonical IDs, item catalogs, acquisition-source accuracy, inventory/mastery state, progression calculations, goal requirements, or imports/exports.
 - Preserve both search systems and their keyboard shortcuts, all routes, search-detail hashes, and useful page context.
 - Preserve collapsed navigation, mobile drawer, compact-list preference, and the stored theme key.
-- Preserve all existing page actions and calculations while improving labels, layout, accessibility, and cross-page navigation.
+
+## Content-first workspace audit — 2026-11-07
+
+### Phase 1 — scroll and viewport baseline
+
+The active route uses `Shell`'s `.wf-workspace` as an outer `overflow-y-auto` viewport. Inventory, Mods, and Arcanes then create a second vertical scroller around their virtualized rows. Their page sections also specify `md:min-h-[42rem]`, which forces a minimum height even when the viewport is shorter than the catalog shell.
+
+| Route | Result viewport at 1440×900 | Result viewport at 1280×720 | Baseline issue |
+|---|---:|---:|---|
+| Inventory | 395px / 839px main workspace (47%) | 238px / 659px (36%), plus 29px outer overflow | Search, ownership/status/variant, categories/refinements, table controls and a second list scroller stack above results. At 390×844 the flex list expands to its full 48,750px virtual height, so all 869 visible rows render instead of a viewport window. |
+| Mods | 303px / 839px (36%) | 129px / 659px (20%), plus 29px outer overflow | Similar permanent filter/control stack and nested scroll; Riven/detail overlays have their own purposeful scroll areas. |
+| Arcanes | 383px / 839px (46%) | 249px / 659px (38%), plus 29px outer overflow | Similar permanent controls and nested scroll; tri-state category include/exclude filters must remain intact. |
+
+The manual Inventory window reads only the internal list's `clientHeight` and `scrollTop` and listens to `window.resize`. Mods and Arcanes share the same assumptions in `useVirtualLedgerWindow`. This means removing the internal list height constraint without changing the virtualizer would break the measured window, and the current mobile unconstrained flex case already demonstrates that failure. The implementation will give each catalog route one explicitly sized collection scrollport, measure that element with `ResizeObserver`, and virtualize against that scrollport while retaining virtual rows and stable scroll behavior.
+
+### Other route audit
+
+- **Goals, Requirements/Farming, and Prerequisites:** ordinary document flow; no permanently fixed data-table control stack. Goal-tree and source popovers scroll within their own dialogs/popovers, where independent scrolling is expected. No structural change planned.
+- **Syndicates/offering cards:** natural page flow with compact cards and no parallel page/list scroller. No structural change planned.
+- **Star Chart:** map and node panels use explicit map viewport sizing and their own list/detail panes to preserve map interaction. This is an intentional interactive canvas rather than a virtual catalog. Keep that model.
+- **Relic planner:** Goal Tracker uses natural page scrolling for relic cards and does not add a results viewport. Relic Farming intentionally keeps a bounded selector beside recommendations on desktop; this created a second vertical scroll on phones and tablets, so Phase 5 changes it to natural page flow below the desktop side-by-side breakpoint and labels the desktop scroll region for keyboard access.
+- **Other bounded lists:** diagnostics, mod-builder selectors, popovers, inspectors, and dialogs use bounded scrolling for local content. Those are purposeful surfaces and are not candidates for blanket overflow removal.
+
+### Planned architecture
+
+Inventory, Mods, and Arcanes now use one collection scrollport for controls and results. Advanced controls are disclosed on demand and retain their state while closed. Compact filter summaries expose active constraints and allow individual removal and clearing. The collection scroller owns the result scroll offset; virtual windows observe the scrollport dimensions and position rather than assuming the list itself is the scroll element. Other routes retain the shell's normal document scrolling unless they have a purposeful interactive pane.
+
+### Phase 2 — shared collection primitives
+
+Added a reusable collection scroll surface, an active-filter summary that stays to one horizontal row until expanded, an accessible Filters disclosure button/panel, and a shared virtual-window hook. The hook observes the collection scrollport, content, and row anchor with `ResizeObserver`; the pure window calculation accounts for the distance from the top of the collection scrollport to the virtual rows. The implementation retains fixed-height virtual rows and resets only when callers identify a result-changing filter/sort transition. Unit coverage verifies offsets above and within the result region, viewport-height recalculation, and empty results.
+
+The application workspace remains the scroll owner on other routes. Table headers stick within the collection viewport, while compact search/filter/sort toolbars remain reachable without retaining the full filter stack. Active filter chips identify hidden filter state and support direct removal; filter counts include result-affecting facets such as Inventory's column filters.
+
+### Phase 3 — Inventory
+
+Inventory now places its heading, compact search/action/sort toolbar, horizontal primary-category rail, active-filter summary, advanced filters, table heading, and rows inside one collection scroll surface. The advanced panel retains ownership and mastery controls, current-MR/source availability, tri-state Prime/Vaulted controls, category-specific refinements, Safe to Sell rules, and every column filter. The toolbar's More menu keeps bulk actions and visible-column customization available on narrow screens. Column-level filters wrap into readable widths instead of being clipped by the wide table.
+
+The virtual window is calculated against the collection scrollport. Result-changing filters and sort changes reset to the top; opening or closing the filter panel does not. The page stays virtualized with 869 default rows and supports keyboard page navigation. On compact phone layouts, the shared root still owns vertical scrolling and the results window stays bounded instead of rendering the full catalog.
+
+### Phase 4 — Mods and Arcanes
+
+Mods and Arcanes now use the same shared toolbar, filter disclosure, removable active-filter summary, collection scrollport, and observer-based virtual window. Their existing category/type/polarity/special-slot include/exclude states, ownership or rank controls, Riven workflow, sort choices, detail panes, and row actions remain available. Fixed row sizing now matches the rendered row height, avoiding blank gaps or virtual-window drift.
+
+### Phase 5 — route audit and targeted changes
+
+- Goals, Requirements/Farming, Prerequisites, and Syndicates retain natural document flow. Their bounded areas are dialogs, node/source inspectors, or small local lists rather than competing catalog viewports.
+- Relic Goal Tracker keeps natural page scrolling for its search, tier/vault controls, goal highlighting, and card results. Relic Farming retains its bounded selector only in the desktop side-by-side layout; below the `lg` breakpoint it expands in page flow, leaving the application workspace as the only vertical scroll surface. The desktop selector is a named, keyboard-focusable region.
+- Star Chart map and node/detail panes retain their bounded interaction model. Diagnostics, Mod Builder selectors, and contextual dialogs/popovers retain local scrolling where each surface has its own task and controls.
+- No optional Focus View was needed after the three catalog routes gained sufficient result area with filters collapsed.
+
+### Phase 6 — responsive and interaction verification
+
+The local app was inspected in the in-app browser in dark and light themes. Light-theme review confirmed the collapsed toolbar and expanded Inventory filters remain readable; Inventory column controls now fit their panel. Inventory, Mods, and Arcanes filter behavior was checked for active counts, removable chips, collapse/reopen value retention, category changes, sorting, clear filters, Safe to Sell, and tri-state include/exclude behavior. Page Down and End moved the collection scrollport and virtual row window together.
+
+| Viewport | Inventory results / content viewport | Mods results / content viewport | Arcanes results / content viewport |
+|---|---:|---:|---:|
+| 1440×900 | 609px / 78% | 613px / 77% | 670px / 84% |
+| 1366×768 | 477px / 73% | 466px / 70% | 538px / 81% |
+| 1280×720 | 429px / 71% | 418px / 69% | 490px / 81% |
+| 1024×768 | 462px / 71% | 466px / 71% | 538px / 82% |
+| 390×844 | 455px / 67% | 459px / 67% | 531px / 78% |
+| 320×568 | 179px / 44% | 183px / 45% | 255px / 63% |
+
+The compact 320×568 viewport is the tightest case: Inventory and Mods retain a short virtual window under the application chrome, while Arcanes shows more of its shorter list. Horizontal table movement remains available where the column set exceeds the viewport. Relic Farming was also checked at 320×568 and 1280×720: the phone uses only the page's vertical scroll, and desktop retains the independently scrollable selector beside natural-flow recommendations.
+
+Release checks: `npm test` passed (30 files, 239 tests); `npm run build` passed (`tsc -b` and Vite production build). Vite continues to report existing oversized data chunks, including the approximately 41.9 MB main bundle. `git -c core.whitespace=cr-at-eol diff --check` passed. Targeted ESLint passed for the shared collection primitives and app shell; the expanded command also included `RelicFarming.tsx` and reported its pre-existing `missionRewardsRaw as any` cast (line 13), outside this layout change.
