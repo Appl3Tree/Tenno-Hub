@@ -34,7 +34,7 @@ describe("AlecaFrame inventory parser", () => {
     root.MiscItems = [{ ItemType: item, ItemCount: 42 }];
     const result = parseAlecaFrameInventory(root, classify);
     expect(result.importable).toBe(true);
-    expect(result.sourceRecords).toBe(4);
+    expect(result.sourceRecords).toBe(5);
     expect(result.records.find((entry) => entry.catalogId === `mods:${mod}`)).toMatchObject({
       quantity: 11,
       rankCounts: { "0": 8, "3": 1, "5": 2 },
