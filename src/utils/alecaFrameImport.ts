@@ -46,13 +46,13 @@ export interface AlecaFrameInventorySnapshot {
  * other save sections are not inventory (quests, challenges, deltas, loadouts).
  */
 export const COUNTED_ITEM_SECTIONS = [
-  "Consumables", "FlavourItems", "LevelKeys", "MiscItems", "Recipes",
+  "Consumables", "LevelKeys", "MiscItems", "Recipes",
   "CrewShipAmmo", "CrewShipRawSalvage", "ShipDecorations", "EmailItems",
   "FusionTreasures",
 ] as const;
 
 export const OWNED_ITEM_SECTIONS = [
-  "LongGuns", "Melee", "Pistols", "Suits", "SentinelWeapons", "Sentinels",
+  "FlavourItems", "LongGuns", "Melee", "Pistols", "Suits", "SentinelWeapons", "Sentinels",
   "SpaceSuits", "SpaceMelee", "SpaceGuns", "Ships", "Scoops",
   "SpecialItems", "DataKnives", "MechSuits", "CrewShipHarnesses",
   "CrewShips", "DrifterMelee", "Horses", "OperatorSuits", "OperatorAmps",
