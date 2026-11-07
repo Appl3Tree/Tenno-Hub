@@ -1,4 +1,5 @@
 import ExportImport from "../components/ExportImport";
+import AlecaFrameImport from "../components/AlecaFrameImport";
 import { WorkspaceHero, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
 
 export default function Imports() {
@@ -16,7 +17,7 @@ export default function Imports() {
                     />
                 }
             />
-
+            <AlecaFrameImport />
             <ExportImport />
         </div>
     );
