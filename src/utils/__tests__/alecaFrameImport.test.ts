@@ -44,6 +44,22 @@ describe("AlecaFrame inventory parser", () => {
     expect(result.playerLevel).toBe(23);
   });
 
+  it("counts FlavourItems as individual owned records, not stacks", () => {
+    const root = fixture();
+    root.FlavourItems = [{ ItemType: item }, { ItemType: item }];
+    const parsed = parseAlecaFrameInventory(root, classify);
+    expect(parsed.importable).toBe(true);
+    expect(parsed.records[0].quantity).toBe(2);
+  });
+
+  it("rejects a stacked item record without an explicit quantity", () => {
+    const root = fixture();
+    root.MiscItems = [{ ItemType: item }];
+    const parsed = parseAlecaFrameInventory(root, classify);
+    expect(parsed.importable).toBe(false);
+    expect(parsed.issues[0].reason).toContain("Invalid quantity");
+  });
+
   it("blocks rather than guessing a missing catalog entry", () => {
     const root = fixture();
     root.MiscItems = [{ ItemType: "/Lotus/Unknown/SomeItem", ItemCount: 2 }];
