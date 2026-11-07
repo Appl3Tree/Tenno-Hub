@@ -151,7 +151,24 @@ function normalizeInventory(raw: any): any {
         ? (inv as any).customRivens.filter((entry: unknown) => !!entry && typeof entry === "object")
         : [];
 
-    return { credits, platinum, counts, modRanks, arcaneRanks, customRivens };
+    const modRankCounts: Record<string, Record<string, number>> = {};
+    const saved = (inv as any).modRankCounts;
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        for (const [path, ranks] of Object.entries(saved as Record<string, unknown>)) {
+            if (!ranks || typeof ranks !== "object" || Array.isArray(ranks)) continue;
+            const valid: Record<string, number> = {};
+            for (const [rank, value] of Object.entries(ranks)) {
+                const numericRank = Number(rank);
+                const count = Number(value);
+                if (!Number.isSafeInteger(numericRank) || numericRank < 0 ||
+                    !Number.isSafeInteger(count) || count < 0) continue;
+                valid[String(numericRank)] = count;
+            }
+            modRankCounts[path] = valid;
+        }
+    }
+
+    return { credits, platinum, counts, modRanks, modRankCounts, arcaneRanks, customRivens };
 }
 
 function normalizeMastery(raw: any): { xpByItem: Record<string, number>; mastered: Record<string, boolean>; overLevelMastered: Record<string, boolean> } {
