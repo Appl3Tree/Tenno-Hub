@@ -44,30 +44,43 @@ export const SEARCH_DETAIL_ROUTE: NavRoute = {
     mode: "collection",
 };
 
-export const WORK_MODE_META: Record<WorkModeKey, { label: string; desc: string }> = {
+export const WORK_MODE_META: Record<WorkModeKey, { label: string; shortLabel: string; desc: string }> = {
     command: {
-        label: "Command",
-        desc: "Daily status, live intel, and what matters now.",
+        label: "Today",
+        shortLabel: "Today",
+        desc: "Check live activities and pick up where you left off.",
     },
     progression: {
         label: "Progression",
-        desc: "Longer-term advancement, unlocks, and progression systems.",
+        shortLabel: "Progress",
+        desc: "Track goals, unlocks, syndicates, and challenges.",
     },
     collection: {
-        label: "Collection",
-        desc: "Inventory, mods, and source research across the catalog.",
+        label: "Inventory & Catalog",
+        shortLabel: "Items",
+        desc: "Update owned items or browse mods, arcanes, and sources.",
     },
     planning: {
-        label: "Planning",
-        desc: "Farming routes, relics, and build analysis.",
+        label: "Farm & Plan",
+        shortLabel: "Farm",
+        desc: "Find farming routes, plan relic runs, and build loadouts.",
     },
     system: {
-        label: "System",
-        desc: "Import tools, settings, and diagnostics.",
+        label: "App & Data",
+        shortLabel: "App",
+        desc: "Manage preferences, profile data, and technical diagnostics.",
     },
 };
 
 export const WORK_MODE_ORDER: WorkModeKey[] = ["command", "progression", "collection", "planning", "system"];
+
+const WORK_MODE_DEFAULT_ROUTES: Record<WorkModeKey, PageKey> = {
+    command: "dashboard",
+    progression: "goals",
+    collection: "inventory",
+    planning: "requirements",
+    system: "settings",
+};
 
 export function getRouteByKey(key: PageKey): NavRoute {
     if (key === "search_detail") {
@@ -77,5 +90,10 @@ export function getRouteByKey(key: PageKey): NavRoute {
         return NAV_ROUTES.find((route) => route.key === "relic_planner") ?? NAV_ROUTES[0];
     }
     return NAV_ROUTES.find((route) => route.key === key) ?? NAV_ROUTES[0];
+}
+
+/** The workspace navigation button lands on that group's most useful entry page. */
+export function getDefaultRouteForMode(mode: WorkModeKey): NavRoute {
+    return NAV_ROUTES.find((route) => route.key === WORK_MODE_DEFAULT_ROUTES[mode]) ?? NAV_ROUTES[0];
 }
 

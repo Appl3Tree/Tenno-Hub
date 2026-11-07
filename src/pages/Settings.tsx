@@ -1,15 +1,15 @@
 // src/pages/Settings.tsx
-import { useEffect, useState } from "react";
+import { useId, useState } from "react";
 import { useTrackerStore } from "../store/store";
 import { useShallow } from "zustand/react/shallow";
 import { WorkspacePanel, WorkspaceSegmented, WorkspaceSegmentedButton } from "../components/workspace/WorkspaceChrome";
 import {
-    applyTheme,
     getCompactRows,
-    getStoredTheme,
     getStoredTimezone,
     setCompactRows,
     setStoredTimezone,
+    setAppTheme,
+    useAppTheme,
     type AppTheme,
 } from "../lib/settingsPreferences";
 
@@ -39,14 +39,15 @@ const TIMEZONE_OPTIONS = [
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SettingsSection(props: { title: string; description?: string; children: React.ReactNode }) {
+    const titleId = useId();
     return (
-        <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-4">
-            <div className="text-sm font-semibold text-slate-100">{props.title}</div>
+        <section aria-labelledby={titleId} className="rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] p-4">
+            <h2 id={titleId} className="text-sm font-semibold text-[color:var(--wf-text-strong)]">{props.title}</h2>
             {props.description && (
-                <div className="mt-1 text-sm text-slate-400">{props.description}</div>
+                <div className="mt-1 text-sm text-[color:var(--wf-text-muted)]">{props.description}</div>
             )}
             <div className="mt-3">{props.children}</div>
-        </div>
+        </section>
     );
 }
 
@@ -54,13 +55,16 @@ function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label
     return (
         <label className="flex items-start gap-3 cursor-pointer group">
             <div className="relative mt-0.5 shrink-0">
-                <input type="checkbox" className="sr-only" checked={props.checked} onChange={e => props.onChange(e.target.checked)} />
-                <div className={["w-9 h-5 rounded-full transition-colors", props.checked ? "bg-blue-600" : "bg-slate-700"].join(" ")} />
+                <input type="checkbox" className="peer sr-only" checked={props.checked} onChange={e => props.onChange(e.target.checked)} />
+                <div className={[
+                    "w-9 h-5 rounded-full border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--wf-focus-ring)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[color:var(--wf-surface-1)]",
+                    props.checked ? "border-transparent bg-[color:var(--wf-accent-primary)]" : "border-[color:var(--wf-border-strong)] bg-[color:var(--wf-surface-2)]",
+                ].join(" ")} />
                 <div className={["absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform", props.checked ? "translate-x-4" : "translate-x-0"].join(" ")} />
             </div>
             <div>
-                <div className="text-sm text-slate-200 group-hover:text-slate-100 transition-colors">{props.label}</div>
-                {props.description && <div className="text-xs text-slate-500 mt-0.5">{props.description}</div>}
+                <div className="text-sm text-[color:var(--wf-text)] group-hover:text-[color:var(--wf-text-strong)] transition-colors">{props.label}</div>
+                {props.description && <div className="text-xs text-[color:var(--wf-text-muted)] mt-0.5">{props.description}</div>}
             </div>
         </label>
     );
@@ -116,16 +120,12 @@ export default function Settings() {
     );
     const hiddenCategories = getHiddenWorldStateCategories();
 
-    const [theme, setTheme]         = useState<AppTheme>(getStoredTheme);
+    const theme = useAppTheme();
     const [compact, setCompact]     = useState(getCompactRows);
     const [timezone, setTimezone]   = useState(getStoredTimezone);
 
-    // Apply theme on first mount
-    useEffect(() => { applyTheme(getStoredTheme()); }, []);
-
     function handleTheme(t: AppTheme) {
-        setTheme(t);
-        applyTheme(t);
+        setAppTheme(t);
     }
 
     function handleCompact(v: boolean) {
@@ -141,9 +141,9 @@ export default function Settings() {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <WorkspacePanel className="p-4">
-                <div className="text-lg font-semibold">Settings</div>
-                <div className="text-sm text-slate-400 mt-1">Customize your Warframe Tracker experience.</div>
+            <WorkspacePanel className="p-4" aria-labelledby="settings-page-title">
+                <h1 id="settings-page-title" className="text-lg font-semibold text-[color:var(--wf-text-strong)]">Settings</h1>
+                <div className="text-sm text-[color:var(--wf-text-muted)] mt-1">Customize appearance, list density, world-state alerts, and time display.</div>
             </WorkspacePanel>
 
             {/* Responsive 2-column grid at lg */}
@@ -164,11 +164,12 @@ export default function Settings() {
                                             key={t}
                                             onClick={() => handleTheme(t)}
                                             active={theme === t}
+                                            aria-pressed={theme === t}
                                             className={[
                                                 "flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
                                                 theme === t
-                                                    ? "border-blue-600 bg-blue-950/40 text-blue-200"
-                                                    : "border-slate-700 bg-slate-950/40 text-slate-300 hover:bg-slate-900"
+                                                    ? "border-[color:var(--wf-accent-border)] bg-[color:var(--wf-accent-soft)] text-[color:var(--wf-accent-text)]"
+                                                    : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-input)] text-[color:var(--wf-text-muted)] hover:bg-[color:var(--wf-hover)]"
                                             ].join(" ")}
                                         >
                                             {t === "dark"

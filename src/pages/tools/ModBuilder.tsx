@@ -1727,7 +1727,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                     {rank < mod.fusionLimit && <span className="text-slate-600 ml-1">@{rank}/{mod.fusionLimit}</span>}
                                 </div>
                                 {showDetails && (
-                                    <div className="pointer-events-none absolute left-0 top-full z-[70] mt-2 w-64 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 shadow-xl">
+                                    <div className="wf-popover pointer-events-none absolute left-0 top-full z-[70] mt-2 w-64 rounded-lg border px-3 py-2">
                                         <div className="text-xs font-semibold leading-tight text-slate-100">{getBuilderDisplayModName(mod)}</div>
                                         <div className="mt-1 text-[11px] leading-relaxed text-slate-300">{currentStatsLabel}</div>
                                     </div>
@@ -1936,7 +1936,7 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
                                     {rank < arcane.maxRank && <span className="text-slate-600 ml-1">@{rank}/{arcane.maxRank}</span>}
                                 </div>
                                 {showDetails && (
-                                    <div className="pointer-events-none absolute left-0 top-full z-[70] mt-2 w-64 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 shadow-xl">
+                                    <div className="wf-popover pointer-events-none absolute left-0 top-full z-[70] mt-2 w-64 rounded-lg border px-3 py-2">
                                         <div className="text-xs font-semibold leading-tight text-slate-100">{arcane.name}</div>
                                         <div className="mt-1 text-[11px] leading-relaxed text-slate-300">{statAtRank}</div>
                                     </div>
@@ -2013,12 +2013,24 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
     const [open, setOpen] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
     useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
     useEffect(() => {
         if (!open) return;
         const h = (e: MouseEvent) => { if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false); };
         document.addEventListener("mousedown", h);
         return () => document.removeEventListener("mousedown", h);
+    }, [open]);
+    useEffect(() => {
+        if (!open) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            setOpen(false);
+            triggerRef.current?.focus();
+        };
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
     }, [open]);
     const weapons  = useMemo(() => getWeaponCatalog(), []);
     const filtered = useMemo(() => {
@@ -2060,7 +2072,7 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
 
     return (
         <div className="relative" ref={panelRef}>
-            <button onClick={() => setOpen(x => !x)}
+            <button ref={triggerRef} aria-haspopup="dialog" aria-expanded={open} aria-controls="wf-weapon-selector-panel" onClick={() => setOpen(x => !x)}
                 className={["w-full rounded-2xl border px-3 py-3 text-left transition-all",
                     selected
                         ? "border-slate-600 bg-slate-900/70 shadow-[0_18px_50px_rgba(2,6,23,0.28)] hover:border-slate-500"
@@ -2076,7 +2088,7 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
                                 <span className="text-slate-700">/</span>
                                 <span>{selected.weaponType}</span>
                                 {selected.canOverLevel && (
-                                    <span className="rounded-full border border-orange-700/50 bg-orange-950/30 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-orange-300">
+                                    <span className="rounded-full border border-[color:var(--wf-warning)] bg-[color:var(--wf-warning-soft)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wf-warning)]">
                                         Rank 40
                                     </span>
                                 )}
@@ -2087,15 +2099,16 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
                 ) : <span className="text-sm text-slate-500">Select a weapon…</span>}
             </button>
             {open && (
-                <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-[22px] border border-slate-700/90 bg-slate-950/95 shadow-[0_30px_90px_rgba(2,6,23,0.6)] backdrop-blur-xl">
-                    <div className="border-b border-slate-800/80 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.92))] p-3">
+                <div id="wf-weapon-selector-panel" role="dialog" aria-label="Choose a weapon" className="wf-popover absolute z-50 mt-2 w-full overflow-hidden rounded-[22px] border backdrop-blur-xl">
+                    <div className="border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] p-3">
                         <input ref={inputRef} type="text" placeholder="Search weapons, categories, or weapon types…" value={query}
+                            aria-label="Search weapons"
                             onChange={e => setQuery(e.target.value)}
                             className="w-full rounded-2xl border border-slate-700/90 bg-slate-950/90 px-4 py-3 text-sm font-medium text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/10" />
                         <div className="-mx-1 mt-3 overflow-x-auto pb-1">
-                            <div className="flex min-w-max gap-2 px-1">
+                            <div role="group" aria-label="Weapon category" className="flex min-w-max gap-2 px-1">
                             {WEAPON_FILTER_OPTIONS.map((option) => (
-                                <button key={option.value} onClick={() => setCat(option.value)}
+                                <button key={option.value} aria-pressed={cat === option.value} onClick={() => setCat(option.value)}
                                     className={[
                                         "shrink-0 rounded-2xl border px-4 py-2.5 text-center text-[12px] font-semibold leading-none transition-all",
                                         cat === option.value
@@ -2123,7 +2136,7 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
                             <button key={w.uniqueName}
                                 className={["w-full px-4 py-3 text-left transition-colors hover:bg-slate-900/80",
                                     w.name === selected?.name ? "bg-slate-900/70" : ""].join(" ")}
-                                onClick={() => { onSelect(w); setOpen(false); setQuery(""); }}>
+                                onClick={() => { onSelect(w); setOpen(false); setQuery(""); triggerRef.current?.focus(); }}>
                                 <div className="flex items-start gap-3">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
@@ -2683,6 +2696,8 @@ export default function ModBuilder() {
     const [dragOverSlot, setDragOverSlot] = useState<DragSlotRef | null>(null);
     const [optimizeMode, setOptimizeMode] = useState<OptimizeMode>("optimize");
     const [incarnonPickerTier, setIncarnonPickerTier] = useState<IncarnonTier | null>(null);
+    const incarnonDialogRef = useRef<HTMLDivElement | null>(null);
+    const mathDialogRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         setBuildCfg((prev) => {
@@ -2794,6 +2809,62 @@ export default function ModBuilder() {
         () => incarnonPickerTier ? incarnonRecord?.tiers.find((tier) => tier.tier === incarnonPickerTier) ?? null : null,
         [incarnonPickerTier, incarnonRecord],
     );
+    useEffect(() => {
+        if (!activeIncarnonTier && !showMathWindow) return;
+
+        const dialog = showMathWindow ? mathDialogRef.current : incarnonDialogRef.current;
+        if (!dialog) return;
+
+        const previouslyFocused = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        const previousOverflow = document.documentElement.style.overflow;
+        document.documentElement.style.overflow = "hidden";
+        dialog.focus();
+
+        function onKeyDown(event: KeyboardEvent) {
+            const activeModal = Array.from(document.querySelectorAll<HTMLElement>('[aria-modal="true"]')).at(-1);
+            if (activeModal !== dialog) return;
+
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                if (showMathWindow) setShowMathWindow(false);
+                else setIncarnonPickerTier(null);
+                return;
+            }
+            if (event.key !== "Tab") return;
+
+            const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ));
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialog.focus();
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            } else if (!dialog.contains(document.activeElement)) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
+
+        window.addEventListener("keydown", onKeyDown);
+        return () => {
+            window.removeEventListener("keydown", onKeyDown);
+            document.documentElement.style.overflow = previousOverflow;
+            if (previouslyFocused?.isConnected) previouslyFocused.focus();
+        };
+    }, [activeIncarnonTier, showMathWindow]);
     useEffect(() => {
         if (!incarnonPickerTier) return;
         if (!incarnonRecord?.tiers.some((tier) => tier.tier === incarnonPickerTier)) {
@@ -3093,7 +3164,14 @@ export default function ModBuilder() {
         setDragOverSlot(null);
         setDraggedSlot(null);
     }
-    function toggleExclude(uniqueName: string) { setExcluded(p => { const n = new Set(p); n.has(uniqueName) ? n.delete(uniqueName) : n.add(uniqueName); return n; }); }
+    function toggleExclude(uniqueName: string) {
+        setExcluded(previous => {
+            const next = new Set(previous);
+            if (next.has(uniqueName)) next.delete(uniqueName);
+            else next.add(uniqueName);
+            return next;
+        });
+    }
 
     const capacityCfg: CapacityConfig = {
         weaponRank: buildCfg.weaponRank, hasCatalyst: buildCfg.hasCatalyst,
@@ -3692,11 +3770,11 @@ export default function ModBuilder() {
 
             {tab === "build" && (
                 <>
-                            <div className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,rgba(15,23,42,0.98),rgba(8,15,32,0.95))] shadow-[0_24px_80px_rgba(2,6,23,0.45)] overflow-visible">
+                            <div className="rounded-[28px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] shadow-[var(--wf-shadow-panel)] overflow-visible">
                                 <div className="border-b border-slate-800/80 bg-slate-950/70 px-4 py-3">
                                     <div className="flex flex-wrap items-start gap-3 justify-between">
                                         <div className="min-w-0 flex-1">
-                                            <div className="text-[11px] uppercase tracking-[0.24em] text-orange-300/90">Arsenal Modding</div>
+                                            <div className="text-[11px] uppercase tracking-[0.24em] text-[color:var(--wf-warning)]">Arsenal Modding</div>
                                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                                     <div className="w-[360px] max-w-full">
                                                         <WeaponSelector selected={weapon} onSelect={handleSelectWeapon} />
@@ -3924,10 +4002,10 @@ export default function ModBuilder() {
                                                     )}
                                                     {incarnonRecord && (
                                                         <div className="md:col-span-3">
-                                                            <div className="rounded-[1.35rem] border border-cyan-500/20 bg-[linear-gradient(180deg,rgba(7,15,25,0.9),rgba(2,6,23,0.86))] px-4 py-3 shadow-[0_0_0_1px_rgba(34,211,238,0.04),0_14px_36px_rgba(8,47,73,0.18)]">
+                                                            <div className="rounded-[1.35rem] border border-[color:var(--wf-border-accent)] bg-[color:var(--wf-surface-2)] px-4 py-3 shadow-[var(--wf-shadow-panel)]">
                                                                 <div className="flex flex-wrap items-center justify-between gap-4">
                                                                     <div>
-                                                                        <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-200/70">Incarnon Evolution Path</div>
+                                                                        <div className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--wf-accent-text)]">Incarnon Evolution Path</div>
                                                                         <div className="mt-1 text-xs text-slate-400">
                                                                             Click any evolution to review its effects and choose what this build should use.
                                                                         </div>
@@ -3961,8 +4039,8 @@ export default function ModBuilder() {
                                                                                         className={[
                                                                                             "relative flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold tracking-[0.14em] transition-all duration-200",
                                                                                             selectedOption
-                                                                                                ? "border-cyan-300/70 bg-cyan-400/12 text-cyan-100 shadow-[0_0_0_1px_rgba(103,232,249,0.08),0_0_26px_rgba(34,211,238,0.34),inset_0_0_18px_rgba(34,211,238,0.18)]"
-                                                                                                : "border-cyan-500/25 bg-slate-950/45 text-slate-400 group-hover:border-cyan-300/45 group-hover:text-cyan-100",
+                                                                                                ? "border-[color:var(--wf-selection-border)] bg-[color:var(--wf-selection)] text-[color:var(--wf-selection-text)] shadow-[0_0_0_1px_var(--wf-selection-border)]"
+                                                                                                : "border-[color:var(--wf-border-accent)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text-muted)] group-hover:border-[color:var(--wf-selection-border)] group-hover:text-[color:var(--wf-accent-text)]",
                                                                                         ].join(" ")}
                                                                                     >
                                                                                         <span className="absolute inset-[5px] rounded-full border border-white/5" />
@@ -3971,7 +4049,7 @@ export default function ModBuilder() {
                                                                                 </button>
                                                                             );
                                                                         })}
-                                                                        <div className="ml-1 rounded-full border border-cyan-400/15 bg-slate-950/50 px-3 py-1 text-[11px] text-cyan-100/80">
+                                                                        <div className="ml-1 rounded-full border border-[color:var(--wf-border-accent)] bg-[color:var(--wf-surface-soft)] px-3 py-1 text-[11px] text-[color:var(--wf-accent-text)]">
                                                                             {selectedIncarnonTierCount > 0
                                                                                 ? `${selectedIncarnonTierCount} evolution${selectedIncarnonTierCount === 1 ? "" : "s"} active`
                                                                                 : buildCfg.optimizeIncarnonSelections
@@ -3984,8 +4062,8 @@ export default function ModBuilder() {
                                                                             className={[
                                                                                 "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors",
                                                                                 buildCfg.optimizeIncarnonSelections
-                                                                                    ? "border-cyan-300/45 bg-cyan-400/12 text-cyan-100"
-                                                                                    : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-cyan-300/30 hover:text-cyan-100",
+                                                                                    ? "border-[color:var(--wf-selection-border)] bg-[color:var(--wf-selection)] text-[color:var(--wf-selection-text)]"
+                                                                                    : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text-muted)] hover:border-[color:var(--wf-border-accent)] hover:text-[color:var(--wf-info)]",
                                                                             ].join(" ")}
                                                                             title={selectedIncarnonTierCount > 0
                                                                                 ? "Allow the optimizer to test the selected Incarnon tiers and keep the best-scoring evolution path."
@@ -4005,7 +4083,7 @@ export default function ModBuilder() {
                                                             {FACTIONS.map(f => (
                                                                 <button key={f.value} onClick={() => setFaction(f.value)}
                                                                     className={["rounded-full px-2.5 py-1 text-[10px] border transition-colors",
-                                                                        faction === f.value ? "bg-orange-900/40 border-orange-600/60 text-orange-300" : "border-slate-700 text-slate-400 hover:border-slate-600"].join(" ")}>
+                                                                        faction === f.value ? "bg-[color:var(--wf-warning-soft)] border-[color:var(--wf-warning)] text-[color:var(--wf-warning)]" : "border-slate-700 text-slate-400 hover:border-slate-600"].join(" ")}>
                                                                     {f.label}
                                                                 </button>
                                                             ))}
@@ -4022,10 +4100,10 @@ export default function ModBuilder() {
                                     <div className="rounded-2xl border border-slate-800 bg-slate-950/55 overflow-hidden">
                                         <div className="border-b border-slate-800/70 px-4 py-3">
                                             <div className="flex items-center justify-between">
-                                                <div className="text-[11px] uppercase tracking-[0.22em] text-orange-300">Capacity</div>
+                                                <div className="text-[11px] uppercase tracking-[0.22em] text-[color:var(--wf-warning)]">Capacity</div>
                                                 {displayedCapacity && (
                                                     <div className="font-mono text-lg">
-                                                        <span className={displayedCapacity.over ? "text-red-400" : "text-orange-300"}>{displayedCapacity.used}</span>
+                                                        <span className={displayedCapacity.over ? "text-red-400" : "text-[color:var(--wf-warning)]"}>{displayedCapacity.used}</span>
                                                         <span className="text-slate-600">/</span>
                                                         <span className="text-slate-200">{displayedCapacity.total}</span>
                                                     </div>
@@ -4091,8 +4169,8 @@ export default function ModBuilder() {
                                                         className={[
                                                             "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
                                                             showMathWindow
-                                                                ? "border-cyan-300/70 bg-cyan-950/40 text-cyan-100"
-                                                                : "border-slate-700 bg-slate-950/40 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-100",
+                                                                ? "border-[color:var(--wf-selection-border)] bg-[color:var(--wf-selection)] text-[color:var(--wf-selection-text)]"
+                                                                : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text)] hover:border-[color:var(--wf-border-accent)] hover:text-[color:var(--wf-info)]",
                                                         ].join(" ")}
                                                     >
                                                         Open Math
@@ -4211,8 +4289,8 @@ export default function ModBuilder() {
                                                                                 labelClassName={[
                                                                                     "capitalize",
                                                                                     type === "viral" ? "text-lime-300" :
-                                                                                    type === "heat" ? "text-orange-300" :
-                                                                                    type === "cold" ? "text-cyan-300" :
+                                                                                    type === "heat" ? "text-[color:var(--wf-warning)]" :
+                                                                                    type === "cold" ? "text-[color:var(--wf-info)]" :
                                                                                     type === "electricity" ? "text-violet-300" :
                                                                                     type === "toxin" ? "text-emerald-300" :
                                                                                     type === "slash" ? "text-red-300" :
@@ -4264,7 +4342,7 @@ export default function ModBuilder() {
                                         )}
                                     </div>
 
-                                    <div className="rounded-2xl border border-slate-800 bg-[radial-gradient(circle_at_top,rgba(30,41,59,0.45),rgba(2,6,23,0.9))] p-4">
+                                    <div className="rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] p-4">
                                         <div className="flex items-center justify-between mb-3">
                                             <div>
                                                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Mod Configuration</div>
@@ -4802,19 +4880,19 @@ export default function ModBuilder() {
                             </div>
 
                             {activeIncarnonTier && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/78 px-4 py-8 backdrop-blur-md">
-                                    <div className="relative w-full max-w-5xl overflow-hidden rounded-[2rem] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.22),_transparent_32%),linear-gradient(180deg,rgba(4,10,20,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(2,12,27,0.7)]">
+                                <div className="wf-modal-backdrop wf-dialog-frame fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md">
+                                    <div ref={incarnonDialogRef} className="wf-dialog relative max-h-full w-full max-w-5xl overflow-y-auto rounded-[2rem] border" role="dialog" aria-modal="true" aria-labelledby="incarnon-evolution-title" tabIndex={-1}>
                                         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent" />
                                         <div className="px-6 pb-5 pt-6 sm:px-8 sm:pt-8">
                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                 <div>
-                                                    <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-200/65">
+                                                    <div className="text-[11px] uppercase tracking-[0.35em] text-[color:var(--wf-accent-text)]">
                                                         Evolution {INCARNON_TIER_LABELS[activeIncarnonTier.tier]}
                                                     </div>
-                                                    <h3 className="mt-2 text-2xl font-semibold text-slate-50 sm:text-[2rem]">
+                                                    <h3 id="incarnon-evolution-title" className="mt-2 text-2xl font-semibold text-[color:var(--wf-text-strong)] sm:text-[2rem]">
                                                         {activeIncarnonTier.tier === 1 ? "Review Incarnon evolution" : "Choose an Incarnon perk"}
                                                     </h3>
-                                                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300/80">
+                                                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--wf-text-muted)]">
                                                         {activeIncarnonTier.tier === 1
                                                             ? "Evolution I is the Incarnon-form baseline. Review what it changes, then enable or remove it for this build."
                                                             : "Pick the upgrade that should shape this build. The optimizer can branch across enabled tiers later if you turn path optimization on."}
@@ -4823,7 +4901,7 @@ export default function ModBuilder() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setIncarnonPickerTier(null)}
-                                                    className="rounded-full border border-slate-700/80 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition-colors hover:border-cyan-300/40 hover:text-cyan-100"
+                                                    className="rounded-full border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--wf-text)] transition-colors hover:border-[color:var(--wf-border-accent)] hover:text-[color:var(--wf-accent-text)]"
                                                 >
                                                     Close
                                                 </button>
@@ -4847,15 +4925,15 @@ export default function ModBuilder() {
                                                             <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/50 to-transparent opacity-80" />
                                                             <div className="flex items-start justify-between gap-4">
                                                                 <div>
-                                                                    <div className="text-[10px] uppercase tracking-[0.32em] text-cyan-200/60">Perk {index + 1}</div>
-                                                                    <div className="mt-3 text-lg font-semibold text-slate-50">{option.name}</div>
+                                                                    <div className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--wf-accent-text)]">Perk {index + 1}</div>
+                                                                    <div className="mt-3 text-lg font-semibold text-[color:var(--wf-text-strong)]">{option.name}</div>
                                                                 </div>
                                                                 <span
                                                                     className={[
                                                                         "flex h-12 w-12 items-center justify-center rounded-full border text-sm font-semibold transition-all",
                                                                         selected
-                                                                            ? "border-cyan-200/80 bg-cyan-300/18 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
-                                                                            : "border-slate-700/90 bg-slate-950/70 text-slate-400 group-hover:border-cyan-300/45 group-hover:text-cyan-100",
+                                                                            ? "border-[color:var(--wf-selection-border)] bg-[color:var(--wf-selection)] text-[color:var(--wf-selection-text)] shadow-[0_0_0_1px_var(--wf-selection-border)]"
+                                                                            : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text-muted)] group-hover:border-[color:var(--wf-border-accent)] group-hover:text-[color:var(--wf-accent-text)]",
                                                                     ].join(" ")}
                                                                 >
                                                                     {INCARNON_TIER_LABELS[activeIncarnonTier.tier]}
@@ -4869,7 +4947,7 @@ export default function ModBuilder() {
                                                                 ))}
                                                             </div>
                                                             {option.notes.length > 0 && (
-                                                                <div className="mt-5 border-t border-white/5 pt-4 text-xs leading-5 text-cyan-100/72">
+                                                                <div className="mt-5 border-t border-[color:var(--wf-border-subtle)] pt-4 text-xs leading-5 text-[color:var(--wf-text-muted)]">
                                                                     {option.notes.join(" ")}
                                                                 </div>
                                                             )}
@@ -4897,7 +4975,7 @@ export default function ModBuilder() {
                                                     <button
                                                         type="button"
                                                         onClick={() => setIncarnonPickerTier(null)}
-                                                        className="rounded-full border border-slate-700/80 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition-colors hover:border-cyan-300/35 hover:text-cyan-100"
+                                                        className="rounded-full border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--wf-text)] transition-colors hover:border-[color:var(--wf-border-accent)] hover:text-[color:var(--wf-accent-text)]"
                                                     >
                                                         Cancel
                                                     </button>
@@ -4910,21 +4988,26 @@ export default function ModBuilder() {
 
                             {showMathWindow && (
                                 <div
-                                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/78 px-4 py-8 backdrop-blur-md"
+                                    className="wf-modal-backdrop wf-dialog-frame fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md"
                                     onClick={() => setShowMathWindow(false)}
                                 >
                                     <div
-                                        className="relative w-full max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_30%),linear-gradient(180deg,rgba(4,10,20,0.985),rgba(2,6,23,0.97))] shadow-[0_24px_80px_rgba(2,12,27,0.72)]"
+                                        ref={mathDialogRef}
+                                        className="wf-dialog relative w-full max-w-6xl overflow-hidden rounded-[2rem] border"
+                                        role="dialog"
+                                        aria-modal="true"
+                                        aria-labelledby="mod-builder-math-title"
+                                        tabIndex={-1}
                                         onClick={(event) => event.stopPropagation()}
                                     >
                                         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent" />
                                         <div className="max-h-[88vh] overflow-y-auto px-6 pb-6 pt-6 sm:px-8 sm:pt-8">
                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                 <div>
-                                                    <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-200/65">
+                                                    <div className="text-[11px] uppercase tracking-[0.35em] text-[color:var(--wf-accent-text)]">
                                                         Detailed Build Math
                                                     </div>
-                                                    <h3 className="mt-2 text-2xl font-semibold text-slate-50 sm:text-[2rem]">
+                                                    <h3 id="mod-builder-math-title" className="mt-2 text-2xl font-semibold text-[color:var(--wf-text-strong)] sm:text-[2rem]">
                                                         Full calculation trace
                                                     </h3>
                                                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300/80">
@@ -4934,7 +5017,7 @@ export default function ModBuilder() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowMathWindow(false)}
-                                                    className="rounded-full border border-slate-700/80 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300 transition-colors hover:border-cyan-300/40 hover:text-cyan-100"
+                                                    className="rounded-full border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--wf-text)] transition-colors hover:border-[color:var(--wf-border-accent)] hover:text-[color:var(--wf-info)]"
                                                 >
                                                     Close
                                                 </button>
@@ -4945,7 +5028,7 @@ export default function ModBuilder() {
                                                     {displayedMath.sections.map((section) => (
                                                         <div key={section.title} className="overflow-hidden rounded-[1.5rem] border border-slate-800/90 bg-slate-950/55">
                                                             <div className="border-b border-cyan-400/10 bg-cyan-400/5 px-5 py-4">
-                                                                <div className="text-[10px] uppercase tracking-[0.32em] text-cyan-200/60">{section.title}</div>
+                                                                <div className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--wf-info)]">{section.title}</div>
                                                             </div>
                                                             <div className="space-y-2 px-5 py-4">
                                                                 {section.lines.map((line, idx) => (

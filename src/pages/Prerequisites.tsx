@@ -5,9 +5,14 @@ import { describePrereqCondition } from "../catalog/prereqs/prereqRegistry";
 import { computeUnlockGraphSnapshot } from "../domain/logic/unlockGraph";
 import { deriveCompletedMap, isAutoTrackedPrereq } from "../domain/logic/syndicatePrereqs";
 import { useTrackerStore } from "../store/store";
+import type { UserStateV2 } from "../domain/models/userState";
 import { WorkspaceAction, WorkspaceFilterBar, WorkspaceFilterGroup, WorkspaceHero, WorkspaceSection, WorkspaceSegmented, WorkspaceSegmentedButton, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
 
 type StatusFilter = "all" | "incomplete" | "complete";
+
+const EMPTY_COMPLETED_MAP: Record<string, boolean> = {};
+const EMPTY_INVENTORY_COUNTS: Record<string, number> = {};
+const EMPTY_SYNDICATES: UserStateV2["syndicates"] = [];
 
 // ── Chevron icon ──────────────────────────────────────────────────────────────
 function Chevron({ open }: { open: boolean }) {
@@ -42,12 +47,12 @@ function ProgressBar({ done, total, className = "" }: { done: number; total: num
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Prerequisites() {
     const setActivePage        = useTrackerStore((s) => s.setActivePage);
-    const completedMap       = useTrackerStore((s) => s.state.prereqs?.completed ?? {});
+    const completedMap       = useTrackerStore((s) => s.state.prereqs?.completed ?? EMPTY_COMPLETED_MAP);
     const setPrereqCompleted = useTrackerStore((s) => s.setPrereqCompleted);
-    const syndicates         = useTrackerStore((s) => s.state.syndicates ?? []);
+    const syndicates         = useTrackerStore((s) => s.state.syndicates ?? EMPTY_SYNDICATES);
     const masteryRank        = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
-    const nodeCompletedMap   = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? {});
-    const inventoryCounts    = useTrackerStore((s) => s.state.inventory.counts ?? {});
+    const nodeCompletedMap   = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? EMPTY_COMPLETED_MAP);
+    const inventoryCounts    = useTrackerStore((s) => s.state.inventory.counts ?? EMPTY_INVENTORY_COUNTS);
 
     const [search, setSearch]             = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -177,6 +182,7 @@ export default function Prerequisites() {
                 {/* Search + status filter */}
                 <WorkspaceFilterBar className="mt-3 sm:flex-nowrap">
                     <input
+                        aria-label="Search prerequisites"
                         className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-600"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}

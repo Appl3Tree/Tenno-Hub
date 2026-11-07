@@ -4,6 +4,7 @@
 // Content is static — no store reads needed.
 
 import { useState } from "react";
+import { WorkspaceHero, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout primitives
@@ -15,8 +16,8 @@ function Card({ title, summary, children }: { title: string; summary: string; ch
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-accent-primary)]">
                 Handbook Entry
             </div>
-            <div className="mt-2 text-2xl font-semibold text-[color:var(--wf-text-strong)]">{title}</div>
-            <div className="mt-2 max-w-3xl text-sm text-[color:var(--wf-text-muted)]">{summary}</div>
+            <h2 className="mt-2 text-2xl font-semibold text-[color:var(--wf-text-strong)]">{title}</h2>
+            <p className="mt-2 max-w-3xl text-sm text-[color:var(--wf-text-muted)]">{summary}</p>
             <div className="mt-6 space-y-5 text-sm leading-relaxed text-[color:var(--wf-text)]">{children}</div>
         </article>
     );
@@ -1795,54 +1796,31 @@ export default function Handbook() {
 
     return (
         <div className="flex flex-col gap-4">
-            <section className="rounded-[28px] border border-[color:var(--wf-border-subtle)] bg-[linear-gradient(180deg,rgba(18,28,39,0.96),rgba(11,17,24,0.96))] px-5 py-5 shadow-[var(--wf-shadow-panel)]">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="max-w-3xl">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-accent-primary)]">
-                            Editorial Workspace
-                        </div>
-                        <h1 className="mt-1 text-3xl font-semibold text-[color:var(--wf-text-strong)]">Tenno&apos;s Handbook</h1>
-                        <p className="mt-2 text-sm leading-6 text-[color:var(--wf-text-muted)]">
-                            A field manual for progression gates, systems, and the mechanics that matter when Warframe stops explaining itself clearly.
-                        </p>
-                    </div>
+            <WorkspaceHero
+                eyebrow="Reference & Learning"
+                title="Tenno&apos;s Handbook"
+                description="A field manual for progression gates, systems, and the mechanics that matter when Warframe stops explaining itself clearly."
+                actions={
                     <div className="max-w-sm rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-3">
                         <div className="text-[11px] uppercase tracking-[0.14em] text-[color:var(--wf-text-dim)]">Reading focus</div>
                         <div className="mt-1 text-sm font-medium text-[color:var(--wf-text-strong)]">{activeSection.title}</div>
                         <div className="mt-1 text-xs leading-5 text-[color:var(--wf-text-muted)]">{activeSection.summary}</div>
                     </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-                    <div className="rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.14em] text-[color:var(--wf-text-dim)]">Topics</div>
-                        <div className="mt-1 font-mono text-lg text-[color:var(--wf-text-strong)]">{totalSections}</div>
-                        <div className="mt-1 text-xs text-[color:var(--wf-text-muted)]">Reference entries curated for progression and systems.</div>
-                    </div>
-                    <div className="rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.14em] text-[color:var(--wf-text-dim)]">Sections</div>
-                        <div className="mt-1 font-mono text-lg text-[color:var(--wf-text-strong)]">{totalGroups}</div>
-                        <div className="mt-1 text-xs text-[color:var(--wf-text-muted)]">Story, combat, progression, and routine reading tracks.</div>
-                    </div>
-                    <div className="rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.14em] text-[color:var(--wf-text-dim)]">Current track</div>
-                        <div className="mt-1 font-mono text-lg text-[color:var(--wf-text-strong)]">{activeGroup.label}</div>
-                        <div className="mt-1 text-xs text-[color:var(--wf-text-muted)]">{currentGroupCount} entries are grouped under this reading track.</div>
-                    </div>
-                    <div className="rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.14em] text-[color:var(--wf-text-dim)]">Search</div>
-                        <div className="mt-1 font-mono text-lg text-[color:var(--wf-text-strong)]">{isSearching ? searchResults.length : "Ready"}</div>
-                        <div className="mt-1 text-xs text-[color:var(--wf-text-muted)]">
-                            {isSearching ? "Matching entries for the current query." : "Search by topic, system, or unlock path."}
-                        </div>
-                    </div>
-                </div>
-            </section>
+                }
+                stats={
+                    <>
+                        <WorkspaceStat label="Topics" value={totalSections} hint="Reference entries for progression and game systems." />
+                        <WorkspaceStat label="Sections" value={totalGroups} hint="Story, combat, progression, and routine reading tracks." />
+                        <WorkspaceStat label="Current track" value={activeGroup.label} hint={`${currentGroupCount} entries in this reading track.`} />
+                        <WorkspaceStat label="Search" value={isSearching ? searchResults.length : "Ready"} hint={isSearching ? "Matching entries for the current query." : "Search by topic, system, or unlock path."} />
+                    </>
+                }
+            />
 
             <section className="rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-4 shadow-[var(--wf-shadow-panel)] sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <div className="text-lg font-semibold text-[color:var(--wf-text-strong)]">Reading Index</div>
+                        <h2 className="text-lg font-semibold text-[color:var(--wf-text-strong)]">Reading Index</h2>
                         <div className="mt-1 text-sm text-[color:var(--wf-text-muted)]">
                             Browse by discipline, then drill into the exact guide you need.
                         </div>
@@ -1853,6 +1831,7 @@ export default function Handbook() {
                 <div className="mt-4 relative">
                     <input
                         type="text"
+                        aria-label="Search Handbook topics"
                         className="w-full rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-3 py-2.5 text-sm text-[color:var(--wf-text-strong)] placeholder:text-[color:var(--wf-text-dim)] focus:outline-none focus:border-[color:var(--wf-border-strong)]"
                         placeholder="Search topics… (e.g. relics, endo, focus)"
                         value={searchQuery}

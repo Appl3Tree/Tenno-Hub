@@ -1046,7 +1046,7 @@ export default function SearchDetail(props: {
                     subtitle="Clean reference details, tuned for scanning instead of raw catalog debugging."
                 >
                     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
-                        <div className="overflow-hidden rounded-[28px] border border-[color:var(--wf-border-subtle)] bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.12),transparent_55%),linear-gradient(180deg,rgba(30,41,59,0.58),rgba(15,23,42,0.72))]">
+                        <div className="overflow-hidden rounded-[28px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)]">
                             {isBlueprint ? (
                                 <div className="relative flex min-h-[280px] items-center justify-center overflow-hidden px-6 py-8">
                                     <img
@@ -1055,7 +1055,7 @@ export default function SearchDetail(props: {
                                         className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-95"
                                         loading="lazy"
                                     />
-                                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.14),transparent_52%),linear-gradient(180deg,rgba(15,23,42,0.08),rgba(15,23,42,0.35))]" />
+                                <div className="pointer-events-none absolute inset-0 bg-[color:var(--wf-hover)]" />
                                     {blueprintOverlayUrl ? (
                                         <img
                                             src={blueprintOverlayUrl}
@@ -1077,7 +1077,7 @@ export default function SearchDetail(props: {
                                     loading="lazy"
                                 />
                             ) : (
-                                <div className="flex min-h-[280px] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.18),transparent_55%),linear-gradient(180deg,rgba(15,23,42,0.95),rgba(2,6,23,0.98))] px-6 text-center text-sm text-[color:var(--wf-text-dim)]">
+                                <div className="flex min-h-[280px] items-center justify-center bg-[color:var(--wf-surface-2)] px-6 text-center text-sm text-[color:var(--wf-text-dim)]">
                                     No artwork available for this entry.
                                 </div>
                             )}
@@ -1255,7 +1255,7 @@ export default function SearchDetail(props: {
 
                         <div
                             className={[
-                                "overflow-hidden rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[linear-gradient(180deg,rgba(15,23,42,0.24),rgba(15,23,42,0.08))]",
+                                "overflow-hidden rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)]",
                                 showAllCraftedWith && craftedWithEntries.length > 10 ? "max-h-[26rem] overflow-y-auto" : "",
                             ].join(" ")}
                         >

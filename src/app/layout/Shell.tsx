@@ -1,7 +1,6 @@
 // ===== FILE: src/app/layout/Shell.tsx =====
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTrackerStore } from "../../store/store";
-import { applyTheme, getStoredTheme } from "../../lib/settingsPreferences";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import { getRouteByKey } from "../routes";
@@ -10,14 +9,49 @@ const NEW_PLAYER_DISMISSED_KEY = "wft_newplayer_v1_dismissed";
 
 // ── First-visit new player modal ─────────────────────────────────────────────
 
-function NewPlayerModal({ onDismiss, onGo }: { onDismiss: () => void; onGo: () => void }) {
+function NewPlayerModal({ onDismiss, onDontShow, onGo }: { onDismiss: () => void; onDontShow: () => void; onGo: () => void }) {
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const dialog = dialogRef.current;
+        const firstButton = dialog?.querySelector<HTMLButtonElement>("button");
+        firstButton?.focus();
+
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                onDismiss();
+                return;
+            }
+            if (event.key !== "Tab" || !dialog) return;
+            const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+            if (buttons.length === 0) return;
+            const first = buttons[0];
+            const last = buttons[buttons.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
+
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+            previouslyFocused?.focus();
+        };
+    }, [onDismiss]);
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-modal-root>
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onDismiss} />
+            <div className="wf-modal-backdrop absolute inset-0 backdrop-blur-sm" aria-hidden="true" />
 
             {/* Card */}
-            <div className="relative w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/60 overflow-hidden">
+            <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="new-player-title" aria-describedby="new-player-description" className="wf-dialog relative w-full max-w-sm overflow-hidden rounded-2xl border shadow-2xl">
                 {/* Accent strip */}
                 <div className="h-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600" />
 
@@ -31,8 +65,8 @@ function NewPlayerModal({ onDismiss, onGo }: { onDismiss: () => void; onGo: () =
                             </svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="text-base font-semibold text-slate-100">New — or returning?</div>
-                            <p className="mt-1.5 text-sm text-slate-300 leading-relaxed">
+                            <h2 id="new-player-title" className="text-base font-semibold text-[color:var(--wf-text-strong)]">New — or returning?</h2>
+                            <p id="new-player-description" className="mt-1.5 text-sm leading-relaxed text-[color:var(--wf-text-muted)]">
                                 Check out the <span className="font-semibold text-slate-100">Tenno's Handbook</span> — it covers
                                 quest order and the systems that trip up both beginners and returning
                                 players alike: Eidolons, Kuva &amp; Liches, Focus schools, Syndicates,
@@ -41,13 +75,15 @@ function NewPlayerModal({ onDismiss, onGo }: { onDismiss: () => void; onGo: () =
                         </div>
                     </div>
 
-                    <div className="mt-5 flex items-center justify-between gap-3">
-                        <button
-                            onClick={onDismiss}
-                            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                        >
-                            Don't show again
-                        </button>
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <button onClick={onDismiss} className="text-xs text-[color:var(--wf-text-muted)] transition-colors hover:text-[color:var(--wf-text-strong)]">
+                                Not now
+                            </button>
+                            <button onClick={onDontShow} className="text-xs text-[color:var(--wf-text-dim)] transition-colors hover:text-[color:var(--wf-text)]">
+                                Don't show again
+                            </button>
+                        </div>
                         <button
                             onClick={onGo}
                             className="rounded-lg border border-blue-700 bg-blue-900/40 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-blue-800/50 transition-colors"
@@ -71,39 +107,41 @@ export default function Shell(props: { children: React.ReactNode }) {
     const setActivePage = useTrackerStore((s) => s.setActivePage);
     const activePage = useTrackerStore((s) => s.state.ui.activePage);
 
-    // Apply saved theme on first mount
-    useEffect(() => { applyTheme(getStoredTheme()); }, []);
-
     function dismissNewPlayer() {
+        setShowNewPlayer(false);
+    }
+
+    function dismissNewPlayerPermanently() {
         localStorage.setItem(NEW_PLAYER_DISMISSED_KEY, "1");
         setShowNewPlayer(false);
     }
 
     function goToHandbook() {
         setActivePage("handbook");
-        dismissNewPlayer();
+        dismissNewPlayerPermanently();
     }
 
     const activeRoute = getRouteByKey(activePage);
     const wideWorkspace = activeRoute.mode === "planning" || activeRoute.mode === "collection";
 
     return (
-        <div className="wf-app-shell h-screen flex flex-col overflow-hidden text-slate-100">
+        <div className="wf-app-shell h-dvh flex flex-col overflow-hidden text-[color:var(--wf-text)]">
 
-            <Topbar onMenuToggle={() => setMobileNavOpen((v) => !v)} />
+            <Topbar onMenuToggle={() => setMobileNavOpen((v) => !v)} mobileNavOpen={mobileNavOpen} />
 
             <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
                 {mobileNavOpen && (
                     <div
-                        className="fixed inset-0 z-30 bg-black/60 md:hidden"
+                        className="wf-modal-backdrop fixed inset-0 z-30 lg:hidden"
+                        aria-hidden="true"
                         onClick={() => setMobileNavOpen(false)}
                     />
                 )}
 
                 <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
-                <main className="flex-1 min-w-0 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(140,123,255,0.08),transparent_28%),radial-gradient(circle_at_right_top,rgba(73,198,193,0.06),transparent_24%)]">
+                <main className={["wf-workspace min-w-0 flex-1", mobileNavOpen ? "overflow-hidden" : "overflow-y-auto"].join(" ")}>
                     <div className={[
                         "min-h-full py-4 lg:h-full",
                         wideWorkspace
@@ -116,7 +154,7 @@ export default function Shell(props: { children: React.ReactNode }) {
             </div>
 
             {showNewPlayer && (
-                <NewPlayerModal onDismiss={dismissNewPlayer} onGo={goToHandbook} />
+                <NewPlayerModal onDismiss={dismissNewPlayer} onDontShow={dismissNewPlayerPermanently} onGo={goToHandbook} />
             )}
         </div>
     );

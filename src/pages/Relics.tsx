@@ -609,6 +609,7 @@ export default function RelicPlanner() {
                                 </label>
                                 <input
                                     type="text"
+                                    aria-label={`Search ${browseModeLabel.toLowerCase()} by relic name or reward item`}
                                     value={relicSearch}
                                     onChange={(e) => setRelicSearch(e.target.value)}
                                     placeholder="Search relic name or reward item"

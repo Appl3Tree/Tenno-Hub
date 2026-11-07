@@ -1,23 +1,52 @@
 @import "tailwindcss";
 
 :root {
+    color-scheme: dark;
     --wf-bg-app: #05080d;
     --wf-bg-canvas: #0a1017;
+    --wf-bg-navigation: #0b1119;
+    --wf-bg-topbar: rgba(10, 16, 23, 0.94);
     --wf-surface-1: rgba(17, 26, 36, 0.9);
     --wf-surface-2: rgba(24, 36, 51, 0.84);
+    --wf-surface-input: rgba(5, 8, 13, 0.74);
+    --wf-surface-inspector: #0a1017;
+    --wf-surface-dialog: #111a24;
     --wf-surface-soft: rgba(255, 255, 255, 0.03);
     --wf-surface-strong: rgba(255, 255, 255, 0.06);
+    --wf-hover: rgba(255, 255, 255, 0.075);
     --wf-border-subtle: rgba(255, 255, 255, 0.08);
     --wf-border-strong: rgba(255, 255, 255, 0.16);
     --wf-border-accent: rgba(140, 123, 255, 0.42);
+    --wf-border-input: rgba(255, 255, 255, 0.4);
     --wf-text-strong: #f3f7fb;
     --wf-text: #c5d1de;
     --wf-text-muted: #8da0b5;
-    --wf-text-dim: #66778a;
+    --wf-text-dim: #74869a;
+    --wf-text-disabled: #536170;
     --wf-accent-primary: #8c7bff;
+    --wf-accent-text: #b8adff;
+    --wf-accent-soft: rgba(140, 123, 255, 0.16);
+    --wf-accent-border: rgba(140, 123, 255, 0.46);
+    --wf-focus-ring: #c7bfff;
+    --wf-selection: rgba(140, 123, 255, 0.24);
+    --wf-selection-text: #f4f1ff;
+    --wf-selection-border: rgba(181, 169, 255, 0.5);
     --wf-accent-gold: #c9a86a;
     --wf-accent-teal: #49c6c1;
+    --wf-success: #58d69b;
+    --wf-success-soft: rgba(34, 197, 94, 0.13);
+    --wf-warning: #f3c56a;
+    --wf-warning-soft: rgba(245, 158, 11, 0.14);
+    --wf-danger: #ff8290;
+    --wf-danger-soft: rgba(244, 63, 94, 0.14);
+    --wf-info: #71c4ef;
+    --wf-info-soft: rgba(14, 165, 233, 0.14);
+    --wf-backdrop: rgba(1, 5, 11, 0.76);
+    --wf-progress-track: rgba(255, 255, 255, 0.1);
+    --wf-progress-fill: #8c7bff;
+    --wf-chart-grid: rgba(255, 255, 255, 0.12);
     --wf-shadow-panel: 0 12px 40px rgba(0, 0, 0, 0.35);
+    --wf-shadow-overlay: 0 24px 72px rgba(0, 0, 0, 0.55);
 }
 
 html,
@@ -28,22 +57,146 @@ body,
 }
 
 .wf-app-shell {
-    background:
-        radial-gradient(circle at top, rgba(140, 123, 255, 0.08), transparent 22%),
-        linear-gradient(180deg, var(--wf-bg-canvas) 0%, var(--wf-bg-app) 100%);
+    background: var(--wf-bg-app);
 }
 
 .wf-rail {
-    background:
-        linear-gradient(180deg, rgba(11, 17, 25, 0.98) 0%, rgba(8, 12, 19, 0.96) 100%);
+    background: var(--wf-bg-navigation);
     border-color: var(--wf-border-subtle);
-    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.02);
+    box-shadow: inset -1px 0 0 var(--wf-border-subtle);
 }
 
 .wf-topbar {
-    background:
-        linear-gradient(180deg, rgba(10, 16, 23, 0.92) 0%, rgba(10, 16, 23, 0.78) 100%);
+    background: var(--wf-bg-topbar);
     border-color: var(--wf-border-subtle);
+    padding-top: env(safe-area-inset-top, 0px);
+}
+
+.wf-workspace {
+    background-color: var(--wf-bg-app);
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    background-image:
+        radial-gradient(circle at top, rgba(140, 123, 255, 0.075), transparent 29%),
+        radial-gradient(circle at right top, rgba(73, 198, 193, 0.045), transparent 24%);
+}
+
+.wf-mobile-sidebar {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.wf-popover {
+    border-color: var(--wf-border-strong);
+    background: var(--wf-surface-dialog);
+    color: var(--wf-text);
+    box-shadow: var(--wf-shadow-overlay);
+}
+
+.wf-dialog {
+    border-color: var(--wf-border-strong);
+    background: var(--wf-surface-dialog);
+    color: var(--wf-text);
+    box-shadow: var(--wf-shadow-overlay);
+}
+
+.wf-popover-option {
+    color: var(--wf-text);
+}
+
+.wf-popover-option:hover,
+.wf-popover-option[aria-selected="true"] {
+    background: var(--wf-selection);
+    color: var(--wf-selection-text);
+}
+
+.wf-search-trigger {
+    border-color: var(--wf-border-input);
+    background: var(--wf-surface-input);
+    color: var(--wf-text);
+}
+
+.wf-search-trigger input {
+    background: transparent;
+    border-color: transparent;
+    color: var(--wf-text-strong);
+}
+
+.theme-light .wf-search-trigger input,
+.theme-light .wf-inline-stat input {
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: var(--wf-text-strong) !important;
+}
+
+.wf-inline-stat input:focus-visible {
+    outline: 2px solid var(--wf-focus-ring);
+    outline-offset: 2px;
+}
+
+.wf-search-trigger:focus-within {
+    border-color: var(--wf-accent-border);
+    box-shadow: 0 0 0 3px var(--wf-accent-soft);
+}
+
+.wf-inspector {
+    border-color: var(--wf-border-subtle);
+    background: var(--wf-surface-inspector);
+    color: var(--wf-text);
+    box-shadow: var(--wf-shadow-overlay);
+}
+
+.wf-modal-backdrop {
+    background: var(--wf-backdrop);
+}
+
+.wf-inventory-dialog-frame {
+    padding: max(0.5rem, env(safe-area-inset-top, 0px))
+        max(0.5rem, env(safe-area-inset-right, 0px))
+        max(0.5rem, env(safe-area-inset-bottom, 0px))
+        max(0.5rem, env(safe-area-inset-left, 0px));
+}
+
+.wf-dialog-frame {
+    padding: max(0.5rem, env(safe-area-inset-top, 0px))
+        max(0.5rem, env(safe-area-inset-right, 0px))
+        max(0.5rem, env(safe-area-inset-bottom, 0px))
+        max(0.5rem, env(safe-area-inset-left, 0px));
+}
+
+@media (min-width: 640px) {
+    .wf-inventory-dialog-frame,
+    .wf-dialog-frame {
+        padding: max(1rem, env(safe-area-inset-top, 0px))
+            max(1rem, env(safe-area-inset-right, 0px))
+            max(1rem, env(safe-area-inset-bottom, 0px))
+            max(1rem, env(safe-area-inset-left, 0px));
+    }
+}
+
+.wf-starchart-label {
+    color: #f8fafc !important;
+    pointer-events: none;
+}
+
+:where(button, a, input, select, textarea, [role="button"]):focus-visible {
+    outline: 2px solid var(--wf-focus-ring);
+    outline-offset: 2px;
+}
+
+::selection {
+    background: var(--wf-selection);
+    color: var(--wf-selection-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -59,7 +212,7 @@ body,
 
 /* ─────────────────────────────────────────────────────────────────────────
    DESIGN RATIONALE
-   Page background: #f0f4f8 — a clean, slightly cool blue-gray. This is the
+   Page background: #eef3f8 — a clean, slightly cool blue-gray. This is the
    same language as Linear, Vercel, and GitHub Light. It's neutral enough to
    not clash with any accent, and gives white cards real visual lift without
    the heaviness of a saturated tint.
@@ -75,34 +228,70 @@ body,
      slate-200 → #1e3045  — strong secondary
      slate-300 → #344f68  — medium secondary
      slate-400 → #4e6880  — muted body (~4.8:1)
-     slate-500 → #637d93  — very muted / metadata (~4.0:1, AA-borderline
-                            acceptable for UI labels and secondary metadata)
+     slate-500 → #536d82  — metadata and secondary labels (~4.85:1)
    ───────────────────────────────────────────────────────────────────────── */
 
 .theme-light {
     /* NOTE: color is intentionally NOT !important here — inline style={{color}}
        on syndicate cards (canon.fg) must be able to override it. */
-    background-color: #f0f4f8 !important;
+    color-scheme: light;
+    background-color: var(--wf-bg-app);
     color: #0d1421;
     --wf-bg-app: #eef3f8;
     --wf-bg-canvas: #f4f7fb;
+    --wf-bg-navigation: #e8edf4;
+    --wf-bg-topbar: rgba(248, 250, 253, 0.96);
     --wf-surface-1: rgba(255, 255, 255, 0.92);
     --wf-surface-2: rgba(244, 246, 250, 0.95);
+    --wf-surface-input: #ffffff;
+    --wf-surface-inspector: #f8fafc;
+    --wf-surface-dialog: #ffffff;
     --wf-surface-soft: rgba(13, 20, 33, 0.04);
     --wf-surface-strong: rgba(13, 20, 33, 0.08);
+    --wf-hover: rgba(37, 63, 89, 0.08);
     --wf-border-subtle: rgba(99, 125, 147, 0.18);
     --wf-border-strong: rgba(99, 125, 147, 0.3);
     --wf-border-accent: rgba(37, 99, 235, 0.28);
+    --wf-border-input: #768ca1;
     --wf-text-strong: #0d1421;
     --wf-text: #1e3045;
     --wf-text-muted: #4e6880;
-    --wf-text-dim: #637d93;
+    --wf-text-dim: #536d82;
+    --wf-text-disabled: #70879a;
+    --wf-accent-primary: #5b4bd4;
+    --wf-accent-text: #4c3abd;
+    --wf-accent-soft: rgba(91, 75, 212, 0.1);
+    --wf-accent-border: rgba(91, 75, 212, 0.4);
+    --wf-focus-ring: #4f46e5;
+    --wf-selection: rgba(91, 75, 212, 0.13);
+    --wf-selection-text: #25205f;
+    --wf-selection-border: rgba(91, 75, 212, 0.38);
+    --wf-success: #187548;
+    --wf-success-soft: rgba(34, 197, 94, 0.12);
+    --wf-warning: #8a5600;
+    --wf-warning-soft: rgba(245, 158, 11, 0.14);
+    --wf-danger: #b4233c;
+    --wf-danger-soft: rgba(244, 63, 94, 0.1);
+    --wf-info: #146b91;
+    --wf-info-soft: rgba(14, 165, 233, 0.1);
+    --wf-backdrop: rgba(17, 31, 46, 0.45);
+    --wf-progress-track: rgba(48, 72, 94, 0.14);
+    --wf-progress-fill: #5b4bd4;
+    --wf-chart-grid: rgba(61, 83, 102, 0.18);
+    --wf-shadow-panel: 0 8px 24px rgba(28, 46, 64, 0.08);
+    --wf-shadow-overlay: 0 24px 64px rgba(28, 46, 64, 0.2);
 }
 
 .theme-light body,
 .theme-light #root {
-    background-color: #f0f4f8;
-    color: #0d1421;
+    background-color: var(--wf-bg-app);
+    color: var(--wf-text-strong);
+}
+
+.theme-light .wf-workspace {
+    background-image:
+        radial-gradient(circle at top, rgba(91, 75, 212, 0.045), transparent 30%),
+        radial-gradient(circle at right top, rgba(14, 116, 144, 0.03), transparent 25%);
 }
 
 /* ── Panel surface scale ── */
@@ -121,7 +310,7 @@ body,
 .theme-light .text-slate-200 { color: #1e3045 !important; }
 .theme-light .text-slate-300 { color: #344f68 !important; }
 .theme-light .text-slate-400 { color: #4e6880 !important; }
-.theme-light .text-slate-500 { color: #637d93 !important; }
+.theme-light .text-slate-500 { color: #536d82 !important; }
 .theme-light .text-slate-600 { color: #9aafc0 !important; }
 
 /* ── Borders — visible but not heavy ── */
@@ -158,8 +347,8 @@ body,
 .theme-light [class*="hover:bg-slate-900\/40"]:hover { background-color: #d8dfe8 !important; }
 
 /* ── Sidebar and navigation ── */
-.theme-light nav,
-.theme-light aside { background-color: #dce3ed !important; }
+.theme-light nav:not(.wf-rail):not(.wf-sidebar-nav),
+.theme-light aside:not(.wf-rail) { background-color: #dce3ed !important; }
 
 /* Active nav item — subtle cyan tint matching the app's primary accent */
 .theme-light .bg-slate-800\/60 { background-color: rgba(14,165,233,0.12) !important; }
@@ -247,6 +436,8 @@ body,
 .theme-light .to-blue-400  { --tw-gradient-to:   #60a5fa !important; }
 
 /* Sky */
+.theme-light [class*="text-sky-100"] { color: #0c4a6e !important; }
+.theme-light [class*="text-sky-200"] { color: #075985 !important; }
 .theme-light .text-sky-300  { color: #0369a1 !important; }
 .theme-light .text-sky-400  { color: #0284c7 !important; }
 .theme-light .text-sky-500  { color: #0ea5e9 !important; }
@@ -275,6 +466,7 @@ body,
 .theme-light [class*="border-orange-8"] { border-color: rgba(194,65,12,0.4) !important; }
 
 /* Rose */
+.theme-light [class*="text-rose-100"] { color: #9f1239 !important; }
 .theme-light .text-rose-200 { color: #be123c !important; }
 .theme-light .text-rose-300 { color: #e11d48 !important; }
 .theme-light [class*="bg-rose-950\/"] { background-color: rgba(255,228,230,0.75) !important; }
@@ -312,11 +504,18 @@ body,
 .theme-light .bg-purple-500 { background-color: #a855f7 !important; }
 .theme-light .bg-indigo-500 { background-color: #6366f1 !important; }
 .theme-light .text-violet-300 { color: #6d28d9 !important; }
+.theme-light [class*="text-violet-400"] { color: #6d28d9 !important; }
 .theme-light [class*="bg-violet-9"]  { background-color: rgba(237,233,254,0.65) !important; }
 .theme-light [class*="border-violet-8"] { border-color: rgba(109,40,217,0.4) !important; }
 
 /* Yellow */
-.theme-light .text-yellow-400 { color: #a16207 !important; }
+.theme-light [class*="text-yellow-100"] { color: #78350f !important; }
+.theme-light [class*="text-yellow-200"] { color: #854d0e !important; }
+.theme-light [class*="text-yellow-300"] { color: #a16207 !important; }
+.theme-light [class*="text-yellow-400"] { color: #a16207 !important; }
+
+/* Lime */
+.theme-light [class*="text-lime-300"] { color: #3f6212 !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    SYNDICATE CARD DARK SUB-PANELS
@@ -380,36 +579,6 @@ body,
 .theme-light [class*="h-\[72vh\]"] [class*="bg-slate-900\/"] { background-color: rgba(2,6,23,0.9) !important; }
 .theme-light [class*="h-\[72vh\]"] .border-slate-800 { border-color: #1e293b !important; }
 .theme-light [class*="h-\[72vh\]"] .border-slate-700 { border-color: #334155 !important; }
-
-/* ═══════════════════════════════════════════════════════════════════════
-   GOALS TREE MODAL
-   GoalsTreeView.tsx injects a <style> block with hardcoded dark colors.
-   Override via .theme-light prefix for higher specificity.
-   ═══════════════════════════════════════════════════════════════════════ */
-.theme-light .wf-tree-modal {
-    background: rgba(255,255,255,0.99) !important;
-    border-color: rgba(165,185,205,0.85) !important;
-}
-.theme-light .wf-tree-modal-header {
-    border-bottom-color: rgba(165,185,205,0.85) !important;
-}
-.theme-light .wf-tree-modal-title .t1 { color: #0d1421 !important; }
-.theme-light .wf-tree-modal-title .t2 { color: #4e6880 !important; }
-.theme-light .wf-tree-node {
-    background: rgba(244,246,250,0.98) !important;
-    border-color: rgba(165,185,205,0.8) !important;
-}
-.theme-light .wf-tree-node-title { color: #0d1421 !important; }
-.theme-light .wf-tree-node-metrics { color: #344f68 !important; }
-.theme-light .wf-tree-node-btn {
-    background: rgba(232,236,242,0.95) !important;
-    border-color: rgba(140,165,188,0.75) !important;
-    color: #1e3045 !important;
-}
-.theme-light .wf-tree-node-btn:hover {
-    background: rgba(216,223,232,0.95) !important;
-}
-.theme-light .wf-tree-root { --wf-line: rgba(140,165,188,0.65); }
 
 /* ═══════════════════════════════════════════════════════════════════════
    RING / FOCUS RING COLORS

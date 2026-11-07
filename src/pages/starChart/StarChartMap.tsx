@@ -1064,6 +1064,8 @@ export default function StarChartMap(props: {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [overviewPlanets, boundsTick, overviewLayerOpacity, vb, svgSize]);
 
+    const isCompactPlanetMap = (svgSize?.w ?? Number.POSITIVE_INFINITY) < 520;
+
     const zoomedPlanetLabelScreens = useMemo(() => {
         if (!canInteractPlanetNodes) return [];
         const out: Array<{ id: string; x: number; y: number; text: string; opacity: number }> = [];
@@ -1807,7 +1809,22 @@ export default function StarChartMap(props: {
 
                             const imgUrl = planetImgUrl(p.id);
                             return (
-                                <g key={p.id} data-clickable="true" onClick={() => onClickPlanet(p.id)} style={{ cursor: "pointer" }}>
+                                <g
+                                    key={p.id}
+                                    data-clickable="true"
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`Select ${p.name}`}
+                                    aria-pressed={isSelected}
+                                    onClick={() => onClickPlanet(p.id)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter" || event.key === " ") {
+                                            event.preventDefault();
+                                            onClickPlanet(p.id);
+                                        }
+                                    }}
+                                    style={{ cursor: "pointer" }}
+                                >
                                     {/* Selection ring — neutral white, no color fill */}
                                     {isSelected && (
                                         <circle cx={pl.x} cy={pl.y} r={pl.r * 1.45} fill="none" stroke="rgba(226,232,240,0.90)" strokeWidth={circleStroke * 1.1} />
@@ -1840,7 +1857,21 @@ export default function StarChartMap(props: {
                                 const diskAlpha = clamp(reveal * 1.6, 0, 1);
                                 return (
                                     <g key={`zl-${zl.planet.id}`}>
-                                        <g data-clickable="true" onClick={() => onClickPlanet(pid)} style={{ cursor: "pointer" }}>
+                                        <g
+                                            data-clickable="true"
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`Select ${zl.planet.name}`}
+                                            aria-pressed={selectedPlanetId === pid}
+                                            onClick={() => onClickPlanet(pid)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === "Enter" || event.key === " ") {
+                                                    event.preventDefault();
+                                                    onClickPlanet(pid);
+                                                }
+                                            }}
+                                            style={{ cursor: "pointer" }}
+                                        >
                                             {/* Planet image grows with grownR — gradient fallback for unmapped planets */}
                                             {(() => {
                                                 const imgUrl = planetImgUrl(pid);
@@ -1988,7 +2019,17 @@ export default function StarChartMap(props: {
                                                     <g
                                                         key={`nd-${zl.planet.id}-${nd.group.key}`}
                                                         data-clickable="true"
+                                                        role="button"
+                                                        tabIndex={canInteractPlanetNodes ? 0 : -1}
+                                                        aria-label={`${nd.group.displayName} on ${zl.planet.name}`}
+                                                        aria-pressed={selectedGroupKey === nd.group.key && selectedPlanetId === pid}
                                                         onClick={() => onClickGroup(pid, nd.group)}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key === "Enter" || event.key === " ") {
+                                                                event.preventDefault();
+                                                                onClickGroup(pid, nd.group);
+                                                            }
+                                                        }}
                                                         style={{ cursor: "pointer" }}
                                                     >
                                                         <circle cx={acx} cy={acy} r={nodeDotR * 2} fill="transparent" />
@@ -2005,17 +2046,19 @@ export default function StarChartMap(props: {
                 </svg>
 
                 <div className="pointer-events-none absolute inset-0 z-30">
-                    {overviewPlanetLabelScreens.map((p) => (
+                    {overviewPlanetLabelScreens.filter((p) => !isCompactPlanetMap || p.id === selectedPlanetId).map((p) => (
                         <div
                             key={`pllbl-${p.id}`}
-                            className="absolute text-[11px] tracking-[0.35em] text-slate-200"
+                            className={[
+                                "wf-starchart-label absolute uppercase",
+                                isCompactPlanetMap ? "text-[9px] tracking-[0.12em]" : "text-[11px] tracking-[0.35em]",
+                            ].join(" ")}
                             style={{
                                 left: p.x,
                                 top: p.y,
                                 // Selected planet label stays fully visible as overview fades
                                 opacity: p.id === selectedPlanetId ? 1 : p.opacity,
                                 transform: "translate(-50%, -50%)",
-                                textTransform: "uppercase",
                                 textShadow: "-1px -1px 0 rgba(0,0,0,0.95), 1px -1px 0 rgba(0,0,0,0.95), -1px 1px 0 rgba(0,0,0,0.95), 1px 1px 0 rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8)",
                                 whiteSpace: "nowrap"
                             }}
@@ -2024,17 +2067,19 @@ export default function StarChartMap(props: {
                         </div>
                     ))}
 
-                    {zoomedPlanetLabelScreens.map((p) => (
+                    {zoomedPlanetLabelScreens.filter((p) => !isCompactPlanetMap || p.id === selectedPlanetId).map((p) => (
                         <div
                             key={`zpl-${p.id}`}
-                            className="absolute text-[12px] font-semibold tracking-[0.35em] text-slate-100"
+                            className={[
+                                "wf-starchart-label absolute font-semibold uppercase",
+                                isCompactPlanetMap ? "text-[10px] tracking-[0.14em]" : "text-[12px] tracking-[0.35em]",
+                            ].join(" ")}
                             style={{
                                 left: p.x,
                                 top: p.y,
                                 // Selected planet label stays fully visible as zoom reveal fades
                                 opacity: p.id === selectedPlanetId ? 1 : p.opacity,
                                 transform: "translate(-50%, -50%)",
-                                textTransform: "uppercase",
                                 textShadow: "-1px -1px 0 rgba(0,0,0,0.95), 1px -1px 0 rgba(0,0,0,0.95), -1px 1px 0 rgba(0,0,0,0.95), 1px 1px 0 rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8)",
                                 whiteSpace: "nowrap"
                             }}
@@ -2048,13 +2093,12 @@ export default function StarChartMap(props: {
                         nodeLabelScreens.map((l) => (
                             <div
                                 key={`lbl-${l.key}`}
-                                className="absolute text-[11px] tracking-[0.22em] text-slate-100"
+                                className="wf-starchart-label absolute text-[11px] uppercase tracking-[0.22em]"
                                 style={{
                                     left: l.x,
                                     top: l.y,
                                     opacity: clamp(reveal * 3.0, 0, 1),
                                     transform: l.anchor === "end" ? "translate(-100%, -50%)" : "translate(0%, -50%)",
-                                    textTransform: "uppercase",
                                     textShadow: "-1px -1px 0 rgba(0,0,0,0.95), 1px -1px 0 rgba(0,0,0,0.95), -1px 1px 0 rgba(0,0,0,0.95), 1px 1px 0 rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8)",
                                     whiteSpace: "nowrap"
                                 }}
@@ -2134,7 +2178,7 @@ export default function StarChartMap(props: {
                         <button className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-950/70 text-xs text-slate-400 backdrop-blur-sm hover:bg-slate-900/80 transition-colors">
                             ?
                         </button>
-                        <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden w-72 rounded-xl border border-slate-700 bg-slate-950/90 px-3 py-2 text-xs leading-relaxed text-slate-400 backdrop-blur-sm group-hover:block">
+                        <div className="wf-popover pointer-events-none absolute bottom-full right-0 mb-2 hidden w-72 rounded-xl border px-3 py-2 text-xs leading-relaxed backdrop-blur-sm group-hover:block">
                             Drag to pan · Scroll to zoom · Click a planet to zoom in · Zoom in to expand planets and reveal nodes · Click a node to see drops · Click again to deselect
                         </div>
                     </div>

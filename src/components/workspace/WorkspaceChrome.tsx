@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useId } from "react";
 
 function joinClasses(...parts: Array<string | false | null | undefined>) {
     return parts.filter(Boolean).join(" ");
@@ -7,6 +8,7 @@ function joinClasses(...parts: Array<string | false | null | undefined>) {
 export function WorkspacePanel(props: {
     children: ReactNode;
     className?: string;
+    "aria-labelledby"?: string;
 }) {
     return (
         <section
@@ -14,6 +16,7 @@ export function WorkspacePanel(props: {
                 "rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] shadow-[var(--wf-shadow-panel)]",
                 props.className
             )}
+            aria-labelledby={props["aria-labelledby"]}
         >
             {props.children}
         </section>
@@ -68,19 +71,22 @@ export function WorkspaceAction(props: {
 export function WorkspaceHero(props: {
     eyebrow: string;
     title: string;
+    titleId?: string;
     description: string;
     actions?: ReactNode;
     stats?: ReactNode;
     className?: string;
 }) {
+    const generatedTitleId = useId();
+    const titleId = props.titleId ?? generatedTitleId;
     return (
-        <WorkspacePanel className={joinClasses("px-4 py-4 sm:px-5", props.className)}>
+        <WorkspacePanel className={joinClasses("px-4 py-4 sm:px-5", props.className)} aria-labelledby={titleId}>
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="max-w-3xl min-w-0">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-accent-primary)]">
                         {props.eyebrow}
                     </div>
-                    <h1 className="mt-1 text-xl font-semibold tracking-tight text-[color:var(--wf-text-strong)] sm:text-2xl">{props.title}</h1>
+                    <h1 id={titleId} className="mt-1 text-xl font-semibold tracking-tight text-[color:var(--wf-text-strong)] sm:text-2xl">{props.title}</h1>
                     <p className="mt-1 max-w-2xl text-sm text-[color:var(--wf-text-muted)]">{props.description}</p>
                 </div>
                 {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
@@ -106,16 +112,19 @@ export function WorkspaceHero(props: {
 export function WorkspaceSection(props: {
     title: string;
     subtitle?: string;
+    headingLevel?: 1 | 2;
     actions?: ReactNode;
     children: ReactNode;
     className?: string;
     bodyClassName?: string;
 }) {
+    const headingId = useId();
+    const Heading = props.headingLevel === 1 ? "h1" : "h2";
     return (
-        <WorkspacePanel className={joinClasses("p-4", props.className)}>
+        <WorkspacePanel className={joinClasses("p-4", props.className)} aria-labelledby={headingId}>
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <div className="text-lg font-semibold text-[color:var(--wf-text-strong)]">{props.title}</div>
+                    <Heading id={headingId} className="text-lg font-semibold text-[color:var(--wf-text-strong)]">{props.title}</Heading>
                     {props.subtitle ? <div className="mt-1 text-sm text-[color:var(--wf-text-muted)]">{props.subtitle}</div> : null}
                 </div>
                 {props.actions ? <div className="flex items-center gap-2">{props.actions}</div> : null}
@@ -133,11 +142,13 @@ export function WorkspacePillButton(props: {
 }) {
     return (
         <button
+            type="button"
             onClick={props.onClick}
+            aria-pressed={props.active}
             className={joinClasses(
                 "rounded-full border px-3 py-1 text-sm transition-colors",
                 props.active
-                    ? "border-slate-100 bg-slate-100 text-slate-900"
+                    ? "border-[color:var(--wf-selection-border)] bg-[color:var(--wf-selection)] text-[color:var(--wf-selection-text)]"
                     : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text)] hover:bg-[color:var(--wf-surface-strong)]",
                 props.className
             )}
@@ -170,17 +181,20 @@ export function WorkspaceSegmentedButton(props: {
     className?: string;
     disabled?: boolean;
     title?: string;
+    "aria-pressed"?: boolean;
 }) {
     return (
         <button
+            type="button"
             onClick={props.onClick}
             disabled={props.disabled}
             title={props.title}
+            aria-pressed={props["aria-pressed"] ?? props.active}
             className={joinClasses(
                 "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                 props.active
-                    ? "bg-slate-800 text-slate-100"
-                    : "text-slate-400 hover:text-slate-200",
+                    ? "bg-[color:var(--wf-selection)] text-[color:var(--wf-selection-text)]"
+                    : "text-[color:var(--wf-text-muted)] hover:bg-[color:var(--wf-hover)] hover:text-[color:var(--wf-text-strong)]",
                 props.disabled ? "cursor-not-allowed opacity-40" : null,
                 props.className
             )}

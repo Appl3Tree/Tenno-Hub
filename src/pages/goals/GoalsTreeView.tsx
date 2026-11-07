@@ -122,7 +122,7 @@ export function ZoomableTreeViewport(props: { children: ReactNode }) {
         }
 
         root.addEventListener("wheel", onWheel, { passive: false });
-        return () => root.removeEventListener("wheel", onWheel as any);
+        return () => root.removeEventListener("wheel", onWheel as EventListener);
     }, []);
 
     useEffect(() => {
@@ -341,10 +341,10 @@ export function TreeStyles() {
     width: 100%;
     height: 100%;
 
-    border: 1px solid rgba(30, 41, 59, 0.8);
-    background: rgba(2, 6, 23, 0.92);
+    border: 1px solid var(--wf-border-strong);
+    background: var(--wf-surface-dialog);
     border-radius: 16px;
-    box-shadow: 0 20px 80px rgba(0,0,0,0.55);
+    box-shadow: var(--wf-shadow-overlay);
     overflow: hidden;
 
     display: flex;
@@ -357,7 +357,7 @@ export function TreeStyles() {
     justify-content: space-between;
     gap: 12px;
     padding: 10px 12px;
-    border-bottom: 1px solid rgba(30, 41, 59, 0.8);
+    border-bottom: 1px solid var(--wf-border-subtle);
 }
 .wf-tree-modal-title {
     min-width: 0;
@@ -368,14 +368,14 @@ export function TreeStyles() {
 .wf-tree-modal-title .t1 {
     font-size: 14px;
     font-weight: 700;
-    color: rgba(226, 232, 240, 1);
+    color: var(--wf-text-strong);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 .wf-tree-modal-title .t2 {
     font-size: 12px;
-    color: rgba(148, 163, 184, 1);
+    color: var(--wf-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -396,7 +396,7 @@ export function TreeStyles() {
     padding: 18px;
     --wf-gap-x: 26px;   /* sibling spacing */
     --wf-gap-y: 22px;   /* vertical spacing between levels */
-    --wf-line: rgba(71, 85, 105, 0.75);
+    --wf-line: var(--wf-border-strong);
 }
 
 /* Each UL lays out children as a row */
@@ -463,8 +463,8 @@ export function TreeStyles() {
 /* Node bubble */
 .wf-tree-node {
     position: relative;
-    border: 1px solid rgba(30, 41, 59, 0.85);
-    background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.82));
+    border: 1px solid var(--wf-border-subtle);
+    background: var(--wf-surface-1);
     border-radius: 16px;
     padding: 12px 14px;
     min-width: 260px;
@@ -474,12 +474,12 @@ export function TreeStyles() {
     gap: 12px;
     align-items: start;
     user-select: none;
-    box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08);
+    box-shadow: var(--wf-shadow-panel);
 }
 .wf-tree-node-title {
     font-size: 13px;
     font-weight: 700;
-    color: rgba(226, 232, 240, 1);
+    color: var(--wf-text-strong);
     line-height: 1.3;
 }
 .wf-tree-node-main {
@@ -488,7 +488,7 @@ export function TreeStyles() {
 .wf-tree-node-subtitle {
     margin-top: 4px;
     font-size: 11px;
-    color: rgba(148, 163, 184, 0.95);
+    color: var(--wf-text-muted);
 }
 .wf-tree-node-metrics {
     display: flex;
@@ -499,8 +499,8 @@ export function TreeStyles() {
 .wf-tree-node-stat {
     min-width: 72px;
     border-radius: 12px;
-    border: 1px solid rgba(51, 65, 85, 0.9);
-    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid var(--wf-border-subtle);
+    background: var(--wf-surface-soft);
     padding: 8px 10px;
 }
 .wf-tree-node-stat-label {
@@ -508,7 +508,7 @@ export function TreeStyles() {
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgba(148, 163, 184, 0.92);
+    color: var(--wf-text-dim);
 }
 .wf-tree-node-stat-value {
     display: block;
@@ -516,28 +516,28 @@ export function TreeStyles() {
     font-size: 15px;
     font-weight: 700;
     line-height: 1;
-    color: rgba(241, 245, 249, 1);
+    color: var(--wf-text-strong);
 }
 .wf-tree-node-stat-need {
-    border-color: rgba(71, 85, 105, 0.95);
+    border-color: var(--wf-border-strong);
 }
 .wf-tree-node-stat-have {
-    border-color: rgba(16, 185, 129, 0.28);
-    background: rgba(6, 78, 59, 0.18);
+    border-color: var(--wf-success);
+    background: var(--wf-success-soft);
 }
 .wf-tree-node-stat-rem {
-    border-color: rgba(245, 158, 11, 0.3);
-    background: rgba(120, 53, 15, 0.18);
+    border-color: var(--wf-warning);
+    background: var(--wf-warning-soft);
 }
 .wf-tree-node-stat-rem.is-clear {
-    border-color: rgba(16, 185, 129, 0.34);
-    background: rgba(6, 78, 59, 0.2);
+    border-color: var(--wf-success);
+    background: var(--wf-success-soft);
 }
 .wf-tree-node-stat-rem .wf-tree-node-stat-value {
-    color: rgba(253, 224, 71, 1);
+    color: var(--wf-warning);
 }
 .wf-tree-node-stat-rem.is-clear .wf-tree-node-stat-value {
-    color: rgba(110, 231, 183, 1);
+    color: var(--wf-success);
 }
 .wf-tree-node-btn {
     height: 32px;
@@ -546,13 +546,13 @@ export function TreeStyles() {
     align-items: center;
     justify-content: center;
     border-radius: 10px;
-    border: 1px solid rgba(51, 65, 85, 0.9);
-    background: rgba(2, 6, 23, 0.7);
-    color: rgba(226, 232, 240, 1);
+    border: 1px solid var(--wf-border-strong);
+    background: var(--wf-surface-input);
+    color: var(--wf-text);
     user-select: none;
 }
 .wf-tree-node-btn:hover {
-    background: rgba(15, 23, 42, 0.75);
+    background: var(--wf-hover);
 }
 
 /* On very small screens, shrink nodes a bit */
@@ -602,7 +602,7 @@ export const TreeNode = memo(function TreeNode(props: TreeNodeProps) {
                     <button
                         className="wf-tree-node-btn"
                         onClick={() => onToggleEdge(edgeId)}
-                        aria-label={isExpanded ? "Collapse" : "Expand"}
+                        aria-label={`${isExpanded ? "Collapse" : "Expand"} ${name} requirements`}
                         data-wf-no-pan="true"
                     >
                         {isExpanded ? "▾" : "▸"}

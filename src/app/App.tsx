@@ -1,10 +1,11 @@
 // ===== FILE: src/app/App.tsx =====
-import React, { Suspense, lazy, useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
 import Shell from "./layout/Shell";
 import ErrorBoundary from "./ErrorBoundary";
 import { useTrackerStore } from "../store/store";
 import type { PageKey } from "../domain/models/userState";
 import { buildSearchDetailHash, parseSearchDetailHash, type SearchDetailRef } from "../domain/search/globalSearch";
+import { appendSearchDetailRef, searchDetailRefsEqual, syncSearchDetailStack } from "../domain/search/searchDetailNavigation";
 
 const Dashboard = lazy(() => import("../pages/Dashboard"));
 const WorldState = lazy(() => import("../pages/WorldState"));
@@ -51,8 +52,8 @@ const PAGE_COMPONENTS: Record<PageKey, React.ComponentType> = {
 
 function PageLoadingFallback() {
     return (
-        <div className="flex min-h-[40vh] items-center justify-center px-6">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-400 shadow-[0_18px_60px_rgba(2,6,23,0.35)]">
+        <div className="flex min-h-[40vh] items-center justify-center px-6" aria-busy="true">
+            <div role="status" className="rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] px-4 py-3 text-sm text-[color:var(--wf-text-muted)] shadow-[var(--wf-shadow-panel)]">
                 Loading workspace...
             </div>
         </div>
@@ -86,10 +87,6 @@ function useDevStartupValidation() {
     }
 }
 
-function refsEqual(a: SearchDetailRef | null, b: SearchDetailRef | null): boolean {
-    return a?.kind === b?.kind && a?.id === b?.id;
-}
-
 function useSearchDetailState(): [SearchDetailRef | null, () => void, (ref: SearchDetailRef, options?: { reset?: boolean }) => void, boolean, () => void] {
     const [stack, setStack] = useState<SearchDetailRef[]>(() => {
         const initial = parseSearchDetailHash(window.location.hash);
@@ -99,65 +96,123 @@ function useSearchDetailState(): [SearchDetailRef | null, () => void, (ref: Sear
 
     useEffect(() => {
         function syncFromHash() {
-            const nextRef = parseSearchDetailHash(window.location.hash);
-            setStack((current) => {
-                if (!nextRef) return [];
-                if (current.length === 0) return [nextRef];
-                if (refsEqual(current[current.length - 1] ?? null, nextRef)) return current;
-                return [nextRef];
-            });
+            setStack((current) => syncSearchDetailStack(current, window.location.hash));
         }
 
         window.addEventListener("hashchange", syncFromHash);
-        return () => window.removeEventListener("hashchange", syncFromHash);
+        window.addEventListener("popstate", syncFromHash);
+        return () => {
+            window.removeEventListener("hashchange", syncFromHash);
+            window.removeEventListener("popstate", syncFromHash);
+        };
     }, []);
 
     function closeDetail() {
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+        const historyState = window.history.state as { tennoHubSearchDetail?: boolean } | null;
+        if (historyState?.tennoHubSearchDetail) {
+            window.history.go(-Math.max(stack.length, 1));
+        } else {
+            window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+        }
         setStack([]);
     }
 
     function navigateDetail(nextRef: SearchDetailRef, options?: { reset?: boolean }) {
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${buildSearchDetailHash(nextRef)}`);
-        setStack((current) => {
-            if (options?.reset || current.length === 0) return [nextRef];
-            if (refsEqual(current[current.length - 1] ?? null, nextRef)) return current;
-            return [...current, nextRef];
-        });
+        if (searchDetailRefsEqual(stack[stack.length - 1] ?? null, nextRef)) return;
+        const state = window.history.state && typeof window.history.state === "object"
+            ? window.history.state as Record<string, unknown>
+            : {};
+        const ownsHistoryEntry = state.tennoHubSearchDetail === true;
+        const nextState = ownsHistoryEntry ? { ...state, tennoHubSearchDetail: true } : state;
+        const nextUrl = `${window.location.pathname}${window.location.search}${buildSearchDetailHash(nextRef)}`;
+
+        // A direct-linked inspector keeps its existing history entry. Once the user
+        // opened the inspector in-app, nested entity changes become normal Back steps.
+        if (!options?.reset && ownsHistoryEntry) window.history.pushState(nextState, "", nextUrl);
+        else window.history.replaceState(nextState, "", nextUrl);
+
+        setStack((current) => appendSearchDetailRef(current, nextRef, options?.reset));
     }
 
     function goBack() {
-        setStack((current) => {
-            if (current.length <= 1) return current;
-            const nextStack = current.slice(0, -1);
-            const previous = nextStack[nextStack.length - 1] ?? null;
-            if (previous) {
-                window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${buildSearchDetailHash(previous)}`);
-            } else {
-                window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-            }
-            return nextStack;
-        });
+        if (stack.length <= 1) return;
+        const historyState = window.history.state as { tennoHubSearchDetail?: boolean } | null;
+        if (historyState?.tennoHubSearchDetail) {
+            window.history.back();
+            return;
+        }
+        const previous = stack[stack.length - 2];
+        if (!previous) return;
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${buildSearchDetailHash(previous)}`);
+        setStack((current) => current.slice(0, -1));
     }
 
     return [detailRef, closeDetail, navigateDetail, stack.length > 1, goBack];
 }
 
 function SearchDetailPanel(props: { detailRef: SearchDetailRef; onClose: () => void; onNavigate: (ref: SearchDetailRef) => void; canGoBack: boolean; onBack: () => void }) {
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+    const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+    const onCloseRef = useRef(props.onClose);
+
+    useEffect(() => {
+        onCloseRef.current = props.onClose;
+    }, [props.onClose]);
+
+    useEffect(() => {
+        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        closeButtonRef.current?.focus();
+
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                onCloseRef.current();
+                return;
+            }
+            if (event.key !== "Tab" || !dialogRef.current) return;
+            const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ));
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialogRef.current.focus();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
+
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+            previouslyFocused?.focus();
+        };
+    }, []);
+
     return (
         <div className="fixed inset-0 z-[70]">
-            <button
-                type="button"
-                aria-label="Close detail panel"
-                className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px]"
-                onClick={props.onClose}
-            />
-            <div className="absolute inset-y-0 right-0 w-full max-w-[920px] overflow-hidden border-l border-slate-800/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.98),rgba(15,23,42,0.98))] shadow-2xl shadow-black/60">
+            <div className="wf-modal-backdrop absolute inset-0 backdrop-blur-[2px]" aria-hidden="true" />
+            <section
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="search-detail-title"
+                aria-describedby="search-detail-description"
+                tabIndex={-1}
+                className="wf-inspector absolute inset-y-0 right-0 w-full max-w-[920px] overflow-hidden border-l"
+            >
                 <div className="flex h-full flex-col">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 px-4 py-3">
+                    <div className="flex items-center justify-between border-b border-[color:var(--wf-border-subtle)] px-4 py-3">
                         <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Codex Panel</div>
-                            <div className="mt-1 text-sm text-slate-300">Inspect an item without leaving your current workspace.</div>
+                            <h2 id="search-detail-title" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-text-muted)]">Catalog Inspector</h2>
+                            <div id="search-detail-description" className="mt-1 text-sm text-[color:var(--wf-text)]">Inspect an item without leaving your current workspace.</div>
                         </div>
                         <div className="flex items-center gap-2">
                             {props.canGoBack ? (
@@ -165,7 +220,7 @@ function SearchDetailPanel(props: { detailRef: SearchDetailRef; onClose: () => v
                                     type="button"
                                     onClick={props.onBack}
                                     aria-label="Go back to previous item"
-                                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-700/90 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.94))] px-3 text-sm font-medium text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors hover:border-slate-500 hover:bg-slate-800"
+                                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-3 text-sm font-medium text-[color:var(--wf-text)] transition-colors hover:border-[color:var(--wf-border-strong)] hover:bg-[color:var(--wf-hover)]"
                                 >
                                     <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="m15 18-6-6 6-6" />
@@ -175,20 +230,22 @@ function SearchDetailPanel(props: { detailRef: SearchDetailRef; onClose: () => v
                             ) : null}
                             <button
                                 type="button"
+                                ref={closeButtonRef}
                                 onClick={props.onClose}
-                                className="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+                                aria-label="Close catalog inspector"
+                                className="rounded-full border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-3 py-1.5 text-xs font-medium text-[color:var(--wf-text)] transition-colors hover:border-[color:var(--wf-border-strong)] hover:bg-[color:var(--wf-hover)]"
                             >
                                 Close
                             </button>
                         </div>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 overscroll-contain md:px-5">
                         <Suspense fallback={<PageLoadingFallback />}>
                             <SearchDetail detailRef={props.detailRef} onClose={props.onClose} onNavigate={props.onNavigate} canGoBack={props.canGoBack} onBack={props.onBack} mode="panel" />
                         </Suspense>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     );
 }
@@ -200,7 +257,7 @@ export default function App() {
     const ActivePage = PAGE_COMPONENTS[activePage];
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100">
+        <div className="wf-app-root min-h-screen bg-[color:var(--wf-bg-app)] text-[color:var(--wf-text)]">
             <Shell>
                 <Suspense fallback={<PageLoadingFallback />}>
                     <ErrorBoundary key={activePage} page={activePage}>

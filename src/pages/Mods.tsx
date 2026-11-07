@@ -1204,17 +1204,19 @@ const MOD_ENTRIES: ModEntry[] = [...MOD_ENTRIES_BASE, ...ALL_MODS_SUPPLEMENT];
 
 function Section({
   title,
+  subtitle,
   children,
   className,
   bodyClassName,
 }: {
   title: string;
+  subtitle?: string;
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
 }) {
   return (
-    <WorkspaceSection title={title} className={className} bodyClassName={bodyClassName}>
+    <WorkspaceSection title={title} subtitle={subtitle} headingLevel={1} className={className} bodyClassName={bodyClassName}>
       {children}
     </WorkspaceSection>
   );
@@ -1701,7 +1703,7 @@ function CustomRivenModal({
                   className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
                 />
                 {weaponPickerOpen && (
-                  <div className="absolute z-10 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/98 p-1 shadow-2xl shadow-black/50">
+                  <div className="wf-popover absolute z-10 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border p-1">
                     {filteredWeapons.length > 0 ? (
                       filteredWeapons.map((weapon) => (
                         <button
@@ -1781,7 +1783,7 @@ function CustomRivenModal({
                         className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600"
                       />
                       {openStatPickerIndex === index && (
-                        <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/98 p-1 shadow-2xl shadow-black/50">
+                        <div className="wf-popover absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border p-1">
                           {availableStats
                             .filter((definition) => definition.label.toLowerCase().includes((statQueries[index] ?? "").trim().toLowerCase()))
                             .slice(0, 30)
@@ -1904,7 +1906,7 @@ function CustomRivenModal({
                     <span className="text-slate-400">{polarityPickerOpen ? "▴" : "▾"}</span>
                   </button>
                   {polarityPickerOpen && (
-                    <div className="absolute z-10 mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/98 p-1 shadow-2xl shadow-black/50">
+                    <div className="wf-popover absolute z-10 mt-2 w-full rounded-xl border p-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -2284,7 +2286,7 @@ function ModModal({
           <div className="grid grid-cols-1 md:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)] gap-5">
 
             <div className="space-y-4">
-              <div className="overflow-hidden rounded-[24px] border border-slate-800 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.12),transparent_55%),linear-gradient(180deg,rgba(30,41,59,0.58),rgba(15,23,42,0.72))]">
+              <div className="overflow-hidden rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)]">
                 {imageUrl ? (
                   <img
                     src={imageUrl}
@@ -2680,6 +2682,7 @@ function ModsPage() {
 
       <Section
         title="Mods"
+        subtitle="Browse mods, Rivens, set bonuses, and acquisition details from one searchable catalog."
         className="flex h-full min-h-0 flex-col md:min-h-[42rem]"
         bodyClassName="flex min-h-0 flex-1 flex-col"
       >
@@ -2873,7 +2876,7 @@ function ModsPage() {
                   No owned rivens match the current filters.
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-auto border-t border-slate-800 bg-[linear-gradient(180deg,rgba(7,10,20,0.95),rgba(2,6,23,0.9))] p-3 pr-2">
+                <div className="min-h-0 flex-1 overflow-auto border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)] p-3 pr-2">
                   <div className="space-y-2">
                     {filteredCustomRivens.map((riven) => (
                       <div key={riven.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3">
@@ -2917,12 +2920,12 @@ function ModsPage() {
             ) : (
               <div
                 ref={listRef}
-                className="min-h-0 flex-1 overflow-auto border-t border-slate-800 bg-[linear-gradient(180deg,rgba(7,10,20,0.95),rgba(2,6,23,0.9))]"
+                className="min-h-0 flex-1 overflow-auto border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]"
                 onScroll={recompute}
               >
                 <div className="min-w-[980px]">
                   <div
-                    className="sticky top-0 z-10 grid gap-2 border-b border-slate-800 bg-slate-950/95 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur"
+                    className="sticky top-0 z-10 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur"
                     style={{ gridTemplateColumns: modBrowseGridTemplate }}
                   >
                     <div>Item</div>

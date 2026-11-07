@@ -29,7 +29,7 @@ function IntrinsicsSection(props: {
     const costPct = costMax > 0 ? (costTotal / costMax) * 100 : 0;
 
     return (
-        <WorkspacePanel className="relative overflow-hidden border border-slate-800/80 bg-slate-950/70 p-0">
+        <WorkspacePanel className="relative overflow-hidden border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-0">
             <div className={["absolute inset-x-0 top-0 h-px opacity-80", accentGlowClassName].join(" ")} />
             <div className="relative p-5 sm:p-6">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -37,9 +37,9 @@ function IntrinsicsSection(props: {
                         <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
                             {eyebrow}
                         </div>
-                        <h3 className="mt-2 text-xl font-semibold text-slate-100">
+                        <h2 className="mt-2 text-xl font-semibold text-[color:var(--wf-text-strong)]">
                             {title}
-                        </h3>
+                        </h2>
                         <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
                             {description}
                         </p>
@@ -72,7 +72,7 @@ function IntrinsicsSection(props: {
                     </div>
                 </div>
 
-                <div className="mt-6 border-t border-slate-800/80 pt-5">
+                <div className="mt-6 border-t border-[color:var(--wf-border-subtle)] pt-5">
                     <IntrinsicsDetails mode={mode} />
                 </div>
             </div>
@@ -107,13 +107,13 @@ export default function Intrinsics() {
 
     return (
         <div className="space-y-6">
-            <WorkspacePanel className="overflow-hidden border border-slate-800/80 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.14),transparent_32%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(2,6,23,0.82))] p-5 sm:p-6">
+            <WorkspacePanel className="overflow-hidden border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-5 sm:p-6" aria-labelledby="intrinsics-page-title">
                 <div className="flex items-start justify-between gap-6 flex-wrap">
                     <div>
                         <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
                             Profile Systems
                         </div>
-                        <h2 className="mt-2 text-2xl font-semibold text-slate-100">Intrinsics</h2>
+                        <h1 id="intrinsics-page-title" className="mt-2 text-2xl font-semibold text-[color:var(--wf-text-strong)]">Intrinsics</h1>
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
                             Review your Railjack and Duviri progression in one place, with the same rank-by-rank upgrade data shown from the Star Chart intrinsic panels.
                         </p>

@@ -1,13 +1,12 @@
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import { FULL_CATALOG, type CatalogId, type CatalogSource } from "../catalog/loadFullCatalog";
 import { getManualReleaseDateFallback, withManualReleaseDateFallback } from "../../catalog/items/manualReleaseDates";
+import type { SearchDetailRef } from "./searchDetailHash";
+
+export { buildSearchDetailHash, buildSearchDetailHref, parseSearchDetailHash } from "./searchDetailHash";
+export type { SearchDetailRef } from "./searchDetailHash";
 
 export type SearchEntityKind = "item" | "mod" | "arcane";
-
-export type SearchDetailRef = {
-    kind: SearchEntityKind;
-    id: string;
-};
 
 export type SearchEntityResult = SearchDetailRef & {
     name: string;
@@ -42,7 +41,6 @@ export type SearchEntityRecord = Record<string, unknown> & {
     texture_new?: string;
 };
 
-const SEARCH_DETAIL_HASH_PREFIX = "#search-detail";
 const CATALOG_SOURCES: CatalogSource[] = ["items", "mods", "modsets", "rivens", "moddescriptions"];
 
 function normalizeText(value: string): string {
@@ -53,7 +51,6 @@ function normalizeText(value: string): string {
         .replace(/[^a-z0-9]+/g, " ")
         .trim();
 }
-
 function tokenize(value: string): string[] {
     return normalizeText(value).split(/\s+/).filter(Boolean);
 }
@@ -415,27 +412,4 @@ export function getSearchDetailRefForCatalogId(catalogId: CatalogId): SearchDeta
         kind: getEntityKind(entry),
         id: path,
     };
-}
-
-export function buildSearchDetailHash(ref: SearchDetailRef): string {
-    const params = new URLSearchParams({
-        kind: ref.kind,
-        id: ref.id,
-    });
-    return `${SEARCH_DETAIL_HASH_PREFIX}?${params.toString()}`;
-}
-
-export function buildSearchDetailHref(ref: SearchDetailRef, locationLike?: Pick<Location, "origin" | "pathname" | "search">): string {
-    const current = locationLike ?? window.location;
-    return `${current.origin}${current.pathname}${current.search}${buildSearchDetailHash(ref)}`;
-}
-
-export function parseSearchDetailHash(hash: string): SearchDetailRef | null {
-    if (!hash.startsWith(SEARCH_DETAIL_HASH_PREFIX)) return null;
-    const queryIndex = hash.indexOf("?");
-    const params = new URLSearchParams(queryIndex >= 0 ? hash.slice(queryIndex + 1) : "");
-    const kind = params.get("kind");
-    const id = params.get("id");
-    if ((kind !== "item" && kind !== "mod" && kind !== "arcane") || !id) return null;
-    return { kind, id };
 }
