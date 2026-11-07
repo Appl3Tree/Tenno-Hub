@@ -39,6 +39,8 @@ export default function AlecaFrameImport() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<AlecaFrameInventorySnapshot | null>(null);
   const [fileName, setFileName] = useState("");
+  const [recordFilter, setRecordFilter] = useState("");
+  const [recordPage, setRecordPage] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const state = useTrackerStore((store) => store.state);
@@ -48,6 +50,8 @@ export default function AlecaFrameImport() {
   async function readFile(file: File): Promise<void> {
     setPreview(null);
     setFileName(file.name);
+    setRecordFilter("");
+    setRecordPage(0);
     setMessage("");
     setBusy(true);
     try {
@@ -61,6 +65,15 @@ export default function AlecaFrameImport() {
       setBusy(false);
     }
   }
+
+  const filteredRecords = (preview?.records ?? []).filter((record) => {
+    const name = FULL_CATALOG.recordsById[record.catalogId as CatalogId]?.displayName ?? "";
+    const q = recordFilter.trim().toLowerCase();
+    return !q || name.toLowerCase().includes(q) || record.path.toLowerCase().includes(q);
+  });
+  const pageCount = Math.ceil(filteredRecords.length / 50);
+  const currentPage = Math.min(recordPage, Math.max(0, pageCount - 1));
+  const visibleRecords = filteredRecords.slice(currentPage * 50, currentPage * 50 + 50);
 
   function applyVerifiedImport(): void {
     if (!preview || !preview.importable || preview.records.length === 0) return;
@@ -163,6 +176,66 @@ export default function AlecaFrameImport() {
                 <div className="text-xl font-semibold">{preview.playerLevel ?? "Unknown"}</div>
               </div>
             </div>
+            <details className="rounded-lg border border-slate-700 p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                Review recognized inventory ({preview.records.length.toLocaleString()} distinct canonical IDs)
+              </summary>
+              <div className="mt-3 space-y-3">
+                <label className="block text-xs text-slate-400">
+                  Search detected item name or exact Lotus path
+                  <input
+                    value={recordFilter}
+                    onChange={(event) => { setRecordFilter(event.target.value); setRecordPage(0); }}
+                    placeholder="Filter the parsed inventory"
+                    className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                  />
+                </label>
+                <div className="text-xs text-slate-400">
+                  {filteredRecords.length.toLocaleString()} matches, 50 per page. Rank counts represent individual mod copies.
+                </div>
+                <ul className="divide-y divide-slate-700/60">
+                  {visibleRecords.map((record) => (
+                    <li key={record.catalogId} className="py-2 flex flex-col gap-1 sm:flex-row sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="text-sm text-slate-200">
+                          {FULL_CATALOG.recordsById[record.catalogId as CatalogId]?.displayName ?? record.catalogId}
+                        </div>
+                        <div className="text-xs text-slate-500 break-all">{record.path}</div>
+                      </div>
+                      <div className="shrink-0 text-xs text-slate-300 sm:text-right">
+                        <div>Owned: {record.quantity.toLocaleString()}</div>
+                        {record.rankCounts && (
+                          <div>Ranks: {Object.entries(record.rankCounts)
+                            .sort(([a], [b]) => Number(a) - Number(b))
+                            .map(([rank, count]) => `${rank} × ${count}`).join(", ")}</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex items-center gap-3">
+                  <button type="button" disabled={currentPage === 0}
+                    className="rounded-lg border border-slate-600 px-3 py-1 text-sm disabled:opacity-40"
+                    onClick={() => setRecordPage((page) => Math.max(0, page - 1))}>Previous</button>
+                  <span className="text-xs text-slate-400">
+                    Page {pageCount ? currentPage + 1 : 0} of {pageCount}
+                  </span>
+                  <button type="button" disabled={currentPage + 1 >= pageCount}
+                    className="rounded-lg border border-slate-600 px-3 py-1 text-sm disabled:opacity-40"
+                    onClick={() => setRecordPage((page) => Math.min(pageCount - 1, page + 1))}>Next</button>
+                </div>
+                <button type="button"
+                  className="rounded-lg border border-slate-600 px-3 py-2 text-sm"
+                  onClick={() => downloadJson("alecaframe-parsed-inventory.json", {
+                    sourceRecords: preview.sourceRecords,
+                    sections: preview.sections,
+                    records: preview.records,
+                    issues: preview.issues,
+                  })}>
+                  Download parsed inventory and full audit
+                </button>
+              </div>
+            </details>
             {preview.issues.length > 0 && (
               <div className="rounded-lg border border-amber-700/50 bg-amber-950/20 p-3 space-y-2">
                 <p className="text-sm font-semibold text-amber-200">
