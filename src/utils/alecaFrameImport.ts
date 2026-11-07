@@ -208,6 +208,10 @@ export function parseAlecaFrameInventory(
 
   for (const section of ["RawUpgrades", "Upgrades"] as const) {
     const entries = value[section];
+    if (!Array.isArray(entries)) {
+      issue(section, -1, "", "Inventory section missing or malformed");
+      continue;
+    }
     sections[section] = entries.length;
     entries.forEach((entry, index) => add(section, index, entry, "mod", section === "Upgrades"));
   }
