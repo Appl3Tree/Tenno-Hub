@@ -50,8 +50,20 @@ const InventorySchema = z.object({
     counts: z.record(z.string(), z.number().nonnegative()),
     modRanks: z.record(z.string(), z.number().int().nonnegative()).optional(),
     modRankCounts: z.record(z.string(), z.record(z.string(), z.number().int().nonnegative())).optional(),
+    modUnknownRankCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
     arcaneRanks: z.record(z.string(), z.record(z.string(), z.number().int().nonnegative())).optional(),
+    arcaneRankCounts: z.record(z.string(), z.record(z.string(), z.number().int().nonnegative())).optional(),
+    arcaneUnknownRankCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
     customRivens: z.array(z.any()).optional(),
+    alecaFrameUnresolvedRecords: z.array(z.object({
+        path: z.string().startsWith("/Lotus/").max(512),
+        kind: z.enum(["item", "upgrade"]),
+        sourceSections: z.array(z.string().max(256)).max(64),
+        quantity: z.number().int().nonnegative().max(100_000_000),
+        rankCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
+        rankCountsComplete: z.boolean().optional(),
+        reason: z.string().max(256),
+    })).max(100_000).optional(),
 });
 
 export const ProgressPackSchemaV2 = z
@@ -194,13 +206,28 @@ export function mergeProgressPackIntoState(current: UserStateV2, incoming: any):
                 ...(next.inventory.modRankCounts ?? {}),
                 ...(incoming.inventory.modRankCounts ?? {})
             },
+            modUnknownRankCounts: {
+                ...(next.inventory.modUnknownRankCounts ?? {}),
+                ...(incoming.inventory.modUnknownRankCounts ?? {})
+            },
             arcaneRanks: {
                 ...normalizeArcaneRanksMap(next.inventory.arcaneRanks ?? {}),
                 ...normalizeArcaneRanksMap(incoming.inventory.arcaneRanks ?? {})
             },
+            arcaneRankCounts: {
+                ...(next.inventory.arcaneRankCounts ?? {}),
+                ...(incoming.inventory.arcaneRankCounts ?? {})
+            },
+            arcaneUnknownRankCounts: {
+                ...(next.inventory.arcaneUnknownRankCounts ?? {}),
+                ...(incoming.inventory.arcaneUnknownRankCounts ?? {})
+            },
             customRivens: Array.isArray(incoming.inventory.customRivens)
                 ? incoming.inventory.customRivens
                 : next.inventory.customRivens ?? [],
+            alecaFrameUnresolvedRecords: Array.isArray(incoming.inventory.alecaFrameUnresolvedRecords)
+                ? incoming.inventory.alecaFrameUnresolvedRecords
+                : next.inventory.alecaFrameUnresolvedRecords ?? [],
         };
     }
 

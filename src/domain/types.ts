@@ -18,6 +18,24 @@ export interface CustomRivenRecord {
     stats: CustomRivenStatValue[];
     createdAtIso: string;
     updatedAtIso: string;
+    /** Source details are kept only when they can be normalized locally. */
+    importSource?: "alecaframe";
+    importStatus?: "ready" | "rank-unknown" | "weapon-unknown" | "unsupported-stat";
+    sourceRank?: number | null;
+    masteryRankRequired?: number | null;
+    rerolls?: number | null;
+    sourceAttributes?: Array<{ tag: string; roll: number; polarity: "positive" | "negative" }>;
+}
+
+/** Minimal normalized source identity retained when AlecaFrame data has no exact catalog match. */
+export interface AlecaFrameUnresolvedRecord {
+    path: string;
+    kind: "item" | "upgrade";
+    sourceSections: string[];
+    quantity: number;
+    rankCounts?: Record<string, number>;
+    rankCountsComplete?: boolean;
+    reason: string;
 }
 
 export interface Inventory {
@@ -49,6 +67,15 @@ export interface Inventory {
      */
     modRankCounts?: Record<string, Record<string, number>>;
 
+    /** Mod copies whose quantity is known but whose source rank was not recorded. */
+    modUnknownRankCounts?: Record<string, number>;
+
+    /** Exact owned arcane copies by rank. `arcaneRanks` remains the legacy highest-rank field. */
+    arcaneRankCounts?: Record<string, Record<string, number>>;
+
+    /** Arcane copies whose quantity is known but whose source rank was not recorded. */
+    arcaneUnknownRankCounts?: Record<string, number>;
+
     /**
      * Highest owned arcane rank keyed by raw Lotus path (without "mods:" prefix).
      * Stored as a sparse single-entry map for backward compatibility with older saves.
@@ -61,6 +88,9 @@ export interface Inventory {
      * because each riven is unique and may scale across weapon variants via disposition.
      */
     customRivens?: CustomRivenRecord[];
+
+    /** Last AlecaFrame snapshot's unresolved identities, without source IDs or fingerprints. */
+    alecaFrameUnresolvedRecords?: AlecaFrameUnresolvedRecord[];
 }
 
 export interface DailyTask {

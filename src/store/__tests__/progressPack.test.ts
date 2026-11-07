@@ -23,10 +23,26 @@ describe("progress pack inventory serialization", () => {
                 modRanks: {
                     "/Lotus/Upgrades/Mods/NewMod": 8,
                 },
+                modRankCounts: {
+                    "/Lotus/Upgrades/Mods/NewMod": { "0": 2, "8": 1 },
+                },
+                modUnknownRankCounts: {
+                    "/Lotus/Upgrades/Mods/NewMod": 1,
+                },
                 arcaneRanks: {
                     "/Lotus/Upgrades/Mods/NewArcane": { "0": 2, "5": 1 },
                 },
+                arcaneUnknownRankCounts: {
+                    "/Lotus/Upgrades/Mods/NewArcane": 1,
+                },
                 customRivens: [],
+                alecaFrameUnresolvedRecords: [{
+                    path: "/Lotus/Types/Items/MiscItems/Unresolved",
+                    kind: "item",
+                    sourceSections: ["MiscItems"],
+                    quantity: 4,
+                    reason: "No exact canonical catalog match.",
+                }],
             },
         };
 
@@ -41,6 +57,13 @@ describe("progress pack inventory serialization", () => {
             "/Lotus/Upgrades/Mods/ExistingArcane": { "1": 1 },
             "/Lotus/Upgrades/Mods/NewArcane": { "5": 1 },
         });
+        expect(merged.inventory.modUnknownRankCounts).toEqual({
+            "/Lotus/Upgrades/Mods/NewMod": 1,
+        });
+        expect(merged.inventory.arcaneUnknownRankCounts).toEqual({
+            "/Lotus/Upgrades/Mods/NewArcane": 1,
+        });
+        expect(merged.inventory.alecaFrameUnresolvedRecords).toEqual(incoming.inventory.alecaFrameUnresolvedRecords);
     });
 
     it("preserves modRanks and arcaneRanks during migration normalization", () => {
@@ -74,7 +97,20 @@ describe("progress pack inventory serialization", () => {
                 arcaneRanks: {
                     "/Lotus/Upgrades/Mods/ArcaneMerciless": { "3": 2, "5": 1 },
                 },
+                modUnknownRankCounts: {
+                    "/Lotus/Upgrades/Mods/Serration": 2,
+                },
+                arcaneUnknownRankCounts: {
+                    "/Lotus/Upgrades/Mods/ArcaneMerciless": 1,
+                },
                 customRivens: [],
+                alecaFrameUnresolvedRecords: [{
+                    path: "/Lotus/Types/Items/MiscItems/Unresolved",
+                    kind: "item",
+                    sourceSections: ["MiscItems"],
+                    quantity: 2,
+                    reason: "No exact canonical catalog match.",
+                }],
             },
             syndicates: [],
             dailyTasks: [],
@@ -96,5 +132,18 @@ describe("progress pack inventory serialization", () => {
         expect(migrated?.inventory.arcaneRanks).toEqual({
             "/Lotus/Upgrades/Mods/ArcaneMerciless": { "5": 1 },
         });
+        expect(migrated?.inventory.modUnknownRankCounts).toEqual({
+            "/Lotus/Upgrades/Mods/Serration": 2,
+        });
+        expect(migrated?.inventory.arcaneUnknownRankCounts).toEqual({
+            "/Lotus/Upgrades/Mods/ArcaneMerciless": 1,
+        });
+        expect(migrated?.inventory.alecaFrameUnresolvedRecords).toEqual([{
+            path: "/Lotus/Types/Items/MiscItems/Unresolved",
+            kind: "item",
+            sourceSections: ["MiscItems"],
+            quantity: 2,
+            reason: "No exact canonical catalog match.",
+        }]);
     });
 });

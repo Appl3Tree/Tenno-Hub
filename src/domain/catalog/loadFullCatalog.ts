@@ -518,6 +518,17 @@ export function buildFullCatalog(): FullCatalog {
     }
 
     const modsMap = parseJsonMap("mods", modsJson);
+    // The generated Overframe list is intentionally curated and omits valid
+    // inventory mods such as some Plexus and newer WFCD records. Keep it as the
+    // preferred source, then fill its exact Lotus-path gaps from WFCD Mods.json.
+    for (const mod of MODS_EXT_RAW as any[]) {
+        const path = typeof mod?.uniqueName === "string" ? mod.uniqueName : "";
+        if (!path.startsWith("/Lotus/") || path.includes("/Randomized/")) continue;
+        if (mod?.category !== "Mods" || typeof mod?.name !== "string") continue;
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) {
+            modsMap[path] = { name: mod.name, category: mod.category, ...mod };
+        }
+    }
     const modsetsMap = parseJsonMap("modsets", buildModsetsFromExternal());
     const rivensMap = parseJsonMap("rivens", buildRivensFromExternal());
     const moddescriptionsMap: Record<string, any> = {}; // covered by All.json levelStats

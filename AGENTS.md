@@ -40,6 +40,16 @@ Tasks are organized by priority. Update this list as work progresses.
 - [ ] Content-first workspace Phase 4 — migrate Mods and Arcanes while preserving their specialized filter and list behavior
 - [ ] Content-first workspace Phase 5 — review remaining data-heavy routes and make targeted content-first improvements where the audit shows a real layout defect
 - [ ] Content-first workspace Phase 6 — verify responsive viewports, interactions, themes, virtualization, automated checks, and browser screenshots; push and merge the completed change
+- [x] AlecaFrame `lastData.dat` import Phase A — inspect PR #6, current state, source format, and the real local sample; record verified section semantics and concrete gaps
+  - Completed (2026-11-07): reviewed the PR diff and current `main`, read `ARCHITECTURE.md`, and independently decrypted the supplied snapshot. AES-CBC/PKCS#7, UTF-8 JSON, optional `InventoryJson` wrapper, per-copy versus stacked sections, and the top-level field/type schema were checked against independent readers. Added a privacy-safe schema list and importer notes. Exact catalog gaps remain explicit unresolved release blockers.
+- [ ] AlecaFrame `lastData.dat` import Phase B — complete validated parsing, canonical identity reconciliation, equipment/items/resources/blueprints, ranked mods/arcanes, and personalized Riven handling
+  - In progress: exact-path mapping, unknown rank retention, personalized Riven normalization, and unresolved-path reporting are implemented. The supplied snapshot still has unmatched canonical identities; complete mapping audit and section-semantic verification remain open.
+- [ ] AlecaFrame `lastData.dat` import Phase C — implement deterministic dry-run reconciliation, conflict choices, backup/recovery, atomic state updates, and persistence compatibility
+  - In progress: reviewed reconciliation modes, backup-before-apply, atomic update, rank-count persistence/migrations, and unresolved-report persistence are implemented; browser restore and re-import checks remain open.
+- [ ] AlecaFrame `lastData.dat` import Phase D — complete accessible responsive Imports & Backups workflow with categorized preview, issue search, and explicit confirmation
+  - In progress: file selection, review tables, section accounting, unresolved acknowledgement, Riven status review, and two-step confirmation are implemented; responsive and accessibility review remains open.
+- [ ] AlecaFrame `lastData.dat` import Phase E — run synthetic and real-sample validation, full automated gates, and browser verification in light/dark themes and responsive sizes
+- [ ] AlecaFrame `lastData.dat` import Phase F — resolve release blockers, update documentation and PR, and complete branch integration and delivery when permitted
 
 ### Intake Rule
 

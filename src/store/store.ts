@@ -13,6 +13,7 @@ import { toYMD } from "../domain/ymd";
 import type {
     CustomRivenRecord,
     DailyTask,
+    Inventory,
     ResetChecklistBucket,
     ResetDisplayMode,
     SyndicateState
@@ -93,6 +94,7 @@ export interface TrackerStore {
 
     exportProgressPackJson: () => string;
     importProgressPackJson: (json: string) => { ok: boolean; error?: string };
+    applyAlecaFrameInventory: (inventory: Inventory) => { ok: boolean; error?: string };
 
     resetToDefaults: () => void;
     resetAllLocalData: () => void;
@@ -294,6 +296,12 @@ export const useTrackerStore = create<TrackerStore>()(
             setArcaneRankCount: (path, rank, count) => {
                 set((s) => {
                     if (!s.state.inventory.arcaneRanks) s.state.inventory.arcaneRanks = {};
+                    if (!s.state.inventory.arcaneRankCounts) s.state.inventory.arcaneRankCounts = {};
+                    if (s.state.inventory.arcaneUnknownRankCounts) delete s.state.inventory.arcaneUnknownRankCounts[path];
+                    s.state.inventory.arcaneRankCounts[path] =
+                        Number.isFinite(count) && count > 0
+                            ? { [String(Math.max(0, Math.floor(rank)))]: Math.max(0, Math.floor(count)) }
+                            : {};
                     s.state.inventory.arcaneRanks[path] = setHighestOwnedArcaneRank(Number.isFinite(count) && count > 0 ? rank : null);
                     s.state.meta.updatedAtIso = nowIso();
                 });
@@ -651,6 +659,39 @@ export const useTrackerStore = create<TrackerStore>()(
                     return { ok: true };
                 } catch {
                     return { ok: false, error: "Invalid JSON." };
+                }
+            },
+
+            applyAlecaFrameInventory: (inventory) => {
+                const previous = get().state.inventory;
+                try {
+                    const updatedAtIso = nowIso();
+                    const validated = ProgressPackSchemaV2.safeParse({
+                        meta: {
+                            schemaVersion: 2,
+                            createdAtIso: get().state.meta.createdAtIso,
+                            updatedAtIso,
+                        },
+                        inventory,
+                    });
+                    if (!validated.success || !validated.data.inventory) {
+                        return { ok: false, error: "The reviewed inventory failed validation; no changes were applied." };
+                    }
+                    const nextInventory = validated.data.inventory as Inventory;
+                    set((s) => {
+                        s.state.inventory = nextInventory;
+                        s.state.meta.updatedAtIso = updatedAtIso;
+                    });
+                    return { ok: true };
+                } catch {
+                    try {
+                        set((s) => {
+                            s.state.inventory = previous;
+                        });
+                    } catch {
+                        // The downloaded Progress Pack remains available for recovery.
+                    }
+                    return { ok: false, error: "Import failed. Your previous inventory was restored in memory." };
                 }
             },
 

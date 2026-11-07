@@ -100,6 +100,17 @@ type DropKind = "syndicate" | "enemy" | "mission" | "relic" | "other";
 
 const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_ARCANE_RANKS: Record<string, Record<string, number>> = {};
+const EMPTY_ARCANE_RANK_COUNTS: Record<string, Record<string, number>> = {};
+const EMPTY_ARCANE_UNKNOWN_RANK_COUNTS: Record<string, number> = {};
+
+function formatArcaneRankCounts(rankCounts: Record<string, number> | undefined, unknownCount = 0): string {
+  const parts = Object.entries(rankCounts ?? {})
+    .filter(([, count]) => count > 0)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([rank, count]) => "R" + rank + " × " + count)
+  if (unknownCount > 0) parts.push("Unknown rank × " + unknownCount);
+  return parts.join(" · ");
+}
 const MODDESC_RAW: Record<string, { Ranks?: Record<string, string>[] }> = {};
 const MODDESC = MODDESC_RAW;
 const VANILLA_DATE = "2012-10-25";
@@ -715,12 +726,16 @@ function CatalogControlBand({
 
 function ArcaneDetail({ entry, onClose }: { entry: ModEntry; onClose: () => void }) {
   const arcaneRanks = useTrackerStore((state) => state.state.inventory.arcaneRanks ?? EMPTY_ARCANE_RANKS);
+  const arcaneRankCounts = useTrackerStore((state) => state.state.inventory.arcaneRankCounts ?? EMPTY_ARCANE_RANK_COUNTS);
+  const arcaneUnknownRankCounts = useTrackerStore((state) => state.state.inventory.arcaneUnknownRankCounts ?? EMPTY_ARCANE_UNKNOWN_RANK_COUNTS);
   const setArcaneRankCount = useTrackerStore((state) => state.setArcaneRankCount);
   const addGoalCatalog = useTrackerStore((state) => state.addGoalCatalog);
   const rankCounts = arcaneRanks[entry.path] ?? {};
+  const unknownRankCopies = arcaneUnknownRankCounts[entry.path] ?? 0;
   const data = entry.data;
   const maxRank = decodeMaxRank(data?.FusionLimit);
   const highestOwnedRank = getHighestOwnedArcaneRank(rankCounts);
+  const exactOwnedCopies = formatArcaneRankCounts(arcaneRankCounts[entry.path], arcaneUnknownRankCounts[entry.path] ?? 0);
   const upgrades = (data?.Upgrades ?? []).concat(data?.ExtraUpgrades ?? []);
   const allEntry = ALL_ARCANES_BY_PATH[entry.path] ?? ALL_ARCANES_BY_NAME[entry.name];
   const allDrops = allEntry?.drops ?? [];
@@ -819,10 +834,17 @@ function ArcaneDetail({ entry, onClose }: { entry: ModEntry; onClose: () => void
           <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Collection</span>
-              <span className={["text-xs font-semibold", highestOwnedRank !== null ? "text-emerald-400" : "text-slate-400"].join(" ")}>
-                {highestOwnedRank !== null ? `Owned up to R${highestOwnedRank}` : "Not owned"}
+              <span className={["text-xs font-semibold", highestOwnedRank !== null || unknownRankCopies > 0 ? "text-emerald-400" : "text-slate-400"].join(" ")}>
+                {unknownRankCopies > 0
+                  ? highestOwnedRank !== null ? `Known through R${highestOwnedRank}; ${unknownRankCopies} rank unknown` : `${unknownRankCopies} owned; rank unknown`
+                  : highestOwnedRank !== null ? `Owned up to R${highestOwnedRank}` : "Not owned"}
               </span>
             </div>
+            {exactOwnedCopies ? (
+              <p className="mb-2 text-xs text-slate-400" aria-label={"Owned arcane copies by rank: " + exactOwnedCopies}>
+                Copies by rank: {exactOwnedCopies}
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {Array.from({ length: maxRank + 1 }, (_, rank) => {
                 const isSelected = highestOwnedRank === rank;
@@ -938,6 +960,8 @@ function ArcaneDetail({ entry, onClose }: { entry: ModEntry; onClose: () => void
 export default function ArcanesPage() {
   const counts = useTrackerStore((state) => state.state.inventory.counts ?? EMPTY_COUNTS);
   const arcaneRanksMap = useTrackerStore((state) => state.state.inventory.arcaneRanks ?? EMPTY_ARCANE_RANKS);
+  const arcaneRankCountsMap = useTrackerStore((state) => state.state.inventory.arcaneRankCounts ?? EMPTY_ARCANE_RANK_COUNTS);
+  const arcaneUnknownRankCountsMap = useTrackerStore((state) => state.state.inventory.arcaneUnknownRankCounts ?? EMPTY_ARCANE_UNKNOWN_RANK_COUNTS);
   const setArcaneRankCount = useTrackerStore((state) => state.setArcaneRankCount);
   const addGoalCatalog = useTrackerStore((state) => state.addGoalCatalog);
 
@@ -1121,8 +1145,15 @@ export default function ArcanesPage() {
                       {filteredArcanes.slice(windowState.start, windowState.end).map((entry) => {
                         const isSelected = selectedArcane?.path === entry.path;
                         const rankCounts = arcaneRanksMap[entry.path] ?? {};
+                        const exactOwnedCopies = formatArcaneRankCounts(
+                          arcaneRankCountsMap[entry.path],
+                          arcaneUnknownRankCountsMap[entry.path] ?? 0,
+                        );
                         const fallbackCount = Number(counts[modKey(entry.path)] ?? counts[entry.path] ?? 0);
-                        const highestOwnedRank = getHighestOwnedArcaneRankWithFallback(rankCounts, fallbackCount);
+                        const unknownRankCopies = arcaneUnknownRankCountsMap[entry.path] ?? 0;
+                        const highestOwnedRank = unknownRankCopies > 0
+                          ? getHighestOwnedArcaneRank(rankCounts)
+                          : getHighestOwnedArcaneRankWithFallback(rankCounts, fallbackCount);
                         return (
                           <div key={entry.path} className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}>
                             <button
@@ -1135,9 +1166,17 @@ export default function ArcanesPage() {
                               onClick={() => setSelectedArcane(isSelected ? null : entry)}
                             >
                               <span className="truncate font-medium">{entry.name}</span>
-                              {highestOwnedRank !== null ? (
-                                <span className="shrink-0 rounded-full border border-emerald-800/60 bg-emerald-950/25 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                                  R{highestOwnedRank}
+                              {highestOwnedRank !== null || unknownRankCopies > 0 ? (
+                                <span
+                                  title={unknownRankCopies > 0 ? "Some copies have unknown rank; displayed rank is the known minimum." : undefined}
+                                  className="shrink-0 rounded-full border border-emerald-800/60 bg-emerald-950/25 px-2 py-0.5 text-[10px] font-semibold text-emerald-300"
+                                >
+                                  {unknownRankCopies > 0 ? highestOwnedRank !== null ? `≥R${highestOwnedRank}` : "Rank ?" : `R${highestOwnedRank}`}
+                                </span>
+                              ) : null}
+                              {exactOwnedCopies ? (
+                                <span className="max-w-[180px] truncate text-[10px] text-slate-400" title={exactOwnedCopies}>
+                                  {exactOwnedCopies}
                                 </span>
                               ) : null}
                             </button>

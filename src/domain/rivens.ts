@@ -34,6 +34,12 @@ export interface CustomRivenRecord {
     stats: CustomRivenStatValue[];
     createdAtIso: string;
     updatedAtIso: string;
+    importSource?: "alecaframe";
+    importStatus?: "ready" | "rank-unknown" | "weapon-unknown" | "unsupported-stat";
+    sourceRank?: number | null;
+    masteryRankRequired?: number | null;
+    rerolls?: number | null;
+    sourceAttributes?: Array<{ tag: string; roll: number; polarity: "positive" | "negative" }>;
 }
 
 function addPercent(
@@ -296,6 +302,28 @@ export const CUSTOM_RIVEN_STAT_DEFS: CustomRivenStatDef[] = [
         canBeNegative: true,
         aliases: ["heavyAttackEfficiencyBonus"],
         apply: addPercent("heavyAttackEfficiencyBonus"),
+    },
+    {
+        key: "comboEfficiency",
+        label: "Combo Efficiency",
+        unit: "percent",
+        compat: ["Melee"],
+        prefix: "Forti",
+        suffix: "Us",
+        canBeNegative: true,
+        isDisplayOnly: true,
+        apply: noopApply,
+    },
+    {
+        key: "comboPointsOnHit",
+        label: "Combo Points on Hit",
+        unit: "percent",
+        compat: ["Melee"],
+        prefix: "",
+        suffix: "",
+        canBeNegative: true,
+        isDisplayOnly: true,
+        apply: noopApply,
     },
     {
         key: "multishot",

@@ -2786,6 +2786,7 @@ export default function ModBuilder() {
         if (!weapon) return [];
         const baseMods = getModsForWeapon(weapon);
         const customRivens = inventoryCustomRivens
+            .filter((riven: CustomRivenRecord) => !riven.importStatus || riven.importStatus === "ready")
             .filter((riven: CustomRivenRecord) => customRivenSupportsWeapon(riven, weapon))
             .map((riven: CustomRivenRecord) => buildCustomRivenEntry(riven, weapon));
         return [...baseMods.filter((mod) => !shouldHideBuilderExpertMod(mod, baseMods)), ...customRivens];
