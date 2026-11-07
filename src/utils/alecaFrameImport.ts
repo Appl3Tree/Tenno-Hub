@@ -175,11 +175,12 @@ export function parseAlecaFrameInventory(
         rank = fingerprintObject.lvl;
       }
     }
-    record.quantity += quantity;
-    if (!Number.isSafeInteger(record.quantity)) {
+    const nextQuantity = record.quantity + quantity;
+    if (!Number.isSafeInteger(nextQuantity)) {
       issue(section, index, path, "Aggregate quantity exceeds safe integer range");
       return;
     }
+    record.quantity = nextQuantity;
     if (rank !== null && quantity !== 0) {
       record.rankCounts ??= {};
       record.rankCounts[String(rank)] = (record.rankCounts[String(rank)] ?? 0) + quantity;
