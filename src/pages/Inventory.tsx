@@ -31,7 +31,7 @@ import zarimanRewardsJson from "../../external/warframe-drop-data/raw/zarimanRew
 import { getRelicByKey } from "../domain/catalog/relicCatalog";
 import { getPrimeAvailabilityStatus, getRelicAvailabilityStatus } from "../domain/catalog/vaultedItems";
 import { useWorldStateData } from "../lib/useWorldStateData";
-import { WorkspaceAction, WorkspaceFilterGroup, WorkspaceHero, WorkspacePillButton, WorkspaceSection, WorkspaceSegmentedButton, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
+import { WorkspaceAction, WorkspaceHero, WorkspacePillButton, WorkspaceSection, WorkspaceSegmentedButton, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
 import {
   SAFE_TO_SELL_PROTECTION_META,
   buildWeaponIngredientIndex,
@@ -40,16 +40,20 @@ import {
   type WeaponIngredientUse,
 } from "../domain/logic/safeToSell";
 import {
-  COLLECTION_LEDGER_SHELL_CLASS,
+  COLLECTION_SCROLL_CONTENT_CLASS,
+  CollectionActiveFilterSummary,
   CollectionChipRail,
+  CollectionFilterDisclosure,
+  CollectionFiltersToggle,
   CollectionModeBand,
   CollectionModeButton,
   CollectionRefineBand,
   CollectionRefineGroup,
-  CollectionResultsBand,
-  CollectionUtilityBand,
+  CollectionScrollSurface,
   CollectionUtilityPanel,
+  type CollectionActiveFilter,
 } from "../components/collection/CollectionLedgerShell";
+import { useCollectionVirtualWindow } from "../components/collection/useCollectionVirtualWindow";
 import { getAllWikiBlueprintReferencedCatalogIds, getWikiBlueprintRequirements } from "../catalog/items/wikiBlueprintRequirements";
 import { getEntityImageUrl } from "../utils/entityImage";
 import { getSyndicateVendorOffer, getSyndicateVendorPrice, parseSyndicateVendorLabel } from "../catalog/sources/syndicateVendorPricing";
@@ -1539,10 +1543,6 @@ function safeInt(v: unknown, fallback = 0): number {
   return Math.max(0, Math.floor(n));
 }
 
-function Section(props: { title: string; children: ReactNode; className?: string; bodyClassName?: string }) {
-  return <WorkspaceSection title={props.title} className={props.className} bodyClassName={props.bodyClassName}>{props.children}</WorkspaceSection>;
-}
-
 function TabButton(props: {
   label: string;
   active: boolean;
@@ -1643,28 +1643,6 @@ function SafeToSellStatusPill(props: {
         ? "border-amber-800/40 bg-amber-950/20 text-amber-200"
         : "border-slate-800 bg-slate-900/70 text-slate-300";
   return <span className={["rounded-full border px-3 py-1.5 text-xs", toneClass].join(" ")}>{props.children}</span>;
-}
-
-function InventoryWorkspaceToggle(props: {
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={props.onClick}
-      className={[
-        "group inline-flex items-center gap-3 rounded-full border px-3 py-2 transition-all duration-200",
-        props.active
-          ? "border-cyan-700/60 bg-cyan-950/24 text-cyan-100 shadow-[0_0_0_1px_rgba(8,145,178,0.18)]"
-          : "border-slate-800 bg-slate-950/30 text-slate-200 hover:border-slate-700 hover:bg-slate-900/70",
-      ].join(" ")}
-      title="Open the Safe to Sell workspace"
-    >
-      <span className={["h-2.5 w-2.5 rounded-full transition-colors", props.active ? "bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.45)]" : "bg-slate-600"].join(" ")} />
-      <span className="text-sm font-semibold">{props.active ? "Safe to Sell" : "Open Safe to Sell"}</span>
-      {props.active ? <span className="text-[11px] text-cyan-200/80">Active</span> : null}
-    </button>
-  );
 }
 
 function FilterTagButton(props: {
@@ -2414,13 +2392,6 @@ function isSafeToSellSlotBearingRow(row: Row): boolean {
   );
 }
 
-type VirtualWindow = {
-  start: number;
-  end: number;
-  viewportH: number;
-  scrollTop: number;
-};
-
 // Stable fallback references — avoids creating new objects on every render in ?? fallbacks
 // which would cause useSyncExternalStore to detect a new snapshot reference and loop.
 const EMPTY_BOOL_RECORD: Record<string, boolean> = {};
@@ -2496,6 +2467,7 @@ export default function Inventory() {
 
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("az");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // 5.2: Additional filter state
   const [ownershipFilter, setOwnershipFilter] =
@@ -2535,6 +2507,7 @@ export default function Inventory() {
   );
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set());
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -3357,24 +3330,6 @@ export default function Inventory() {
     return [...set].sort((a, b) => a - b);
   }, [filtered]);
 
-  const activeColumnFilterCount = useMemo(() => {
-    let total = 0;
-    if (tableTypeFilter !== "all") total += 1;
-    if (tableAccessFilter !== "all") total += 1;
-    if (tableMrFilterMode !== "all") total += 1;
-    if (tableMasteredFilter !== "all") total += 1;
-    if (tableReleaseFilterMode !== "all") total += 1;
-    total += Object.keys(variantFilters).length;
-    return total;
-  }, [
-    variantFilters,
-    tableTypeFilter,
-    tableAccessFilter,
-    tableMrFilterMode,
-    tableMasteredFilter,
-    tableReleaseFilterMode,
-  ]);
-
   function resetColumnFilters() {
     setTableTypeFilter("all");
     setTableAccessFilter("all");
@@ -3383,7 +3338,6 @@ export default function Inventory() {
     setTableMasteredFilter("all");
     setTableReleaseFilterMode("all");
     setTableReleaseFilterValue("");
-    setVariantFilters({});
   }
 
   function toggleVariantFilter(filter: VariantFilter) {
@@ -3401,6 +3355,20 @@ export default function Inventory() {
       ...current,
       [filter]: !current[filter],
     }));
+  }
+
+  function clearAllFilters() {
+    selectPrimaryTab("all");
+    setWeaponClassTab("all");
+    setOwnershipFilter("all");
+    setShowAvailableNow(false);
+    setShowAvailableOnly(false);
+    setVariantFilters({});
+    setWeaponTypeFilters({});
+    setSafeToSellProtections(DEFAULT_SAFE_TO_SELL_PROTECTIONS);
+    setSafeToSellViewMode("all");
+    setSafeToSellOwnedOnly(false);
+    resetColumnFilters();
   }
 
   const displayedRowIdSet = useMemo(
@@ -3494,41 +3462,21 @@ export default function Inventory() {
   }
 
   // -------- Virtualization (manual, no deps) --------
-  const listRef = useRef<HTMLDivElement | null>(null);
-
   // Fixed row height; keep consistent with the row layout below.
   const ROW_H = 56;
   const OVERSCAN = 10;
-
-  const [vw, setVw] = useState<VirtualWindow>({
-    start: 0,
-    end: 0,
-    viewportH: 0,
-    scrollTop: 0,
-  });
-
-  function recomputeWindow() {
-    const el = listRef.current;
-    if (!el) return;
-
-    const viewportH = el.clientHeight;
-    const scrollTop = el.scrollTop;
-
-    const total = finalFiltered.length;
-
-    const start = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
-    const visibleCount = Math.ceil(viewportH / ROW_H) + OVERSCAN * 2;
-    const end = Math.min(total, start + visibleCount);
-
-    setVw({ start, end, viewportH, scrollTop });
-  }
+  const {
+    scrollportRef,
+    contentRef,
+    rowsAnchorRef,
+    windowState: vw,
+    recompute: recomputeWindow,
+    resetScroll: resetCollectionScroll,
+  } = useCollectionVirtualWindow(finalFiltered.length, ROW_H, OVERSCAN);
 
   useEffect(() => {
     // After filters change, reset scroll and recompute.
-    const el = listRef.current;
-    if (el) el.scrollTop = 0;
-    // Next tick so layout is stable.
-    requestAnimationFrame(() => recomputeWindow());
+    resetCollectionScroll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     primaryTab,
@@ -3551,6 +3499,8 @@ export default function Inventory() {
     tableMasteredFilter,
     tableReleaseFilterMode,
     tableReleaseFilterValue,
+    sortKey,
+    resetCollectionScroll,
   ]);
 
   useEffect(() => {
@@ -3559,136 +3509,219 @@ export default function Inventory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finalFiltered.length]);
 
-  useEffect(() => {
-    const onResize = () => recomputeWindow();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   // -----------------------------------------------
 
   const totalHeight = finalFiltered.length * ROW_H;
   const slice = finalFiltered.slice(vw.start, vw.end);
   const translateY = vw.start * ROW_H;
 
+  const activeFilters: CollectionActiveFilter[] = [];
+  const addTagFilter = (id: string, label: string, state: TagFilterState | undefined, onRemove: () => void) => {
+    if (state) activeFilters.push({ id, label: `${label} ${state === "include" ? "included" : "excluded"}`, onRemove });
+  };
+  if (primaryTab !== "all") {
+    const label = primaryTab === "safeToSell"
+      ? "Safe to Sell"
+      : primaryTab === "warframesVehicles"
+        ? "Warframes & Vehicles"
+        : primaryTab === "weapons"
+          ? "Weapons"
+          : primaryTab === "companions"
+            ? "Companions"
+            : primaryTab === "components"
+              ? "Blueprints & Parts"
+              : primaryTab === "resources"
+                ? "Resources"
+                : "Railjack";
+    activeFilters.push({ id: "primary-category", label: `Category: ${label}`, onRemove: () => selectPrimaryTab("all") });
+  }
+  if (ownershipFilter !== "all") {
+    const label = ownershipFilter === "mastered" ? "Mastered" : ownershipFilter === "owned" ? "Owned" : "Unowned";
+    activeFilters.push({ id: "ownership", label, onRemove: () => setOwnershipFilter("all") });
+  }
+  if (showAvailableNow) activeFilters.push({ id: "available-now", label: `Within current MR${masteryRank === null ? "" : ` (${masteryRank})`}`, onRemove: () => setShowAvailableNow(false) });
+  if (showAvailableOnly) activeFilters.push({ id: "accessible-sources", label: "Accessible sources", onRemove: () => setShowAvailableOnly(false) });
+  addTagFilter("variant-prime", "Prime", variantFilters.prime, () => setVariantFilters((current) => { const next = { ...current }; delete next.prime; return next; }));
+  addTagFilter("variant-vaulted", "Vaulted", variantFilters.vaulted, () => setVariantFilters((current) => { const next = { ...current }; delete next.vaulted; return next; }));
+  if (primaryTab === "weapons" && weaponClassTab !== "all") {
+    activeFilters.push({ id: "weapon-class", label: `Weapon class: ${titleCase(weaponClassTab)}`, onRemove: () => selectWeaponClass("all") });
+  }
+  if (primaryTab === "warframesVehicles" && wfVehTab !== "all") {
+    const label = wfVehTab === "warframes" ? "Warframes" : wfVehTab === "archwings" ? "Archwings" : "Necramechs";
+    activeFilters.push({ id: "warframe-vehicle-subcategory", label: `Type: ${label}`, onRemove: () => setWfVehTab("all") });
+  }
+  if (primaryTab === "companions" && companionsTab !== "all") {
+    activeFilters.push({ id: "companion-subcategory", label: `Companion: ${titleCase(companionsTab)}`, onRemove: () => setCompanionsTab("all") });
+  }
+  if (primaryTab === "weapons") {
+    for (const [type, state] of Object.entries(weaponTypeFilters) as Array<[string, TagFilterState]>) {
+      addTagFilter(`weapon-type-${type}`, `Weapon type: ${titleCase(type)}`, state, () => setWeaponTypeFilters((current) => { const next = { ...current }; delete next[type]; return next; }));
+    }
+  }
+  if (tableTypeFilter !== "all") activeFilters.push({ id: "table-type", label: `Type: ${tableTypeFilter}`, onRemove: () => setTableTypeFilter("all") });
+  if (tableAccessFilter !== "all") activeFilters.push({ id: "table-access", label: `Access: ${tableAccessFilter === "available" ? "Now" : titleCase(tableAccessFilter)}`, onRemove: () => setTableAccessFilter("all") });
+  if (tableMrFilterMode !== "all") {
+    const mrLabel = tableMrFilterMode === "exists" ? "Has MR" : tableMrFilterMode === "equals" ? `MR = ${tableMrFilterValue || "any"}` : tableMrFilterMode === "lte" ? `MR ≤ ${tableMrFilterValue || "any"}` : `MR ≥ ${tableMrFilterValue || "any"}`;
+    activeFilters.push({ id: "table-mr", label: mrLabel, onRemove: () => { setTableMrFilterMode("all"); setTableMrFilterValue(""); } });
+  }
+  if (tableMasteredFilter !== "all") {
+    const masteredLabel = tableMasteredFilter === "mastered" ? "Mastered" : tableMasteredFilter === "unmastered" ? "Not mastered" : "Mastery N/A";
+    activeFilters.push({ id: "table-mastered", label: masteredLabel, onRemove: () => setTableMasteredFilter("all") });
+  }
+  if (tableReleaseFilterMode !== "all") {
+    const releaseLabel = tableReleaseFilterMode === "exists" ? "Release date exists" : `${tableReleaseFilterMode === "before" ? "Release before" : "Release after"} ${tableReleaseFilterValue || "any date"}`;
+    activeFilters.push({ id: "table-release", label: releaseLabel, onRemove: () => { setTableReleaseFilterMode("all"); setTableReleaseFilterValue(""); } });
+  }
+  if (primaryTab === "safeToSell") {
+    if (safeToSellViewMode !== "all") activeFilters.push({ id: "safe-view", label: safeToSellViewMode === "safe" ? "Safe only" : "Protected only", onRemove: () => setSafeToSellViewMode("all") });
+    if (safeToSellOwnedOnly) activeFilters.push({ id: "safe-owned", label: "Owned inventory only", onRemove: () => setSafeToSellOwnedOnly(false) });
+    for (const key of Object.keys(SAFE_TO_SELL_PROTECTION_META) as SafeToSellProtectionKey[]) {
+      if (safeToSellProtections[key] !== DEFAULT_SAFE_TO_SELL_PROTECTIONS[key]) {
+        activeFilters.push({
+          id: `safe-rule-${key}`,
+          label: `${safeToSellProtections[key] ? "Protect" : "Ignore"}: ${SAFE_TO_SELL_PROTECTION_META[key].label}`,
+          onRemove: () => setSafeToSellProtections((current) => ({ ...current, [key]: DEFAULT_SAFE_TO_SELL_PROTECTIONS[key] })),
+        });
+      }
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <Section
-        title="Inventory"
-        className="flex h-full min-h-0 flex-col md:min-h-[42rem]"
-        bodyClassName="flex min-h-0 flex-1 flex-col"
+      <CollectionScrollSurface
+        scrollportRef={scrollportRef}
+        contentRef={contentRef}
+        onScroll={recomputeWindow}
+        ariaLabel="Inventory catalog and results"
+        className="bg-[color:var(--wf-bg-canvas)]"
       >
-        <div className={COLLECTION_LEDGER_SHELL_CLASS}>
-          <CollectionUtilityBand
-            columnsClassName="grid-cols-1"
-            primary={
-              <CollectionUtilityPanel>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Search Catalog
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {primaryTab === "safeToSell" ? "Sell-safety review" : "Inventory lookup"}
+      <section aria-labelledby="inventory-page-title">
+        <h1 id="inventory-page-title" className="px-3 py-1 text-lg font-semibold text-[color:var(--wf-text-strong)]">Inventory</h1>
+        <div className={COLLECTION_SCROLL_CONTENT_CLASS}>
+          <div className="sticky top-0 z-30 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)]/95 shadow-sm backdrop-blur">
+            <div className="grid grid-cols-[76px_86px_minmax(0,1fr)_48px] items-center gap-1 p-1.5 sm:flex sm:gap-2 sm:p-2">
+              <input
+                aria-label="Search inventory items"
+                className="col-span-full min-h-10 min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 sm:flex-1 sm:text-base"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search inventory..."
+              />
+              <CollectionFiltersToggle
+                count={activeFilters.length}
+                expanded={filtersExpanded}
+                onClick={() => setFiltersExpanded((open) => !open)}
+                controlsId="inventory-advanced-filters"
+                className="w-full gap-1 px-1.5 text-xs sm:w-auto sm:gap-2 sm:px-3 sm:text-sm"
+              />
+              <div className="relative hidden min-h-10 items-center gap-2 rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-2.5 sm:flex">
+                <input type="checkbox" checked={allDisplayedChecked} onChange={(event) => toggleDisplayedSelection(event.target.checked)} aria-label="Select all displayed items" />
+                <button
+                  className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={selectedDisplayedCount === 0}
+                  onClick={() => setActionsMenuOpen((open) => !open)}
+                >
+                  Actions
+                </button>
+                <span className="whitespace-nowrap text-xs text-slate-500">{selectedDisplayedCount} checked</span>
+                {actionsMenuOpen && selectedDisplayedCount > 0 && (
+                  <div className="wf-popover absolute left-0 top-[calc(100%+0.5rem)] z-40 w-56 rounded-2xl border p-2 backdrop-blur">
+                    <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={applySelectedGoalAdd}>Add to Goals</button>
+                    <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={applySelectedGoalRemove}>Remove from Goals</button>
+                    <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={applySelectedCountUpdate}>Update Count</button>
+                    <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={() => applySelectedMastery(true)}>Mark Mastery</button>
+                    <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={() => applySelectedMastery(false)}>Unmark Mastery</button>
+                  </div>
+                )}
+              </div>
+              <label className="sr-only" htmlFor="inventory-sort">Sort inventory</label>
+              <select
+                id="inventory-sort"
+                aria-label="Sort inventory"
+                className="col-start-2 min-h-10 w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950 px-1.5 text-[11px] text-slate-200 sm:col-auto sm:w-auto sm:px-2.5 sm:text-xs"
+                value={sortKey}
+                onChange={(event) => setSortKey(event.target.value as SortKey)}
+              >
+                <option value="az">Item A→Z</option>
+                <option value="za">Item Z→A</option>
+                <option value="type-asc">Type A→Z</option>
+                <option value="type-desc">Type Z→A</option>
+                <option value="release-newest">Release newest</option>
+                <option value="release-oldest">Release oldest</option>
+                <option value="mr-asc">Mastery rank low to high</option>
+                <option value="mr-desc">Mastery rank high to low</option>
+                <option value="count-desc">Count high to low</option>
+                <option value="count-asc">Count low to high</option>
+                <option value="owned-first">Owned first</option>
+                <option value="unowned-first">Unowned first</option>
+                <option value="mastered-last">Unmastered first</option>
+              </select>
+              <div className="relative hidden sm:block">
+                <WorkspaceAction
+                  className="min-h-10 whitespace-nowrap rounded-xl px-2.5 py-2 text-xs"
+                  onClick={() => setColumnMenuOpen((open) => !open)}
+                >
+                  Columns
+                </WorkspaceAction>
+                {columnMenuOpen && (
+                  <div className="wf-popover absolute right-0 top-[calc(100%+0.5rem)] z-40 w-56 rounded-2xl border p-3 backdrop-blur">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Visible Columns</div>
+                    <div className="space-y-2">
+                      {DEFAULT_INVENTORY_COLUMNS.map((column) => (
+                        <label key={column} className="flex items-center gap-2 text-sm text-slate-300">
+                          <input type="checkbox" checked={visibleTableColumns.includes(column)} disabled={column === "item"} onChange={() => toggleColumn(column)} />
+                          <span>{columnMeta[column].label}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <InventoryWorkspaceToggle
-                      active={primaryTab === "safeToSell"}
-                      onClick={() => selectPrimaryTab(primaryTab === "safeToSell" ? "all" : "safeToSell")}
-                    />
-                  </div>
-                </div>
-
-                <label className="mt-3 block">
-                  <input
-                    aria-label="Search inventory items"
-                    className="w-full rounded-[1.6rem] border border-slate-700 bg-slate-950/80 px-4 py-3 text-base text-slate-100 placeholder:text-slate-500"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search items, blueprints, resources..."
-                  />
-                </label>
-
-                <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-                  {primaryTab !== "safeToSell" ? (
-                    <>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Ownership</span>
-                        {(["all", "owned", "unowned"] as const).map((f) => (
-                          <PillButton
-                            key={f}
-                            label={f === "all" ? "All" : f === "owned" ? "Owned" : "Unowned"}
-                            active={ownershipFilter === f}
-                            onClick={() => setOwnershipFilter(f)}
-                          />
+                )}
+              </div>
+              <span aria-label={`${finalFiltered.length.toLocaleString()} inventory rows`} className="col-start-3 justify-self-center whitespace-nowrap rounded-full border border-slate-800 bg-slate-900/80 px-1.5 py-2 text-[10px] text-slate-300 sm:col-auto sm:px-2.5 sm:text-xs">
+                <span className="sm:hidden">{finalFiltered.length.toLocaleString()}</span>
+                <span className="hidden sm:inline">{finalFiltered.length.toLocaleString()} rows</span>
+              </span>
+              <div className="relative col-start-4 sm:hidden">
+                <button
+                  type="button"
+                  aria-expanded={moreMenuOpen}
+                  aria-controls="inventory-mobile-tools"
+                  aria-label="More inventory actions and columns"
+                  onClick={() => setMoreMenuOpen((open) => !open)}
+                  className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] text-sm font-semibold text-[color:var(--wf-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--wf-accent-primary)]"
+                >
+                  ···
+                </button>
+                {moreMenuOpen && (
+                  <div id="inventory-mobile-tools" className="wf-popover absolute right-0 top-[calc(100%+0.5rem)] z-40 max-h-[min(70vh,28rem)] w-64 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-2xl border p-3 backdrop-blur">
+                    <label className="flex items-center gap-2 border-b border-slate-800 pb-3 text-sm text-slate-200">
+                      <input type="checkbox" checked={allDisplayedChecked} onChange={(event) => toggleDisplayedSelection(event.target.checked)} />
+                      Select all displayed items
+                    </label>
+                    <div className="border-b border-slate-800 py-3">
+                      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Actions · {selectedDisplayedCount} selected</div>
+                      <button disabled={selectedDisplayedCount === 0} className="flex w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-200 hover:bg-slate-900 disabled:opacity-40" onClick={applySelectedGoalAdd}>Add to Goals</button>
+                      <button disabled={selectedDisplayedCount === 0} className="flex w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-200 hover:bg-slate-900 disabled:opacity-40" onClick={applySelectedGoalRemove}>Remove from Goals</button>
+                      <button disabled={selectedDisplayedCount === 0} className="flex w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-200 hover:bg-slate-900 disabled:opacity-40" onClick={applySelectedCountUpdate}>Update Count</button>
+                      <button disabled={selectedDisplayedCount === 0} className="flex w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-200 hover:bg-slate-900 disabled:opacity-40" onClick={() => applySelectedMastery(true)}>Mark Mastery</button>
+                      <button disabled={selectedDisplayedCount === 0} className="flex w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-200 hover:bg-slate-900 disabled:opacity-40" onClick={() => applySelectedMastery(false)}>Unmark Mastery</button>
+                    </div>
+                    <div className="pt-3">
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Visible Columns</div>
+                      <div className="space-y-2">
+                        {DEFAULT_INVENTORY_COLUMNS.map((column) => (
+                          <label key={column} className="flex items-center gap-2 text-sm text-slate-300">
+                            <input type="checkbox" checked={visibleTableColumns.includes(column)} disabled={column === "item"} onChange={() => toggleColumn(column)} />
+                            <span>{columnMeta[column].label}</span>
+                          </label>
                         ))}
                       </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Status</span>
-                        <PillButton
-                          label="Mastered"
-                          active={ownershipFilter === "mastered"}
-                          onClick={() =>
-                            setOwnershipFilter(ownershipFilter === "mastered" ? "all" : "mastered")
-                          }
-                        />
-                        <PillButton
-                          label={masteryRank === null ? "Within current MR" : `Within current MR (${masteryRank})`}
-                          active={showAvailableNow}
-                          onClick={() => {
-                            if (masteryRank === null) return;
-                            setShowAvailableNow(!showAvailableNow);
-                          }}
-                        />
-                        <PillButton
-                          label="Accessible sources"
-                          active={showAvailableOnly}
-                          onClick={() => setShowAvailableOnly(!showAvailableOnly)}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-slate-400">Catalog review shaped by your sell rules.</div>
-                  )}
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Variant</span>
-                    <FilterTagButton
-                      label="Prime"
-                      state={variantFilters.prime}
-                      title={
-                        variantFilters.prime === "include"
-                          ? "Showing Prime items only. Click again to exclude them."
-                          : variantFilters.prime === "exclude"
-                            ? "Prime items are excluded. Click again to clear."
-                            : "Click to show Prime items only."
-                      }
-                      onClick={() => toggleVariantFilter("prime")}
-                    />
-                    <FilterTagButton
-                      label="Vaulted"
-                      state={variantFilters.vaulted}
-                      title={
-                        variantFilters.vaulted === "include"
-                          ? "Showing vaulted items only. Click again to exclude them."
-                          : variantFilters.vaulted === "exclude"
-                            ? "Vaulted items are excluded. Click again to clear."
-                            : "Click to show vaulted items only."
-                      }
-                      onClick={() => toggleVariantFilter("vaulted")}
-                    />
+                    </div>
                   </div>
-                </div>
-              </CollectionUtilityPanel>
-            }
-            secondary={null}
-          />
-
-          <div className="flex min-h-0 flex-1 flex-col">
-          {primaryTab !== "safeToSell" ? (
-            <CollectionModeBand>
+                )}
+              </div>
+            </div>
+          <CollectionModeBand className="overflow-x-auto" segmentedClassName="!w-max !min-w-full !flex-nowrap">
               <TabButton
                 label="All"
                 active={primaryTab === "all"}
@@ -3724,8 +3757,102 @@ export default function Inventory() {
                 active={primaryTab === "railjack"}
                 onClick={() => selectPrimaryTab("railjack")}
               />
+              <TabButton
+                label="Safe to Sell"
+                active={primaryTab === "safeToSell"}
+                onClick={() => selectPrimaryTab(primaryTab === "safeToSell" ? "all" : "safeToSell")}
+              />
             </CollectionModeBand>
-          ) : null}
+          </div>
+
+          <CollectionActiveFilterSummary filters={activeFilters} onClear={clearAllFilters} />
+
+          <CollectionFilterDisclosure id="inventory-advanced-filters" expanded={filtersExpanded}>
+            <CollectionUtilityPanel className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {primaryTab !== "safeToSell" ? (
+                <div className="space-y-3">
+                  <CollectionRefineGroup label="Ownership">
+                    <div className="flex flex-wrap gap-2">
+                      {(["all", "owned", "unowned"] as const).map((filter) => (
+                        <PillButton key={filter} label={filter === "all" ? "All" : filter === "owned" ? "Owned" : "Unowned"} active={ownershipFilter === filter} onClick={() => setOwnershipFilter(filter)} />
+                      ))}
+                    </div>
+                  </CollectionRefineGroup>
+                  <CollectionRefineGroup label="Status & availability">
+                    <div className="flex flex-wrap gap-2">
+                      <PillButton label="Mastered" active={ownershipFilter === "mastered"} onClick={() => setOwnershipFilter(ownershipFilter === "mastered" ? "all" : "mastered")} />
+                      <PillButton label={masteryRank === null ? "Within current MR" : `Within current MR (${masteryRank})`} active={showAvailableNow} onClick={() => { if (masteryRank !== null) setShowAvailableNow(!showAvailableNow); }} />
+                      <PillButton label="Accessible sources" active={showAvailableOnly} onClick={() => setShowAvailableOnly(!showAvailableOnly)} />
+                    </div>
+                  </CollectionRefineGroup>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-400">Catalog review shaped by your sell rules.</div>
+              )}
+              <CollectionRefineGroup label="Prime & vaulted">
+                <div className="flex flex-wrap gap-2">
+                  <FilterTagButton label="Prime" state={variantFilters.prime} title={variantFilters.prime === "include" ? "Showing Prime items only. Click again to exclude them." : variantFilters.prime === "exclude" ? "Prime items are excluded. Click again to clear." : "Click to show Prime items only."} onClick={() => toggleVariantFilter("prime")} />
+                  <FilterTagButton label="Vaulted" state={variantFilters.vaulted} title={variantFilters.vaulted === "include" ? "Showing vaulted items only. Click again to exclude them." : variantFilters.vaulted === "exclude" ? "Vaulted items are excluded. Click again to clear." : "Click to show vaulted items only."} onClick={() => toggleVariantFilter("vaulted")} />
+                </div>
+              </CollectionRefineGroup>
+              <div className="min-w-0 xl:col-span-2">
+              <CollectionRefineGroup label="Column filters">
+                <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <label className="grid gap-1 text-xs text-slate-400">
+                    Type
+                    <select className="w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-200" value={tableTypeFilter} onChange={(event) => setTableTypeFilter(event.target.value)}>
+                      <option value="all">All types</option>
+                      {tableTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs text-slate-400">
+                    Release
+                    <select className="w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-200" value={tableReleaseFilterMode} onChange={(event) => setTableReleaseFilterMode(event.target.value as ReleaseColumnFilterMode)}>
+                      <option value="all">All release</option>
+                      <option value="exists">Has date</option>
+                      <option value="before">Before</option>
+                      <option value="after">After</option>
+                    </select>
+                    {(tableReleaseFilterMode === "before" || tableReleaseFilterMode === "after") && <input aria-label="Release date" className="w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-200" type="date" value={tableReleaseFilterValue} onChange={(event) => setTableReleaseFilterValue(event.target.value)} />}
+                  </label>
+                  <label className="grid gap-1 text-xs text-slate-400">
+                    Access
+                    <select className="w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-200" value={tableAccessFilter} onChange={(event) => setTableAccessFilter(event.target.value as AccessFilter)}>
+                      <option value="all">All access</option>
+                      <option value="available">Now</option>
+                      <option value="partial">Partial</option>
+                      <option value="blocked">Blocked</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs text-slate-400">
+                    Mastery Rank
+                    <select className="w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-200" value={tableMrFilterMode} onChange={(event) => setTableMrFilterMode(event.target.value as MrColumnFilterMode)}>
+                      <option value="all">All MR</option>
+                      <option value="exists">Has MR</option>
+                      <option value="equals">Equals</option>
+                      <option value="lte">At or under</option>
+                      <option value="gte">At or above</option>
+                    </select>
+                    {tableMrFilterMode === "equals" || tableMrFilterMode === "lte" || tableMrFilterMode === "gte" ? (
+                      <select aria-label="Mastery Rank value" className="w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-200" value={tableMrFilterValue} onChange={(event) => setTableMrFilterValue(event.target.value)}>
+                        <option value="">Any MR</option>
+                        {tableMrOptions.map((mr) => <option key={mr} value={String(mr)}>MR {mr}</option>)}
+                      </select>
+                    ) : null}
+                  </label>
+                  <label className="grid gap-1 text-xs text-slate-400">
+                    Mastery State
+                    <select className="w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-200" value={tableMasteredFilter} onChange={(event) => setTableMasteredFilter(event.target.value as MasteredColumnFilter)}>
+                      <option value="all">All states</option>
+                      <option value="mastered">Mastered</option>
+                      <option value="unmastered">Not mastered</option>
+                      <option value="na">N/A</option>
+                    </select>
+                  </label>
+                </div>
+              </CollectionRefineGroup>
+              </div>
+            </CollectionUtilityPanel>
 
           {primaryTab === "weapons" ? (
             <CollectionRefineBand title="Refine Weapons" className="gap-y-1.5">
@@ -3948,6 +4075,7 @@ export default function Inventory() {
               </div>
             </CollectionRefineBand>
           ) : null}
+          </CollectionFilterDisclosure>
 
           {primaryTab === "safeToSell" && (
             <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
@@ -3957,59 +4085,10 @@ export default function Inventory() {
             </div>
           )}
 
-          {/* Virtualized list */}
-          <CollectionResultsBand
-            actions={
-              <WorkspaceFilterGroup className="text-xs text-slate-400">
-                <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5">
-                  Rows: {finalFiltered.length}
-                </span>
-                <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5">
-                  Filters: {activeColumnFilterCount}
-                </span>
-                <WorkspaceAction
-                  className="rounded-full border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={activeColumnFilterCount === 0}
-                  onClick={resetColumnFilters}
-                >
-                  Clear active filters
-                </WorkspaceAction>
-                <div className="relative">
-                  <WorkspaceAction
-                    className="rounded-full border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-slate-100"
-                    onClick={() => setColumnMenuOpen((open) => !open)}
-                  >
-                    Customize Columns
-                  </WorkspaceAction>
-                  {columnMenuOpen && (
-                    <div className="wf-popover absolute right-0 top-[calc(100%+0.5rem)] z-20 w-56 rounded-2xl border p-3 backdrop-blur">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Visible Columns
-                      </div>
-                      <div className="space-y-2">
-                        {DEFAULT_INVENTORY_COLUMNS.map((column) => (
-                          <label key={column} className="flex items-center gap-2 text-sm text-slate-300">
-                            <input
-                              type="checkbox"
-                              checked={visibleTableColumns.includes(column)}
-                              disabled={column === "item"}
-                              onChange={() => toggleColumn(column)}
-                            />
-                            <span>{columnMeta[column].label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </WorkspaceFilterGroup>
-            }
-          />
-
-          <div ref={listRef} className="min-h-0 flex-1 overflow-auto" onScroll={() => recomputeWindow()}>
+          <div>
             <div className="min-w-max">
             {/* Header */}
-            <div className="sticky top-0 z-10 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] backdrop-blur">
+            <div className="sticky top-36 z-20 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] backdrop-blur sm:top-44 lg:top-28">
               <div
                 className="grid gap-0 text-sm"
                 style={{ gridTemplateColumns: inventoryGridTemplate }}
@@ -4087,7 +4166,7 @@ export default function Inventory() {
                 })}
               </div>
               <div
-                className="grid gap-0 border-t border-slate-800/70 bg-slate-950/90"
+                className="hidden"
                 style={{ gridTemplateColumns: inventoryGridTemplate }}
               >
                 <div style={{ gridColumn: "span 2 / span 2" }}>
@@ -4242,7 +4321,7 @@ export default function Inventory() {
             </div>
 
             {/* Body spacer + window */}
-            <div className="relative" style={{ height: totalHeight }}>
+            <div ref={rowsAnchorRef} className="relative" style={{ height: totalHeight }}>
               <div
                 className="absolute left-0 right-0"
                 style={{ transform: `translateY(${translateY}px)` }}
@@ -4534,8 +4613,8 @@ export default function Inventory() {
           </div>
 
         </div>
-      </div>
-      </Section>
+      </section>
+      </CollectionScrollSurface>
 
       {selectedDetailId
         ? (() => {

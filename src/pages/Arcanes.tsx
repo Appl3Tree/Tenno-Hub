@@ -1,28 +1,26 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useTrackerStore } from "../store/store";
 import MODS_RAW from "../data/_generated/mods-lean.auto.json";
 import ALL_RAW from "../data/_generated/warframe-items-all-lean.auto.json";
 import MOD_LOCATIONS_RAW from "../../external/warframe-drop-data/raw/modLocations.json";
-import {
-  WorkspaceAction,
-  WorkspaceFilterGroup,
-  WorkspacePillButton,
-  WorkspaceSection,
-} from "../components/workspace/WorkspaceChrome";
+import { WorkspaceFilterGroup, WorkspacePillButton } from "../components/workspace/WorkspaceChrome";
 import {
   getHighestOwnedArcaneRank,
   getHighestOwnedArcaneRankWithFallback,
   hasOwnedArcane,
 } from "../domain/logic/arcaneInventory";
 import {
-  COLLECTION_LEDGER_SHELL_CLASS,
+  CollectionActiveFilterSummary,
   CollectionChipRail,
+  CollectionFilterDisclosure,
+  CollectionRefineGroup,
   CollectionRefineBand,
-  CollectionResultsBand,
-  CollectionUtilityBand,
-  CollectionUtilityPanel,
+  CollectionScrollSurface,
+  type CollectionActiveFilter,
 } from "../components/collection/CollectionLedgerShell";
+import { CollectionCatalogToolbar } from "../components/collection/CollectionCatalogToolbar";
+import { useCollectionVirtualWindow } from "../components/collection/useCollectionVirtualWindow";
 import { getEntityImageUrl } from "../utils/entityImage";
 import { GroupedSourceList } from "../components/sources/GroupedSourceList";
 import { buildCatalogSourceEntries } from "../components/sources/catalogSourceEntries";
@@ -630,54 +628,6 @@ function matchesOwnershipFilter(totalOwned: number, filter: OwnershipFilter) {
   return true;
 }
 
-function useVirtualLedgerWindow(totalRows: number, rowHeight = LEDGER_ROW_HEIGHT) {
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const [windowState, setWindowState] = useState({ start: 0, end: 50 });
-
-  const recompute = () => {
-    const element = listRef.current;
-    if (!element) return;
-    const viewportHeight = element.clientHeight;
-    const scrollTop = element.scrollTop;
-    const start = Math.max(0, Math.floor(scrollTop / rowHeight) - LEDGER_OVERSCAN);
-    const end = Math.min(totalRows, start + Math.ceil(viewportHeight / rowHeight) + LEDGER_OVERSCAN * 2);
-    setWindowState((current) => (current.start === start && current.end === end ? current : { start, end }));
-  };
-
-  useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = 0;
-    requestAnimationFrame(() => recompute());
-  }, [totalRows]);
-
-  useEffect(() => {
-    const onResize = () => recompute();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [totalRows]);
-
-  return { listRef, windowState, recompute };
-}
-
-function Section({
-  title,
-  subtitle,
-  children,
-  className,
-  bodyClassName,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  className?: string;
-  bodyClassName?: string;
-}) {
-  return (
-    <WorkspaceSection title={title} subtitle={subtitle} headingLevel={1} className={className} bodyClassName={bodyClassName}>
-      {children}
-    </WorkspaceSection>
-  );
-}
-
 function SubPill({ label, active, onClick }: { label: ReactNode; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -724,109 +674,43 @@ function OwnershipPill({ label, active, onClick }: { label: string; active: bool
   return <WorkspacePillButton label={label} active={active} onClick={onClick} />;
 }
 
-function baseLedgerShellClassName() {
-  return COLLECTION_LEDGER_SHELL_CLASS;
-}
-
 function CatalogControlBand({
   query,
   onQueryChange,
-  ownershipFilter,
-  onOwnershipChange,
   sortValue,
   onSortChange,
   onClearDetail,
+  rowCount,
+  activeFilterCount,
+  filtersExpanded,
+  onToggleFilters,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
-  ownershipFilter: OwnershipFilter;
-  onOwnershipChange: (value: OwnershipFilter) => void;
   sortValue: string;
   onSortChange: (value: string) => void;
   onClearDetail: () => void;
+  rowCount: number;
+  activeFilterCount: number;
+  filtersExpanded: boolean;
+  onToggleFilters: () => void;
 }) {
-  return (
-    <CollectionUtilityBand
-      columnsClassName="xl:grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.9fr)]"
-      primary={
-        <CollectionUtilityPanel>
-          <label className="block">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Search Catalog</span>
-            <input
-              className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-base text-slate-100 placeholder:text-slate-500"
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Search arcanes..."
-            />
-          </label>
-
-          <div className="mt-3 grid gap-2 lg:grid-cols-[auto_1fr] lg:items-start">
-            <div className="pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Ownership</div>
-            <WorkspaceFilterGroup className="gap-2">
-              <OwnershipPill label="All" active={ownershipFilter === "all"} onClick={() => onOwnershipChange("all")} />
-              <OwnershipPill label="Owned" active={ownershipFilter === "owned"} onClick={() => onOwnershipChange("owned")} />
-              <OwnershipPill label="Unowned" active={ownershipFilter === "unowned"} onClick={() => onOwnershipChange("unowned")} />
-            </WorkspaceFilterGroup>
-          </div>
-        </CollectionUtilityPanel>
-      }
-      secondary={
-        <CollectionUtilityPanel className="grid gap-3">
-          <label className="block">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Sort Rows</span>
-            <select
-              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-              value={sortValue}
-              onChange={(event) => onSortChange(event.target.value)}
-            >
-              {MOD_SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <WorkspaceAction
-              className="rounded-full border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-slate-100"
-              onClick={onClearDetail}
-            >
-              Clear Detail
-            </WorkspaceAction>
-          </div>
-        </CollectionUtilityPanel>
-      }
-    />
-  );
-}
-
-function LedgerResultsBand({
-  rowsLabel,
-  filterCount,
-  onResetFilters,
-}: {
-  rowsLabel: string;
-  filterCount: number;
-  onResetFilters: () => void;
-}) {
-  return (
-    <CollectionResultsBand
-      actions={
-        <WorkspaceFilterGroup className="text-xs text-slate-400">
-          <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5">{rowsLabel}</span>
-          <span className="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5">Filters: {filterCount}</span>
-          <WorkspaceAction
-            className="rounded-full border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={filterCount === 0}
-            onClick={onResetFilters}
-          >
-            Clear filters
-          </WorkspaceAction>
-        </WorkspaceFilterGroup>
-      }
-    />
-  );
+  return <CollectionCatalogToolbar
+    searchLabel="Search arcane catalog"
+    searchPlaceholder="Search arcanes..."
+    query={query}
+    onQueryChange={onQueryChange}
+    sortLabel="Sort arcane catalog"
+    sortValue={sortValue}
+    onSortChange={onSortChange}
+    sortOptions={MOD_SORT_OPTIONS}
+    rowCount={rowCount}
+    activeFilterCount={activeFilterCount}
+    filtersExpanded={filtersExpanded}
+    onToggleFilters={onToggleFilters}
+    filterPanelId="arcanes-advanced-filters"
+    onClearDetail={onClearDetail}
+  />;
 }
 
 function ArcaneDetail({ entry, onClose }: { entry: ModEntry; onClose: () => void }) {
@@ -1061,6 +945,7 @@ export default function ArcanesPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<ModSortKey>("az");
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>("all");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedArcane, setSelectedArcane] = useState<ModEntry | null>(null);
 
   const { included: includedCategories, excluded: excludedCategories } = useMemo(
@@ -1109,36 +994,84 @@ export default function ArcanesPage() {
     return list;
   }, [arcaneRanksMap, counts, excludedCategories, includedCategories, ownershipFilter, query, sortKey]);
 
-  const { listRef, windowState, recompute } = useVirtualLedgerWindow(filteredArcanes.length);
+  const {
+    scrollportRef,
+    contentRef,
+    rowsAnchorRef,
+    windowState,
+    recompute,
+    resetScroll,
+  } = useCollectionVirtualWindow(filteredArcanes.length, LEDGER_ROW_HEIGHT, LEDGER_OVERSCAN);
   const activeFilterCount = countTriStateFilters(categoryFilters) + (ownershipFilter !== "all" ? 1 : 0);
   const arcaneBrowseGridTemplate = "minmax(260px,1.5fr) 120px 456px 40px";
+  const clearFilters = () => {
+    setCategoryFilters({});
+    setOwnershipFilter("all");
+  };
+
+  useEffect(() => {
+    resetScroll();
+  }, [categoryFilters, ownershipFilter, query, sortKey, resetScroll]);
+
+  const activeFilters: CollectionActiveFilter[] = [];
+  for (const [key, state] of Object.entries(categoryFilters) as Array<[ArcaneFilterCategory, TagFilterState]>) {
+    const label = ARCANE_CATEGORIES.find((entry) => entry.key === key)?.label ?? key;
+    activeFilters.push({
+      id: `category-${key}`,
+      label: `Category: ${label} ${state === "include" ? "included" : "excluded"}`,
+      onRemove: () => setCategoryFilters((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      }),
+    });
+  }
+  if (ownershipFilter !== "all") {
+    activeFilters.push({ id: "ownership", label: ownershipFilter === "owned" ? "Owned" : "Unowned", onRemove: () => setOwnershipFilter("all") });
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       {selectedArcane ? <ArcaneDetail entry={selectedArcane} onClose={() => setSelectedArcane(null)} /> : null}
 
-      <Section
-        title="Arcanes"
-        subtitle="Track owned arcane copies and ranks, then review catalog acquisition sources."
-        className="flex h-full min-h-0 flex-col md:min-h-[42rem]"
-        bodyClassName="flex min-h-0 flex-1 flex-col"
+      <CollectionScrollSurface
+        scrollportRef={scrollportRef}
+        contentRef={contentRef}
+        onScroll={recompute}
+        ariaLabel="Arcanes catalog and results"
+        className="bg-[color:var(--wf-bg-canvas)]"
       >
-        <div className={baseLedgerShellClassName()}>
+        <section aria-labelledby="arcanes-page-title">
+          <h1 id="arcanes-page-title" className="px-3 py-1 text-lg font-semibold text-[color:var(--wf-text-strong)]">Arcanes</h1>
+          <div>
+            <div className="sticky top-0 z-30 bg-[color:var(--wf-surface-1)]/95 shadow-sm backdrop-blur">
           <CatalogControlBand
             query={query}
             onQueryChange={(value) => {
               setQuery(value);
               setSelectedArcane(null);
             }}
-            ownershipFilter={ownershipFilter}
-            onOwnershipChange={setOwnershipFilter}
             sortValue={sortKey}
             onSortChange={(value) => setSortKey(value as ModSortKey)}
             onClearDetail={() => setSelectedArcane(null)}
+            rowCount={filteredArcanes.length}
+            activeFilterCount={activeFilterCount}
+            filtersExpanded={filtersExpanded}
+            onToggleFilters={() => setFiltersExpanded((open) => !open)}
           />
+            </div>
 
-          <div className="flex min-h-0 flex-1 flex-col">
-            <CollectionRefineBand title="Scope" className="gap-1.5">
+          <CollectionActiveFilterSummary filters={activeFilters} onClear={clearFilters} />
+          <CollectionFilterDisclosure id="arcanes-advanced-filters" expanded={filtersExpanded}>
+            <div className="grid gap-4">
+              <CollectionRefineGroup label="Ownership">
+                <WorkspaceFilterGroup className="gap-2">
+                  <OwnershipPill label="All" active={ownershipFilter === "all"} onClick={() => setOwnershipFilter("all")} />
+                  <OwnershipPill label="Owned" active={ownershipFilter === "owned"} onClick={() => setOwnershipFilter("owned")} />
+                  <OwnershipPill label="Unowned" active={ownershipFilter === "unowned"} onClick={() => setOwnershipFilter("unowned")} />
+                </WorkspaceFilterGroup>
+              </CollectionRefineGroup>
+              <CollectionRefineBand title="Scope" className="gap-1.5">
               <CollectionChipRail>
                     <SubPill label="All" active={Object.keys(categoryFilters).length === 0} onClick={() => setCategoryFilters({})} />
                     {ARCANE_CATEGORIES.filter((entry) => entry.key !== "all").map((entry) => (
@@ -1160,30 +1093,19 @@ export default function ArcanesPage() {
                       />
                     ))}
               </CollectionChipRail>
-            </CollectionRefineBand>
-
-            <LedgerResultsBand
-              rowsLabel={`Rows: ${filteredArcanes.length}`}
-              filterCount={activeFilterCount}
-              onResetFilters={() => {
-                setCategoryFilters({});
-                setOwnershipFilter("all");
-              }}
-            />
+              </CollectionRefineBand>
+            </div>
+          </CollectionFilterDisclosure>
 
             {filteredArcanes.length === 0 ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center border-t border-dashed border-slate-800 bg-slate-950/30 p-8 text-sm text-slate-400">
+              <div className="flex items-center justify-center border-t border-dashed border-slate-800 bg-slate-950/30 p-8 text-sm text-slate-400">
                 No arcanes match the current filters.
               </div>
             ) : (
-              <div
-                ref={listRef}
-                className="min-h-0 flex-1 overflow-auto border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]"
-                onScroll={recompute}
-              >
+              <div className="border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]">
                 <div className="min-w-[980px]">
                   <div
-                    className="sticky top-0 z-10 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur"
+                    className="sticky top-36 z-20 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur sm:top-44 lg:top-28"
                     style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}
                   >
                     <div>Item</div>
@@ -1191,7 +1113,7 @@ export default function ArcanesPage() {
                     <div>Highest Owned Rank</div>
                     <div />
                   </div>
-                  <div className="relative" style={{ height: filteredArcanes.length * LEDGER_ROW_HEIGHT }}>
+                  <div ref={rowsAnchorRef} className="relative" style={{ height: filteredArcanes.length * LEDGER_ROW_HEIGHT }}>
                     <div
                       className="absolute left-0 right-0 px-4 py-2"
                       style={{ transform: `translateY(${windowState.start * LEDGER_ROW_HEIGHT}px)` }}
@@ -1202,7 +1124,7 @@ export default function ArcanesPage() {
                         const fallbackCount = Number(counts[modKey(entry.path)] ?? counts[entry.path] ?? 0);
                         const highestOwnedRank = getHighestOwnedArcaneRankWithFallback(rankCounts, fallbackCount);
                         return (
-                          <div key={entry.path} className="mb-1 grid items-center gap-2" style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}>
+                          <div key={entry.path} className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}>
                             <button
                               className={[
                                 "flex min-w-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
@@ -1271,8 +1193,8 @@ export default function ArcanesPage() {
               </div>
             )}
           </div>
-        </div>
-      </Section>
+        </section>
+      </CollectionScrollSurface>
     </div>
   );
 }

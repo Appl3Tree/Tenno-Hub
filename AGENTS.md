@@ -26,6 +26,20 @@ Tasks are organized by priority. Update this list as work progresses.
   - Completed (2026-11-06): reviewed all 18 routes in light and dark themes at 390px, 768px, and 1280px in the in-app browser. Fixed issues found in responsive layout, Prerequisites rendering, Build Planner selector keyboard behavior/semantics, Page Jump Escape focus handling, and light-theme accent contrast. Representative interaction paths are recorded in `UX_AUDIT.md`.
 - [x] UX overhaul Phase F — run release gates, visual QA, route/workflow/persistence/accessibility checks, and capture before/after evidence
   - Completed (2026-11-06): production build and all 235 tests pass; source validation, targeted ESLint, theme contrast tests, and diff checks pass. The repo-wide lint and external-data validator retain documented baseline failures. Theme persistence, navigation, search/history, dialog focus, workflow routing, and responsive layout were checked in the in-app browser; see `UX_AUDIT.md`.
+- [x] Content-first workspace Phase 1 — inspect live catalog scroll ownership, virtualization sizing, and high-density routes; record before measurements and targeted route audit in `UX_AUDIT.md`
+  - Completed (2026-11-07): Inventory, Mods, and Arcanes each had nested workspace/list vertical scrolling and tall filter stacks. At 1280×720 their virtual lists measured about 238px, 129px, and 249px; at 1440×900 they measured 395px, 303px, and 383px. Inventory mobile flex sizing also allowed all 869 rows to render at once. Goals, Requirements, Prerequisites, Syndicates, and Star Chart use natural-flow content or intentional map/modal scrolling; Relic Farming had a 600px bounded relic selector for targeted review.
+- [x] Content-first workspace Phase 2 — add shared collection toolbar, filter disclosure/summary, scroll surface, and resize-observed virtualization
+- [x] Content-first workspace Phase 3 — move Inventory controls into the compact collection workspace while preserving every existing filter, action, category, column control, and virtualized row
+- [x] Content-first workspace Phase 4 — apply the shared content-first collection pattern to Mods and Arcanes without changing their filter semantics or detail workflows
+- [x] Content-first workspace Phase 5 — audit other routes and adjust relic farming's mobile selector to avoid nested page/list vertical scrolling
+- [x] Content-first workspace Phase 6 — complete automated release gates and final responsive/theme/browser verification
+  - Completed (2026-11-07): all 239 tests pass across 30 files; `npm run build` passes (`tsc -b` plus Vite). In-app browser checks covered the six requested viewport sizes, filter state and chips, keyboard scrolling, light/dark appearance, and the Relic Farming mobile scroll change. Shared components and Shell pass targeted ESLint; including `RelicFarming.tsx` reports the unchanged baseline `no-explicit-any` cast at line 13. `git diff --check` with CRLF whitespace handling passes.
+- [x] Content-first workspace Phase 2 — implement shared single-scroll ownership, compact catalog toolbar, and reusable advanced-filter disclosure/chip pattern
+  - Completed (2026-11-07): established the shared collection scroll surface, ResizeObserver-based viewport/row-window hook, pure virtual-window calculator with unit coverage, accessible Filters disclosure, and compact removable active-filter summary. The proven route implementation follows in Phases 3–4.
+- [ ] Content-first workspace Phase 3 — migrate Inventory without losing any filters, categories, columns, actions, or virtualization behavior
+- [ ] Content-first workspace Phase 4 — migrate Mods and Arcanes while preserving their specialized filter and list behavior
+- [ ] Content-first workspace Phase 5 — review remaining data-heavy routes and make targeted content-first improvements where the audit shows a real layout defect
+- [ ] Content-first workspace Phase 6 — verify responsive viewports, interactions, themes, virtualization, automated checks, and browser screenshots; push and merge the completed change
 
 ### Intake Rule
 

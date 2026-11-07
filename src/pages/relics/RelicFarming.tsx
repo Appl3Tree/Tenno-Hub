@@ -597,7 +597,12 @@ export default function RelicFarming({ selectedKeys, setSelectedKeys }: RelicFar
                 </div>
 
                 {/* Relic checklist */}
-                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                <div
+                    role="region"
+                    aria-label="Available relics"
+                    tabIndex={0}
+                    className="space-y-4 max-h-none overflow-visible pr-1 lg:max-h-[600px] lg:overflow-y-auto"
+                >
                     {TIER_ORDER.map((tier) => {
                         const relics = byTier.get(tier) ?? [];
                         if (relics.length === 0) return null;
