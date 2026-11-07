@@ -49,7 +49,9 @@ Tasks are organized by priority. Update this list as work progresses.
 - [ ] AlecaFrame `lastData.dat` import Phase D — complete accessible responsive Imports & Backups workflow with categorized preview, issue search, and explicit confirmation
   - In progress: file selection, review tables, section accounting, unresolved acknowledgement, Riven status review, and two-step confirmation are implemented; responsive and accessibility review remains open.
 - [ ] AlecaFrame `lastData.dat` import Phase E — run synthetic and real-sample validation, full automated gates, and browser verification in light/dark themes and responsive sizes
+  - In progress (2026-11-07): 261 tests pass across 33 files; production build and `validate:sources` pass; new importer/Riven/reconciliation files pass targeted ESLint. The sample parses with 73 unresolved identities and incomplete coverage. Full-repository lint and external-data validation retain documented baseline failures. Browser import and persistence were confirmed; search/error cases, re-import, backup restore, responsive sizes, and light/dark checks remain open.
 - [ ] AlecaFrame `lastData.dat` import Phase F — resolve release blockers, update documentation and PR, and complete branch integration and delivery when permitted
+  - In progress (2026-11-07): updated PR #6 with implementation, aggregate-only sample results, verification, and blockers; pushed the implementation to `feature/alecaframe-dat-import`. The PR is still draft and mergeable, but 73 unresolved identities and browser restore/responsive checks prevent merge or release.
 
 ### Intake Rule
 
