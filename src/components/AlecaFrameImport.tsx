@@ -113,7 +113,7 @@ export default function AlecaFrameImport() {
 
   return (
     <WorkspacePanel>
-      <div className="space-y-3">
+      <div className="space-y-3 px-4 py-4 sm:px-5">
         <div>
           <h2 className="text-lg font-semibold">AlecaFrame inventory snapshot</h2>
           <p className="text-sm text-slate-400 mt-1">
