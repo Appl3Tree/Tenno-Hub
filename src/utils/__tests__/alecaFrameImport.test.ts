@@ -14,6 +14,7 @@ function fixture(): Record<string, unknown> {
   for (const section of [...COUNTED_ITEM_SECTIONS, ...OWNED_ITEM_SECTIONS, "RawUpgrades", "Upgrades"]) {
     result[section] = [];
   }
+  result.EmailItems = [];
   return result;
 }
 
@@ -77,6 +78,14 @@ describe("AlecaFrame inventory parser", () => {
       new TextEncoder().encode(raw));
     const decrypted = await decryptAlecaFrameDat(ciphertext);
     expect((decrypted as Record<string, unknown>).PlayerLevel).toBe(23);
+  });
+
+  it("refuses to claim mail attachments as already owned", () => {
+    const root = fixture();
+    root.EmailItems = [{ ItemType: item, ItemCount: 1 }];
+    const result = parseAlecaFrameInventory(root, classify);
+    expect(result.importable).toBe(false);
+    expect(result.issues.some((issue) => issue.section === "EmailItems")).toBe(true);
   });
 
   it("rejects invalid ciphertext without exposing its contents", async () => {
