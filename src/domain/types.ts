@@ -43,6 +43,13 @@ export interface Inventory {
     modRanks?: Record<string, number>;
 
     /**
+     * Exact quantity of owned copies per mod rank, keyed by raw Lotus path,
+     * then rank number as a string. A rank-zero stack and ranked individual
+     * copies are distinct; never collapse these into only max owned rank.
+     */
+    modRankCounts?: Record<string, Record<string, number>>;
+
+    /**
      * Highest owned arcane rank keyed by raw Lotus path (without "mods:" prefix).
      * Stored as a sparse single-entry map for backward compatibility with older saves.
      * Example: { "5": 1 } means the highest owned arcane is rank 5.
