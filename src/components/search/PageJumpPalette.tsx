@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NAV_ROUTES, WORK_MODE_META, type NavRoute } from "../../app/routes";
+import { isPageJumpShortcut, shouldPageJumpHandleEscape } from "./keyboardShortcuts";
 
 function CompassIcon({ className = "h-4 w-4" }: { className?: string }) {
     return (
@@ -32,7 +33,7 @@ function scorePage(route: NavRoute, query: string, activePage: string): number {
     return score;
 }
 
-export default function PageJumpPalette(props: {
+function PageJumpPaletteContent(props: {
     activePage: string;
     onSelectPage: (route: NavRoute) => void;
 }) {
@@ -41,6 +42,13 @@ export default function PageJumpPalette(props: {
     const [highlightedIndex, setHighlightedIndex] = useState(0);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
+    const openRef = useRef(false);
+
+    function setPaletteOpen(nextOpen: boolean) {
+        openRef.current = nextOpen;
+        setOpen(nextOpen);
+    }
 
     const results = useMemo(() => {
         return NAV_ROUTES
@@ -58,14 +66,10 @@ export default function PageJumpPalette(props: {
     const activeRoute = NAV_ROUTES.find((route) => route.key === props.activePage) ?? NAV_ROUTES[0];
 
     useEffect(() => {
-        setHighlightedIndex(0);
-    }, [query, open]);
-
-    useEffect(() => {
         if (!open) return;
         function onMouseDown(event: MouseEvent) {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setOpen(false);
+                setPaletteOpen(false);
             }
         }
         document.addEventListener("mousedown", onMouseDown);
@@ -78,63 +82,81 @@ export default function PageJumpPalette(props: {
             const isTypingTarget =
                 target instanceof HTMLInputElement ||
                 target instanceof HTMLTextAreaElement ||
-                target?.isContentEditable;
+                Boolean(target?.isContentEditable);
 
-            if (!isTypingTarget && event.key === "/") {
+            if (isPageJumpShortcut(event, isTypingTarget)) {
                 event.preventDefault();
-                setOpen(true);
+                setPaletteOpen(true);
+                setHighlightedIndex(0);
                 requestAnimationFrame(() => inputRef.current?.focus());
             }
-            if (!isTypingTarget && event.key === "Escape") {
-                setOpen(false);
+            if (shouldPageJumpHandleEscape(event, openRef.current, isTypingTarget)) {
+                setPaletteOpen(false);
+                triggerRef.current?.focus();
             }
         }
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, []);
 
-    useEffect(() => {
-        setQuery("");
-        setOpen(false);
-    }, [props.activePage]);
-
     function choose(route: NavRoute) {
         props.onSelectPage(route);
         setQuery("");
-        setOpen(false);
+        setPaletteOpen(false);
+        setHighlightedIndex(0);
     }
 
     return (
         <div className="relative shrink-0" ref={containerRef}>
             <button
                 type="button"
+                ref={triggerRef}
+                aria-expanded={open}
+                aria-controls="wf-page-jump-options"
                 onClick={() => {
-                    setOpen((value) => !value);
-                    requestAnimationFrame(() => inputRef.current?.focus());
+                    const shouldOpen = !open;
+                    setPaletteOpen(shouldOpen);
+                    if (shouldOpen) {
+                        setHighlightedIndex(0);
+                        requestAnimationFrame(() => inputRef.current?.focus());
+                    }
                 }}
-                className="flex h-10 items-center gap-2 rounded-full border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-900"
+                className="wf-search-trigger flex h-10 items-center gap-2 rounded-full border px-3 text-sm transition-colors hover:bg-[color:var(--wf-hover)]"
                 title="Jump to a page"
+                aria-label="Jump to a page"
             >
-                <CompassIcon className="h-4 w-4 text-slate-400" />
+                <CompassIcon className="h-4 w-4 text-[color:var(--wf-text-muted)]" />
                 <span className="hidden sm:inline">Pages</span>
-                <span className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <span className="rounded-md border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wf-text-muted)]">
                     /
                 </span>
             </button>
 
             {open && (
-                <div className="absolute left-0 top-full z-40 mt-2 w-[min(340px,calc(100vw-1.5rem))] overflow-hidden rounded-[24px] border border-slate-700/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.99),rgba(15,23,42,0.99))] shadow-2xl shadow-black/50 backdrop-blur-xl">
-                    <div className="border-b border-slate-800 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <div className="wf-popover absolute left-0 top-full z-40 mt-2 w-[min(340px,calc(100vw-1.5rem))] overflow-hidden rounded-[24px] border backdrop-blur-xl">
+                    <div className="border-b border-[color:var(--wf-border-subtle)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-text-muted)]">
                         Page Jump
                     </div>
-                    <div className="border-b border-slate-800 px-3 py-2">
+                    <div className="border-b border-[color:var(--wf-border-subtle)] px-3 py-2">
                         <input
                             ref={inputRef}
                             type="search"
+                            role="combobox"
+                            aria-label="Find a page"
+                            aria-controls="wf-page-jump-options"
+                            aria-expanded={open}
+                            aria-activedescendant={selectedRoute ? `wf-page-jump-${selectedRoute.key}` : undefined}
+                            autoComplete="off"
                             value={query}
                             placeholder={`Current: ${activeRoute.label}`}
-                            className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
-                            onChange={(event) => setQuery(event.target.value)}
+                            className="w-full bg-transparent text-sm text-[color:var(--wf-text-strong)] placeholder:text-[color:var(--wf-text-dim)] focus:outline-none"
+                            onChange={(event) => {
+                                setQuery(event.target.value);
+                                setHighlightedIndex(0);
+                            }}
+                            onBlur={(event) => {
+                                if (!containerRef.current?.contains(event.relatedTarget as Node | null)) setPaletteOpen(false);
+                            }}
                             onKeyDown={(event) => {
                                 if (event.key === "ArrowDown") {
                                     event.preventDefault();
@@ -146,12 +168,16 @@ export default function PageJumpPalette(props: {
                                     event.preventDefault();
                                     choose(selectedRoute);
                                 } else if (event.key === "Escape") {
-                                    setOpen(false);
+                                    setPaletteOpen(false);
+                                    triggerRef.current?.focus();
                                 }
                             }}
                         />
                     </div>
-                    <div className="max-h-[360px] overflow-y-auto p-2">
+                    <div id="wf-page-jump-options" role="listbox" aria-label="Available pages" className="max-h-[360px] overflow-y-auto p-2">
+                        {results.length === 0 ? (
+                            <div role="status" className="px-3 py-8 text-center text-sm text-[color:var(--wf-text-muted)]">No pages match that search.</div>
+                        ) : null}
                         {results.map((route, index) => {
                             const mode = WORK_MODE_META[route.mode];
                             const isActive = route.key === props.activePage;
@@ -160,10 +186,15 @@ export default function PageJumpPalette(props: {
                             return (
                                 <button
                                     key={route.key}
+                                    id={`wf-page-jump-${route.key}`}
                                     type="button"
+                                    role="option"
+                                    tabIndex={-1}
+                                    aria-selected={isHighlighted}
+                                    aria-current={isActive ? "page" : undefined}
                                     className={[
-                                        "flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors",
-                                        isHighlighted ? "bg-slate-800 text-slate-50" : "text-slate-200 hover:bg-slate-900",
+                                        "wf-popover-option flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors",
+                                        isHighlighted ? "bg-[color:var(--wf-selection)] text-[color:var(--wf-selection-text)]" : "hover:bg-[color:var(--wf-hover)]",
                                     ].join(" ")}
                                     onMouseEnter={() => setHighlightedIndex(index)}
                                     onMouseDown={(event) => event.preventDefault()}
@@ -171,14 +202,14 @@ export default function PageJumpPalette(props: {
                                 >
                                     <span className="min-w-0">
                                         <span className="block truncate text-sm font-medium">{route.label}</span>
-                                        <span className="mt-1 block truncate text-xs text-slate-500">{route.desc}</span>
+                                        <span className="mt-1 block truncate text-xs text-[color:var(--wf-text-muted)]">{route.desc}</span>
                                     </span>
                                     <span className="shrink-0 text-right">
-                                        <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                        <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wf-text-muted)]">
                                             {mode.label}
                                         </span>
                                         {isActive ? (
-                                            <span className="mt-1 inline-flex rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-300">
+                                            <span className="mt-1 inline-flex rounded-full border border-[color:var(--wf-border-strong)] bg-[color:var(--wf-surface-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--wf-text)]">
                                                 Current
                                             </span>
                                         ) : null}
@@ -191,4 +222,11 @@ export default function PageJumpPalette(props: {
             )}
         </div>
     );
+}
+
+export default function PageJumpPalette(props: {
+    activePage: string;
+    onSelectPage: (route: NavRoute) => void;
+}) {
+    return <PageJumpPaletteContent key={props.activePage} {...props} />;
 }

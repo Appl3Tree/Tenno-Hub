@@ -24,6 +24,16 @@
         <title>Tenno Hub</title>
 
         <script>
+            try {
+                const theme = window.localStorage.getItem("wft_theme_v1") === "light" ? "light" : "dark";
+                document.documentElement.classList.add(`theme-${theme}`);
+                document.documentElement.style.colorScheme = theme;
+            } catch {
+                document.documentElement.classList.add("theme-dark");
+            }
+        </script>
+
+        <script>
             (() => {
                 const BUILD_ID = "__APP_BUILD_ID__";
                 const url = new URL(window.location.href);

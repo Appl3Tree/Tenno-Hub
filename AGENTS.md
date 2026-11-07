@@ -18,6 +18,14 @@ Tasks are organized by priority. Update this list as work progresses.
 - [x] Expand Build Planner weapon coverage to include archguns, arch-melee, and companion weapons with correct mod/stance/arcane eligibility
 - [x] Audit unknown acquisition / blueprint-source gaps and generate a repeatable report
 - [ ] Implement Incarnon evolutions in the Build Planner and optimizer, including unlocked/chosen evolution selection plus optional evolution-path optimization
+- [x] UX overhaul Phase A — establish build/lint/test/data-validation baseline, inspect the live app and source, and record a prioritized evidence-based audit in `UX_AUDIT.md`
+- [x] UX overhaul Phase B — centralize theme state, add semantic theme tokens, and migrate shared shell/search/inspector surfaces
+- [x] UX overhaul Phase C — make navigation categories, route selection, collapsed navigation, and mobile navigation consistent while preserving Page Jump and catalog search
+- [x] UX overhaul Phase D — improve shared interaction patterns, search overlays, and contextual inspector accessibility/history
+- [x] UX overhaul Phase E — complete explicit page-by-page responsive/theme/workflow reviews and fix high-friction UX issues without changing progression calculations or canonical data
+  - Completed (2026-11-06): reviewed all 18 routes in light and dark themes at 390px, 768px, and 1280px in the in-app browser. Fixed issues found in responsive layout, Prerequisites rendering, Build Planner selector keyboard behavior/semantics, Page Jump Escape focus handling, and light-theme accent contrast. Representative interaction paths are recorded in `UX_AUDIT.md`.
+- [x] UX overhaul Phase F — run release gates, visual QA, route/workflow/persistence/accessibility checks, and capture before/after evidence
+  - Completed (2026-11-06): production build and all 235 tests pass; source validation, targeted ESLint, theme contrast tests, and diff checks pass. The repo-wide lint and external-data validator retain documented baseline failures. Theme persistence, navigation, search/history, dialog focus, workflow routing, and responsive layout were checked in the in-app browser; see `UX_AUDIT.md`.
 
 ### Intake Rule
 

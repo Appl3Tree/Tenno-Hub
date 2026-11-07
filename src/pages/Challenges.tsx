@@ -97,13 +97,13 @@ export default function Challenges() {
 
     return (
         <div className="space-y-5">
-            <section className="rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] px-5 py-4 shadow-[var(--wf-shadow-panel)]">
+            <section aria-labelledby="challenges-page-title" className="rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] px-5 py-4 shadow-[var(--wf-shadow-panel)]">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="max-w-3xl">
                         <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-accent-primary)]">
                             Progression Workspace
                         </div>
-                        <h2 className="mt-1 text-2xl font-semibold text-[color:var(--wf-text-strong)]">Challenges</h2>
+                        <h1 id="challenges-page-title" className="mt-1 text-2xl font-semibold text-[color:var(--wf-text-strong)]">Challenges</h1>
                         <p className="mt-1 text-sm text-[color:var(--wf-text-muted)]">
                             Track account challenges as a long-tail progression layer. Search them quickly, see completion velocity, and surface what remains once a profile import is available.
                         </p>
@@ -186,6 +186,7 @@ export default function Challenges() {
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3">
                 <input
+                    aria-label="Search challenges"
                     className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-100 text-sm w-64 placeholder:text-slate-500 focus:outline-none focus:border-slate-500"
                     value={search}
                     onChange={e => setSearch(e.target.value)}

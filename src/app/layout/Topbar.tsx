@@ -145,17 +145,16 @@ function InlineStat({
     return (
         <div
             className={[
-                "rounded-lg border px-2 py-2 transition-colors group",
+                "wf-inline-stat rounded-lg border px-2 py-2 transition-colors group",
                 isEditing
-                    ? "border-slate-500 bg-slate-900"
-                    : "border-slate-800 bg-slate-950/50 cursor-text hover:border-slate-600 hover:bg-slate-900/50",
+                    ? "border-[color:var(--wf-accent-border)] bg-[color:var(--wf-surface-2)]"
+                    : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] cursor-text hover:border-[color:var(--wf-border-strong)] hover:bg-[color:var(--wf-hover)]",
             ].join(" ")}
-            onClick={() => { if (!isEditing) onActivate(); }}
         >
             <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">{label}</span>
+                <span className="text-[11px] text-[color:var(--wf-text-muted)]">{label}</span>
                 {!isEditing && (
-                    <span className="text-[10px] text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity select-none">
+                    <span className="text-[10px] text-[color:var(--wf-text-dim)] opacity-0 group-hover:opacity-100 transition-opacity select-none">
                         ✎
                     </span>
                 )}
@@ -165,7 +164,8 @@ function InlineStat({
                     ref={inputRef}
                     type={inputType}
                     min={inputType === "number" ? 0 : undefined}
-                    className="mt-0.5 w-full bg-transparent font-mono text-sm text-slate-100 focus:outline-none"
+                    aria-label={label}
+                    className="mt-0.5 w-full bg-transparent font-mono text-sm text-[color:var(--wf-text-strong)] focus:outline-none"
                     value={draft}
                     placeholder={placeholder}
                     onChange={(e) => onChange(e.target.value)}
@@ -176,9 +176,15 @@ function InlineStat({
                     onBlur={onCommit}
                 />
             ) : (
-                <div className="mt-0.5 font-mono text-sm text-slate-100 truncate" title={display}>
+                <button
+                    type="button"
+                    onClick={onActivate}
+                    aria-label={`Edit ${label}`}
+                    title={`Edit ${label}`}
+                    className="mt-0.5 block w-full truncate text-left font-mono text-sm text-[color:var(--wf-text-strong)] focus-visible:rounded-sm"
+                >
                     {display}
-                </div>
+                </button>
             )}
         </div>
     );
@@ -219,6 +225,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
     const [data, setData]       = useState<WorldStateData | null>(() => getCachedWorldState());
     const [loading, setLoading] = useState(false);
     const bellRef = useRef<HTMLDivElement>(null);
+    const bellButtonRef = useRef<HTMLButtonElement>(null);
     const now = useNow();
     const toggleInvasionDone           = useTrackerStore((s) => s.toggleInvasionDone);
     const isInvasionDone               = useTrackerStore((s) => s.isInvasionDone);
@@ -257,8 +264,18 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
         function onDown(e: MouseEvent) {
             if (bellRef.current && !bellRef.current.contains(e.target as Node)) setOpen(false);
         }
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            setOpen(false);
+            bellButtonRef.current?.focus();
+        }
         document.addEventListener("mousedown", onDown);
-        return () => document.removeEventListener("mousedown", onDown);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("mousedown", onDown);
+            document.removeEventListener("keydown", onKeyDown);
+        };
     }, [open]);
 
     // Compute badge: true if Baro is active OR sentient outpost is active OR there are invasions
@@ -284,14 +301,19 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
     return (
         <div className="relative" ref={bellRef}>
             <button
+                ref={bellButtonRef}
+                type="button"
                 onClick={() => setOpen((v) => !v)}
                 className={[
-                    "relative flex items-center justify-center w-8 h-8 rounded-lg border transition-colors",
+                    "relative flex items-center justify-center w-9 h-9 rounded-lg border transition-colors",
                     open
-                        ? "border-slate-600 bg-slate-800 text-slate-200"
-                        : "border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900 hover:text-slate-200",
+                        ? "border-[color:var(--wf-border-strong)] bg-[color:var(--wf-selection)] text-[color:var(--wf-text-strong)]"
+                        : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text-muted)] hover:border-[color:var(--wf-border-strong)] hover:bg-[color:var(--wf-hover)] hover:text-[color:var(--wf-text-strong)]",
                 ].join(" ")}
                 title="Notifications"
+                aria-label="World events"
+                aria-expanded={open}
+                aria-controls="world-events-popover"
             >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -303,7 +325,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full mt-1 w-80 rounded-xl border border-slate-700 bg-slate-950 shadow-2xl shadow-black/60 z-50 flex flex-col max-h-[85vh]">
+                <div id="world-events-popover" role="region" aria-label="World events" className="wf-popover absolute right-0 top-full z-50 mt-1 flex max-h-[85vh] w-80 flex-col overflow-hidden rounded-xl border">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 shrink-0">
                         <span className="text-xs font-semibold text-slate-200">World Events</span>
                         {loading && (
@@ -722,7 +744,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
 
 // ── Topbar ────────────────────────────────────────────────────────────────────
 
-export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
+export default function Topbar({ onMenuToggle, mobileNavOpen }: { onMenuToggle: () => void; mobileNavOpen: boolean }) {
     const activePage    = useTrackerStore((s) => s.state.ui.activePage);
     const masteryRank   = useTrackerStore((s) => s.state.player.masteryRank);
     const displayName   = useTrackerStore((s) => s.state.player.displayName);
@@ -770,6 +792,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
     const fileRef         = useRef<HTMLInputElement | null>(null);
     const panelRef        = useRef<HTMLDivElement | null>(null);
     const platformDropRef = useRef<HTMLDivElement | null>(null);
+    const profileToggleRef = useRef<HTMLButtonElement | null>(null);
 
     // Close panel on outside click; commit any in-progress edit first
     useEffect(() => {
@@ -781,8 +804,20 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
                 setActiveField(null);
             }
         }
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.key !== "Escape") return;
+            e.preventDefault();
+            setOpen(false);
+            setActiveField(null);
+            setPlatformOpen(false);
+            profileToggleRef.current?.focus();
+        }
         document.addEventListener("mousedown", onMouseDown);
-        return () => document.removeEventListener("mousedown", onMouseDown);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("mousedown", onMouseDown);
+            document.removeEventListener("keydown", onKeyDown);
+        };
     }, [open]);
 
     // Close platform dropdown on outside click
@@ -837,8 +872,9 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
                 label: `API — warframestat.us (${id})`,
                 execute: () => handleImportResult(importProfileFromWarframeStatApi(json)),
             });
-        } catch (e: any) {
-            setProfileStatus(`API import failed: ${e?.message ?? "Unknown error"}. Try Paste JSON or Import File instead.`);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            setProfileStatus(`API import failed: ${message}. Try Paste JSON or Import File instead.`);
         } finally {
             setApiImporting(false);
         }
@@ -884,12 +920,16 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
                 <div className="flex min-h-12 items-center gap-3 px-3 py-2 md:px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2 lg:max-w-[280px]">
                         <button
+                            type="button"
                             onClick={onMenuToggle}
-                            className="md:hidden rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-                            aria-label="Open navigation"
+                            className="lg:hidden rounded-lg p-2 text-[color:var(--wf-text-muted)] transition-colors hover:bg-[color:var(--wf-hover)] hover:text-[color:var(--wf-text-strong)]"
+                            aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+                            aria-expanded={mobileNavOpen}
+                            aria-controls="mobile-workspace-navigation"
+                            aria-haspopup="dialog"
                         >
                             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M4 6h16M4 12h16M4 18h16" />
+                                {mobileNavOpen ? <path d="M18 6 6 18M6 6l12 12" /> : <path d="M4 6h16M4 12h16M4 18h16" />}
                             </svg>
                         </button>
                         <img src={`${import.meta.env.BASE_URL}favicon-rounded-512x512.png`} alt="Tenno Hub" className="h-6 w-6 shrink-0" />
@@ -909,13 +949,18 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
                         <NotificationBell onNavigateWorldState={() => setActivePage("world_state")} />
 
                         <button
+                            ref={profileToggleRef}
+                            type="button"
                             onClick={() => { setOpen((v) => !v); if (open) setActiveField(null); }}
                             className={[
                                 "flex shrink-0 items-center gap-2.5 rounded-lg border px-3 py-1.5 transition-colors",
                                 open
-                                    ? "border-slate-600 bg-slate-800 text-slate-100"
-                                    : "border-slate-800 bg-slate-900/60 text-slate-300 hover:border-slate-700 hover:bg-slate-900",
+                                    ? "border-[color:var(--wf-accent-border)] bg-[color:var(--wf-selection)] text-[color:var(--wf-text-strong)]"
+                                    : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text)] hover:border-[color:var(--wf-border-strong)] hover:bg-[color:var(--wf-hover)]",
                             ].join(" ")}
+                            aria-expanded={open}
+                            aria-controls="profile-popover"
+                            aria-label={`Open profile settings${displayName ? ` for ${displayName}` : ""}`}
                         >
                             <PlatformIcon platform={platform} className="h-3.5 w-3.5 text-slate-400" />
                             <span className="text-xs font-mono">
@@ -959,7 +1004,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
 
             {/* ── Dropdown panel ── */}
             {open && (
-                <div className="absolute right-4 top-full mt-1 w-[480px] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-700 bg-slate-950 shadow-2xl shadow-black/60">
+                <div id="profile-popover" role="region" aria-label="Profile settings" className="wf-popover absolute right-4 top-full z-50 mt-1 w-[480px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border">
 
                     <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
                         <span className="text-sm font-semibold text-slate-200">Profile</span>
@@ -1063,7 +1108,7 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
                                 </button>
 
                                 {platformOpen && (
-                                    <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-800 bg-slate-950 shadow-lg z-50">
+                                    <div className="wf-popover absolute right-0 z-50 mt-2 w-48 rounded-xl border shadow-lg">
                                         <div className="px-3 py-2 text-[11px] text-slate-400 border-b border-slate-800">
                                             Select Platform
                                         </div>

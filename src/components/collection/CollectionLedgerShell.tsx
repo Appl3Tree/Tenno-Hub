@@ -7,7 +7,7 @@ function joinClasses(...parts: Array<string | false | null | undefined>) {
 }
 
 export const COLLECTION_LEDGER_SHELL_CLASS =
-  "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.6rem] border border-slate-800 bg-[linear-gradient(180deg,rgba(8,14,28,0.96),rgba(3,7,18,0.92))] shadow-[0_24px_80px_rgba(2,6,23,0.32)]";
+  "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.6rem] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] shadow-[var(--wf-shadow-panel)]";
 
 export function CollectionUtilityBand({
   primary,
@@ -19,7 +19,7 @@ export function CollectionUtilityBand({
   columnsClassName?: string;
 }) {
   return (
-    <div className="border-b border-slate-800 bg-slate-950/35 px-4 py-2.5">
+    <div className="border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-2.5">
       <div className={["grid gap-3 xl:items-start", columnsClassName].join(" ")}>
         {primary}
         {secondary}
@@ -38,7 +38,7 @@ export function CollectionUtilityPanel({
   return (
     <div
       className={[
-        "min-w-0 rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,rgba(10,18,34,0.88),rgba(3,7,18,0.9))] px-5 py-3",
+        "min-w-0 rounded-[1.4rem] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-3",
         className,
       ].join(" ")}
     >
@@ -55,9 +55,9 @@ export function CollectionResultsBand({
   actions: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/80 px-4 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-2">
       <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--wf-text-muted)]">
           {title}
         </div>
       </div>
@@ -78,7 +78,7 @@ export function CollectionModeBand({
   return (
     <div
       className={joinClasses(
-        "relative z-10 border-b border-slate-800 bg-slate-950/90 px-3 py-2 backdrop-blur",
+        "relative z-10 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] px-3 py-2 backdrop-blur",
         className,
       )}
     >
@@ -119,10 +119,10 @@ export function CollectionRefineBand({
   className?: string;
 }) {
   return (
-    <div className="relative z-[9] border-b border-slate-800 bg-slate-950/70 px-4 py-2 backdrop-blur">
+    <div className="relative z-[9] border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] px-4 py-2 backdrop-blur">
       <div className={joinClasses("grid gap-3", className)}>
         {title ? (
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-text-muted)]">{title}</div>
         ) : null}
         {children}
       </div>
@@ -141,10 +141,10 @@ export function CollectionRefineGroup({
 }) {
   return (
     <div className="grid gap-1.5">
-      <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-text-muted)]">
         <span>{label}</span>
         {action ? (
-          <span className="text-xs font-normal normal-case tracking-normal text-slate-500">{action}</span>
+          <span className="text-xs font-normal normal-case tracking-normal text-[color:var(--wf-text-muted)]">{action}</span>
         ) : null}
       </div>
       {children}

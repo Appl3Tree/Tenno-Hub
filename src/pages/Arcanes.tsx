@@ -660,17 +660,19 @@ function useVirtualLedgerWindow(totalRows: number, rowHeight = LEDGER_ROW_HEIGHT
 
 function Section({
   title,
+  subtitle,
   children,
   className,
   bodyClassName,
 }: {
   title: string;
+  subtitle?: string;
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
 }) {
   return (
-    <WorkspaceSection title={title} className={className} bodyClassName={bodyClassName}>
+    <WorkspaceSection title={title} subtitle={subtitle} headingLevel={1} className={className} bodyClassName={bodyClassName}>
       {children}
     </WorkspaceSection>
   );
@@ -966,7 +968,7 @@ function ArcaneDetail({ entry, onClose }: { entry: ModEntry; onClose: () => void
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)]">
             <div className="space-y-4">
-              <div className="overflow-hidden rounded-[24px] border border-slate-800 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.12),transparent_55%),linear-gradient(180deg,rgba(30,41,59,0.58),rgba(15,23,42,0.72))]">
+              <div className="overflow-hidden rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)]">
                 {imageUrl ? (
                   <img
                     src={imageUrl}
@@ -1117,6 +1119,7 @@ export default function ArcanesPage() {
 
       <Section
         title="Arcanes"
+        subtitle="Track owned arcane copies and ranks, then review catalog acquisition sources."
         className="flex h-full min-h-0 flex-col md:min-h-[42rem]"
         bodyClassName="flex min-h-0 flex-1 flex-col"
       >
@@ -1175,12 +1178,12 @@ export default function ArcanesPage() {
             ) : (
               <div
                 ref={listRef}
-                className="min-h-0 flex-1 overflow-auto border-t border-slate-800 bg-[linear-gradient(180deg,rgba(11,10,24,0.95),rgba(2,6,23,0.9))]"
+                className="min-h-0 flex-1 overflow-auto border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]"
                 onScroll={recompute}
               >
                 <div className="min-w-[980px]">
                   <div
-                    className="sticky top-0 z-10 grid gap-2 border-b border-slate-800 bg-slate-950/95 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur"
+                    className="sticky top-0 z-10 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur"
                     style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}
                   >
                     <div>Item</div>

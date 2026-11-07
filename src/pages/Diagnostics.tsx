@@ -21,9 +21,9 @@ function Section(props: { title: string; subtitle?: string; children: React.Reac
 
 function StatCard(props: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-slate-400">{props.label}</div>
-            <div className="mt-1 font-mono text-xl text-slate-100">{props.value}</div>
+        <div className="rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] p-3">
+            <div className="text-[11px] uppercase tracking-wide text-[color:var(--wf-text-muted)]">{props.label}</div>
+            <div className="mt-1 font-mono text-xl text-[color:var(--wf-text-strong)]">{props.value}</div>
         </div>
     );
 }
@@ -530,6 +530,11 @@ export default function Diagnostics() {
 
     return (
         <div className="space-y-6">
+            <header className="px-1">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-accent-primary)]">App &amp; Data</div>
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[color:var(--wf-text-strong)]">Diagnostics</h1>
+                <p className="mt-1 max-w-3xl text-sm text-[color:var(--wf-text-muted)]">Review catalog completeness, source coverage, validation results, and technical exports.</p>
+            </header>
             {/* Defect Registry Summary */}
             <Section
                 title="Defect Registry"
@@ -1244,6 +1249,7 @@ function CatalogEntryBrowser() {
         >
             <div className="flex gap-2">
                 <input
+                    aria-label="Search catalog entries by name or ID"
                     className="flex-1 rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 placeholder-slate-500"
                     placeholder="Search by name or catalog ID..."
                     value={query}

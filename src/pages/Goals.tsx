@@ -400,6 +400,7 @@ export default function Goals() {
                     <WorkspaceFilterBar className="mb-3">
                         <input
                             type="search"
+                            aria-label="Search personal goals"
                             placeholder="Search by name…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}

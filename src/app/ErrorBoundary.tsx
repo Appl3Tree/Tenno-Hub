@@ -29,32 +29,33 @@ export default class ErrorBoundary extends Component<Props, State> {
         if (!error) return this.props.children;
 
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 p-8 text-center">
-                <div className="text-5xl">⚠️</div>
+            <section aria-labelledby="page-error-title" className="flex min-h-[60vh] flex-col items-center justify-center gap-6 p-8 text-center">
+                <div aria-hidden="true" className="text-5xl">⚠️</div>
                 <div>
-                    <h2 className="text-xl font-semibold text-slate-100 mb-1">
+                    <h1 id="page-error-title" className="mb-1 text-xl font-semibold text-[color:var(--wf-text-strong)]">
                         Something went wrong{this.props.page ? ` on ${this.props.page}` : ""}.
-                    </h2>
-                    <p className="text-slate-400 text-sm">
-                        An unexpected error occurred. Your saved data is safe.
+                    </h1>
+                    <p role="alert" className="text-sm text-[color:var(--wf-text-muted)]">
+                        This page could not be displayed. You can retry it or review the technical details below.
                     </p>
                 </div>
-                <details className="w-full max-w-xl text-left">
-                    <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-300">
+                <details className="w-full max-w-xl rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-3 text-left">
+                    <summary className="cursor-pointer text-sm text-[color:var(--wf-text-muted)] hover:text-[color:var(--wf-text-strong)]">
                         Error details
                     </summary>
-                    <pre className="mt-2 p-3 bg-slate-900 rounded text-xs text-red-400 overflow-auto whitespace-pre-wrap break-all">
+                    <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-[color:var(--wf-surface-2)] p-3 text-xs text-[color:var(--wf-danger)]">
                         {error.message}
                         {error.stack ? `\n\n${error.stack}` : ""}
                     </pre>
                 </details>
                 <button
+                    type="button"
                     onClick={this.handleReset}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm rounded"
+                    className="rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-2 text-sm text-[color:var(--wf-text)] transition-colors hover:bg-[color:var(--wf-hover)]"
                 >
                     Try again
                 </button>
-            </div>
+            </section>
         );
     }
 }

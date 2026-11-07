@@ -1406,7 +1406,7 @@ function StatBox({
   color?: string;
 }) {
   return (
-    <div className="rounded-[20px] border border-slate-800/70 bg-[rgba(15,23,42,0.44)] px-4 py-3 backdrop-blur-sm">
+    <div className="rounded-[20px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-3">
       <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </div>
@@ -2515,6 +2515,7 @@ export default function Inventory() {
   const [selectedDetailId, setSelectedDetailId] = useState<CatalogId | null>(
     null,
   );
+  const detailDialogRef = useRef<HTMLDivElement | null>(null);
   const [selectedComponentKey, setSelectedComponentKey] = useState<string | null>(null);
 
   const [primaryTab, setPrimaryTab] = useState<PrimaryTab>("all");
@@ -2546,6 +2547,62 @@ export default function Inventory() {
 
   useEffect(() => {
     setSelectedComponentKey(null);
+  }, [selectedDetailId]);
+
+  useEffect(() => {
+    if (!selectedDetailId) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    detailDialogRef.current?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      const dialog = detailDialogRef.current;
+      if (!dialog) return;
+
+      const activeModal = Array.from(document.querySelectorAll<HTMLElement>('[aria-modal="true"]')).at(-1);
+      if (activeModal !== dialog) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelectedDetailId(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      } else if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.documentElement.style.overflow = previousOverflow;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
   }, [selectedDetailId]);
 
   function selectPrimaryTab(next: PrimaryTab) {
@@ -3545,6 +3602,7 @@ export default function Inventory() {
 
                 <label className="mt-3 block">
                   <input
+                    aria-label="Search inventory items"
                     className="w-full rounded-[1.6rem] border border-slate-700 bg-slate-950/80 px-4 py-3 text-base text-slate-100 placeholder:text-slate-500"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -3924,7 +3982,7 @@ export default function Inventory() {
                     Customize Columns
                   </WorkspaceAction>
                   {columnMenuOpen && (
-                    <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-56 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-[0_18px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+                    <div className="wf-popover absolute right-0 top-[calc(100%+0.5rem)] z-20 w-56 rounded-2xl border p-3 backdrop-blur">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Visible Columns
                       </div>
@@ -3951,7 +4009,7 @@ export default function Inventory() {
           <div ref={listRef} className="min-h-0 flex-1 overflow-auto" onScroll={() => recomputeWindow()}>
             <div className="min-w-max">
             {/* Header */}
-            <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+            <div className="sticky top-0 z-10 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] backdrop-blur">
               <div
                 className="grid gap-0 text-sm"
                 style={{ gridTemplateColumns: inventoryGridTemplate }}
@@ -4056,7 +4114,7 @@ export default function Inventory() {
                           Actions
                         </button>
                         {actionsMenuOpen && selectedDisplayedCount > 0 && (
-                          <div className="absolute left-0 top-[calc(100%+0.5rem)] z-20 w-56 rounded-2xl border border-slate-800 bg-slate-950/95 p-2 shadow-[0_18px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+                          <div className="wf-popover absolute left-0 top-[calc(100%+0.5rem)] z-20 w-56 rounded-2xl border p-2 backdrop-blur">
                             <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={applySelectedGoalAdd}>Add to Goals</button>
                             <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={applySelectedGoalRemove}>Remove from Goals</button>
                             <button className="flex w-full rounded-xl px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-900" onClick={applySelectedCountUpdate}>Update Count</button>
@@ -4640,14 +4698,22 @@ export default function Inventory() {
             : [];
 
           return (
-            <div className="fixed inset-0 z-50 p-2 sm:p-4">
-              <div className="absolute inset-0 bg-[rgba(2,6,23,0.78)] backdrop-blur-md" onClick={() => setSelectedDetailId(null)} />
-              <div className="relative mx-auto flex h-[calc(100vh-1rem)] w-full max-w-[1640px] flex-col overflow-hidden rounded-[34px] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(3,7,18,0.98),rgba(8,13,24,0.97))] shadow-[0_42px_120px_rgba(0,0,0,0.55)] sm:h-[calc(100vh-2rem)]">
+            <div className="wf-inventory-dialog-frame fixed inset-0 z-50">
+              <div className="wf-modal-backdrop absolute inset-0 backdrop-blur-md" aria-hidden="true" onClick={() => setSelectedDetailId(null)} />
+              <div
+                ref={detailDialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="inventory-detail-title"
+                tabIndex={-1}
+                className="wf-dialog relative mx-auto flex h-full w-full max-w-[1640px] flex-col overflow-hidden rounded-[28px] border"
+              >
                 <div className="overflow-y-auto flex-1 px-4 py-4 sm:px-6 sm:py-6">
               <div className="space-y-5">
                 <WorkspaceHero
                   eyebrow={allE?.category ?? allE?.type ?? "Inventory Dossier"}
                   title={name}
+                  titleId="inventory-detail-title"
                   description=""
                   actions={
                     <>
@@ -4677,7 +4743,7 @@ export default function Inventory() {
                 ) : null}
               <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)]">
                 <div className="space-y-5 self-start">
-                <div className="overflow-hidden rounded-[32px] border border-slate-800/70 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.18),transparent_56%),linear-gradient(180deg,rgba(30,41,59,0.58),rgba(5,10,20,0.92))]">
+                <div className="overflow-hidden rounded-[32px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)]">
                   {imageUrl ? (
                     <img
                       src={imageUrl}
@@ -4691,7 +4757,7 @@ export default function Inventory() {
                     </div>
                   )}
                 </div>
-                <div className="rounded-[30px] border border-slate-800/70 bg-[rgba(7,12,23,0.78)] px-5 py-5 backdrop-blur-sm">
+                <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Status + Availability</div>
                     <WikiLink name={name} />
@@ -4795,7 +4861,7 @@ export default function Inventory() {
 
                   {/* Warframe stats */}
                   {(isFrame || isCompanion) && (
-                    <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                    <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                       <Label>Base Stats</Label>
                       <div className="grid grid-cols-3 gap-2">
                         {allE?.health && (
@@ -4825,7 +4891,7 @@ export default function Inventory() {
 
                   {/* Abilities */}
                   {isFrame && allE?.abilities && allE.abilities.length > 0 && (
-                    <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                    <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                       <Label>Abilities</Label>
                       <div className="space-y-1.5">
                         {allE.abilities.map((ab, i) => (
@@ -4855,7 +4921,7 @@ export default function Inventory() {
                   {(isFrame || isCompanion) &&
                     allE?.polarities &&
                     allE.polarities.length > 0 && (
-                      <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                      <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                         <Label>Polarities</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {allE.polarities.map((p, i) => (
@@ -4877,7 +4943,7 @@ export default function Inventory() {
 
                   {/* Weapon stats */}
                   {isWeapon && (
-                    <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                    <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                       <Label>Stats</Label>
                       <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
                         {allE?.totalDamage && (
@@ -5001,7 +5067,7 @@ export default function Inventory() {
 
                   {/* Damage breakdown */}
                   {dmgTypes.length > 0 && (
-                    <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                    <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                       <Label>Damage Breakdown</Label>
                       <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
                         {dmgTypes.map(([type, val]) => (
@@ -5023,7 +5089,7 @@ export default function Inventory() {
 
                   {/* Access explanation */}
                   {avail !== "available" && (
-                    <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                    <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                       <Label color={avail === "partial" ? "text-amber-400" : "text-rose-400"}>
                         {avail === "partial" ? "Why Access Is Partial" : "Why Access Is Blocked"}
                       </Label>
@@ -5050,7 +5116,7 @@ export default function Inventory() {
                 {/* ── RIGHT COLUMN ── */}
                 <div className="space-y-4">
                   {(matchedSellProtections.length > 0 || weaponRecipeUses.length > 0) && (
-                    <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                    <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                       <Label>Sell Safety</Label>
                       <div className="space-y-2">
                         {matchedSellProtections.length > 0 && (
@@ -5075,7 +5141,7 @@ export default function Inventory() {
                     </div>
                   )}
 
-                  <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                  <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                     <Label>Source Locations</Label>
                     {itemSourceEntries.length > 0 ? (
                       <GroupedSourceList entries={itemSourceEntries} maxHeightClassName="max-h-[24rem]" />
@@ -5107,7 +5173,7 @@ export default function Inventory() {
 
                   {/* Build info */}
                   {(allE?.buildPrice || allE?.buildTime || allE?.bpCost) && (
-                    <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm">
+                    <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5">
                       <Label>Build Requirements</Label>
                       <div className="grid grid-cols-2 gap-2">
                         {allE.buildPrice && (
@@ -5146,7 +5212,7 @@ export default function Inventory() {
 
                 </div>
 	                </div>
-                <div className="rounded-[30px] border border-slate-800/65 bg-[rgba(7,12,23,0.72)] px-5 py-5 backdrop-blur-sm 2xl:col-span-2">
+                <div className="rounded-[30px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-5 py-5 2xl:col-span-2">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Components</div>
@@ -5168,8 +5234,8 @@ export default function Inventory() {
                                   className={[
                                     "text-left rounded-[22px] border px-4 py-4 transition-colors",
                                     isActive
-                                      ? "border-cyan-400/45 bg-[rgba(10,20,34,0.9)] shadow-[0_0_0_1px_rgba(56,189,248,0.12)]"
-                                      : "border-slate-800/60 bg-[rgba(5,10,20,0.28)] hover:border-slate-600/70 hover:bg-[rgba(8,14,26,0.52)]",
+                                      ? "border-[color:var(--wf-selection-border)] bg-[color:var(--wf-selection)] shadow-[0_0_0_1px_var(--wf-selection-border)]"
+                                      : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] hover:border-[color:var(--wf-border-strong)] hover:bg-[color:var(--wf-hover)]",
                                   ].join(" ")}
                                 >
                                   <div className="flex items-start justify-between gap-3">
@@ -5252,7 +5318,7 @@ export default function Inventory() {
                           </div>
 
                           {activeComponent ? (
-                            <div className="rounded-[24px] border border-slate-800/65 bg-[rgba(4,10,19,0.56)]">
+                            <div className="rounded-[24px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)]">
                               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/70 px-5 py-4">
                                 <div>
                                   <div className="flex items-center gap-2">

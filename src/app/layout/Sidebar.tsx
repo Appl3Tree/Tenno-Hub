@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTrackerStore } from "../../store/store";
 import {
     NAV_ROUTES,
     WORK_MODE_META,
     WORK_MODE_ORDER,
+    getDefaultRouteForMode,
     getRouteByKey,
     type WorkModeKey,
 } from "../routes";
-import { getStoredTheme, applyTheme, type AppTheme } from "../../lib/settingsPreferences";
+import { setAppTheme, useAppTheme } from "../../lib/settingsPreferences";
 
 const SIDEBAR_COLLAPSED_KEY = "wft_sidebar_collapsed";
 
@@ -186,9 +187,10 @@ function ModeButton({
     return (
         <button
             onClick={onClick}
+            aria-pressed={active}
             className={[
                 "group relative flex items-center rounded-xl border px-2.5 py-2 text-left transition-all",
-                collapsed ? "justify-center" : "gap-2.5",
+                collapsed ? "flex-col justify-center gap-1.5 px-1.5 text-center" : "gap-2.5",
                 active
                     ? "border-[color:var(--wf-border-accent)] bg-[color:var(--wf-surface-strong)] text-[color:var(--wf-text-strong)] shadow-[0_0_0_1px_rgba(140,123,255,0.16)]"
                     : "border-transparent text-[color:var(--wf-text-muted)] hover:border-[color:var(--wf-border-subtle)] hover:bg-[color:var(--wf-surface-soft)] hover:text-[color:var(--wf-text)]",
@@ -204,6 +206,7 @@ function ModeButton({
                     <span className="mt-1 block text-[11px] leading-tight text-[color:var(--wf-text-dim)]">{meta.desc}</span>
                 </span>
             )}
+            {collapsed && <span className="max-w-full text-[9px] font-medium leading-tight">{meta.shortLabel}</span>}
         </button>
     );
 }
@@ -223,9 +226,11 @@ function RouteButton({
         <button
             key={route.key}
             onClick={onClick}
+            aria-current={active ? "page" : undefined}
+            aria-label={collapsed ? `${route.label}: ${route.desc}` : undefined}
             className={[
                 "group relative flex items-center rounded-xl px-2.5 py-2.5 text-left transition-colors",
-                collapsed ? "justify-center" : "gap-2.5",
+                collapsed ? "flex-col justify-center gap-1.5 px-1.5 py-2 text-center" : "gap-2.5",
                 active
                     ? "bg-[color:var(--wf-surface-strong)] text-[color:var(--wf-text-strong)]"
                     : "text-[color:var(--wf-text-muted)] hover:bg-[color:var(--wf-surface-soft)] hover:text-[color:var(--wf-text)]",
@@ -247,6 +252,7 @@ function RouteButton({
                     <span className="mt-1 block truncate text-[11px] text-[color:var(--wf-text-dim)]">{route.desc}</span>
                 </span>
             )}
+            {collapsed && <span className="max-w-full text-[9px] font-medium leading-tight">{route.shortLabel ?? route.label}</span>}
         </button>
     );
 }
@@ -254,22 +260,49 @@ function RouteButton({
 export default function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
     const activePage = useTrackerStore((s) => s.state.ui.activePage);
     const setActivePage = useTrackerStore((s) => s.setActivePage);
-    const [theme, setTheme] = useState<AppTheme>(getStoredTheme);
+    const theme = useAppTheme();
     const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1");
-    const [activeMode, setActiveMode] = useState<WorkModeKey>(() => getRouteByKey(activePage).mode);
+    const activeMode = getRouteByKey(activePage).mode;
+    const modeRoutes = NAV_ROUTES.filter((route) => route.mode === activeMode);
+    const mobileSidebarRef = useRef<HTMLElement | null>(null);
+    const mobileCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
-    useEffect(() => { applyTheme(getStoredTheme()); }, []);
-    useEffect(() => { setActiveMode(getRouteByKey(activePage).mode); }, [activePage]);
+    useEffect(() => {
+        if (!mobileOpen) return;
+        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        mobileCloseButtonRef.current?.focus();
 
-    const modeRoutes = useMemo(
-        () => NAV_ROUTES.filter((route) => route.mode === activeMode),
-        [activeMode]
-    );
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                onClose();
+                return;
+            }
+            if (event.key !== "Tab" || !mobileSidebarRef.current) return;
+            const focusable = Array.from(mobileSidebarRef.current.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ));
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
+
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+            if (previouslyFocused?.isConnected && previouslyFocused.getClientRects().length > 0) previouslyFocused.focus();
+        };
+    }, [mobileOpen, onClose]);
 
     function toggleTheme() {
-        const next: AppTheme = theme === "dark" ? "light" : "dark";
-        setTheme(next);
-        applyTheme(next);
+        setAppTheme(theme === "dark" ? "light" : "dark");
     }
 
     function toggleCollapsed() {
@@ -296,13 +329,18 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; 
                                 mode={mode}
                                 active={mode === activeMode}
                                 collapsed={collapsed && !isMobile}
-                                onClick={() => setActiveMode(mode)}
+                                onClick={() => {
+                                    if (mode !== activeMode) {
+                                        setActivePage(getDefaultRouteForMode(mode).key);
+                                    }
+                                    onClose();
+                                }}
                             />
                         ))}
                     </div>
                 </div>
 
-                <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-3">
+                <nav aria-label={`Pages in ${WORK_MODE_META[activeMode].label}`} className="wf-sidebar-nav flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-3">
                     {!collapsed || isMobile ? (
                         <div className="mb-2 px-2">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wf-text-dim)]">
@@ -337,6 +375,7 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; 
                     "text-[color:var(--wf-text-muted)] hover:bg-[color:var(--wf-surface-soft)] hover:text-[color:var(--wf-text)]",
                 ].join(" ")}
                 title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
                 {theme === "dark" ? (
                     <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>
@@ -371,13 +410,16 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; 
     return (
         <>
             <aside
+                ref={mobileSidebarRef}
+                aria-label="Workspace controls"
                 className={[
-                    "wf-rail hidden md:flex shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200",
-                    collapsed ? "w-[92px]" : "w-[320px]",
+                    "wf-rail hidden lg:flex shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200",
+                    collapsed ? "w-[92px]" : "w-[280px]",
                 ].join(" ")}
             >
                 <div className={["flex items-center border-b border-[color:var(--wf-border-subtle)] p-2", collapsed ? "justify-center" : "justify-end"].join(" ")}>
                     <button
+                        type="button"
                         onClick={toggleCollapsed}
                         className="rounded-xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] p-2 text-[color:var(--wf-text-muted)] transition-colors hover:border-[color:var(--wf-border-strong)] hover:text-[color:var(--wf-text)]"
                         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -403,14 +445,22 @@ export default function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; 
             </aside>
 
             <aside
+                id="mobile-workspace-navigation"
+                aria-label="Mobile workspace navigation"
+                aria-hidden={!mobileOpen}
+                aria-modal={mobileOpen || undefined}
+                inert={!mobileOpen}
+                role={mobileOpen ? "dialog" : undefined}
                 className={[
-                    "wf-rail fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-hidden border-r transition-transform duration-200 md:hidden",
+                    "wf-rail wf-mobile-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(18rem,calc(100vw-2.5rem))] flex-col overflow-hidden border-r transition-transform duration-200 lg:hidden",
                     mobileOpen ? "translate-x-0" : "-translate-x-full",
                 ].join(" ")}
             >
                 <div className="flex items-center justify-between px-4 h-12 border-b border-[color:var(--wf-border-subtle)] shrink-0">
                     <span className="text-sm font-semibold text-[color:var(--wf-text)]">Workspaces</span>
                     <button
+                        type="button"
+                        ref={mobileCloseButtonRef}
                         onClick={onClose}
                         className="rounded-lg p-1.5 text-[color:var(--wf-text-muted)] transition-colors hover:bg-[color:var(--wf-surface-soft)] hover:text-[color:var(--wf-text)]"
                         aria-label="Close navigation"

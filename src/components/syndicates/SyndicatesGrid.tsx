@@ -252,7 +252,7 @@ export default function SyndicatesGrid() {
                                         </button>
 
                                         {simOpen ? (
-                                            <div className="absolute right-0 mt-2 w-[440px] z-30 rounded-xl border border-slate-800 bg-slate-950/95 p-3 shadow-xl">
+                                            <div className="wf-popover absolute right-0 z-30 mt-2 w-[440px] rounded-xl border p-3">
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="text-xs font-semibold text-slate-100">Pledge recommendations</div>
                                                     <button

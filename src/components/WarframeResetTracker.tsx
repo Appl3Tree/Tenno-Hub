@@ -3126,8 +3126,8 @@ export default function WarframeResetTracker() {
 
     return (
         <WorkspacePanel className="flex flex-col gap-4 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+            <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 flex-1">
                     <div className="text-lg font-semibold">Reset Tracker</div>
                     <div className="text-sm text-slate-400 mt-1">
                         {layoutMode === "tracker"
@@ -3135,13 +3135,13 @@ export default function WarframeResetTracker() {
                             : "A planning view for daily, weekly, monthly, and live rotations with a persistent now-line for what is ending soon."}
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <WorkspaceSegmented className="text-xs">
+                <div className="flex max-w-full flex-wrap items-center gap-2">
+                    <WorkspaceSegmented className="max-w-full text-xs">
                         <WorkspaceSegmentedButton active={layoutMode === "tracker"} onClick={() => setLayoutMode("tracker")} className="px-3 py-1.5 font-medium">Tracker</WorkspaceSegmentedButton>
                         <WorkspaceSegmentedButton active={layoutMode === "calendar"} onClick={() => setLayoutMode("calendar")} className="px-3 py-1.5 font-medium">Calendar</WorkspaceSegmentedButton>
                     </WorkspaceSegmented>
                     <button
-                        className={["text-xs font-medium border rounded px-3 py-1.5 transition-colors", showCustomize ? "bg-slate-700 border-slate-600 text-slate-100" : "border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500"].join(" ")}
+                        className={["shrink-0 whitespace-nowrap text-xs font-medium border rounded px-3 py-1.5 transition-colors", showCustomize ? "bg-slate-700 border-slate-600 text-slate-100" : "border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500"].join(" ")}
                         onClick={() => {
                             setCustomize((v) => !v);
                             setHelp(false);
@@ -3155,7 +3155,7 @@ export default function WarframeResetTracker() {
                         )}
                     </button>
                     <button
-                        className={["w-7 h-7 rounded-full border text-xs flex items-center justify-center transition-colors", showHelp ? "bg-slate-700 border-slate-600 text-slate-100" : "border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500"].join(" ")}
+                        className={["h-9 w-9 shrink-0 rounded-full border text-xs flex items-center justify-center transition-colors", showHelp ? "bg-slate-700 border-slate-600 text-slate-100" : "border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500"].join(" ")}
                         onClick={() => {
                             setHelp((v) => !v);
                             setCustomize(false);
@@ -3163,7 +3163,7 @@ export default function WarframeResetTracker() {
                     >
                         ?
                     </button>
-                    <WorkspaceSegmented className="text-xs">
+                    <WorkspaceSegmented className="max-w-full text-xs">
                         <WorkspaceSegmentedButton active={rc.timeMode === "utc"} onClick={() => setMode("utc")} className="px-3 py-1.5 font-medium">UTC</WorkspaceSegmentedButton>
                         <WorkspaceSegmentedButton active={rc.timeMode === "local"} onClick={() => setMode("local")} className="px-3 py-1.5 font-medium">Local</WorkspaceSegmentedButton>
                     </WorkspaceSegmented>

@@ -52,13 +52,13 @@ export default function Dashboard() {
 
     return (
         <div className="flex flex-col gap-6 pb-6">
-            <WorkspacePanel className="px-4 py-4 sm:px-5">
+            <WorkspacePanel className="px-4 py-4 sm:px-5" aria-labelledby="dashboard-page-title">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 max-w-2xl">
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-accent-primary)]">Dashboard</div>
-                        <h1 className="mt-1 text-xl font-semibold tracking-tight text-[color:var(--wf-text-strong)] sm:text-2xl">Progression and today, nothing extra.</h1>
+                        <h1 id="dashboard-page-title" className="mt-1 text-xl font-semibold tracking-tight text-[color:var(--wf-text-strong)] sm:text-2xl">Progress and tasks for today</h1>
                         <p className="mt-1 text-sm text-[color:var(--wf-text-muted)]">
-                            Use this page for your next unlocks, your own checklist, and the reset tracker. World-state detail lives elsewhere.
+                            Pick up a progression unlock, update your checklist, or review daily resets. Live activity details are in World State.
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -92,7 +92,7 @@ export default function Dashboard() {
                     </div>
                     {isNewPlayer && (
                         <button
-                            className="rounded-full border border-cyan-800/60 bg-cyan-950/20 px-3 py-1.5 text-xs font-medium text-cyan-200 transition-colors hover:bg-cyan-900/30"
+                            className="rounded-full border border-[color:var(--wf-selection-border)] bg-[color:var(--wf-selection)] px-3 py-1.5 text-xs font-medium text-[color:var(--wf-accent-text)] transition-colors hover:bg-[color:var(--wf-surface-strong)]"
                             onClick={() => setActivePage("handbook")}
                         >
                             Open Handbook

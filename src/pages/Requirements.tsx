@@ -504,7 +504,7 @@ export default function Requirements() {
                                     : "Customize Sources"}
                             </WorkspaceAction>
                             {sourceMenuOpen && (
-                                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-[0_18px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+                                <div className="wf-popover absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border p-3 backdrop-blur">
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                                             Source Filters
@@ -598,6 +598,7 @@ export default function Requirements() {
                 {/* Search */}
                 <div className="mt-4">
                     <input
+                        aria-label="Search items or farming sources"
                         className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-100 text-sm placeholder:text-slate-500 focus:outline-none focus:border-slate-500"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
