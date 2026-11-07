@@ -47,7 +47,7 @@ export interface AlecaFrameInventorySnapshot {
  */
 export const COUNTED_ITEM_SECTIONS = [
   "Consumables", "LevelKeys", "MiscItems", "Recipes",
-  "CrewShipAmmo", "CrewShipRawSalvage", "ShipDecorations", "EmailItems",
+  "CrewShipAmmo", "CrewShipRawSalvage", "ShipDecorations",
   "FusionTreasures",
 ] as const;
 
@@ -196,6 +196,20 @@ export function parseAlecaFrameInventory(
     sections[section] = entries.length;
     entries.forEach((entry, index) => add(section, index, entry, "item", false));
   }
+  // EmailItems is present in the save but may represent claimable mail
+  // attachments rather than currently owned inventory. Never turn it into
+  // ownership until that section's semantics have been independently verified.
+  const mailItems = value.EmailItems;
+  if (Array.isArray(mailItems)) {
+    sections.EmailItems = mailItems.length;
+    sourceRecords += mailItems.length;
+    if (mailItems.length > 0) {
+      issue("EmailItems", -1, "", "Mail attachment ownership semantics not yet verified");
+    }
+  } else {
+    issue("EmailItems", -1, "", "Inventory section missing or malformed");
+  }
+
   for (const section of OWNED_ITEM_SECTIONS) {
     const entries = value[section];
     if (!Array.isArray(entries)) {
