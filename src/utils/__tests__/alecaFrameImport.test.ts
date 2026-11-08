@@ -80,6 +80,10 @@ describe("AlecaFrame inventory parser", () => {
     expect(result.records.find((entry) => entry.catalogId === `items:${item}`)?.quantity).toBe(42);
     expect(result.totalCopies).toBe(53);
     expect(result.playerLevel).toBe(23);
+    expect(result.sections.RawUpgrades?.status).toBe("imported");
+    expect(result.sections.Upgrades?.status).toBe("imported");
+    expect(result.sections.MiscItems?.status).toBe("imported");
+    expect(result.coverageComplete).toBe(true);
   });
 
   it("counts owned equipment instances and ignores duplicate instance references", async () => {
@@ -145,6 +149,23 @@ describe("AlecaFrame inventory parser", () => {
     expect(result.rivenRecords).toHaveLength(1);
     expect(result.totalCopies).toBe(2);
     expect(result.sections.Upgrades?.importedCopies).toBe(1);
+  });
+
+  it("imports stacked Riven templates by their exact catalog type without inventing personal records", async () => {
+    const root = fixture();
+    root.RawUpgrades = [{ ItemType: riven, ItemCount: 4 }];
+    const result = await parseAlecaFrameInventory(root, classify, resolveRiven);
+    expect(result.records).toMatchObject([{
+      catalogId: `rivens:${riven}`,
+      path: riven,
+      kind: "riven",
+      quantity: 4,
+      sourceSections: ["RawUpgrades"],
+    }]);
+    expect(result.rivenRecords).toHaveLength(0);
+    expect(result.unresolvedRecords).toHaveLength(0);
+    expect(result.totalCopies).toBe(4);
+    expect(result.sections.RawUpgrades).toMatchObject({ status: "imported", importedCopies: 4 });
   });
 
   it("keeps no-instance-ID Riven identities stable when other fingerprints reorder", async () => {

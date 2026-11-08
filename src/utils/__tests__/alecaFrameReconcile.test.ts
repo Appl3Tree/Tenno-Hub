@@ -10,6 +10,8 @@ const modPath = "/Lotus/Upgrades/Mods/Rifle/WeaponClipMaxMod";
 const arcanePath = "/Lotus/Upgrades/CosmeticEnhancers/Warframe/ArcaneExample";
 const modId = "mods:" + modPath;
 const arcaneId = "mods:" + arcanePath;
+const rivenTemplatePath = "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare";
+const rivenTemplateId = "rivens:" + rivenTemplatePath;
 const localOnlyId = "items:/Lotus/Types/Items/MiscItems/LocalOnly";
 const now = "2026-01-01T00:00:00.000Z";
 
@@ -122,6 +124,21 @@ describe("AlecaFrame reconciliation", () => {
     expect(twice.modRankCounts).toEqual(once.modRankCounts);
     expect(twice.arcaneRankCounts).toEqual(once.arcaneRankCounts);
     expect(twice.customRivens).toHaveLength(once.customRivens?.length);
+  });
+
+  it("persists generic Riven template stacks separately from personalized Riven records", () => {
+    const source = snapshot();
+    source.records.push({
+      catalogId: rivenTemplateId,
+      path: rivenTemplatePath,
+      kind: "riven",
+      section: "RawUpgrades",
+      sourceSections: ["RawUpgrades"],
+      quantity: 4,
+    });
+    const next = reconcileAlecaFrameInventory(inventory(), source, "merge", new Set(), now);
+    expect(next.counts[rivenTemplateId]).toBe(4);
+    expect(next.customRivens).toEqual([riven("riven-new")]);
   });
 
   it("keeps conflicting local quantities and ranks while adding new records", () => {

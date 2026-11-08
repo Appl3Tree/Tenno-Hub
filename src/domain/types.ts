@@ -47,8 +47,8 @@ export interface Inventory {
     platinum: number;
 
     /**
-     * Canonical inventory counts keyed by catalog key (path/id from items.json),
-     * never by display name.
+     * Canonical inventory counts keyed by catalog ID, never by display name.
+     * This includes item, mod, arcane, and generic Riven-template catalog IDs.
      *
      * Counts only exist if the user has touched them (sparse map).
      */

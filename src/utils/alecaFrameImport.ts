@@ -421,7 +421,9 @@ export async function parseAlecaFrameInventory(
     const expectedKindMatches = match &&
       ((expected === "item" && match.kind === "item") ||
         (expected === "upgrade" && match.kind !== "item"));
-    if (!expectedKindMatches || (match?.kind === "riven" && section !== "Upgrades")) {
+    const stackedRivenTemplate = expected === "upgrade" &&
+      section === "RawUpgrades" && match?.kind === "riven";
+    if (!expectedKindMatches || (match?.kind === "riven" && section !== "Upgrades" && !stackedRivenTemplate)) {
       let rank: number | null = null;
       if (expected === "upgrade") {
         if (section === "RawUpgrades") {
@@ -437,6 +439,14 @@ export async function parseAlecaFrameInventory(
       return addUnresolvedRecord(section, index, path, expected, quantity, rank, reason)
         ? "unresolved"
         : "failed";
+    }
+
+    // RawUpgrades stores stacked, non-personalized upgrade types with an
+    // explicit ItemCount. Riven templates in this section have no per-copy
+    // fingerprint, so preserve the exact catalog type and quantity as a
+    // generic Riven stack instead of trying to synthesize personal Rivens.
+    if (stackedRivenTemplate) {
+      return addRecord(section, index, path, match, quantity, null) ? "imported" : "failed";
     }
 
     let rank: number | null = null;
@@ -533,14 +543,19 @@ export async function parseAlecaFrameInventory(
     let failedCount = 0;
     for (let index = 0; index < inputRecords.length; index += 1) {
       const outcome = await inspectItemRecord(section, index, inputRecords[index], expected, perCopy);
-      if (outcome === "imported" || outcome === "rank-unknown") importedCount += 1;
-      if (outcome === "rank-unknown") {
+      if (outcome === "imported") {
+        importedCount += 1;
+      } else if (outcome === "rank-unknown") {
+        importedCount += 1;
         rankUnknownCount += 1;
         rankUnknownCopies += 1;
+      } else if (outcome === "unresolved") {
+        unresolvedCount += 1;
+      } else if (outcome === "skipped") {
+        skippedCount += 1;
+      } else {
+        failedCount += 1;
       }
-      else if (outcome === "unresolved") unresolvedCount += 1;
-      else if (outcome === "skipped") skippedCount += 1;
-      else failedCount += 1;
     }
     const importedCopiesAfter = [...records.values()].reduce((sum, record) => sum + record.quantity, 0) + rivenRecords.size;
     const unresolvedCopiesAfter = [...unresolvedRecords.values()].reduce((sum, record) => sum + record.quantity, 0);

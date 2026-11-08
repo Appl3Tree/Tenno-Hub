@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTrackerStore } from "../store/store";
 import { isHiddenModPath } from "../domain/catalog/modCatalog";
 import { getWeaponCatalog } from "../domain/catalog/weaponCatalog";
+import { FULL_CATALOG } from "../domain/catalog/loadFullCatalog";
 import { CUSTOM_RIVEN_STAT_DEFS, formatRivenStatValue, generateCustomRivenName, getCustomRivenStatDef, getCustomRivenStatDefsForWeapon, normalizeRivenWeaponFamilyKey, type CustomRivenRecord as CustomRivenInventoryRecord, type CustomRivenStatValue } from "../domain/rivens";
 import { withManualReleaseDateFallback } from "../catalog/items/manualReleaseDates";
 import MODS_RAW from "../data/_generated/mods-lean.auto.json";
@@ -34,6 +35,10 @@ import { buildCatalogSourceEntries } from "../components/sources/catalogSourceEn
 import MOD_LOCATIONS_RAW from "../../external/warframe-drop-data/raw/modLocations.json";
 
 const EMPTY_CUSTOM_RIVENS: CustomRivenInventoryRecord[] = [];
+const RIVEN_TEMPLATE_CATALOG = FULL_CATALOG.idsBySource.rivens.flatMap((catalogId) => {
+    const record = FULL_CATALOG.recordsById[catalogId];
+    return record?.isDisplayable ? [{ catalogId, name: record.displayName, path: record.path }] : [];
+  });
 
 // Build a lookup from All.json keyed by uniqueName — includes Mods + Arcanes
 interface AllModDrop {
@@ -2386,6 +2391,16 @@ function ModsPage() {
     return list;
   }, [customRivens, excludedPolarities, includedPolarities, ownershipFilter, query]);
 
+  const filteredRivenStacks = useMemo(() => {
+    if (ownershipFilter === "unowned" || includedPolarities.length > 0) return [];
+    const q = normalize(query.trim());
+    return RIVEN_TEMPLATE_CATALOG
+      .map((record) => ({ ...record, quantity: counts[record.catalogId] ?? 0 }))
+      .filter((record) => record.quantity > 0 &&
+        (!q || normalize(`${record.name} ${record.path}`).includes(q)))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [counts, includedPolarities.length, ownershipFilter, query]);
+
   const availableModSubtypeOptions = useMemo<Array<Exclude<ModSubtype, "all">>>(() => {
     const orderedSubtypes = MOD_GROUP_SUBTYPES[modGroup];
     if (!orderedSubtypes || modGroup === "rivens" || modGroup === "all") return [];
@@ -2653,7 +2668,7 @@ function ModsPage() {
             onSortChange={(value) => setSortKey(value as ModSortKey)}
             sortOptions={MOD_SORT_OPTIONS}
             onClearDetail={() => setSelectedMod(null)}
-            rowCount={modGroup === "rivens" ? filteredCustomRivens.length : filteredMods.length}
+            rowCount={modGroup === "rivens" ? filteredCustomRivens.length + filteredRivenStacks.length : filteredMods.length}
             activeFilterCount={activeFilterCount}
             filtersExpanded={filtersExpanded}
             onToggleFilters={() => setFiltersExpanded((open) => !open)}
@@ -2829,55 +2844,74 @@ function ModsPage() {
             </CollectionFilterDisclosure>
 
             {modGroup === "rivens" ? (
-              filteredCustomRivens.length === 0 ? (
+              filteredCustomRivens.length === 0 && filteredRivenStacks.length === 0 ? (
                 <div className="flex min-h-0 flex-1 items-center justify-center border-t border-dashed border-slate-800 bg-slate-950/30 p-8 text-sm text-slate-400">
                   No owned rivens match the current filters.
                 </div>
               ) : (
                 <div className="border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)] p-3 pr-2">
-                  <div className="space-y-2">
-                    {filteredCustomRivens.map((riven) => (
-                      <div key={riven.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium text-slate-100">{riven.name}</span>
-                            <span className="shrink-0 text-[11px] font-medium text-amber-300">Riven</span>
-                          </div>
-                          <div className="mt-1 text-[11px] text-slate-500">
-                            {riven.sourceWeaponName} · {riven.sourceWeaponDisposition > 0 ? "Disposition " + riven.sourceWeaponDisposition.toFixed(2) : "Disposition unknown"} · Drain {riven.drain}
-                          </div>
-                          <div className="mt-1 text-[11px] leading-relaxed text-slate-300">
-                            {riven.stats.length > 0
-                              ? formatCustomRivenStatsLabel(riven.stats)
-                              : "Personalized stats retained, but unavailable for build math until source rank or catalog details are verified."}
-                          </div>
-                          {riven.importSource === "alecaframe" ? (
-                            <div className="mt-1 text-[10px] text-slate-500">
-                              AlecaFrame · {riven.sourceRank === null || riven.sourceRank === undefined ? "rank not recorded" : "rank " + riven.sourceRank}
-                              {riven.rerolls === null || riven.rerolls === undefined ? "" : " · " + riven.rerolls + " rerolls"}
-                              {riven.importStatus && riven.importStatus !== "ready" ? " · " + riven.importStatus.replaceAll("-", " ") : ""}
+                  {filteredCustomRivens.length > 0 ? (
+                    <div className="space-y-2">
+                      {filteredCustomRivens.map((riven) => (
+                        <div key={riven.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-medium text-slate-100">{riven.name}</span>
+                              <span className="shrink-0 text-[11px] font-medium text-amber-300">Riven</span>
                             </div>
-                          ) : null}
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              {riven.sourceWeaponName} · {riven.sourceWeaponDisposition > 0 ? "Disposition " + riven.sourceWeaponDisposition.toFixed(2) : "Disposition unknown"} · Drain {riven.drain}
+                            </div>
+                            <div className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                              {riven.stats.length > 0
+                                ? formatCustomRivenStatsLabel(riven.stats)
+                                : "Personalized stats retained, but unavailable for build math until source rank or catalog details are verified."}
+                            </div>
+                            {riven.importSource === "alecaframe" ? (
+                              <div className="mt-1 text-[10px] text-slate-500">
+                                AlecaFrame · {riven.sourceRank === null || riven.sourceRank === undefined ? "rank not recorded" : "rank " + riven.sourceRank}
+                                {riven.rerolls === null || riven.rerolls === undefined ? "" : " · " + riven.rerolls + " rerolls"}
+                                {riven.importStatus && riven.importStatus !== "ready" ? " · " + riven.importStatus.replaceAll("-", " ") : ""}
+                              </div>
+                            ) : null}
                           </div>
-                        <button
-                          onClick={() => {
-                            setEditingRiven(riven);
-                            setRivenModalOpen(true);
-                          }}
-                          className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => deleteCustomRiven(riven.id)}
-                          className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:border-red-700/60 hover:text-red-300"
-                        >
-                          Delete
-                        </button>
-                        <WikiLink name={riven.sourceWeaponName} />
+                          <button
+                            onClick={() => {
+                              setEditingRiven(riven);
+                              setRivenModalOpen(true);
+                            }}
+                            className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteCustomRiven(riven.id)}
+                            className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:border-red-700/60 hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                          <WikiLink name={riven.sourceWeaponName} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {filteredRivenStacks.length > 0 ? (
+                    <section aria-label="Unpersonalized Riven stacks" className={filteredCustomRivens.length > 0 ? "mt-5 border-t border-[color:var(--wf-border-subtle)] pt-4" : ""}>
+                      <h2 className="text-sm font-semibold text-[color:var(--wf-text)]">Riven type stacks</h2>
+                      <p className="mt-1 text-xs text-[color:var(--wf-text-muted)]">
+                        The save provides counts for these catalog Riven types without per-copy fingerprints or personalized stats.
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {filteredRivenStacks.map((record) => (
+                          <div key={record.catalogId} className="flex items-center justify-between gap-3 rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] px-3 py-2">
+                            <span className="min-w-0 truncate text-sm font-medium text-[color:var(--wf-text)]">{record.name}</span>
+                            <span className="shrink-0 text-xs text-[color:var(--wf-text-muted)]">× {record.quantity.toLocaleString()}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </section>
+                  ) : null}
                 </div>
               )
             ) : filteredMods.length === 0 ? (
