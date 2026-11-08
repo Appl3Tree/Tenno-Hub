@@ -6,6 +6,8 @@ This audit records implementation and validation status for draft PR #6. See [al
 
 The supplied save was decrypted and parsed locally to validate the format and import workflow. A follow-up audit against the existing WFCD and Overframe path-keyed catalogs found Riven template paths in `RawUpgrades`; these now import as generic Riven-type stacks, separate from fingerprinted personal Rivens. Other identities remain unresolved, so the snapshot is incomplete. No account-specific inventory totals, Riven counts or statuses, owned-item paths, source instance IDs, raw fingerprints, or decrypted values are recorded in the current documentation.
 
+The repository also synchronizes WFCD `warframe-drop-data`. Review of the data pipeline confirmed that its reward tables feed acquisition and Star Chart features, while the AlecaFrame importer's exact `ItemType` matcher checks `FULL_CATALOG` records built from WFCD item identities and the Overframe path-keyed export. Drop-table reward names are not used as a substitute for an exact catalog identity.
+
 ## Local verification
 
 - `npm test`: 263 tests passed in 33 files.
