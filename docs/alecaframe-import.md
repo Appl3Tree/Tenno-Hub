@@ -10,11 +10,9 @@ The selected file is read with the browser File API and decrypted with Web Crypt
 
 The field names and JSON types observed in the supplied snapshot are listed in [alecaframe-source-schema.md](./alecaframe-source-schema.md). That schema inventory contains no save values, array lengths, owned-item paths, identifiers, quantities, or rank data. AlecaFrame may add or change fields; the importer treats an unrecognized top-level array as unclassified rather than assuming it is inventory or safe to ignore.
 
-## Aggregate validation of the supplied snapshot
+## Real-file validation
 
-The local real-file run covered 191 root fields and 6,361 array entries. The parser explicitly excluded 2,467 entries from classified non-inventory/progression sections. It produced 3,421 normalized item/mod/arcane rows and 5 Riven template identities, for 3,426 catalog identities overall, and 3,851,580 matched non-Riven copies. Another 73 distinct identities representing 167 copies have no safe catalog mapping; they remain in the review report. There were no blocking structural issues and 33 review warnings, but coverage is incomplete. These are aggregate sample counts only; item identities, source IDs, and decrypted contents are not part of the repository.
-
-The sample included 14 personalized Rivens: 1 is ready for the build tool, 10 have no verified source rank, 2 have unknown weapon compatibility, and 1 contains an unsupported stat tag. Unsupported Riven details are retained with a non-ready status and are excluded from build math.
+The supplied file was parsed locally to validate the format and workflow. Its inventory coverage was incomplete because some identities could not be mapped safely. The review report exposes those details to the local user, but this repository does not record account-specific inventory totals or Riven summaries. Personalized Rivens with missing or unsupported source metadata remain marked incomplete and are excluded from build math until their fields are supported.
 
 ## Source section interpretation
 

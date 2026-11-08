@@ -2,16 +2,9 @@
 
 This audit records implementation and validation status for draft PR #6. See [alecaframe-import.md](./alecaframe-import.md) for parser behavior, source interpretation, reconciliation, and privacy details. The private save file and decrypted contents are not stored in the repository.
 
-## Verified sample results
+## Real-file validation
 
-- 191 root fields and 6,361 array entries were parsed.
-- 2,467 entries were excluded from classified non-inventory or progression sections.
-- 3,421 normalized item/mod/arcane rows plus 5 Riven template identities covered 3,426 catalog identities and 3,851,580 matched non-Riven copies.
-- 73 distinct identities representing 167 copies remain unresolved. Of these, 68 are absent from every current catalog namespace and 5 coincide with another catalog category, so their source section does not establish a safe canonical category.
-- 14 personalized Rivens were retained: 1 ready, 10 rank unknown, 2 weapon unknown, and 1 with an unsupported stat tag.
-- There were 0 blocking structural issues and 33 review warnings. Snapshot coverage is incomplete.
-
-The report intentionally records aggregate counts only. It does not include owned-item paths, source instance IDs, raw Riven fingerprints, or decrypted values.
+The supplied save was decrypted and parsed locally to validate the format and import workflow. Some identities remain unresolved, so the snapshot is incomplete. No account-specific inventory totals, Riven counts or statuses, owned-item paths, source instance IDs, raw fingerprints, or decrypted values are recorded in the current documentation.
 
 ## Local verification
 
@@ -25,6 +18,6 @@ The report intentionally records aggregate counts only. It does not include owne
 
 ## Release status
 
-The importer preserves unmatched source identities in the user-visible report and refuses to disguise category ambiguity as a catalog match. It supports importing the verified subset only after explicit acknowledgement. Because 73 identities are unresolved and viewport/restore verification is incomplete, PR #6 remains a draft and must not be merged or deployed.
+The importer preserves unmatched source identities in the user-visible report and refuses to disguise category ambiguity as a catalog match. It supports importing the verified subset only after explicit acknowledgement. Because some identities remain unresolved and viewport/restore verification is incomplete, PR #6 remains a draft and must not be merged or deployed.
 
 Import and reconciliation are deterministic and preserve local-only records. Backup restoration uses the existing Progress Pack import flow; end-to-end restore still needs browser verification before release.
