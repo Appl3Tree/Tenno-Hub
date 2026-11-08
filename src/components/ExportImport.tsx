@@ -1,6 +1,7 @@
 // ===== FILE: src/components/ExportImport.tsx =====
 import { useEffect, useRef, useState } from "react";
 import { useTrackerStore } from "../store/store";
+import { ProgressPackSchemaV2 } from "../store/progressPack";
 import {
     isConfigured,
     isConnected,
@@ -277,20 +278,62 @@ function GoogleDriveSection({ exportJson }: { exportJson: () => string }) {
 export default function ExportImport() {
     const exportProgressPackJson = useTrackerStore((s) => s.exportProgressPackJson);
     const importProgressPackJson = useTrackerStore((s) => s.importProgressPackJson);
+    const restoreProgressPackJson = useTrackerStore((s) => s.restoreProgressPackJson);
 
     const [text, setText] = useState("");
     const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null);
+    const [pendingRestore, setPendingRestore] = useState<string | null>(null);
+    const fileModeRef = useRef<"merge" | "replace">("merge");
     const fileRef = useRef<HTMLInputElement | null>(null);
+    const replaceButtonRef = useRef<HTMLButtonElement | null>(null);
+    const replaceCancelRef = useRef<HTMLButtonElement | null>(null);
+
+    useEffect(() => {
+        if (pendingRestore) replaceCancelRef.current?.focus();
+    }, [pendingRestore]);
+
+    function openFilePicker(mode: "merge" | "replace") {
+        fileModeRef.current = mode;
+        fileRef.current?.click();
+    }
 
     function handleImportText() {
         if (!text.trim()) { setStatus({ msg: "Nothing to import — paste your progress pack first.", ok: false }); return; }
         const res = importProgressPackJson(text);
-        setStatus({ msg: res.ok ? "Import successful." : (res.error ?? "Import failed."), ok: res.ok });
+        setStatus({ msg: res.ok ? "Progress Pack merged successfully." : (res.error ?? "Merge failed."), ok: res.ok });
     }
 
-    function handleImportFile(raw: string) {
+    function handleImportFile(raw: string, mode: "merge" | "replace") {
+        if (mode === "replace") {
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(raw);
+            } catch {
+                setStatus({ msg: "Invalid JSON.", ok: false });
+                return;
+            }
+            const validated = ProgressPackSchemaV2.safeParse(parsed);
+            if (!validated.success) {
+                setStatus({ msg: "Invalid Progress Pack (schema v2 required).", ok: false });
+                return;
+            }
+            setPendingRestore(raw);
+            setStatus(null);
+            return;
+        }
+
         const res = importProgressPackJson(raw);
-        setStatus({ msg: res.ok ? "Import successful." : (res.error ?? "Import failed."), ok: res.ok });
+        setStatus({ msg: res.ok ? "Progress Pack merged successfully." : (res.error ?? "Merge failed."), ok: res.ok });
+    }
+
+    function confirmReplaceFromFile() {
+        if (!pendingRestore) return;
+        const res = restoreProgressPackJson(pendingRestore);
+        setStatus({
+            msg: res.ok ? "Backup restored. Current local progress was replaced." : (res.error ?? "Restore failed."),
+            ok: res.ok,
+        });
+        setPendingRestore(null);
     }
 
     return (
@@ -300,7 +343,7 @@ export default function ExportImport() {
                 <div className="text-lg font-semibold">Progress Pack</div>
                 <div className="text-sm text-slate-400 mt-1">
                     Export your entire local progress to JSON so you can back it up or move it to another device.
-                    Import a previously exported pack to restore your progress.
+                    Merge another pack with this browser, or replace local progress from a backup file.
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -322,29 +365,89 @@ export default function ExportImport() {
                     </button>
                     <button
                         className="rounded-lg border border-slate-700 px-4 py-2 text-slate-100 text-sm hover:bg-slate-900 transition-colors"
-                        onClick={() => fileRef.current?.click()}
+                        onClick={() => openFilePicker("merge")}
                     >
-                        Restore from File
+                        Merge from File
+                    </button>
+                    <button
+                        ref={replaceButtonRef}
+                        className="rounded-lg border border-amber-700/70 bg-amber-950/20 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-950/40 transition-colors"
+                        onClick={() => openFilePicker("replace")}
+                    >
+                        Replace from Backup File
                     </button>
                     <input
                         ref={fileRef}
                         type="file"
                         accept="application/json,.json"
+                        aria-label="Select Progress Pack file"
                         className="hidden"
                         onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            handleImportFile(await file.text());
+                            const mode = fileModeRef.current;
+                            fileModeRef.current = "merge";
+                            handleImportFile(await file.text(), mode);
                             e.target.value = "";
                         }}
                     />
                 </div>
 
+                {pendingRestore ? (
+                    <div role="alertdialog" aria-modal="true" aria-labelledby="progress-pack-replace-title"
+                        aria-describedby="progress-pack-replace-description"
+                        onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                                event.preventDefault();
+                                setPendingRestore(null);
+                                replaceButtonRef.current?.focus();
+                                return;
+                            }
+                            if (event.key === "Tab") {
+                                const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+                                const first = buttons[0];
+                                const last = buttons[buttons.length - 1];
+                                if (event.shiftKey && document.activeElement === first) {
+                                    event.preventDefault();
+                                    last?.focus();
+                                } else if (!event.shiftKey && document.activeElement === last) {
+                                    event.preventDefault();
+                                    first?.focus();
+                                }
+                            }
+                        }}
+                        className="mt-4 rounded-xl border border-amber-700/70 bg-amber-950/20 p-4">
+                        <h3 id="progress-pack-replace-title" className="font-semibold text-amber-100">
+                            Replace current local progress?
+                        </h3>
+                        <p id="progress-pack-replace-description" className="mt-1 text-sm text-amber-200/80">
+                            This backup replaces Progress Pack data in this browser, including inventory and saved progress.
+                            Download a backup first if you need to keep the current state.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <button ref={replaceCancelRef} type="button" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-100"
+                                onClick={() => {
+                                    setPendingRestore(null);
+                                    replaceButtonRef.current?.focus();
+                                }}>
+                                Cancel
+                            </button>
+                            <button type="button" className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-slate-950"
+                                onClick={() => {
+                                    confirmReplaceFromFile();
+                                    replaceButtonRef.current?.focus();
+                                }}>
+                                Replace local progress
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+
                 <textarea
                     className="mt-4 w-full min-h-[180px] rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-slate-100 font-mono text-xs resize-y focus:outline-none focus:border-slate-500"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Paste a Progress Pack here to restore, or use 'Copy to Text Area' to export…"
+                    placeholder="Paste a Progress Pack here to merge, or use 'Copy to Text Area' to export…"
                 />
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -352,7 +455,7 @@ export default function ExportImport() {
                         className="rounded-lg border border-slate-700 px-4 py-2 text-slate-100 text-sm hover:bg-slate-900 transition-colors"
                         onClick={handleImportText}
                     >
-                        Restore from Text
+                        Merge from Text
                     </button>
                     {text && (
                         <button
@@ -363,7 +466,7 @@ export default function ExportImport() {
                         </button>
                     )}
                     {status && (
-                        <span className={["text-sm font-medium", status.ok ? "text-green-400" : "text-rose-400"].join(" ")}>
+                        <span role="status" aria-live="polite" className={["text-sm font-medium", status.ok ? "text-green-400" : "text-rose-400"].join(" ")}>
                             {status.ok ? "✓" : "✗"} {status.msg}
                         </span>
                     )}
@@ -378,8 +481,8 @@ export default function ExportImport() {
                 <div className="font-semibold text-slate-200 text-base">How to back up & restore</div>
                 <ol className="list-decimal list-inside space-y-1.5 text-slate-400">
                     <li>Click <span className="text-slate-200 font-medium">Download Backup</span> to save a JSON file to your computer.</li>
-                    <li>To restore on this device or another, click <span className="text-slate-200 font-medium">Restore from File</span> and select the JSON file.</li>
-                    <li>Alternatively, use <span className="text-slate-200 font-medium">Copy to Text Area</span> to get the JSON, paste it elsewhere, then use <span className="text-slate-200 font-medium">Restore from Text</span> to import it back.</li>
+                    <li>To combine a file with current progress, click <span className="text-slate-200 font-medium">Merge from File</span>. To restore a backup exactly, click <span className="text-slate-200 font-medium">Replace from Backup File</span> and confirm the replacement.</li>
+                    <li>Alternatively, use <span className="text-slate-200 font-medium">Copy to Text Area</span> to get the JSON, paste it elsewhere, then use <span className="text-slate-200 font-medium">Merge from Text</span> to combine it with current progress.</li>
                     <li>For seamless cross-device sync, connect <span className="text-slate-200 font-medium">Google Drive Backup</span> above and click <span className="text-slate-200 font-medium">Save to Drive</span> after sessions you want to preserve.</li>
                 </ol>
                 <p className="text-xs text-slate-500 pt-1">

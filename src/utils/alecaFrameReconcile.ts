@@ -145,12 +145,13 @@ function unresolvedKey(record: AlecaFrameUnresolvedRecord): string {
 }
 
 function sameUnresolvedData(left: AlecaFrameUnresolvedRecord, right: AlecaFrameUnresolvedRecord): boolean {
-  const normalized = (record: AlecaFrameUnresolvedRecord) => ({
-    ...record,
-    sourceSections: [...record.sourceSections].sort(),
-    rankCounts: record.rankCounts ? sortedRankMap(record.rankCounts) : undefined,
-  });
-  return JSON.stringify(normalized(left)) === JSON.stringify(normalized(right));
+  return left.path === right.path &&
+    left.kind === right.kind &&
+    left.quantity === right.quantity &&
+    left.rankCountsComplete === right.rankCountsComplete &&
+    left.reason === right.reason &&
+    JSON.stringify([...left.sourceSections].sort()) === JSON.stringify([...right.sourceSections].sort()) &&
+    JSON.stringify(sortedRankMap(left.rankCounts)) === JSON.stringify(sortedRankMap(right.rankCounts));
 }
 
 function maxRank(rankCounts: Record<string, number>): number | null {

@@ -1,8 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { mergeProgressPackIntoState, makeDefaultState, ProgressPackSchemaV2 } from "../progressPack";
+import {
+    mergeProgressPackIntoState,
+    makeDefaultState,
+    ProgressPackSchemaV2,
+    replaceProgressPackState,
+} from "../progressPack";
 import { migrateToUserStateV2 } from "../migrations";
 
 describe("progress pack inventory serialization", () => {
+    it("replaces local progress from a backup instead of retaining post-backup inventory", () => {
+        const current = makeDefaultState();
+        current.inventory.counts["items:/Lotus/Types/Items/MiscItems/AddedAfterBackup"] = 1;
+
+        const backup = makeDefaultState();
+        backup.meta.createdAtIso = "2026-01-01T00:00:00.000Z";
+        backup.inventory.counts = {
+            "items:/Lotus/Types/Items/MiscItems/BackupItem": 2,
+        };
+        const parsed = ProgressPackSchemaV2.parse(backup);
+        const restored = replaceProgressPackState(parsed);
+
+        expect(restored.inventory.counts).toEqual({
+            "items:/Lotus/Types/Items/MiscItems/BackupItem": 2,
+        });
+        expect(restored.inventory.counts).not.toHaveProperty(
+            "items:/Lotus/Types/Items/MiscItems/AddedAfterBackup",
+        );
+        expect(restored.meta.createdAtIso).toBe(backup.meta.createdAtIso);
+    });
+
     it("accepts and merges modRanks and arcaneRanks from a progress pack", () => {
         const current = makeDefaultState();
         current.inventory.modRanks = {

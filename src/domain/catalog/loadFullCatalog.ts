@@ -22,6 +22,7 @@ import MISC_RAW from "../../../external/warframe-items/raw/Misc.json";
 import GEAR_RAW from "../../../external/warframe-items/raw/Gear.json";
 import RAILJACK_RAW from "../../../external/warframe-items/raw/Railjack.json";
 import MODS_EXT_RAW from "../../../external/warframe-items/raw/Mods.json";
+import ARCANES_RAW from "../../../external/warframe-items/raw/Arcanes.json";
 
 export type CatalogSource =
     | "items"
@@ -527,6 +528,21 @@ export function buildFullCatalog(): FullCatalog {
         if (mod?.category !== "Mods" || typeof mod?.name !== "string") continue;
         if (!Object.prototype.hasOwnProperty.call(modsMap, path)) {
             modsMap[path] = { name: mod.name, category: mod.category, ...mod };
+        }
+    }
+    // Weapon arcane data is published in its own WFCD file. ArcaneCatalog uses
+    // that source directly, so add its exact paths here as well for ownership
+    // tracking and AlecaFrame's canonical upgrade resolver.
+    for (const value of ARCANES_RAW as unknown[]) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        const arcane = value as Record<string, unknown>;
+        const path = typeof arcane?.uniqueName === "string" ? arcane.uniqueName : "";
+        if (!path.startsWith("/Lotus/") || typeof arcane?.name !== "string") continue;
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) {
+            modsMap[path] = {
+                ...arcane,
+                category: typeof arcane.category === "string" ? arcane.category : "Arcanes",
+            };
         }
     }
     const modsetsMap = parseJsonMap("modsets", buildModsetsFromExternal());

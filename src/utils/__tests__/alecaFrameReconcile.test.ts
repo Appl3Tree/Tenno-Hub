@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CustomRivenRecord, Inventory } from "../../domain/types";
+import { ProgressPackSchemaV2 } from "../../store/progressPack";
 import type { AlecaFrameInventorySnapshot } from "../alecaFrameImport";
 import {
   buildAlecaFrameReview,
@@ -124,6 +125,30 @@ describe("AlecaFrame reconciliation", () => {
     expect(twice.modRankCounts).toEqual(once.modRankCounts);
     expect(twice.arcaneRankCounts).toEqual(once.arcaneRankCounts);
     expect(twice.customRivens).toHaveLength(once.customRivens?.length);
+  });
+
+  it("treats schema-normalized unresolved rank records as unchanged", () => {
+    const source = snapshot();
+    source.unresolvedRecords = [{
+      path: "/Lotus/Upgrades/Mods/Unknown/RankedUpgrade",
+      kind: "upgrade",
+      sourceSections: ["RawUpgrades", "Upgrades"],
+      quantity: 3,
+      rankCountsComplete: false,
+      reason: "No exact canonical catalog match.",
+      rankCounts: { "0": 2, "1": 1 },
+    }];
+
+    const imported = reconcileAlecaFrameInventory(inventory(), source, "merge", new Set(), now);
+    const persisted = ProgressPackSchemaV2.parse({
+      meta: { schemaVersion: 2, createdAtIso: now, updatedAtIso: now },
+      inventory: imported,
+    }).inventory as Inventory;
+    const review = buildAlecaFrameReview(source, persisted);
+
+    expect(review.unresolvedNewCount).toBe(0);
+    expect(review.unresolvedChangedCount).toBe(0);
+    expect(review.unresolvedRemovedCount).toBe(0);
   });
 
   it("persists generic Riven template stacks separately from personalized Riven records", () => {

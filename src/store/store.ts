@@ -41,6 +41,7 @@ import {
     ensureGoalsArray,
     ensureUiExpansion,
     mergeProgressPackIntoState,
+    replaceProgressPackState,
 } from "./progressPack";
 import { setHighestOwnedArcaneRank } from "../domain/logic/arcaneInventory";
 import {
@@ -94,6 +95,7 @@ export interface TrackerStore {
 
     exportProgressPackJson: () => string;
     importProgressPackJson: (json: string) => { ok: boolean; error?: string };
+    restoreProgressPackJson: (json: string) => { ok: boolean; error?: string };
     applyAlecaFrameInventory: (inventory: Inventory) => { ok: boolean; error?: string };
 
     resetToDefaults: () => void;
@@ -651,6 +653,28 @@ export const useTrackerStore = create<TrackerStore>()(
 
                     set((s) => {
                         s.state = mergeProgressPackIntoState(s.state, ok.data);
+                        ensureGoalsArray(s.state);
+                        ensureUiExpansion(s.state);
+                        ensureResetChecklistState(s.state);
+                    });
+
+                    return { ok: true };
+                } catch {
+                    return { ok: false, error: "Invalid JSON." };
+                }
+            },
+
+            restoreProgressPackJson: (json) => {
+                try {
+                    const parsed = JSON.parse(json);
+                    const ok = ProgressPackSchemaV2.safeParse(parsed);
+                    if (!ok.success) {
+                        return { ok: false, error: "Invalid Progress Pack (schema v2 required)." };
+                    }
+
+                    const restored = replaceProgressPackState(ok.data);
+                    set((s) => {
+                        s.state = restored;
                         ensureGoalsArray(s.state);
                         ensureUiExpansion(s.state);
                         ensureResetChecklistState(s.state);

@@ -284,3 +284,13 @@ export function mergeProgressPackIntoState(current: UserStateV2, incoming: any):
 
     return next;
 }
+
+/** Restore a pack as the complete local state, defaulting fields omitted by older packs. */
+export function replaceProgressPackState(incoming: z.infer<typeof ProgressPackSchemaV2>): UserStateV2 {
+    const restored = mergeProgressPackIntoState(makeDefaultState(), incoming);
+    if (typeof incoming?.meta?.createdAtIso === "string") {
+        restored.meta.createdAtIso = incoming.meta.createdAtIso;
+    }
+    restored.meta.updatedAtIso = nowIso();
+    return restored;
+}
