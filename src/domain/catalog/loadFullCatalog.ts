@@ -3,6 +3,9 @@
 
 import wfcdItemsJson from "../../data/_generated/wfcd-items.byCatalogId.auto.json";
 import lotusItemsJson from "../../data/_generated/items-lean.auto.json";
+import publicExportItemsJson from "../../data/_generated/public-export-items.auto.json";
+import publicExportUpgradesJson from "../../data/_generated/public-export-mods.auto.json";
+import legacyUpgradesJson from "../../data/_generated/legacy-upgrades.auto.json";
 
 import modsJson from "../../data/_generated/mods-lean.auto.json";
 
@@ -22,6 +25,7 @@ import MISC_RAW from "../../../external/warframe-items/raw/Misc.json";
 import GEAR_RAW from "../../../external/warframe-items/raw/Gear.json";
 import RAILJACK_RAW from "../../../external/warframe-items/raw/Railjack.json";
 import MODS_EXT_RAW from "../../../external/warframe-items/raw/Mods.json";
+import ARCANES_RAW from "../../../external/warframe-items/raw/Arcanes.json";
 
 export type CatalogSource =
     | "items"
@@ -498,6 +502,11 @@ export function buildFullCatalog(): FullCatalog {
     }
 
     const lotusItemsByPath = parseJsonMap("items", lotusItemsJson);
+    const publicExportItemsByPath = parseJsonMap("Public Export Plus items", publicExportItemsJson);
+    const publicExportUpgrades = parseJsonMap("Public Export Plus upgrades", publicExportUpgradesJson);
+    const publicExportModsByPath = parseJsonMap("Public Export Plus mods", publicExportUpgrades.mods);
+    const publicExportRivensByPath = parseJsonMap("Public Export Plus Rivens", publicExportUpgrades.rivens);
+    const legacyUpgradesByPath = parseJsonMap("legacy upgrade identities", legacyUpgradesJson);
 
     const wfdataJson = buildWfdataFromExternal();
     const foundryOverrides = buildFoundryOverrides(wfdataJson, wfcdItemsByPath);
@@ -516,10 +525,56 @@ export function buildFullCatalog(): FullCatalog {
         const lotusRec = lotusItemsByPath[pathKey] ?? null;
         itemsMap[pathKey] = mergeItemRecord(pathKey, wfcdRec, lotusRec, foundryOverrides);
     }
+    // Public Export Plus provides exact Lotus-path records missing from both
+    // WFCD's item aggregate and Overframe's curated item map. These records are
+    // generated globally from upstream exports, never from a profile sample.
+    for (const [pathKey, record] of Object.entries(publicExportItemsByPath)) {
+        if (Object.prototype.hasOwnProperty.call(itemsMap, pathKey)) continue;
+        itemsMap[pathKey] = record;
+        inventoryAllow.add(pathKey);
+    }
 
     const modsMap = parseJsonMap("mods", modsJson);
+    // The generated Overframe list is intentionally curated and omits valid
+    // inventory mods such as some Plexus and newer WFCD records. Keep it as the
+    // preferred source, then fill its exact Lotus-path gaps from WFCD Mods.json.
+    for (const mod of MODS_EXT_RAW as any[]) {
+        const path = typeof mod?.uniqueName === "string" ? mod.uniqueName : "";
+        if (!path.startsWith("/Lotus/") || path.includes("/Randomized/")) continue;
+        if (mod?.category !== "Mods" || typeof mod?.name !== "string") continue;
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) {
+            modsMap[path] = { name: mod.name, category: mod.category, ...mod };
+        }
+    }
+    // Weapon arcane data is published in its own WFCD file. ArcaneCatalog uses
+    // that source directly, so add its exact paths here as well for ownership
+    // tracking and AlecaFrame's canonical upgrade resolver.
+    for (const value of ARCANES_RAW as unknown[]) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        const arcane = value as Record<string, unknown>;
+        const path = typeof arcane?.uniqueName === "string" ? arcane.uniqueName : "";
+        if (!path.startsWith("/Lotus/") || typeof arcane?.name !== "string") continue;
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) {
+            modsMap[path] = {
+                ...arcane,
+                category: typeof arcane.category === "string" ? arcane.category : "Arcanes",
+            };
+        }
+    }
+    for (const [path, record] of Object.entries(publicExportModsByPath)) {
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) modsMap[path] = record;
+    }
+    // A pinned MIT-licensed 2018 catalog preserves exact names for a few
+    // legacy upgrades missing from all maintained sources. It is strictly the
+    // last fallback and never replaces a current canonical record.
+    for (const [path, record] of Object.entries(legacyUpgradesByPath)) {
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) modsMap[path] = record;
+    }
     const modsetsMap = parseJsonMap("modsets", buildModsetsFromExternal());
     const rivensMap = parseJsonMap("rivens", buildRivensFromExternal());
+    for (const [path, record] of Object.entries(publicExportRivensByPath)) {
+        if (!Object.prototype.hasOwnProperty.call(rivensMap, path)) rivensMap[path] = record;
+    }
     const moddescriptionsMap: Record<string, any> = {}; // covered by All.json levelStats
 
     const recordsById: Record<CatalogId, CatalogRecordBase> = {} as any;

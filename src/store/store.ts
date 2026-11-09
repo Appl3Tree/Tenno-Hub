@@ -13,11 +13,12 @@ import { toYMD } from "../domain/ymd";
 import type {
     CustomRivenRecord,
     DailyTask,
+    Inventory,
     ResetChecklistBucket,
     ResetDisplayMode,
     SyndicateState
 } from "../domain/types";
-import type { PageKey, UserGoalV1, UserStateV2 } from "../domain/models/userState";
+import type { PageKey, PlatformKey, UserGoalV1, UserStateV2 } from "../domain/models/userState";
 import { migrateToUserStateV2 } from "./migrations";
 import type { ProfileImportResult } from "../utils/profileImport";
 import { SY } from "../domain/ids/syndicateIds";
@@ -40,6 +41,7 @@ import {
     ensureGoalsArray,
     ensureUiExpansion,
     mergeProgressPackIntoState,
+    replaceProgressPackState,
 } from "./progressPack";
 import { setHighestOwnedArcaneRank } from "../domain/logic/arcaneInventory";
 import {
@@ -71,7 +73,7 @@ export interface TrackerStore {
     setIntrinsicRank: (mode: "proxima" | "duviri", key: string, rank: number) => void;
 
     setAccountId: (accountId: string) => void;
-    setPlatform: (platform: "PC" | "PlayStation" | "Xbox" | "Switch" | "Mobile") => void;
+    setPlatform: (platform: PlatformKey) => void;
 
     importProfileViewingDataJson: (text: string) => Promise<{ ok: boolean; error?: string }>;
     importProfileFromWarframeStatApi: (json: unknown) => Promise<{ ok: boolean; error?: string }>;
@@ -93,6 +95,8 @@ export interface TrackerStore {
 
     exportProgressPackJson: () => string;
     importProgressPackJson: (json: string) => { ok: boolean; error?: string };
+    restoreProgressPackJson: (json: string) => { ok: boolean; error?: string };
+    applyAlecaFrameInventory: (inventory: Inventory) => { ok: boolean; error?: string };
 
     resetToDefaults: () => void;
     resetAllLocalData: () => void;
@@ -294,6 +298,12 @@ export const useTrackerStore = create<TrackerStore>()(
             setArcaneRankCount: (path, rank, count) => {
                 set((s) => {
                     if (!s.state.inventory.arcaneRanks) s.state.inventory.arcaneRanks = {};
+                    if (!s.state.inventory.arcaneRankCounts) s.state.inventory.arcaneRankCounts = {};
+                    if (s.state.inventory.arcaneUnknownRankCounts) delete s.state.inventory.arcaneUnknownRankCounts[path];
+                    s.state.inventory.arcaneRankCounts[path] =
+                        Number.isFinite(count) && count > 0
+                            ? { [String(Math.max(0, Math.floor(rank)))]: Math.max(0, Math.floor(count)) }
+                            : {};
                     s.state.inventory.arcaneRanks[path] = setHighestOwnedArcaneRank(Number.isFinite(count) && count > 0 ? rank : null);
                     s.state.meta.updatedAtIso = nowIso();
                 });
@@ -651,6 +661,61 @@ export const useTrackerStore = create<TrackerStore>()(
                     return { ok: true };
                 } catch {
                     return { ok: false, error: "Invalid JSON." };
+                }
+            },
+
+            restoreProgressPackJson: (json) => {
+                try {
+                    const parsed = JSON.parse(json);
+                    const ok = ProgressPackSchemaV2.safeParse(parsed);
+                    if (!ok.success) {
+                        return { ok: false, error: "Invalid Progress Pack (schema v2 required)." };
+                    }
+
+                    const restored = replaceProgressPackState(ok.data);
+                    set((s) => {
+                        s.state = restored;
+                        ensureGoalsArray(s.state);
+                        ensureUiExpansion(s.state);
+                        ensureResetChecklistState(s.state);
+                    });
+
+                    return { ok: true };
+                } catch {
+                    return { ok: false, error: "Invalid JSON." };
+                }
+            },
+
+            applyAlecaFrameInventory: (inventory) => {
+                const previous = get().state.inventory;
+                try {
+                    const updatedAtIso = nowIso();
+                    const validated = ProgressPackSchemaV2.safeParse({
+                        meta: {
+                            schemaVersion: 2,
+                            createdAtIso: get().state.meta.createdAtIso,
+                            updatedAtIso,
+                        },
+                        inventory,
+                    });
+                    if (!validated.success || !validated.data.inventory) {
+                        return { ok: false, error: "The reviewed inventory failed validation; no changes were applied." };
+                    }
+                    const nextInventory = validated.data.inventory as Inventory;
+                    set((s) => {
+                        s.state.inventory = nextInventory;
+                        s.state.meta.updatedAtIso = updatedAtIso;
+                    });
+                    return { ok: true };
+                } catch {
+                    try {
+                        set((s) => {
+                            s.state.inventory = previous;
+                        });
+                    } catch {
+                        // The downloaded Progress Pack remains available for recovery.
+                    }
+                    return { ok: false, error: "Import failed. Your previous inventory was restored in memory." };
                 }
             },
 

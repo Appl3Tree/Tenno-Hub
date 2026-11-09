@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 
-export const PlatformSchema = z.enum(["PC", "PlayStation", "Xbox", "Switch", "Mobile"]);
+export const PlatformSchema = z.enum(["PC", "PlayStation", "Xbox", "Switch", "Mobile", "Android"]);
 
 export const InventorySchema = z.object({
     credits: z.number().int().min(0),

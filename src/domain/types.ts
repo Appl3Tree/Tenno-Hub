@@ -18,6 +18,24 @@ export interface CustomRivenRecord {
     stats: CustomRivenStatValue[];
     createdAtIso: string;
     updatedAtIso: string;
+    /** Source details are kept only when they can be normalized locally. */
+    importSource?: "alecaframe";
+    importStatus?: "ready" | "rank-unknown" | "weapon-unknown" | "unsupported-stat";
+    sourceRank?: number | null;
+    masteryRankRequired?: number | null;
+    rerolls?: number | null;
+    sourceAttributes?: Array<{ tag: string; roll: number; polarity: "positive" | "negative" }>;
+}
+
+/** Minimal normalized source identity retained when AlecaFrame data has no exact catalog match. */
+export interface AlecaFrameUnresolvedRecord {
+    path: string;
+    kind: "item" | "upgrade";
+    sourceSections: string[];
+    quantity: number;
+    rankCounts?: Record<string, number>;
+    rankCountsComplete?: boolean;
+    reason: string;
 }
 
 export interface Inventory {
@@ -29,8 +47,8 @@ export interface Inventory {
     platinum: number;
 
     /**
-     * Canonical inventory counts keyed by catalog key (path/id from items.json),
-     * never by display name.
+     * Canonical inventory counts keyed by catalog ID, never by display name.
+     * This includes item, mod, arcane, and generic Riven-template catalog IDs.
      *
      * Counts only exist if the user has touched them (sparse map).
      */
@@ -41,6 +59,22 @@ export interface Inventory {
      * Sparse: only present when the user has entered or edited rank data.
      */
     modRanks?: Record<string, number>;
+
+    /**
+     * Exact quantity of owned copies per mod rank, keyed by raw Lotus path,
+     * then rank number as a string. A rank-zero stack and ranked individual
+     * copies are distinct; never collapse these into only max owned rank.
+     */
+    modRankCounts?: Record<string, Record<string, number>>;
+
+    /** Mod copies whose quantity is known but whose source rank was not recorded. */
+    modUnknownRankCounts?: Record<string, number>;
+
+    /** Exact owned arcane copies by rank. `arcaneRanks` remains the legacy highest-rank field. */
+    arcaneRankCounts?: Record<string, Record<string, number>>;
+
+    /** Arcane copies whose quantity is known but whose source rank was not recorded. */
+    arcaneUnknownRankCounts?: Record<string, number>;
 
     /**
      * Highest owned arcane rank keyed by raw Lotus path (without "mods:" prefix).
@@ -54,6 +88,9 @@ export interface Inventory {
      * because each riven is unique and may scale across weapon variants via disposition.
      */
     customRivens?: CustomRivenRecord[];
+
+    /** Last AlecaFrame snapshot's unresolved identities, without source IDs or fingerprints. */
+    alecaFrameUnresolvedRecords?: AlecaFrameUnresolvedRecord[];
 }
 
 export interface DailyTask {

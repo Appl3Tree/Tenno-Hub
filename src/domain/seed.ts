@@ -6,6 +6,7 @@ export const SEED_INVENTORY: Inventory = {
     platinum: 0,
     counts: {},
     customRivens: [],
+    alecaFrameUnresolvedRecords: [],
 };
 
 export const SEED_SYNDICATES: SyndicateState[] = [];

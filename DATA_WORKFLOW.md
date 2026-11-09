@@ -9,15 +9,19 @@ newer and does not require `curl` or `jq`.
 The updater discovers the current top-level JSON inventory from each WFCD
 repository's Git tree API, then downloads files pinned to that tree's commit.
 This lets new category or drop-data files flow in automatically while avoiding
-files that upstream has removed.
+files that upstream has removed. Public Export Plus is synchronized from its
+Git tree at a pinned commit using an explicit allowlist of path-keyed exports
+and the English localization dictionary.
 
-- `npm run update:data:check` downloads and validates both datasets, builds the
+- `npm run update:data:check` downloads and validates all datasets, builds the
   candidate `All.json`, and reports changes without replacing workspace files.
-- `npm run update:data` refreshes both datasets.
+- `npm run update:data` refreshes all datasets.
 - `npm run update:data:warframe-items` refreshes only
   `external/warframe-items/raw/`.
 - `npm run update:data:drop-data` refreshes only
   `external/warframe-drop-data/raw/`.
+- `npm run update:data:public-export-plus` refreshes only the curated files in
+  `external/warframe-public-export-plus/raw/`.
 
 The item repository no longer distributes `All.json` as an upstream category
 file. Tenno Hub generates it from all discovered category arrays plus the
@@ -49,6 +53,21 @@ dataset has passed validation. A failed directory swap rolls all requested
 datasets back. Repeated updates with unchanged upstream files preserve both
 file content and sync metadata.
 
+Public Export Plus discovery is intentionally allowlisted. Tenno Hub consumes
+the English dictionary and item, ability-name, recipe, upgrade, arcane,
+avionics, and booster-pack exports needed for exact path reconciliation. This
+avoids copying unrelated mission, vendor, enemy, localization, and
+presentation data. Its
+path-keyed records supplement exact Lotus identities missing from WFCD and
+Overframe. The generated identity catalog keeps only supported inventory
+categories and resolves localized names from the English dictionary when
+available. When an exported recipe has no localized result identity, its exact
+recipe path is retained with a clearly marked path-derived label. Nested reward
+references without a standalone item record do not become guessed catalog
+identities. See
+`external/warframe-public-export-plus/README.md` for the source and generator
+contract.
+
 Optional overrides:
 
 - `WARFRAME_ITEMS_RAW_BASE=<raw-folder-url>`
@@ -57,6 +76,9 @@ Optional overrides:
 - `WARFRAME_DROP_DATA_TREE_URL=<GitHub-tree-api-url>`
 - `WARFRAME_ITEMS_COMMIT_URL=<GitHub-commit-api-url>`
 - `WARFRAME_DROP_DATA_COMMIT_URL=<GitHub-commit-api-url>`
+- `WARFRAME_PUBLIC_EXPORT_PLUS_RAW_BASE=<raw-folder-url>`
+- `WARFRAME_PUBLIC_EXPORT_PLUS_TREE_URL=<GitHub-tree-api-url>`
+- `WARFRAME_PUBLIC_EXPORT_PLUS_COMMIT_URL=<GitHub-commit-api-url>`
 - `GITHUB_TOKEN=<token>` for higher GitHub API rate limits
 
 Raw-base overrides retain the legacy folder URL form and append each discovered
@@ -68,11 +90,21 @@ for raw file downloads.
 
 Use `npm run generate:data` after refreshing upstream data. It first rebuilds
 the complete `external/warframe-items/raw/All.json`, then regenerates lean
-catalogs, WFCD item and requirement indexes, acquisition/source indexes, and
-relic indexes under `src/data/_generated/`.
+catalogs, Public Export Plus identity supplements, WFCD item and requirement
+indexes, acquisition/source indexes, and relic indexes under
+`src/data/_generated/`.
 Each generated file is written to a sibling temporary file and atomically
 replaced after serialization completes, so a failed write does not truncate an
 existing artifact.
+
+The legacy upgrade identity fallback is pinned to the 2018-01-20
+`IhToN/warframe-item-data` snapshot. Its generator emits only exact records
+absent from Overframe, WFCD, and Public Export Plus, and runs after the
+maintained Public Export generator. Current catalogs take precedence at
+runtime. The upstream repository includes an MIT license, but Tenno Hub does
+not treat that notice as a separate license for Digital Extremes game data.
+See `external/ih-ton-warframe-item-data/README.md` for provenance and update
+constraints.
 
 To regenerate only the aggregate, run:
 
@@ -118,9 +150,11 @@ multi-dataset replacements. External validation also cross-checks each
 normalized mission-reward relic key against the named Intact relic catalog.
 The current synced item snapshot contains 26
 upstream JSON categories at commit
-`c118c57f0e0cb26d49e4be3532b32348760eb27d`; its complete local `All.json` has
+`23804b64bc248069ce39adb9f52e9f546d8f343e`; its complete local `All.json` has
 20,166 unique identities. The current drop-data snapshot has 23 top-level JSON
-files at commit `e9f1c68006d0f0f7fb9443614e603b04243bbfe5`.
+files at commit `e9f1c68006d0f0f7fb9443614e603b04243bbfe5`. The curated Public
+Export Plus snapshot is pinned in
+`external/warframe-public-export-plus/raw/.last-sync.json`.
 
 At the current upstream snapshot, `npm run generate:data` creates 3,532 relic
 mission reward rows. This includes both rotational reward tables and flat

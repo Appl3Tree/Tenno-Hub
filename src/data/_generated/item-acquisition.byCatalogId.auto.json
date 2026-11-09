@@ -26143,11 +26143,7 @@
       268,
       270,
       274,
-      271,
-      276,
-      277,
-      278,
-      279
+      271
     ],
     "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SagekPrimeReceiver": [
       276,
@@ -26164,6 +26160,9 @@
       277,
       278,
       279
+    ],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SagekPrimeStock": [
+      0
     ],
     "items:/Lotus/Types/Recipes/Weapons/WeaponParts/ScourgePrimeBarrel": [
       1646,
@@ -162529,6 +162528,688 @@
     "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/Secondary/ZylokIncarnonUnlocker": [
       3198
     ],
+    "items:/Lotus/Weapons/Tenno/Melee/Polearms/DaxDuviriPolearm/DaxDuviriPolearmSpearPlayerWeapon": [
+      51
+    ],
+    "items:/Lotus/Weapons/Tenno/Melee/Swords/DaxDuviriTwoHandedKatana/DaxDuviriTwoHandedKatanaPlayerWeapon": [
+      51
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherEMPWeapon": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherEMPWeaponTierA": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherEMPWeaponTierB": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherEMPWeaponTierC": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherWeapon": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherWeaponTierA": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherWeaponTierB": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MissleLauncherWeaponTierC": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MultiMissileLauncherWeapon": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MultiMissileLauncherWeaponTierA": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MultiMissileLauncherWeaponTierB": [
+      3483
+    ],
+    "items:/Lotus/Weapons/CrewShip/Missiles/MultiMissileLauncherWeaponTierC": [
+      3483
+    ],
+    "items:/Lotus/Types/Recipes/Components/VorBoltRemoverFakeItem": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Components/BrandRemovalFakeItem": [
+      1480
+    ],
+    "items:/Lotus/Types/Keys/ArchwingQuest/MissionTwo": [
+      1480
+    ],
+    "items:/Lotus/Types/Keys/ArchwingQuest/MissionThree": [
+      1480
+    ],
+    "items:/Lotus/Types/Keys/ArchwingQuest/MissionFour": [
+      1480
+    ],
+    "items:/Lotus/Types/Keys/TauPrequel/OldPeaceStage016Betrayer": [
+      3201,
+      2112
+    ],
+    "items:/Lotus/Types/Items/Research/CaptureKeyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Keys/NightmareRetrievalKeyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Components/BrandRemovalBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Components/VorBoltRemoverBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessAshAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessBansheeAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessEmberAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessExcaliburAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessFrostAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessLokiAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessMagAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessNovaAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessNyxAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessRhinoAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessSarynAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessTrinityAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2AshAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2BansheeAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2EmberAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2ExcaliburAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2FrostAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2LokiAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2MagAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2NyxAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2RhinoAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2SarynAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2TrinityAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2VaubanAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessV2VoltAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessVaubanAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/StatlessVoltAltHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Helmets/WukongAltBHelmetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipAvionicsBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipEnginesBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/LandingCraftRecipes/NightwaveShip/NoraShipFuselageBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Lens/AttackLensOstronConvertBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Lens/DefenseLensOstronConvertBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Lens/PowerLensOstronConvertBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Lens/TacticLensOstronConvertBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Lens/WardLensOstronConvertBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/OperatorArmour/Hood/OperatorWolfHoodBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/Weapons/WeaponParts/SagekPrimeStockBlueprint": [
+      268,
+      270,
+      274,
+      271
+    ],
+    "items:/Lotus/Types/Recipes/Weapons/GrineerHandcannonBlueprint": [
+      2636
+    ],
+    "items:/Lotus/Types/Recipes/Weapons/LowKatanaBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/ZanukaPet/ZanukaPetCompleteHeadABlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/ZanukaPet/ZanukaPetCompleteHeadBBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/ZanukaPet/ZanukaPetCompleteHeadCBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TeamAmmoTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TeamEnergyTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TeamHealTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TeamShieldTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TenTeamAmmoTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TenTeamEnergyTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TenTeamHealTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/Restoratives/TenTeamShieldTotemBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/HundredCipherBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/LisetAirSupportHundredBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/StoreItems/Consumables/TenCipherBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Weapons/ClanTech/Bio/ClanTenTeamHealBlueprint": [
+      2117
+    ],
+    "items:/Lotus/Weapons/ClanTech/Bio/LargeHundredTeamHealBlueprint": [
+      2117,
+      589,
+      2107
+    ],
+    "items:/Lotus/Weapons/ClanTech/Chemical/ClanTenTeamAmmoBlueprint": [
+      2687
+    ],
+    "items:/Lotus/Weapons/ClanTech/Chemical/LargeHundredTeamAmmoBlueprint": [
+      2687,
+      25
+    ],
+    "items:/Lotus/Weapons/ClanTech/Energy/ClanTenTeamEnergyBlueprint": [
+      2722
+    ],
+    "items:/Lotus/Weapons/ClanTech/Energy/ClanTenTeamShieldBlueprint": [
+      2722
+    ],
+    "items:/Lotus/Weapons/ClanTech/Energy/LargeHundredTeamEnergyBlueprint": [
+      2722,
+      29,
+      2108
+    ],
+    "items:/Lotus/Weapons/ClanTech/Energy/LargeHundredTeamShieldBlueprint": [
+      2722,
+      30
+    ],
+    "items:/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpBlueprint": [
+      142
+    ],
+    "items:/Lotus/Types/Friendly/Pets/CreaturePets/LotusGildCreaturePetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Friendly/Pets/MoaPets/LotusGildMoaPetBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Game/CatbrowPet/CatbrowPetRecipe": [
+      1480
+    ],
+    "items:/Lotus/Types/Game/CatbrowPet/CatbrowPetUpgradedRecipe": [
+      1480
+    ],
+    "items:/Lotus/Types/Game/KubrowPet/KubrowPetRecipe": [
+      1480
+    ],
+    "items:/Lotus/Types/Game/KubrowPet/KubrowPetUpgradedRecipe": [
+      1480
+    ],
+    "items:/Lotus/Types/Game/KubrowPet/KubrowQuestPetRecipe": [
+      1480
+    ],
+    "items:/Lotus/Types/Vehicles/Hoverboard/LotusGildHoverboardBlueprint": [
+      2795
+    ],
+    "items:/Lotus/Weapons/Ostron/Melee/LotusGildWeaponBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Weapons/Sentients/OperatorAmplifiers/OperatorGildAmpBlueprint": [
+      142
+    ],
+    "items:/Lotus/Weapons/Sentients/OperatorAmplifiers/OperatorGildAmpFortunaBlueprint": [
+      142
+    ],
+    "items:/Lotus/Weapons/SolarisUnited/LotusGildInfestedKitgunBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Weapons/SolarisUnited/LotusGildKitgunBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/AlchemistVialBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/AshShurikenBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/AtlasPetrifyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/BansheeSilenceBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/BaruukLullBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/ChoirEyesBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/ChromaElementalWardBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/ConcretePillarBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/DagathVolleyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/DemonFrameHealBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/EmberFireBlastBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/EquinoxRestAndRageBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/ExcaliburRadialBlindBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/FrostIceWaveBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/FrumentariusCloakBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/GaraSpectrorageBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/GarudaBloodAltarBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/GaussThermalSunderBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/GeodeShardsBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/GrendelNourishBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/GyreSphereBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HarrowCondemnBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthAmmoEfficiencyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthCompanionBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthEnergyShareBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthHackBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthMaxStatusBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthProcBlockBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthShieldArmorBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthShieldsBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthSpeedBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthStatusBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthStrengthBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthStunBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HelminthTreasureBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HildrynPillageBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HopliteBashBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/HydroidTempestBarrageBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/InarosDesiccationBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/InkCloneBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/IvaraQuiverBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/KhoraEnsnareBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/KoumeiBlockBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/LimboBanishBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/LokiDecoyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/MagPullBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/MesaShootingGalleryBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/MirageEclipseBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/NekrosTerrifyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/NezhaFireWalkerBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/NidusLarvaBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/NokkoPowerShroomBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/NovaNullStarBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/NyxMindControlBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/OberonSmiteBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/OctaviaResonatorBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/OraxiaEntangleBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/OrionBuffBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/PagemasterDeathBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/PaxTeleportBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/ProteaDispenserBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/RevenantReaveBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/RhinoRoarBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/SarynMoltBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/SentientStompBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/SiriusBuffBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/TempleShredBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/TitaniaSpellbindBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/TrinityWellOflifeBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/ValkyrWarcryBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/VaubanTeslaNervosBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/VoltShockBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/WerewolfLeapBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/WispBreachSurgeBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/WraithGloomBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/WukongDefyBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/XakuVoidRotBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/YareliDisksBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Recipes/AbilityOverrides/ZephyrAirburstBlueprint": [
+      1480
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/AckAndBruntIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/AngstrumIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/AnkuIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/AtomosIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/BallisticaIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/BoarIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/BoIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/BoltorIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/BratonIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/BroncoIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/BurstonIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/CeramicDaggerIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/CestraIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/DeraIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/DespairIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/DestrezaIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/DreadIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/DualIchorIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/DualToxocystIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/FuraxIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/FurisIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/GammacorIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/GorgonIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/HateIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/KunaiIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/LatoIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/LatronIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/LexIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/MagistarIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/MiterIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/NamiSoloIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/ObexIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/OkinaIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/ParisIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/SibearIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/SicarusIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/SkanaIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/SomaIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/StrunIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/StugIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/SybarisIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/ToridIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/VastoIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/VectisIncarnonBlueprint": [
+      3198
+    ],
+    "items:/Lotus/Types/Items/MiscItems/IncarnonAdapters/UnlockerBlueprints/ZylokIncarnonBlueprint": [
+      3198
+    ],
     "mods:/Lotus/Powersuits/Alchemist/AlchemistPassiveAugmentCard": [
       0,
       1,
@@ -170850,6 +171531,5016 @@
     ],
     "mods:/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment": [
       3250
+    ],
+    "mods:/Lotus/Upgrades/Mods/Nemesis/AvatarSentientArmourMod": [
+      594
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Residual/MeleeXpFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/PvPMods/Melee/AirborneMeleeAutoTargetBonus": [
+      124
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Amar/AmarSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponAmmoMaxModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      3363,
+      3053,
+      3364,
+      3365,
+      3366,
+      3367,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      2487,
+      2488,
+      3060,
+      3370,
+      3061,
+      3062,
+      3371,
+      3063,
+      3372,
+      3064,
+      3373,
+      3065,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      3378,
+      3073,
+      3074,
+      3379,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponAmmoMaxModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      3363,
+      3053,
+      3364,
+      3365,
+      3366,
+      3367,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      2487,
+      2488,
+      3060,
+      3370,
+      3061,
+      3062,
+      3371,
+      3063,
+      3372,
+      3064,
+      3373,
+      3065,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      3378,
+      3073,
+      3074,
+      3379,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponClipMaxModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/ComboAmpDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarDamageResistancePoisonBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarDamageResistancePoisonExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponBowConvertAmmoModExpert": [
+      3701,
+      3201,
+      2112,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      3711,
+      2443,
+      2444,
+      3712,
+      3713,
+      3714,
+      3715,
+      3716,
+      3717,
+      3718,
+      3719,
+      3720,
+      3721,
+      3722,
+      3723,
+      3724,
+      3725,
+      3726,
+      3727,
+      3728,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponBowConvertAmmoModIntermediate": [
+      3701,
+      3201,
+      2112,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      3711,
+      2443,
+      2444,
+      3712,
+      3713,
+      3714,
+      3715,
+      3716,
+      3717,
+      3718,
+      3719,
+      3720,
+      3721,
+      3722,
+      3723,
+      3724,
+      3725,
+      3726,
+      3727,
+      3728,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/ZektiFreeSuperWeaponAmmo": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Ashen/AshenSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/TacticUltimateSizeUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Augur/AugurSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponFactionDamageCorpusBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFactionDamageCorpusExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponFactionDamageGrineerBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFactionDamageGrineerExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponFactionDamageInfestedBeginner": [
+      516,
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFactionDamageInfestedExpert": [
+      516,
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponFireIterationsModBeginner": [
+      3364,
+      3201,
+      2112,
+      3366,
+      3368,
+      3369,
+      3370,
+      3371,
+      3377,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFireIterationsModExpert": [
+      3364,
+      3201,
+      2112,
+      3366,
+      3368,
+      3369,
+      3370,
+      3371,
+      3377,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Stats/BlastRadiusFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Stats/ArmourIncreaseFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipBattleCraftingAbilityCard": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipQuadDamageAbilityCard": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponCritFireRateBonusModBeginner": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponCritFireRateBonusModExpert": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipEMPAbilityCard": [
+      2151,
+      2152,
+      2153,
+      2154,
+      2155,
+      2156,
+      2674,
+      2675,
+      2676,
+      2677,
+      2678,
+      2679,
+      2419,
+      2420,
+      2421,
+      2422,
+      2423,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/DashFireFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponCritChanceModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3364,
+      3366,
+      3368,
+      3369,
+      2487,
+      2488,
+      3370,
+      3371,
+      3376,
+      3377,
+      2489,
+      2490,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Boneblade/BonebladeSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Boreal/BorealSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Ultimate/PowerUltimateBuffUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/BreachRepair": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Ultimate/PowerUltimateBlindUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Powersuits/Oraxia/BroodAugmentCard": [
+      0,
+      2
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/SunderingDissipationUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/ConsecutiveEfficienyUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/SniperReloadDamageModIntermediate": [
+      519,
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponElectricityDamageModBeginner": [
+      3701,
+      109,
+      111,
+      3708,
+      3709,
+      3710,
+      4388,
+      3711,
+      4389,
+      4390,
+      4391,
+      3722
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponFreezeDamageModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponShotgunFactionDamageCorpusBeginner": [
+      3701,
+      109,
+      111,
+      3708,
+      3709,
+      3710,
+      3711,
+      3722
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponShotgunFactionDamageGrineerBeginner": [
+      109,
+      111,
+      3702,
+      3703,
+      3704,
+      3713,
+      3714,
+      3715,
+      3717,
+      3718,
+      3719,
+      3728,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponShotgunFactionDamageInfestedBeginner": [
+      516,
+      109,
+      111,
+      3705,
+      3706,
+      3707,
+      3712,
+      3716,
+      3720,
+      3721,
+      3723,
+      3724,
+      3725,
+      3726,
+      3727
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Ultimate/WardUltimateUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Powersuits/Frost/IceShieldAugmentTwoCard": [
+      0,
+      2
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponImpactDamageModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponImpactDamageModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiSpeed": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponToxinDamageModBeginner": [
+      109,
+      111,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponToxinDamageModExpert": [
+      109,
+      111,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/GhostWaveUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarAbilityDurationModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3362,
+      3363,
+      3365,
+      3201,
+      2112,
+      3367,
+      3913,
+      3914,
+      3919,
+      3920,
+      3372,
+      3373,
+      3922,
+      3374,
+      3375,
+      3376,
+      3924,
+      3927,
+      3929,
+      3930,
+      3931,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponElectricityDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      109,
+      111,
+      3913,
+      3914,
+      3919,
+      3920,
+      3922,
+      3376,
+      3924,
+      3927,
+      3929,
+      3930,
+      3931
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponElectricityDamageModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      109,
+      111,
+      3913,
+      3914,
+      3919,
+      3920,
+      3922,
+      3376,
+      3924,
+      3927,
+      3929,
+      3930,
+      3931
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipFlaresAbilityCard": [
+      2151,
+      2152,
+      2153,
+      2154,
+      2155,
+      2156,
+      2674,
+      2675,
+      2676,
+      2677,
+      2678,
+      2679,
+      2419,
+      2420,
+      2421,
+      2422,
+      2423,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanDamageOnKill": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/DashReduceDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiNonCombatSpeed": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponFreezeDamageModBeginner": [
+      2486,
+      3362,
+      3363,
+      3365,
+      109,
+      111,
+      3367,
+      4722,
+      2487,
+      2488,
+      4723,
+      3805,
+      3372,
+      3373,
+      3374,
+      3375,
+      2489,
+      2490,
+      4724,
+      4725,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipDeathBlossomAbilityCard": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Ultimate/DefenseUltimateHealUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponFreezeDamageModBeginner": [
+      2486,
+      4760,
+      109,
+      111,
+      4761,
+      3913,
+      3914,
+      4722,
+      2487,
+      2488,
+      4723,
+      3919,
+      3805,
+      3920,
+      4762,
+      4763,
+      3922,
+      3924,
+      2489,
+      2490,
+      4724,
+      4725,
+      3927,
+      3929,
+      3930,
+      3931,
+      4764
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFreezeDamageModExpert": [
+      2486,
+      4760,
+      109,
+      111,
+      4761,
+      3913,
+      3914,
+      4722,
+      2487,
+      2488,
+      4723,
+      3919,
+      3805,
+      3920,
+      4762,
+      4763,
+      3922,
+      3924,
+      2489,
+      2490,
+      4724,
+      4725,
+      3927,
+      3929,
+      3930,
+      3931,
+      4764
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/LavanMaxShieldOnKill": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarDamageResistanceLaserBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarDamageResistanceLaserExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/BlastDisarmFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/DisarmingProjectionUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/BlastConfuseFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/GhostlyTouchUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Ultimate/AttackUltimateDoubleUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Stats/HealthMaxFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarEnemyRadarModBeginner": [
+      516,
+      3201,
+      2112,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarEnemyRadarModExpert": [
+      516,
+      3201,
+      2112,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponPowerDamageModExpert": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Intermediate/WeaponPowerDamageModIntermediate": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Residual/EnergyOverTimeFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarPickupBonusModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Ultimate/DefenseUltimateProcVulnUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Stats/RegenAmmoFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/DashFinisherFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponPistolFactionDamageCorpusBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponPistolFactionDamageGrineerBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponPistolFactionDamageInfestedBeginner": [
+      516,
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/ProjectionStretchUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarShieldRechargeRateModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3701,
+      3053,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      3708,
+      2487,
+      3709,
+      3710,
+      2488,
+      3060,
+      4388,
+      3711,
+      3370,
+      3061,
+      4762,
+      3062,
+      3371,
+      3063,
+      4389,
+      3064,
+      4763,
+      3065,
+      3066,
+      3376,
+      3067,
+      3068,
+      4390,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      4391,
+      3722,
+      3378,
+      3073,
+      3074,
+      4764,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponReloadSpeedModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3053,
+      3364,
+      3366,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      2487,
+      2488,
+      3060,
+      3370,
+      3061,
+      3805,
+      3062,
+      3371,
+      3063,
+      3064,
+      3065,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      3378,
+      3073,
+      3074,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Femur/FemurSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponToxinDamageModBeginner": [
+      109,
+      111,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponMeleeFinisherDamageModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Intermediate/WeaponMeleeFinisherDamageModIntermediate": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/FireExtinguish": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Hoverboard/HBFireWorksMod": [
+      2795
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/BlastFireballFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarPowerMaxModBeginner": [
+      3201,
+      2112,
+      3705,
+      3706,
+      3707,
+      2444,
+      3712,
+      3716,
+      3921,
+      3720,
+      3721,
+      3925,
+      3723,
+      3724,
+      3725,
+      3928,
+      3726,
+      3727
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipAfterBurnersAbilityCard": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/TacticUltimateRangeUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipMassRecallAbilityCard": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/LavanShieldOnCrit": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/ZektiSuperWeaponDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponFireRateModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3364,
+      109,
+      111,
+      3366,
+      3368,
+      3369,
+      4722,
+      2487,
+      2488,
+      4723,
+      3370,
+      3371,
+      3376,
+      3377,
+      2489,
+      2490,
+      4724,
+      4725,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Powersuits/Devourer/DevourerPassiveAugmentCard": [
+      11,
+      2
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Gladiator/GladiatorSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarCorpusKiller": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Ultimate/WardUltimateRadiusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/BlastAllyShieldFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/DefenseShieldBreakFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/BlastSelfShieldFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/DefenseShieldFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponFireRateModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFireRateModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarKnockdownRecoveryModExpert": [
+      3201,
+      2112,
+      3913,
+      3914,
+      3919,
+      3920,
+      3922,
+      3924,
+      3927,
+      3929,
+      3930,
+      3931
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarKnockdownRecoveryModIntermediate": [
+      3201,
+      2112,
+      3913,
+      3914,
+      3919,
+      3920,
+      3922,
+      3924,
+      3927,
+      3929,
+      3930,
+      3931
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/PowerFieldFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/PvPMods/Melee/GroundingMeleeMod": [
+      124
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Hawk/HawkSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Tau/HealthPickupGivesArmourMax": [
+      51
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponFireDamageModBeginner": [
+      3364,
+      109,
+      111,
+      3366,
+      3368,
+      3369,
+      3370,
+      3371,
+      3377,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarFallingImpactModBeginner": [
+      2545,
+      109,
+      111,
+      2546,
+      2547,
+      2548,
+      2549,
+      2550,
+      2551,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarFallingImpactModExpert": [
+      2545,
+      109,
+      111,
+      2546,
+      2547,
+      2548,
+      2549,
+      2550,
+      2551,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponFireIterationsModBeginner": [
+      2486,
+      3362,
+      3363,
+      3365,
+      3201,
+      2112,
+      3367,
+      2513,
+      2514,
+      3705,
+      3913,
+      3914,
+      3706,
+      2388,
+      3707,
+      5145,
+      4722,
+      2487,
+      2488,
+      5146,
+      4723,
+      3919,
+      2444,
+      3805,
+      3920,
+      3712,
+      3372,
+      3373,
+      3716,
+      3921,
+      2515,
+      3922,
+      3374,
+      3375,
+      3720,
+      2516,
+      3924,
+      3721,
+      2489,
+      2490,
+      4724,
+      5147,
+      3925,
+      4725,
+      3927,
+      2517,
+      3723,
+      3724,
+      2518,
+      3725,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      2519,
+      3931,
+      5148,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFireIterationsModExpert": [
+      2486,
+      3362,
+      3363,
+      3365,
+      3201,
+      2112,
+      3367,
+      2513,
+      2514,
+      3705,
+      3913,
+      3914,
+      3706,
+      2388,
+      3707,
+      5145,
+      4722,
+      2487,
+      2488,
+      5146,
+      4723,
+      3919,
+      2444,
+      3805,
+      3920,
+      3712,
+      3372,
+      3373,
+      3716,
+      3921,
+      2515,
+      3922,
+      3374,
+      3375,
+      3720,
+      2516,
+      3924,
+      3721,
+      2489,
+      2490,
+      4724,
+      5147,
+      3925,
+      4725,
+      3927,
+      2517,
+      3723,
+      3724,
+      2518,
+      3725,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      2519,
+      3931,
+      5148,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFireDamageModExpert": [
+      3364,
+      109,
+      111,
+      3366,
+      3368,
+      3369,
+      3370,
+      3371,
+      3377,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sentinel/Kubrow/ChargerFinisherMod": [
+      510
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponDamageAmountModBeginner": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3701,
+      5176,
+      2545,
+      3364,
+      109,
+      111,
+      3702,
+      2546,
+      3366,
+      3703,
+      4761,
+      3704,
+      3368,
+      3705,
+      3913,
+      3914,
+      3706,
+      2388,
+      3707,
+      3369,
+      3708,
+      5145,
+      2487,
+      3709,
+      3710,
+      2488,
+      5146,
+      4388,
+      3711,
+      3370,
+      3919,
+      2444,
+      3805,
+      3920,
+      3712,
+      4762,
+      3713,
+      2547,
+      3714,
+      3371,
+      4389,
+      3715,
+      4763,
+      2548,
+      3716,
+      3921,
+      3922,
+      3717,
+      2549,
+      3376,
+      2550,
+      3718,
+      3719,
+      4390,
+      3720,
+      3924,
+      3721,
+      3377,
+      2489,
+      2490,
+      4391,
+      5147,
+      3722,
+      3925,
+      3927,
+      3378,
+      3723,
+      3724,
+      3725,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      3931,
+      5148,
+      4764,
+      3728,
+      5177,
+      3379,
+      2551,
+      3729,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Intermediate/WeaponDamageAmountModIntermediate": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3701,
+      5176,
+      2545,
+      3364,
+      109,
+      111,
+      3702,
+      2546,
+      3366,
+      3703,
+      4761,
+      3704,
+      3368,
+      3705,
+      3913,
+      3914,
+      3706,
+      2388,
+      3707,
+      3369,
+      3708,
+      5145,
+      2487,
+      3709,
+      3710,
+      2488,
+      5146,
+      4388,
+      3711,
+      3370,
+      3919,
+      2444,
+      3805,
+      3920,
+      3712,
+      4762,
+      3713,
+      2547,
+      3714,
+      3371,
+      4389,
+      3715,
+      4763,
+      2548,
+      3716,
+      3921,
+      3922,
+      3717,
+      2549,
+      3376,
+      2550,
+      3718,
+      3719,
+      4390,
+      3720,
+      3924,
+      3721,
+      3377,
+      2489,
+      2490,
+      4391,
+      5147,
+      3722,
+      3925,
+      3927,
+      3378,
+      3723,
+      3724,
+      3725,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      3931,
+      5148,
+      4764,
+      3728,
+      5177,
+      3379,
+      2551,
+      3729,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/TacticUltimateDoubleUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Hunter/HunterSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGunnerWeaponDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponFireDamageModBeginner": [
+      5176,
+      109,
+      111,
+      3702,
+      3703,
+      3704,
+      3713,
+      3714,
+      3715,
+      3717,
+      3718,
+      3719,
+      3728,
+      5177,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFireDamageModExpert": [
+      5176,
+      109,
+      111,
+      3702,
+      3703,
+      3704,
+      3713,
+      3714,
+      3715,
+      3717,
+      3718,
+      3719,
+      3728,
+      5177,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiSiegeMatrixAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponToxinDamageModBeginner": [
+      109,
+      111,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponToxinDamageModExpert": [
+      109,
+      111,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Powersuits/DemonFrame/DemonFrameFireBallAugmentCard": [
+      0,
+      2,
+      9,
+      10
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Stats/MoreAmmoFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Residual/FreeAbilityCastsFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarAbilityStrengthModBeginner": [
+      172,
+      5176,
+      3364,
+      3201,
+      2112,
+      3702,
+      3366,
+      3703,
+      3704,
+      3368,
+      3369,
+      3370,
+      3713,
+      3714,
+      3371,
+      3715,
+      3717,
+      3718,
+      3719,
+      3377,
+      3378,
+      3728,
+      5177,
+      3379,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarAbilityStrengthModExpert": [
+      172,
+      5176,
+      3364,
+      3201,
+      2112,
+      3702,
+      3366,
+      3703,
+      3704,
+      3368,
+      3369,
+      3370,
+      3713,
+      3714,
+      3371,
+      3715,
+      3717,
+      3718,
+      3719,
+      3377,
+      3378,
+      3728,
+      5177,
+      3379,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipStasisAbilityCard": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiBoostSpeed": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/VidarDefensiveMatrix": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/FinisherTransferenceUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Powersuits/Koumei/KoumeiStringsAugmentCard": [
+      0,
+      2
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Residual/SecondChanceFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/LiftHitDamageUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/DashElectricityFocusUpgrade": [
+      3201,
+      2112,
+      615,
+      616,
+      617,
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Ultimate/PowerUltimateUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarSlideBoostModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/BlastBulletAttractorFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/MagneticExtensionUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/MagneticFieldFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarChanceToLootExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3362,
+      3363,
+      3365,
+      516,
+      3201,
+      2112,
+      3367,
+      3913,
+      3914,
+      3919,
+      3920,
+      3372,
+      3373,
+      3922,
+      3374,
+      3375,
+      3376,
+      3924,
+      3927,
+      3929,
+      3930,
+      3931,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarChanceToLootIntermediate": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3362,
+      3363,
+      3365,
+      516,
+      3201,
+      2112,
+      3367,
+      3913,
+      3914,
+      3919,
+      3920,
+      3372,
+      3373,
+      3922,
+      3374,
+      3375,
+      3376,
+      3924,
+      3927,
+      3929,
+      3930,
+      3931,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Mecha/MechaSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Residual/InstantReviveFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Residual/RadialXpFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponPunctureDepthModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3362,
+      3363,
+      2545,
+      3364,
+      3365,
+      3201,
+      2112,
+      2546,
+      3366,
+      3367,
+      3368,
+      3913,
+      3914,
+      2388,
+      3369,
+      4722,
+      4723,
+      3370,
+      3919,
+      3920,
+      2547,
+      3371,
+      3372,
+      3373,
+      2548,
+      3922,
+      3374,
+      2549,
+      3375,
+      3376,
+      2550,
+      3924,
+      3377,
+      4724,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      3379,
+      3380,
+      2551,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponPunctureDepthModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3362,
+      3363,
+      2545,
+      3364,
+      3365,
+      3201,
+      2112,
+      2546,
+      3366,
+      3367,
+      3368,
+      3913,
+      3914,
+      2388,
+      3369,
+      4722,
+      4723,
+      3370,
+      3919,
+      3920,
+      2547,
+      3371,
+      3372,
+      3373,
+      2548,
+      3922,
+      3374,
+      2549,
+      3375,
+      3376,
+      2550,
+      3924,
+      3377,
+      4724,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      3379,
+      3380,
+      2551,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/DashDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Stats/DashSpeedFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Stats/MoveSpeedFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponFireDamageModBeginner": [
+      3053,
+      3364,
+      109,
+      111,
+      3366,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      3060,
+      3370,
+      3061,
+      3062,
+      3371,
+      3063,
+      3064,
+      3065,
+      3066,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      3071,
+      3072,
+      3378,
+      3073,
+      3074,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponFireDamageModExpert": [
+      3053,
+      3364,
+      109,
+      111,
+      3366,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      3060,
+      3370,
+      3061,
+      3062,
+      3371,
+      3063,
+      3064,
+      3065,
+      3066,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      3071,
+      3072,
+      3378,
+      3073,
+      3074,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipAttractorAbilityCard": [
+      2151,
+      2152,
+      2153,
+      2154,
+      2155,
+      2156,
+      2674,
+      2675,
+      2676,
+      2677,
+      2678,
+      2679,
+      2419,
+      2420,
+      2421,
+      2422,
+      2423,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Necromech/NecromechSprintEfficiencyMod": [
+      13
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Ultimate/DefenseUltimateUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Nira/NiraSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/DisarmedEnergyUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponArmorPiercingDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3368,
+      3369,
+      5145,
+      2487,
+      2488,
+      5146,
+      3370,
+      3805,
+      4762,
+      3371,
+      4763,
+      3376,
+      3377,
+      2489,
+      2490,
+      5147,
+      3378,
+      5148,
+      4764,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponArmorPiercingDamageModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3368,
+      3369,
+      5145,
+      2487,
+      2488,
+      5146,
+      3370,
+      3805,
+      4762,
+      3371,
+      4763,
+      3376,
+      3377,
+      2489,
+      2490,
+      5147,
+      3378,
+      5148,
+      4764,
+      3379
+    ],
+    "mods:/Lotus/Powersuits/Pagemaster/PagemasterBookAugment1Card": [
+      0,
+      2
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponFreezeDamageModBeginner": [
+      2486,
+      4760,
+      3053,
+      109,
+      111,
+      4761,
+      3054,
+      3055,
+      3056,
+      3913,
+      3914,
+      3057,
+      3058,
+      3059,
+      5145,
+      4722,
+      2487,
+      2488,
+      3060,
+      5146,
+      4723,
+      3919,
+      3061,
+      3805,
+      3920,
+      4762,
+      3062,
+      3063,
+      3064,
+      4763,
+      3065,
+      3922,
+      3066,
+      3067,
+      3068,
+      3069,
+      3070,
+      3924,
+      2489,
+      3071,
+      2490,
+      4724,
+      3072,
+      5147,
+      4725,
+      3927,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      5148,
+      4764,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponFreezeDamageModExpert": [
+      2486,
+      4760,
+      3053,
+      109,
+      111,
+      4761,
+      3054,
+      3055,
+      3056,
+      3913,
+      3914,
+      3057,
+      3058,
+      3059,
+      5145,
+      4722,
+      2487,
+      2488,
+      3060,
+      5146,
+      4723,
+      3919,
+      3061,
+      3805,
+      3920,
+      4762,
+      3062,
+      3063,
+      3064,
+      4763,
+      3065,
+      3922,
+      3066,
+      3067,
+      3068,
+      3069,
+      3070,
+      3924,
+      2489,
+      3071,
+      2490,
+      4724,
+      3072,
+      5147,
+      4725,
+      3927,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      5148,
+      4764,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarOffensiveMatrix": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/SlamComboFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanFreeOrdnanceAmmo": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanOrdnanceSpeed": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/LavanEngineerMatrix": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanMaxOrdnanceMunitions": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveLasGooAKAugmentMod": [
+      811
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Ultimate/AttackUltimateStrengthUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarParryMeleeModBeginner": [
+      5176,
+      2545,
+      3702,
+      2546,
+      3703,
+      3704,
+      3713,
+      2547,
+      3714,
+      3715,
+      2548,
+      3717,
+      2549,
+      2550,
+      3718,
+      3719,
+      3728,
+      5177,
+      2551,
+      3729,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarParryMeleeModExpert": [
+      5176,
+      2545,
+      3702,
+      2546,
+      3703,
+      3704,
+      3713,
+      2547,
+      3714,
+      3715,
+      2548,
+      3717,
+      2549,
+      2550,
+      3718,
+      3719,
+      3728,
+      5177,
+      2551,
+      3729,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarParryMeleeModIntermediate": [
+      5176,
+      2545,
+      3702,
+      2546,
+      3703,
+      3704,
+      3713,
+      2547,
+      3714,
+      3715,
+      2548,
+      3717,
+      2549,
+      2550,
+      3718,
+      3719,
+      3728,
+      5177,
+      2551,
+      3729,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipRamAbilityCard": [
+      2429,
+      2430,
+      2431,
+      2432,
+      2433,
+      2628,
+      2629,
+      2630,
+      2631,
+      2632,
+      2633,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponToxinDamageModBeginner": [
+      109,
+      111,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponToxinDamageModExpert": [
+      109,
+      111,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipPhoenixAbilityCard": [
+      2680,
+      2681,
+      2682,
+      2783,
+      2784,
+      2683,
+      2785,
+      2684,
+      2786,
+      2685,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Residual/ElementalDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Residual/PhysicalDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponArmorPiercingDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3364,
+      3366,
+      3368,
+      3369,
+      2487,
+      2488,
+      3370,
+      3805,
+      3371,
+      3376,
+      3377,
+      2489,
+      2490,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponArmorPiercingDamageModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3364,
+      3366,
+      3368,
+      3369,
+      2487,
+      2488,
+      3370,
+      3805,
+      3371,
+      3376,
+      3377,
+      2489,
+      2490,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Intermediate/WeaponPistolConvertAmmoModIntermediate": [
+      3701,
+      3201,
+      2112,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      3711,
+      2444,
+      3712,
+      3713,
+      3714,
+      3715,
+      3716,
+      3717,
+      3718,
+      3719,
+      3720,
+      3721,
+      3722,
+      3723,
+      3724,
+      3725,
+      3726,
+      3727,
+      3728,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponDamageAmountModBeginner": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3364,
+      109,
+      111,
+      3366,
+      3368,
+      3369,
+      4722,
+      2487,
+      2488,
+      4723,
+      3370,
+      3371,
+      3376,
+      3377,
+      2489,
+      2490,
+      4724,
+      4725,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponCritChanceModBeginner": [
+      519,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3364,
+      3366,
+      3368,
+      3369,
+      2487,
+      2488,
+      3370,
+      3805,
+      3371,
+      3376,
+      3377,
+      2489,
+      2490,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponCritChanceModExpert": [
+      519,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3364,
+      3366,
+      3368,
+      3369,
+      2487,
+      2488,
+      3370,
+      3805,
+      3371,
+      3376,
+      3377,
+      2489,
+      2490,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/KnockdownImmunityFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Residual/MeleeComboFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponGlaivePowerthrowModBeginner": [
+      109,
+      111,
+      2513,
+      2514,
+      2443,
+      2515,
+      2516,
+      2517,
+      2518,
+      2519
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponGlaivePowerthrowModExpert": [
+      109,
+      111,
+      2513,
+      2514,
+      2443,
+      2515,
+      2516,
+      2517,
+      2518,
+      2519
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Residual/PowerSnapFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGunnerWeaponCritChance": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponMeleeDamageModBeginner": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      3363,
+      3053,
+      3364,
+      3365,
+      3366,
+      3367,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      2487,
+      2488,
+      3060,
+      3370,
+      3061,
+      3062,
+      3371,
+      3063,
+      3372,
+      3064,
+      3373,
+      3065,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      3378,
+      3073,
+      3074,
+      3379,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/WeaponMeleeDamageOnHeavyKillMod": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      3363,
+      3053,
+      3364,
+      3365,
+      3366,
+      3367,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      2487,
+      2488,
+      3060,
+      3370,
+      3061,
+      3062,
+      3371,
+      3063,
+      3372,
+      3064,
+      3373,
+      3065,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      3378,
+      3073,
+      3074,
+      3379,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Archwing/Rifle/Expert/ArchwingRifleAmmoMaxModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponCritChanceModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/SniperReloadDamageModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Mods/Archwing/Rifle/Expert/ArchwingWeaponFireDamageModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Mods/Archwing/Rifle/Expert/ArchwingWeaponElectricityDamageModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarShieldRechargeRateModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Mods/Archwing/Rifle/Expert/ArchwingWeaponFreezeDamageModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarAbilityEfficiencyModExpert": [
+      2890
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Ultimate/PowerUltimateChainUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanProtectiveShots": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/DashImmunityFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod": [
+      811
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarGroundFireDmgModBeginner": [
+      3701,
+      109,
+      111,
+      3708,
+      3709,
+      3710,
+      4388,
+      3711,
+      4389,
+      4390,
+      4391,
+      3722
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarGroundFireDmgModIntermediate": [
+      3701,
+      109,
+      111,
+      3708,
+      3709,
+      3710,
+      4388,
+      3711,
+      4389,
+      4390,
+      4391,
+      3722
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarPowerToHealthOnDeathModBeginner": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponReloadSpeedModBeginner": [
+      3053,
+      3054,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3060,
+      3061,
+      3062,
+      3063,
+      3064,
+      3065,
+      3066,
+      3067,
+      3068,
+      3069,
+      3070,
+      3071,
+      3072,
+      3073,
+      3074,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanFastOrdnanceLock": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarDamageToEnergyModExpert": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarDamageToEnergyModIntermediate": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/LavanHijackMatrixAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Ultimate/AttackUltimateCooldownUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Raptor/RaptorSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponCritDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3362,
+      3363,
+      3364,
+      3365,
+      3201,
+      2112,
+      3366,
+      3367,
+      3368,
+      3913,
+      3914,
+      3369,
+      4722,
+      4723,
+      3370,
+      3919,
+      3920,
+      3371,
+      3372,
+      3373,
+      3922,
+      3374,
+      3375,
+      3376,
+      3924,
+      3377,
+      4724,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      3379,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponSlashDamageModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponSlashDamageModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarShieldMaxModBeginner": [
+      172
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarShieldMaxModIntermediate": [
+      172
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarParryReflectModBeginner": [
+      2545,
+      109,
+      111,
+      2546,
+      2547,
+      2548,
+      2549,
+      2550,
+      2551,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarParryReflectModExpert": [
+      2545,
+      109,
+      111,
+      2546,
+      2547,
+      2548,
+      2549,
+      2550,
+      2551,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponMeleeChannelingEfficiencyModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      4760,
+      3363,
+      3364,
+      3365,
+      109,
+      111,
+      3366,
+      4761,
+      3367,
+      3368,
+      3913,
+      3914,
+      3369,
+      5145,
+      4722,
+      2487,
+      2488,
+      5146,
+      4723,
+      3370,
+      3919,
+      3805,
+      3920,
+      4762,
+      3371,
+      3372,
+      3373,
+      4763,
+      3922,
+      3374,
+      3375,
+      3376,
+      3924,
+      3377,
+      2489,
+      2490,
+      4724,
+      5147,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      5148,
+      4764,
+      3379,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponMeleeChannelingEfficiencyModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      4760,
+      3363,
+      3364,
+      3365,
+      109,
+      111,
+      3366,
+      4761,
+      3367,
+      3368,
+      3913,
+      3914,
+      3369,
+      5145,
+      4722,
+      2487,
+      2488,
+      5146,
+      4723,
+      3370,
+      3919,
+      3805,
+      3920,
+      4762,
+      3371,
+      3372,
+      3373,
+      4763,
+      3922,
+      3374,
+      3375,
+      3376,
+      3924,
+      3377,
+      2489,
+      2490,
+      4724,
+      5147,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      5148,
+      4764,
+      3379,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Intermediate/WeaponMeleeChannelingEfficiencyeModIntermediate": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      4760,
+      3363,
+      3364,
+      3365,
+      109,
+      111,
+      3366,
+      4761,
+      3367,
+      3368,
+      3913,
+      3914,
+      3369,
+      5145,
+      4722,
+      2487,
+      2488,
+      5146,
+      4723,
+      3370,
+      3919,
+      3805,
+      3920,
+      4762,
+      3371,
+      3372,
+      3373,
+      4763,
+      3922,
+      3374,
+      3375,
+      3376,
+      3924,
+      3377,
+      2489,
+      2490,
+      4724,
+      5147,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      5148,
+      4764,
+      3379,
+      3380
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/InvulnerableReturnFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Stats/HealthRegenFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Powersuits/Nokko/NokkoRerootAugmentCard": [
+      0,
+      2
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/AvatarDamageResistanceStun": [
+      510
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarRevengeDamageMeleeExpert": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarRevengeDamageMeleeIntermediate": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/LavanMultiToolPower": [
+      3155
+    ],
+    "mods:/Lotus/Powersuits/Temple/TemplePassiveAugment1Card": [
+      0,
+      2
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponRifleConvertAmmoModIntermediate": [
+      3701,
+      3201,
+      2112,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      3711,
+      2444,
+      3712,
+      3713,
+      3714,
+      3715,
+      3716,
+      3717,
+      3718,
+      3719,
+      3720,
+      3721,
+      3722,
+      3723,
+      3724,
+      3725,
+      3726,
+      3727,
+      3728,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponStatusChanceModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponStatusChanceModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponStatusChanceModIntermediate": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Ultimate/DefenseUltimateElementalUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanReducedOrdnanceReload": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/BlastChargeFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarSprintSpeedModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3053,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      2487,
+      2488,
+      3060,
+      3370,
+      3061,
+      4762,
+      3062,
+      3371,
+      3063,
+      3064,
+      4763,
+      3065,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      3378,
+      3073,
+      3074,
+      4764,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarSprintSpeedModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3053,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3054,
+      3368,
+      3055,
+      3056,
+      3057,
+      3058,
+      3059,
+      3369,
+      2487,
+      2488,
+      3060,
+      3370,
+      3061,
+      4762,
+      3062,
+      3371,
+      3063,
+      3064,
+      4763,
+      3065,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      3378,
+      3073,
+      3074,
+      4764,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Sacrifice/SacrificeSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Antiques/SampleAntiqueUpgrade": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanBypassShieldOrdnance": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGunnerWeaponCritDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponPunctureDepthModBeginner": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponPunctureDepthModExpert": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipAttackAbilityCard": [
+      2680,
+      2681,
+      2682,
+      2783,
+      2784,
+      2683,
+      2785,
+      2684,
+      2786,
+      2685,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponPunctureDepthModBeginner": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponPunctureDepthModExpert": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Ultimate/WardUltimateSlamUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarSentientKiller": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponDamageAmountModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3701,
+      5176,
+      2545,
+      3364,
+      109,
+      111,
+      3702,
+      2546,
+      3366,
+      3703,
+      4761,
+      3704,
+      3368,
+      3705,
+      3706,
+      3707,
+      3369,
+      3708,
+      5145,
+      2487,
+      3709,
+      3710,
+      2488,
+      5146,
+      4388,
+      3711,
+      3370,
+      2444,
+      3712,
+      4762,
+      3713,
+      2547,
+      3714,
+      3371,
+      4389,
+      3715,
+      4763,
+      2548,
+      3716,
+      3921,
+      3717,
+      2549,
+      3376,
+      2550,
+      3718,
+      3719,
+      4390,
+      3720,
+      3721,
+      3377,
+      2489,
+      2490,
+      4391,
+      5147,
+      3722,
+      3925,
+      3378,
+      3723,
+      3724,
+      3725,
+      3928,
+      3726,
+      3727,
+      5148,
+      4764,
+      3728,
+      5177,
+      3379,
+      2551,
+      3729,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponDamageAmountModIntermediate": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3701,
+      5176,
+      2545,
+      3364,
+      109,
+      111,
+      3702,
+      2546,
+      3366,
+      3703,
+      4761,
+      3704,
+      3368,
+      3705,
+      3706,
+      3707,
+      3369,
+      3708,
+      5145,
+      2487,
+      3709,
+      3710,
+      2488,
+      5146,
+      4388,
+      3711,
+      3370,
+      2444,
+      3712,
+      4762,
+      3713,
+      2547,
+      3714,
+      3371,
+      4389,
+      3715,
+      4763,
+      2548,
+      3716,
+      3921,
+      3717,
+      2549,
+      3376,
+      2550,
+      3718,
+      3719,
+      4390,
+      3720,
+      3721,
+      3377,
+      2489,
+      2490,
+      4391,
+      5147,
+      3722,
+      3925,
+      3378,
+      3723,
+      3724,
+      3725,
+      3928,
+      3726,
+      3727,
+      5148,
+      4764,
+      3728,
+      5177,
+      3379,
+      2551,
+      3729,
+      2552
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipThumperAbilityCard": [
+      2429,
+      2430,
+      2431,
+      2432,
+      2433,
+      2628,
+      2629,
+      2630,
+      2631,
+      2632,
+      2633,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponAmmoMaxModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponAmmoMaxModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarDamageResistanceKnockdownIntermediate": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponElectricityDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      3363,
+      3053,
+      3365,
+      109,
+      111,
+      3367,
+      3054,
+      3055,
+      3056,
+      3913,
+      3914,
+      3057,
+      3058,
+      3059,
+      2487,
+      2488,
+      3060,
+      3919,
+      3061,
+      3805,
+      3920,
+      3062,
+      3063,
+      3372,
+      3064,
+      3373,
+      3065,
+      3922,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3924,
+      2489,
+      3071,
+      2490,
+      3072,
+      3927,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponElectricityDamageModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      3363,
+      3053,
+      3365,
+      109,
+      111,
+      3367,
+      3054,
+      3055,
+      3056,
+      3913,
+      3914,
+      3057,
+      3058,
+      3059,
+      2487,
+      2488,
+      3060,
+      3919,
+      3061,
+      3805,
+      3920,
+      3062,
+      3063,
+      3372,
+      3064,
+      3373,
+      3065,
+      3922,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3070,
+      3924,
+      2489,
+      3071,
+      2490,
+      3072,
+      3927,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Intermediate/WeaponShotgunConvertAmmoModIntermediate": [
+      3701,
+      3201,
+      2112,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      3711,
+      2443,
+      2444,
+      3712,
+      3713,
+      3714,
+      3715,
+      3716,
+      3717,
+      3718,
+      3719,
+      3720,
+      3721,
+      3722,
+      3723,
+      3724,
+      3725,
+      3726,
+      3727,
+      3728,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponFireRateModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFireRateModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponStunChanceModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponStunChanceModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/ConsecutivePowerUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/ProjectionExecutionUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponMeleeFactionDamageCorpusBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponMeleeFactionDamageGrineerBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponMeleeFactionDamageInfestedBeginner": [
+      516,
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponSnipersConvertAmmoModIntermediate": [
+      3701,
+      3201,
+      2112,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      3711,
+      2443,
+      2444,
+      3712,
+      3713,
+      3714,
+      3715,
+      3716,
+      3717,
+      3718,
+      3719,
+      3720,
+      3721,
+      3722,
+      3723,
+      3724,
+      3725,
+      3726,
+      3727,
+      3728,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Syndicate/BallisticaMod": [
+      2108
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/DashShockwaveFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/TacticUltimateNumberUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Ultimate/PowerUltimateNumberUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponFireRateModBeginner": [
+      519,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3368,
+      3369,
+      2487,
+      2488,
+      3370,
+      4762,
+      3371,
+      4763,
+      3376,
+      3377,
+      2489,
+      2490,
+      3378,
+      4764,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFireRateModExpert": [
+      519,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3368,
+      3369,
+      2487,
+      2488,
+      3370,
+      4762,
+      3371,
+      4763,
+      3376,
+      3377,
+      2489,
+      2490,
+      3378,
+      4764,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Spider/SpiderSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponFireIterationsModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3201,
+      2112,
+      3705,
+      3913,
+      3914,
+      3706,
+      3707,
+      3919,
+      2444,
+      3920,
+      3712,
+      3716,
+      3921,
+      3922,
+      3376,
+      3720,
+      3924,
+      3721,
+      3925,
+      3927,
+      3723,
+      3724,
+      3725,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      3931
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFireIterationsModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3201,
+      2112,
+      3705,
+      3913,
+      3914,
+      3706,
+      3707,
+      3919,
+      2444,
+      3920,
+      3712,
+      3716,
+      3921,
+      3922,
+      3376,
+      3720,
+      3924,
+      3721,
+      3925,
+      3927,
+      3723,
+      3724,
+      3725,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      3931
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/CloakHealOthersFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipRenewAbilityCard": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponRecoilReductionModIntermediate": [
+      3201,
+      2112,
+      2513,
+      2514,
+      3705,
+      3706,
+      3707,
+      2443,
+      2444,
+      3712,
+      3716,
+      3921,
+      2515,
+      3720,
+      2516,
+      3721,
+      3925,
+      2517,
+      3723,
+      3724,
+      2518,
+      3725,
+      3928,
+      3726,
+      3727,
+      2519
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/ClearStaticOnKillFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Intermediate/WeaponRecoilReductionModIntermediate": [
+      3201,
+      2112,
+      2513,
+      2514,
+      2443,
+      2515,
+      2516,
+      2517,
+      2518,
+      2519
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarArmourModBeginner": [
+      519,
+      3701,
+      5176,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      4388,
+      3711,
+      2444,
+      3712,
+      3713,
+      3714,
+      4389,
+      3715,
+      3716,
+      3921,
+      3717,
+      3718,
+      3719,
+      4390,
+      3720,
+      3721,
+      4391,
+      3722,
+      3925,
+      3723,
+      3724,
+      3725,
+      3928,
+      3726,
+      3727,
+      3728,
+      5177,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarArmourModIntermediate": [
+      519,
+      3701,
+      5176,
+      3702,
+      3703,
+      3704,
+      3705,
+      3706,
+      3707,
+      3708,
+      3709,
+      3710,
+      4388,
+      3711,
+      2444,
+      3712,
+      3713,
+      3714,
+      4389,
+      3715,
+      3716,
+      3921,
+      3717,
+      3718,
+      3719,
+      4390,
+      3720,
+      3721,
+      4391,
+      3722,
+      3925,
+      3723,
+      3724,
+      3725,
+      3928,
+      3726,
+      3727,
+      3728,
+      5177,
+      3729
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Residual/ArmourBuffFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponElectricityDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      109,
+      111,
+      4722,
+      2487,
+      2488,
+      4723,
+      3805,
+      3376,
+      2489,
+      2490,
+      4724,
+      4725
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponElectricityDamageModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      109,
+      111,
+      4722,
+      2487,
+      2488,
+      4723,
+      3805,
+      3376,
+      2489,
+      2490,
+      4724,
+      4725
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Strain/StrainSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarAbilityEfficiencyModBeginner": [
+      172,
+      2486,
+      3364,
+      3201,
+      2112,
+      3366,
+      3368,
+      3913,
+      3914,
+      2388,
+      3369,
+      2487,
+      2488,
+      3370,
+      3919,
+      3805,
+      3920,
+      3371,
+      3922,
+      3924,
+      3377,
+      2489,
+      2490,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarAbilityRangeModBeginner": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3053,
+      109,
+      111,
+      3054,
+      3055,
+      2513,
+      2514,
+      3705,
+      3056,
+      3913,
+      3914,
+      3706,
+      2388,
+      3057,
+      3058,
+      3707,
+      3059,
+      4722,
+      3060,
+      4723,
+      3919,
+      2443,
+      2444,
+      3061,
+      3920,
+      3712,
+      3062,
+      3063,
+      3064,
+      3716,
+      3065,
+      3921,
+      2515,
+      3922,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3720,
+      3070,
+      2516,
+      3924,
+      3721,
+      3071,
+      4724,
+      3072,
+      3925,
+      4725,
+      3927,
+      2517,
+      3723,
+      3724,
+      2518,
+      3725,
+      3073,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      2519,
+      3931,
+      3074,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarAbilityRangeModExpert": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3053,
+      109,
+      111,
+      3054,
+      3055,
+      2513,
+      2514,
+      3705,
+      3056,
+      3913,
+      3914,
+      3706,
+      2388,
+      3057,
+      3058,
+      3707,
+      3059,
+      4722,
+      3060,
+      4723,
+      3919,
+      2443,
+      2444,
+      3061,
+      3920,
+      3712,
+      3062,
+      3063,
+      3064,
+      3716,
+      3065,
+      3921,
+      2515,
+      3922,
+      3066,
+      3376,
+      3067,
+      3068,
+      3069,
+      3720,
+      3070,
+      2516,
+      3924,
+      3721,
+      3071,
+      4724,
+      3072,
+      3925,
+      4725,
+      3927,
+      2517,
+      3723,
+      3724,
+      2518,
+      3725,
+      3073,
+      3928,
+      3929,
+      3726,
+      3930,
+      3727,
+      2519,
+      3931,
+      3074,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Ultimate/WardUltimateChanceUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/DashReduceArmourFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponArmorPiercingDamageModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponArmorPiercingDamageModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarKnockdownResistanceModIntermediate": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponStatusChanceModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponStatusChanceModExpert": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Intermediate/WeaponStatusChanceModIntermediate": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/DashWaveFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Ultimate/AttackUltimateRadiusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Ultimate/DefenseUltimateDurationUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Synth/SynthSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponReloadSpeedModBeginner": [
+      109,
+      111
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponCritDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3368,
+      3369,
+      5145,
+      2487,
+      2488,
+      5146,
+      3370,
+      3805,
+      4762,
+      3371,
+      4763,
+      3376,
+      3377,
+      2489,
+      2490,
+      5147,
+      3378,
+      5148,
+      4764,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponCritDamageModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3364,
+      109,
+      111,
+      3366,
+      4761,
+      3368,
+      3369,
+      5145,
+      2487,
+      2488,
+      5146,
+      3370,
+      3805,
+      4762,
+      3371,
+      4763,
+      3376,
+      3377,
+      2489,
+      2490,
+      5147,
+      3378,
+      5148,
+      4764,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Tek/TekSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Ultimate/WardUltimateArmorUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/BlastSlowFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Residual/SlowHeadshotDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipTetherAbilityCard": [
+      2429,
+      2430,
+      2431,
+      2432,
+      2433,
+      2628,
+      2629,
+      2630,
+      2631,
+      2632,
+      2633,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Ultimate/AttackUltimateUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarLootRadarModBeginner": [
+      516,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Expert/AvatarLootRadarModExpert": [
+      516,
+      660,
+      661,
+      662,
+      663,
+      664
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/BowExplosionChanceModExpert": [
+      3364,
+      3201,
+      2112,
+      3366,
+      3368,
+      3369,
+      3370,
+      3371,
+      3377,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Intermediate/BowExplosionChanceModIntermediate": [
+      3364,
+      3201,
+      2112,
+      3366,
+      3368,
+      3369,
+      3370,
+      3371,
+      3377,
+      3378,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponAmmoMaxModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      4760,
+      3363,
+      3053,
+      3364,
+      3365,
+      3366,
+      4761,
+      3367,
+      3054,
+      3368,
+      3055,
+      3056,
+      3913,
+      3914,
+      2388,
+      3915,
+      3916,
+      3917,
+      3057,
+      3058,
+      3059,
+      3369,
+      5145,
+      2487,
+      2488,
+      3060,
+      5146,
+      3370,
+      3919,
+      3061,
+      3920,
+      4762,
+      3062,
+      3371,
+      3063,
+      3372,
+      3064,
+      3373,
+      4763,
+      3065,
+      3922,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3923,
+      3069,
+      3070,
+      3924,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      5147,
+      3926,
+      3927,
+      3378,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      5148,
+      4764,
+      3379,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Pistol/Expert/WeaponAmmoMaxModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      3362,
+      4760,
+      3363,
+      3053,
+      3364,
+      3365,
+      3366,
+      4761,
+      3367,
+      3054,
+      3368,
+      3055,
+      3056,
+      3913,
+      3914,
+      2388,
+      3915,
+      3916,
+      3917,
+      3057,
+      3058,
+      3059,
+      3369,
+      5145,
+      2487,
+      2488,
+      3060,
+      5146,
+      3370,
+      3919,
+      3061,
+      3920,
+      4762,
+      3062,
+      3371,
+      3063,
+      3372,
+      3064,
+      3373,
+      4763,
+      3065,
+      3922,
+      3374,
+      3375,
+      3066,
+      3376,
+      3067,
+      3068,
+      3923,
+      3069,
+      3070,
+      3924,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      5147,
+      3926,
+      3927,
+      3378,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      5148,
+      4764,
+      3379,
+      3380,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarTurretRangeAndSpeed": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Umbra/UmbraSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/BlastDamagePickupFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/UnairuWispFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseChemReductionAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseFrostReductionAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseHealthBoost": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseIncendiaryReductionAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseIonicReductionAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseMaxArmor": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseMaxShield": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseShieldRecharge": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Engineering/BaseShieldRedirectionMod": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseCorpusFactionDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseDesperateMeasures": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGrineerFactionDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponCritChance": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponCritDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponHeat": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseMaxOrdnanceMunitions": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseOrdnanceDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseProtectiveShots": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseReduceArmorWeaponDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseReducedOrdnanceReload": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseSuperWeaponDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseWeaponFluxBoost": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingArmorAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingDamageAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingShieldAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingSpeedAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseBoostSpeed": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseCrewshipSpeedDamageAura": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseDodge": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseEmpPowerCap": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseShieldBoost": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Piloting/BaseSpeed": [
+      3155
+    ],
+    "mods:/Lotus/Weapons/CrewShip/CrewShipInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/CrewShipInnateFireRateRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/ElectricTether/ElectricTetherInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/Laser/Beam/RailJackBeamInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/Laser/Blaster/BlasterInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/Laser/Blaster/BlasterShotgunInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/Laser/PulseLaser/PulseLaserInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/MassDriver/AutoCannon/AutoCannonInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Weapons/CrewShip/ShrapnelShotgun/ShrapnelShotgunInnateDamageRandomMod": [
+      3483
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Residual/SecondChanceDamageBuffFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/TacticUltimateUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod": [
+      3213
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponCritDamageModBeginner": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3701,
+      3364,
+      3201,
+      2112,
+      3366,
+      3368,
+      3913,
+      3914,
+      2388,
+      3369,
+      3708,
+      4722,
+      3709,
+      3710,
+      4388,
+      3711,
+      4723,
+      3370,
+      3919,
+      3920,
+      3371,
+      4389,
+      3922,
+      3376,
+      4390,
+      3924,
+      3377,
+      4724,
+      4391,
+      3722,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Rifle/Expert/WeaponCritDamageModExpert": [
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      3701,
+      3364,
+      3201,
+      2112,
+      3366,
+      3368,
+      3913,
+      3914,
+      2388,
+      3369,
+      3708,
+      4722,
+      3709,
+      3710,
+      4388,
+      3711,
+      4723,
+      3370,
+      3919,
+      3920,
+      3371,
+      4389,
+      3922,
+      3376,
+      4390,
+      3924,
+      3377,
+      4724,
+      4391,
+      3722,
+      4725,
+      3927,
+      3378,
+      3929,
+      3930,
+      3931,
+      3379
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarHealthMaxModBeginner": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3053,
+      3364,
+      3366,
+      4761,
+      3054,
+      3368,
+      3055,
+      3056,
+      3913,
+      3914,
+      2388,
+      3915,
+      3916,
+      3917,
+      3057,
+      3058,
+      3059,
+      3369,
+      5145,
+      2487,
+      2488,
+      3060,
+      5146,
+      3370,
+      3919,
+      3061,
+      3920,
+      4762,
+      3062,
+      3371,
+      3063,
+      3064,
+      4763,
+      3065,
+      3922,
+      3066,
+      3376,
+      3067,
+      3068,
+      3923,
+      3069,
+      3070,
+      3924,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      5147,
+      3926,
+      3927,
+      3378,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      5148,
+      4764,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarHealthMaxModIntermediate": [
+      172,
+      3311,
+      3312,
+      3313,
+      3314,
+      3315,
+      3316,
+      3317,
+      3318,
+      2486,
+      4760,
+      3053,
+      3364,
+      3366,
+      4761,
+      3054,
+      3368,
+      3055,
+      3056,
+      3913,
+      3914,
+      2388,
+      3915,
+      3916,
+      3917,
+      3057,
+      3058,
+      3059,
+      3369,
+      5145,
+      2487,
+      2488,
+      3060,
+      5146,
+      3370,
+      3919,
+      3061,
+      3920,
+      4762,
+      3062,
+      3371,
+      3063,
+      3064,
+      4763,
+      3065,
+      3922,
+      3066,
+      3376,
+      3067,
+      3068,
+      3923,
+      3069,
+      3070,
+      3924,
+      3377,
+      2489,
+      3071,
+      2490,
+      3072,
+      5147,
+      3926,
+      3927,
+      3378,
+      3073,
+      3929,
+      3930,
+      3931,
+      3074,
+      5148,
+      4764,
+      3379,
+      3075
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/CloakShieldFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/CloakReduceDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Tactical/VoidCloak": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Stats/EnergyPoolFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/AttackEfficiencyFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipBlackHoleAbilityCard": [
+      2680,
+      2681,
+      2682,
+      2783,
+      2784,
+      2683,
+      2785,
+      2684,
+      2786,
+      2685,
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/CloakRevealFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/LiftHitWaveUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/CloakBlindFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/CloakHealFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Active/CloakAllyCloakFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/CloakPullFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Stats/EnergyRestoreFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Defense/Active/SonicDissipationUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Ward/Residual/ReflectDamageFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Tactic/Active/CloakMeleeCritFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/CloakStaticFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Attack/Active/CloakAttackChargeFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/BlastBurstFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanOrdnanceDamage": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanCritBypassShieldTurret": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/Focus/Power/Active/DashBubbleFocusUpgrade": [
+      3001
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Beginner/WeaponGlaiveSpeedModBeginner": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Melee/Expert/WeaponGlaiveSpeedModExpert": [
+      3201,
+      2112
+    ],
+    "mods:/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGrineerKiller": [
+      3155
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Defensive/PunctureProcResist": [
+      210,
+      3503
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Defensive/PoisonProcResist": [
+      210,
+      3503
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Defensive/GasProcResist": [
+      210,
+      3503
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Defensive/CorrosiveProcResist": [
+      210,
+      3503
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/AbilityEfficiencyOnAbilityObjectCreation": [
+      210,
+      3503,
+      3545,
+      3546
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Defensive/ImpactProcResist": [
+      210,
+      3503
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/NoCostCastChanceAbility1Listener": [
+      210,
+      3503,
+      2285
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/NoCostCastChanceAbility2Listener": [
+      210,
+      3503,
+      2285
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/NoCostCastChanceAbility3Listener": [
+      210,
+      3503,
+      2285
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/NoCostCastChanceAbility4Listener": [
+      210,
+      3503,
+      2285
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/SlowerBleedOutOnPredeath": [
+      210,
+      3503
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/DamageReductionDuringRevive": [
+      210,
+      3503
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Offensive/HeavyAttackDamageAndShieldOnShieldBreak": [
+      3545,
+      3546
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Utility/ConvergeRadialAttackOnAim": [
+      3545,
+      3546
+    ],
+    "mods:/Lotus/Upgrades/CosmeticEnhancers/Offensive/SecondaryColdOnPuncture": [
+      3545,
+      3546
+    ],
+    "mods:/Lotus/Powersuits/Banshee/SonarPvPAugmentCard": [
+      3,
+      0,
+      2
+    ],
+    "mods:/Lotus/Types/Sentinels/SentinelPrecepts/BoomStick": [
+      3266
+    ],
+    "mods:/Lotus/Types/Sentinels/SentinelPrecepts/SwiftDeth": [
+      3266
+    ],
+    "mods:/Lotus/Types/Sentinels/SentinelPrecepts/TnCrossAttack": [
+      3266
+    ],
+    "mods:/Lotus/Types/Sentinels/SentinelPrecepts/Warrior": [
+      3266
     ],
     "modsets:/Lotus/Upgrades/Mods/Sets/Amar/AmarSetMod": [
       3213

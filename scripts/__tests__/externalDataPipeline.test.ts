@@ -105,6 +105,25 @@ describe("external data source discovery", () => {
             .toThrow(/truncated tree/i);
     });
 
+    it("discovers an explicit allowlist of top-level JSON files from a repository root", () => {
+        const files = discoverJsonFilesFromTree({
+            tree: [
+                { path: "ExportWeapons.json", type: "blob" },
+                { path: "dict.en.json", type: "blob" },
+                { path: "dict.fr.json", type: "blob" },
+                { path: "supplementals/extra.json", type: "blob" },
+                { path: "README.md", type: "blob" },
+            ],
+        }, "", {
+            requiredFiles: ["dict.en.json", "ExportWeapons.json"],
+            allowedFiles: ["dict.en.json", "ExportWeapons.json"],
+        });
+
+        expect(files.map((file) => file.name)).toEqual(["dict.en.json", "ExportWeapons.json"]);
+        expect(() => discoverJsonFilesFromTree({ tree: [{ path: "ExportWeapons.json", type: "blob" }] }, "", { requiredFiles: [] }))
+            .toThrow(/explicit allowlist/i);
+    });
+
     it("validates drop-data table wrappers and prevents empty source tables", () => {
         expect(() => validateDropDataJsonFile("missionRewards.json", { drops: [] }))
             .toThrow(/expected top-level "missionRewards" table/);

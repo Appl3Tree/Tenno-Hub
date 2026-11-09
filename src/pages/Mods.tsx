@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTrackerStore } from "../store/store";
 import { isHiddenModPath } from "../domain/catalog/modCatalog";
 import { getWeaponCatalog } from "../domain/catalog/weaponCatalog";
+import { FULL_CATALOG } from "../domain/catalog/loadFullCatalog";
 import { CUSTOM_RIVEN_STAT_DEFS, formatRivenStatValue, generateCustomRivenName, getCustomRivenStatDef, getCustomRivenStatDefsForWeapon, normalizeRivenWeaponFamilyKey, type CustomRivenRecord as CustomRivenInventoryRecord, type CustomRivenStatValue } from "../domain/rivens";
 import { withManualReleaseDateFallback } from "../catalog/items/manualReleaseDates";
 import MODS_RAW from "../data/_generated/mods-lean.auto.json";
@@ -34,6 +35,10 @@ import { buildCatalogSourceEntries } from "../components/sources/catalogSourceEn
 import MOD_LOCATIONS_RAW from "../../external/warframe-drop-data/raw/modLocations.json";
 
 const EMPTY_CUSTOM_RIVENS: CustomRivenInventoryRecord[] = [];
+const RIVEN_TEMPLATE_CATALOG = FULL_CATALOG.idsBySource.rivens.flatMap((catalogId) => {
+    const record = FULL_CATALOG.recordsById[catalogId];
+    return record?.isDisplayable ? [{ catalogId, name: record.displayName, path: record.path }] : [];
+  });
 
 // Build a lookup from All.json keyed by uniqueName — includes Mods + Arcanes
 interface AllModDrop {
@@ -230,7 +235,17 @@ type OwnershipFilter = "all" | "owned" | "unowned";
 
 const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_MOD_RANKS: Record<string, number> = {};
+const EMPTY_MOD_RANK_COUNTS: Record<string, Record<string, number>> = {};
+const EMPTY_MOD_UNKNOWN_RANK_COUNTS: Record<string, number> = {};
 function modKey(path: string): string { return `mods:${path}`; }
+function formatModRankCounts(rankCounts: Record<string, number> | undefined, unknownCount = 0): string {
+  const parts = Object.entries(rankCounts ?? {})
+    .filter(([, copies]) => copies > 0)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([rank, copies]) => "R" + rank + " × " + copies);
+  if (unknownCount > 0) parts.push("Unknown rank × " + unknownCount);
+  return parts.join(" · ");
+}
 function clampModOwnedRank(maxRank: number, raw: number | undefined): number {
   return Math.max(0, Math.min(maxRank, Number(raw ?? maxRank)));
 }
@@ -2318,6 +2333,8 @@ function countTriStateFilters<T extends string>(filters: Partial<Record<T, TagFi
 function ModsPage() {
   const counts = useTrackerStore((s) => s.state.inventory.counts ?? EMPTY_COUNTS);
   const modRanksMap = useTrackerStore((s) => s.state.inventory.modRanks ?? EMPTY_MOD_RANKS);
+  const modRankCountsMap = useTrackerStore((s) => s.state.inventory.modRankCounts ?? EMPTY_MOD_RANK_COUNTS);
+  const modUnknownRankCountsMap = useTrackerStore((s) => s.state.inventory.modUnknownRankCounts ?? EMPTY_MOD_UNKNOWN_RANK_COUNTS);
   const customRivens = useTrackerStore((s) => s.state.inventory.customRivens ?? EMPTY_CUSTOM_RIVENS);
   const setCount = useTrackerStore((s) => s.setCount);
   const setModRank = useTrackerStore((s) => s.setModRank);
@@ -2373,6 +2390,16 @@ function ModsPage() {
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list;
   }, [customRivens, excludedPolarities, includedPolarities, ownershipFilter, query]);
+
+  const filteredRivenStacks = useMemo(() => {
+    if (ownershipFilter === "unowned" || includedPolarities.length > 0) return [];
+    const q = normalize(query.trim());
+    return RIVEN_TEMPLATE_CATALOG
+      .map((record) => ({ ...record, quantity: counts[record.catalogId] ?? 0 }))
+      .filter((record) => record.quantity > 0 &&
+        (!q || normalize(`${record.name} ${record.path}`).includes(q)))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [counts, includedPolarities.length, ownershipFilter, query]);
 
   const availableModSubtypeOptions = useMemo<Array<Exclude<ModSubtype, "all">>>(() => {
     const orderedSubtypes = MOD_GROUP_SUBTYPES[modGroup];
@@ -2641,7 +2668,7 @@ function ModsPage() {
             onSortChange={(value) => setSortKey(value as ModSortKey)}
             sortOptions={MOD_SORT_OPTIONS}
             onClearDetail={() => setSelectedMod(null)}
-            rowCount={modGroup === "rivens" ? filteredCustomRivens.length : filteredMods.length}
+            rowCount={modGroup === "rivens" ? filteredCustomRivens.length + filteredRivenStacks.length : filteredMods.length}
             activeFilterCount={activeFilterCount}
             filtersExpanded={filtersExpanded}
             onToggleFilters={() => setFiltersExpanded((open) => !open)}
@@ -2817,46 +2844,74 @@ function ModsPage() {
             </CollectionFilterDisclosure>
 
             {modGroup === "rivens" ? (
-              filteredCustomRivens.length === 0 ? (
+              filteredCustomRivens.length === 0 && filteredRivenStacks.length === 0 ? (
                 <div className="flex min-h-0 flex-1 items-center justify-center border-t border-dashed border-slate-800 bg-slate-950/30 p-8 text-sm text-slate-400">
                   No owned rivens match the current filters.
                 </div>
               ) : (
                 <div className="border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)] p-3 pr-2">
-                  <div className="space-y-2">
-                    {filteredCustomRivens.map((riven) => (
-                      <div key={riven.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium text-slate-100">{riven.name}</span>
-                            <span className="shrink-0 text-[11px] font-medium text-amber-300">Riven</span>
+                  {filteredCustomRivens.length > 0 ? (
+                    <div className="space-y-2">
+                      {filteredCustomRivens.map((riven) => (
+                        <div key={riven.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-medium text-slate-100">{riven.name}</span>
+                              <span className="shrink-0 text-[11px] font-medium text-amber-300">Riven</span>
+                            </div>
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              {riven.sourceWeaponName} · {riven.sourceWeaponDisposition > 0 ? "Disposition " + riven.sourceWeaponDisposition.toFixed(2) : "Disposition unknown"} · Drain {riven.drain}
+                            </div>
+                            <div className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                              {riven.stats.length > 0
+                                ? formatCustomRivenStatsLabel(riven.stats)
+                                : "Personalized stats retained, but unavailable for build math until source rank or catalog details are verified."}
+                            </div>
+                            {riven.importSource === "alecaframe" ? (
+                              <div className="mt-1 text-[10px] text-slate-500">
+                                AlecaFrame · {riven.sourceRank === null || riven.sourceRank === undefined ? "rank not recorded" : "rank " + riven.sourceRank}
+                                {riven.rerolls === null || riven.rerolls === undefined ? "" : " · " + riven.rerolls + " rerolls"}
+                                {riven.importStatus && riven.importStatus !== "ready" ? " · " + riven.importStatus.replaceAll("-", " ") : ""}
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="mt-1 text-[11px] text-slate-500">
-                            {riven.sourceWeaponName} · Disposition {riven.sourceWeaponDisposition.toFixed(2)} · Drain {riven.drain}
-                          </div>
-                          <div className="mt-1 text-[11px] leading-relaxed text-slate-300">
-                            {formatCustomRivenStatsLabel(riven.stats)}
-                          </div>
+                          <button
+                            onClick={() => {
+                              setEditingRiven(riven);
+                              setRivenModalOpen(true);
+                            }}
+                            className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteCustomRiven(riven.id)}
+                            className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:border-red-700/60 hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                          <WikiLink name={riven.sourceWeaponName} />
                         </div>
-                        <button
-                          onClick={() => {
-                            setEditingRiven(riven);
-                            setRivenModalOpen(true);
-                          }}
-                          className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => deleteCustomRiven(riven.id)}
-                          className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:border-red-700/60 hover:text-red-300"
-                        >
-                          Delete
-                        </button>
-                        <WikiLink name={riven.sourceWeaponName} />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {filteredRivenStacks.length > 0 ? (
+                    <section aria-label="Unpersonalized Riven stacks" className={filteredCustomRivens.length > 0 ? "mt-5 border-t border-[color:var(--wf-border-subtle)] pt-4" : ""}>
+                      <h2 className="text-sm font-semibold text-[color:var(--wf-text)]">Riven type stacks</h2>
+                      <p className="mt-1 text-xs text-[color:var(--wf-text-muted)]">
+                        The save provides counts for these catalog Riven types without per-copy fingerprints or personalized stats.
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {filteredRivenStacks.map((record) => (
+                          <div key={record.catalogId} className="flex items-center justify-between gap-3 rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] px-3 py-2">
+                            <span className="min-w-0 truncate text-sm font-medium text-[color:var(--wf-text)]">{record.name}</span>
+                            <span className="shrink-0 text-xs text-[color:var(--wf-text-muted)]">× {record.quantity.toLocaleString()}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </section>
+                  ) : null}
                 </div>
               )
             ) : filteredMods.length === 0 ? (
@@ -2892,6 +2947,7 @@ function ModsPage() {
                         const ownedCount = counts[modKey(entry.path)] ?? 0;
                         const maxRank = modMaxRank(entry);
                         const ownedRank = ownedCount > 0 ? clampModOwnedRank(maxRank, modRanksMap[entry.path]) : 0;
+                        const rankDistribution = formatModRankCounts(modRankCountsMap[entry.path], modUnknownRankCountsMap[entry.path] ?? 0);
                         return (
                           <div key={entry.path} className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: modBrowseGridTemplate }}>
                             <button
@@ -2932,26 +2988,37 @@ function ModsPage() {
                             <div className={["px-2 text-sm font-medium", rarityColor(rarity)].join(" ")}>
                               {rarity ? rarity.charAt(0) + rarity.slice(1).toLowerCase() : "—"}
                             </div>
-                            <div className="flex items-center shrink-0" onClick={(event) => event.stopPropagation()}>
-                              <button
-                                className="flex h-[38px] w-6 items-center justify-center rounded-l border border-r-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
-                                disabled={ownedCount <= 0}
-                                onClick={() => setCount(modKey(entry.path), Math.max(0, ownedCount - 1))}
-                              >
-                                −
-                              </button>
-                              <span className={["flex h-[38px] w-8 items-center justify-center border-y border-slate-700 bg-slate-900 text-sm font-mono", ownedCount > 0 ? "text-emerald-400" : "text-slate-600"].join(" ")}>
-                                {ownedCount}
-                              </span>
-                              <button
-                                className="flex h-[38px] w-6 items-center justify-center rounded-r border border-l-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-                                onClick={() => {
-                                  setCount(modKey(entry.path), ownedCount + 1);
-                                  if (ownedCount <= 0) setModRank(entry.path, maxRank);
-                                }}
-                              >
-                                +
-                              </button>
+                            <div className="flex shrink-0 flex-col items-center" onClick={(event) => event.stopPropagation()}>
+                              <div className="flex items-center">
+                                <button
+                                  className="flex h-[38px] w-6 items-center justify-center rounded-l border border-r-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
+                                  disabled={ownedCount <= 0}
+                                  onClick={() => setCount(modKey(entry.path), Math.max(0, ownedCount - 1))}
+                                >
+                                  −
+                                </button>
+                                <span className={["flex h-[38px] w-8 items-center justify-center border-y border-slate-700 bg-slate-900 text-sm font-mono", ownedCount > 0 ? "text-emerald-400" : "text-slate-600"].join(" ")}>
+                                  {ownedCount}
+                                </span>
+                                <button
+                                  className="flex h-[38px] w-6 items-center justify-center rounded-r border border-l-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                                  onClick={() => {
+                                    setCount(modKey(entry.path), ownedCount + 1);
+                                    if (ownedCount <= 0) setModRank(entry.path, maxRank);
+                                  }}
+                                >
+                                  +
+                                </button>
+                              </div>
+                              {rankDistribution ? (
+                                <span
+                                  className="max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap text-[9px] leading-3 text-slate-500"
+                                  title={rankDistribution}
+                                  aria-label={"Copies by rank: " + rankDistribution}
+                                >
+                                  {rankDistribution}
+                                </span>
+                              ) : null}
                             </div>
                             <div className="flex items-center shrink-0" onClick={(event) => event.stopPropagation()}>
                               <button

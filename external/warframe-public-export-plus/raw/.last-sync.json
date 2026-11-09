@@ -1,0 +1,29 @@
+{
+  "dataset": "warframe-public-export-plus",
+  "syncedAt": "2026-11-08T17:55:57.103Z",
+  "sourceCommitSha": "513105d5c4e56d2a3238b7c7914e8ef4e87e829a",
+  "sourceTreeUrl": "https://api.github.com/repos/calamity-inc/warframe-public-export-plus/git/trees/513105d5c4e56d2a3238b7c7914e8ef4e87e829a?recursive=1",
+  "sourceBaseUrl": "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/<commit-sha>",
+  "upstreamFiles": [
+    "dict.en.json",
+    "ExportAbilities.json",
+    "ExportArcanes.json",
+    "ExportAvionics.json",
+    "ExportBoosterPacks.json",
+    "ExportCustoms.json",
+    "ExportDrones.json",
+    "ExportFlavour.json",
+    "ExportGear.json",
+    "ExportKeys.json",
+    "ExportRailjackWeapons.json",
+    "ExportRecipes.json",
+    "ExportResources.json",
+    "ExportSentinels.json",
+    "ExportUpgrades.json",
+    "ExportWarframes.json",
+    "ExportWeapons.json"
+  ],
+  "changedFiles": [
+    "ExportAbilities.json"
+  ]
+}

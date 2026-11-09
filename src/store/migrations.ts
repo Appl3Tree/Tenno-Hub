@@ -151,7 +151,91 @@ function normalizeInventory(raw: any): any {
         ? (inv as any).customRivens.filter((entry: unknown) => !!entry && typeof entry === "object")
         : [];
 
-    return { credits, platinum, counts, modRanks, arcaneRanks, customRivens };
+    const alecaFrameUnresolvedRecords = Array.isArray((inv as any).alecaFrameUnresolvedRecords)
+        ? (inv as any).alecaFrameUnresolvedRecords.slice(0, 100_000).flatMap((entry: unknown) => {
+            if (!entry || typeof entry !== "object") return [];
+            const candidate = entry as Record<string, unknown>;
+            if (typeof candidate.path !== "string" || !candidate.path.startsWith("/Lotus/") ||
+                candidate.path.length > 512 ||
+                (candidate.kind !== "item" && candidate.kind !== "upgrade") ||
+                !Number.isSafeInteger(candidate.quantity) || (candidate.quantity as number) < 0 ||
+                typeof candidate.reason !== "string") return [];
+            const sourceSections = Array.isArray(candidate.sourceSections)
+                ? candidate.sourceSections.filter((section): section is string =>
+                    typeof section === "string" && section.length <= 256).slice(0, 64)
+                : [];
+            const rankCounts: Record<string, number> = {};
+            if (candidate.rankCounts && typeof candidate.rankCounts === "object" && !Array.isArray(candidate.rankCounts)) {
+                for (const [rank, count] of Object.entries(candidate.rankCounts as Record<string, unknown>)) {
+                    if (Number.isSafeInteger(Number(rank)) && Number(rank) >= 0 &&
+                        Number.isSafeInteger(count) && (count as number) >= 0) rankCounts[rank] = count as number;
+                }
+            }
+            return [{
+                path: candidate.path,
+                kind: candidate.kind,
+                sourceSections,
+                quantity: candidate.quantity as number,
+                ...(Object.keys(rankCounts).length > 0 ? { rankCounts } : {}),
+                ...(typeof candidate.rankCountsComplete === "boolean"
+                    ? { rankCountsComplete: candidate.rankCountsComplete } : {}),
+                reason: candidate.reason.slice(0, 256),
+            }];
+        })
+        : [];
+
+    const modRankCounts: Record<string, Record<string, number>> = {};
+    const saved = (inv as any).modRankCounts;
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        for (const [path, ranks] of Object.entries(saved as Record<string, unknown>)) {
+            if (!ranks || typeof ranks !== "object" || Array.isArray(ranks)) continue;
+            const valid: Record<string, number> = {};
+            for (const [rank, value] of Object.entries(ranks)) {
+                const numericRank = Number(rank);
+                const count = Number(value);
+                if (!Number.isSafeInteger(numericRank) || numericRank < 0 ||
+                    !Number.isSafeInteger(count) || count < 0) continue;
+                valid[String(numericRank)] = count;
+            }
+            modRankCounts[path] = valid;
+        }
+    }
+
+    const arcaneRankCounts: Record<string, Record<string, number>> = {};
+    const savedArcaneCounts = (inv as any).arcaneRankCounts;
+    if (savedArcaneCounts && typeof savedArcaneCounts === "object" && !Array.isArray(savedArcaneCounts)) {
+        for (const [path, ranks] of Object.entries(savedArcaneCounts as Record<string, unknown>)) {
+            if (!ranks || typeof ranks !== "object" || Array.isArray(ranks)) continue;
+            const valid: Record<string, number> = {};
+            for (const [rank, value] of Object.entries(ranks)) {
+                const numericRank = Number(rank);
+                const count = Number(value);
+                if (!Number.isSafeInteger(numericRank) || numericRank < 0 ||
+                    !Number.isSafeInteger(count) || count < 0) continue;
+                valid[String(numericRank)] = count;
+            }
+            arcaneRankCounts[path] = valid;
+        }
+    }
+
+    const normalizeUnknownRankCounts = (value: unknown): Record<string, number> => {
+        const result: Record<string, number> = {};
+        if (!value || typeof value !== "object" || Array.isArray(value)) return result;
+        for (const [path, rawCount] of Object.entries(value as Record<string, unknown>)) {
+            if (!path.startsWith("/Lotus/") || path.length > 512) continue;
+            const count = Number(rawCount);
+            if (Number.isSafeInteger(count) && count >= 0) result[path] = count;
+        }
+        return result;
+    };
+    const modUnknownRankCounts = normalizeUnknownRankCounts((inv as any).modUnknownRankCounts);
+    const arcaneUnknownRankCounts = normalizeUnknownRankCounts((inv as any).arcaneUnknownRankCounts);
+
+    return {
+        credits, platinum, counts, modRanks, modRankCounts, modUnknownRankCounts,
+        arcaneRanks, arcaneRankCounts, arcaneUnknownRankCounts,
+        customRivens, alecaFrameUnresolvedRecords,
+    };
 }
 
 function normalizeMastery(raw: any): { xpByItem: Record<string, number>; mastered: Record<string, boolean>; overLevelMastered: Record<string, boolean> } {

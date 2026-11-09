@@ -28,7 +28,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(SCRIPT_DIR, "..");
 const EXTERNAL_ROOT = path.join(ROOT, "external");
 
-type DatasetKey = "warframe-items" | "warframe-drop-data";
+type DatasetKey = "warframe-items" | "warframe-drop-data" | "warframe-public-export-plus";
 type DatasetSelection = DatasetKey | "all";
 
 interface DatasetConfig {
@@ -43,6 +43,7 @@ interface DatasetConfig {
     treeUrlEnv: string;
     commitUrlEnv: string;
     requiredFiles: readonly string[];
+    allowedFiles?: readonly string[];
     generatedFiles?: readonly string[];
     ignoredFiles?: readonly string[];
 }
@@ -78,6 +79,56 @@ const DATASETS: Record<DatasetKey, DatasetConfig> = {
         commitUrlEnv: "WARFRAME_DROP_DATA_COMMIT_URL",
         requiredFiles: DROP_DATA_REQUIRED_FILES,
     },
+    "warframe-public-export-plus": {
+        key: "warframe-public-export-plus",
+        label: "Warframe Public Export Plus",
+        targetDir: path.join(EXTERNAL_ROOT, "warframe-public-export-plus", "raw"),
+        dataPath: "",
+        treeUrl: "https://api.github.com/repos/calamity-inc/warframe-public-export-plus/git/trees/senpai?recursive=1",
+        commitUrl: "https://api.github.com/repos/calamity-inc/warframe-public-export-plus/commits/senpai",
+        rawCommitRoot: "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus",
+        rawBaseEnv: "WARFRAME_PUBLIC_EXPORT_PLUS_RAW_BASE",
+        treeUrlEnv: "WARFRAME_PUBLIC_EXPORT_PLUS_TREE_URL",
+        commitUrlEnv: "WARFRAME_PUBLIC_EXPORT_PLUS_COMMIT_URL",
+        requiredFiles: [
+            "dict.en.json",
+            "ExportAbilities.json",
+            "ExportArcanes.json",
+            "ExportAvionics.json",
+            "ExportBoosterPacks.json",
+            "ExportCustoms.json",
+            "ExportDrones.json",
+            "ExportFlavour.json",
+            "ExportGear.json",
+            "ExportKeys.json",
+            "ExportRailjackWeapons.json",
+            "ExportRecipes.json",
+            "ExportResources.json",
+            "ExportSentinels.json",
+            "ExportUpgrades.json",
+            "ExportWarframes.json",
+            "ExportWeapons.json",
+        ],
+        allowedFiles: [
+            "dict.en.json",
+            "ExportAbilities.json",
+            "ExportArcanes.json",
+            "ExportAvionics.json",
+            "ExportBoosterPacks.json",
+            "ExportCustoms.json",
+            "ExportDrones.json",
+            "ExportFlavour.json",
+            "ExportGear.json",
+            "ExportKeys.json",
+            "ExportRailjackWeapons.json",
+            "ExportRecipes.json",
+            "ExportResources.json",
+            "ExportSentinels.json",
+            "ExportUpgrades.json",
+            "ExportWarframes.json",
+            "ExportWeapons.json",
+        ],
+    },
 };
 
 interface Args {
@@ -97,8 +148,8 @@ interface PreparedDataset {
 
 function parseArgs(argv: string[]): Args {
     const selection = argv.find((arg) => !arg.startsWith("--")) ?? "all";
-    if (selection !== "all" && selection !== "warframe-items" && selection !== "warframe-drop-data") {
-        throw new Error(`Unknown dataset "${selection}". Use all, warframe-items, or warframe-drop-data.`);
+    if (selection !== "all" && selection !== "warframe-items" && selection !== "warframe-drop-data" && selection !== "warframe-public-export-plus") {
+        throw new Error(`Unknown dataset "${selection}". Use all, warframe-items, warframe-drop-data, or warframe-public-export-plus.`);
     }
     const unknownFlags = argv.filter((arg) => arg.startsWith("--") && arg !== "--dry-run");
     if (unknownFlags.length > 0) throw new Error(`Unknown option(s): ${unknownFlags.join(", ")}`);
@@ -106,7 +157,29 @@ function parseArgs(argv: string[]): Args {
 }
 
 function describeBaseUrl(config: DatasetConfig, rawOverride?: string): string {
-    return rawOverride || `${config.rawCommitRoot}/<commit-sha>/${config.dataPath}`;
+    const sourcePath = config.dataPath ? `/${config.dataPath}` : "";
+    return rawOverride || `${config.rawCommitRoot}/<commit-sha>${sourcePath}`;
+}
+
+function validatePublicExportJson(fileName: string, value: unknown): void {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error(`${fileName}: expected a path-keyed JSON object`);
+    }
+    const records = value as Record<string, unknown>;
+    if (Object.keys(records).length === 0) throw new Error(`${fileName}: source map is empty`);
+    if (fileName === "dict.en.json") {
+        for (const [key, label] of Object.entries(records)) {
+            if (!key || typeof label !== "string") {
+                throw new Error(`${fileName}: invalid English localization entry`);
+            }
+        }
+        return;
+    }
+    for (const [key, record] of Object.entries(records)) {
+        if (!key.startsWith("/Lotus/") || !record || typeof record !== "object" || Array.isArray(record)) {
+            throw new Error(`${fileName}: invalid Lotus-path export record`);
+        }
+    }
 }
 
 async function fetchText(url: string, purpose: string): Promise<string> {
@@ -175,6 +248,7 @@ async function getInventory(config: DatasetConfig): Promise<{ commitSha: string;
         config.dataPath,
         {
             requiredFiles: config.requiredFiles,
+            allowedFiles: config.allowedFiles,
             generatedFiles: config.generatedFiles,
             ignoredFiles: config.ignoredFiles,
         },
@@ -226,8 +300,10 @@ async function downloadInventory(
                 info = inspectJsonText(file.name, raw);
                 if (config.key === "warframe-items") {
                     parseWarframeItemCategory(file.name, info.value);
-                } else {
+                } else if (config.key === "warframe-drop-data") {
                     validateDropDataJsonStructure(file.name, info.value);
+                } else {
+                    validatePublicExportJson(file.name, info.value);
                 }
                 const currentInfo = await readCurrentJsonInfo(path.join(config.targetDir, file.name));
                 if (currentInfo) {
@@ -390,7 +466,7 @@ async function stageDataset(config: DatasetConfig): Promise<PreparedDataset> {
 async function run(): Promise<void> {
     const args = parseArgs(process.argv.slice(2));
     const selected: DatasetKey[] = args.dataset === "all"
-        ? ["warframe-items", "warframe-drop-data"]
+        ? ["warframe-items", "warframe-drop-data", "warframe-public-export-plus"]
         : [args.dataset];
     const prepared: PreparedDataset[] = [];
     try {

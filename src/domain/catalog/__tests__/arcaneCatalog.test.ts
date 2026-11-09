@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getArcaneCatalog, getArcanesForWeapon } from "../arcaneCatalog";
+import { FULL_CATALOG } from "../loadFullCatalog";
 import { getWeaponCatalog } from "../weaponCatalog";
 
 describe("weapon arcane compatibility", () => {
@@ -11,6 +12,13 @@ describe("weapon arcane compatibility", () => {
         expect(byName.get("Longbow Sharpshot")?.compatibleModCompats).toEqual(["Bow"]);
         expect(byName.get("Shotgun Vendetta")?.compatibleModCompats).toEqual(["Shotgun"]);
         expect(byName.get("Pax Bolt")?.requiresKitgun).toBe(true);
+    });
+
+    it("includes every WFCD weapon arcane path in the canonical catalog", () => {
+        const catalogIds = new Set(FULL_CATALOG.idsBySource.mods);
+        for (const arcane of getArcaneCatalog()) {
+            expect(catalogIds.has(`mods:${arcane.uniqueName}`)).toBe(true);
+        }
     });
 
     it("includes primary and bow arcanes for Nataruk", () => {

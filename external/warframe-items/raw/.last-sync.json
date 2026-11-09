@@ -1,8 +1,8 @@
 {
   "dataset": "warframe-items",
-  "syncedAt": "2026-11-06T18:13:08.291Z",
-  "sourceCommitSha": "c118c57f0e0cb26d49e4be3532b32348760eb27d",
-  "sourceTreeUrl": "https://api.github.com/repos/WFCD/warframe-items/git/trees/c118c57f0e0cb26d49e4be3532b32348760eb27d?recursive=1",
+  "syncedAt": "2026-11-08T17:41:58.934Z",
+  "sourceCommitSha": "23804b64bc248069ce39adb9f52e9f546d8f343e",
+  "sourceTreeUrl": "https://api.github.com/repos/WFCD/warframe-items/git/trees/23804b64bc248069ce39adb9f52e9f546d8f343e?recursive=1",
   "sourceBaseUrl": "https://raw.githubusercontent.com/WFCD/warframe-items/<commit-sha>/data/json",
   "upstreamFiles": [
     "Arcanes.json",
@@ -34,31 +34,10 @@
   ],
   "changedFiles": [
     "All.json",
-    "Arcanes.json",
-    "Arch-Gun.json",
-    "Arch-Melee.json",
-    "Archwing.json",
     "Components.json",
     "Enemy.json",
-    "Fish.json",
-    "Gear.json",
-    "Glyphs.json",
-    "Honoria.json",
     "Melee.json",
     "Misc.json",
-    "Mods.json",
-    "Node.json",
-    "Pets.json",
-    "Primary.json",
-    "Quests.json",
-    "Railjack.json",
-    "Relics.json",
-    "Resources.json",
-    "Secondary.json",
-    "Sentinels.json",
-    "SentinelWeapons.json",
-    "Sigils.json",
-    "Skins.json",
-    "Warframes.json"
+    "Relics.json"
   ]
 }

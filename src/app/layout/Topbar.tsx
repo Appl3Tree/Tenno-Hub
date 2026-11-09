@@ -10,7 +10,7 @@ import { fetchWorldState, getCachedWorldState, processInvasions, type WorldState
 import CatalogSearchPalette from "../../components/search/CatalogSearchPalette";
 import PageJumpPalette from "../../components/search/PageJumpPalette";
 
-type PlatformKey = "pc" | "ps" | "xb" | "swi" | "mob";
+type PlatformKey = "pc" | "ps" | "xb" | "swi" | "mob" | "and";
 
 type PlatformOption = {
     key: PlatformKey;
@@ -19,11 +19,12 @@ type PlatformOption = {
 };
 
 const PLATFORM_OPTIONS: PlatformOption[] = [
-    { key: "pc",  label: "PC",          baseUrl: "https://content.warframe.com/dynamic/getProfileViewingData.php?playerId=" },
-    { key: "ps",  label: "PlayStation", baseUrl: "https://content-ps4.warframe.com/dynamic/getProfileViewingData.php?playerId=" },
-    { key: "xb",  label: "Xbox",        baseUrl: "https://content-xb1.warframe.com/dynamic/getProfileViewingData.php?playerId=" },
-    { key: "swi", label: "Switch",      baseUrl: "https://content-swi.warframe.com/dynamic/getProfileViewingData.php?playerId=" },
-    { key: "mob", label: "Mobile",      baseUrl: "https://content-mob.warframe.com/dynamic/getProfileViewingData.php?playerId=" },
+    { key: "pc",  label: "PC",          baseUrl: "https://api.warframe.com/cdn/getProfileViewingData.php?playerId=" },
+    { key: "ps",  label: "PlayStation", baseUrl: "https://api-ps4.warframe.com/cdn/getProfileViewingData.php?playerId=" },
+    { key: "xb",  label: "Xbox",        baseUrl: "https://api-xb1.warframe.com/cdn/getProfileViewingData.php?playerId=" },
+    { key: "swi", label: "Switch",      baseUrl: "https://api-swi.warframe.com/cdn/getProfileViewingData.php?playerId=" },
+    { key: "mob", label: "Mobile",      baseUrl: "https://api-mob.warframe.com/cdn/getProfileViewingData.php?playerId=" },
+    { key: "and", label: "Android",     baseUrl: "https://api-and.warframe.com/cdn/getProfileViewingData.php?playerId=" },
 ];
 
 function clampInt(value: unknown, fallback: number): number {
@@ -44,15 +45,17 @@ function normalizePlatformKey(raw: unknown): PlatformKey {
     if (s === "xb" || s === "xbox" || s === "xb1" || s === "xbsx") return "xb";
     if (s === "swi" || s === "switch") return "swi";
     if (s === "mob" || s === "mobile") return "mob";
+    if (s === "and" || s === "android") return "and";
     return "pc";
 }
 
-function platformLabel(key: PlatformKey): "PC" | "PlayStation" | "Xbox" | "Switch" | "Mobile" {
+function platformLabel(key: PlatformKey): "PC" | "PlayStation" | "Xbox" | "Switch" | "Mobile" | "Android" {
     const label = PLATFORM_OPTIONS.find((p) => p.key === key)?.label ?? "PC";
     if (label === "PlayStation") return "PlayStation";
     if (label === "Xbox") return "Xbox";
     if (label === "Switch") return "Switch";
     if (label === "Mobile") return "Mobile";
+    if (label === "Android") return "Android";
     return "PC";
 }
 
@@ -97,6 +100,7 @@ function PlatformIcon(props: { platform: PlatformKey; className?: string }) {
                 </svg>
             );
         case "mob":
+        case "and":
             return (
                 <svg {...common}>
                     <path d="M9 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.6" />
@@ -904,7 +908,7 @@ export default function Topbar({ onMenuToggle, mobileNavOpen }: { onMenuToggle: 
 
     function handleOpenProfileViewingDataPage() {
         if (!profileViewingDataUrl) {
-            setProfileStatus("Enter your Profile ID above before opening the profile data page.");
+            setProfileStatus("Enter your Account ID above before opening the profile data page.");
             activate("accountId");
             return;
         }
@@ -1238,7 +1242,21 @@ export default function Topbar({ onMenuToggle, mobileNavOpen }: { onMenuToggle: 
                                     {" "}— your progression will be fetched automatically from warframestat.us.
                                 </div>
                                 <div>
-                                    <span className="text-slate-300 font-medium">Finding your PC Account ID: </span>
+                                    <span className="text-slate-300 font-medium">Finding your Account ID: </span>
+                                    Sign in at{" "}
+                                    <a href="https://www.warframe.com/" target="_blank" rel="noreferrer" className="text-blue-300 underline underline-offset-2">
+                                        warframe.com
+                                    </a>
+                                    , then open browser DevTools (F12 or Ctrl+Shift+I). In Chrome or Edge, go to{" "}
+                                    <span className="text-slate-300">Application → Storage → Cookies → warframe.com</span>
+                                    ; in Firefox, use <span className="text-slate-300">Storage → Cookies → warframe.com</span>.
+                                    Copy the <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">Value</code>{" "}
+                                    from the <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">gid</code> row.
+                                    Its HttpOnly flag means Tenno Hub cannot read it automatically; DevTools can display it. Copy only{" "}
+                                    <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">gid</code>, not the other cookies.
+                                </div>
+                                <div>
+                                    <span className="text-slate-300 font-medium">PC alternative: </span>
                                     Open{" "}
                                     <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">
                                         %localappdata%\Warframe\EE.log
@@ -1255,7 +1273,7 @@ export default function Topbar({ onMenuToggle, mobileNavOpen }: { onMenuToggle: 
                                         type="button"
                                         className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-100 transition-colors hover:bg-slate-800"
                                         onClick={handleOpenProfileViewingDataPage}
-                                        title={profileViewingDataUrl || "Enter your Profile ID above first"}
+                                        title={profileViewingDataUrl || "Enter your Account ID above first"}
                                     >
                                         Open profile data page in new tab
                                     </button>
