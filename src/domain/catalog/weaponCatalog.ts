@@ -776,6 +776,31 @@ export function getWeaponCatalog(): WeaponEntry[] {
         seenUniqueNames.add(uniqueName);
     }
 
+    // Some Prime melee records have a stance polarity but no exact stance-family
+    // metadata. Reuse the paired non-Prime weapon's family when available.
+    const meleeByName = new Map<string, WeaponEntry>();
+    for (const weapon of entries) {
+        if (weapon.category === "Melee") meleeByName.set(weapon.name.toLowerCase(), weapon);
+    }
+    for (const weapon of entries) {
+        if (weapon.category !== "Melee" || weapon.stanceClasses?.length || weapon.stanceClass) continue;
+        const primeName = weapon.name.match(/^(.*?)\s+Prime$/i);
+        if (!primeName) continue;
+        const baseName = primeName[1].trim();
+
+        const baseWeapon = meleeByName.get(baseName.toLowerCase());
+        if (!baseWeapon) continue;
+        const stanceClasses = baseWeapon.stanceClasses?.length
+            ? [...baseWeapon.stanceClasses]
+            : baseWeapon.stanceClass
+                ? [baseWeapon.stanceClass]
+                : [];
+        if (stanceClasses.length === 0) continue;
+
+        weapon.stanceClasses = stanceClasses;
+        weapon.stanceClass = stanceClasses[0];
+    }
+
     entries.sort((a, b) => a.name.localeCompare(b.name));
     _cache = entries;
     return entries;
