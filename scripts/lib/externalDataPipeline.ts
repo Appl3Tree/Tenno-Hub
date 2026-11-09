@@ -49,7 +49,7 @@ export interface DiscoveredJsonFile {
 export function discoverJsonFilesFromTree(
     treeResponse: GitTreeResponse,
     dataPath: string,
-    options: { requiredFiles: readonly string[]; generatedFiles?: readonly string[]; ignoredFiles?: readonly string[] },
+    options: { requiredFiles: readonly string[]; generatedFiles?: readonly string[]; ignoredFiles?: readonly string[]; allowedFiles?: readonly string[] },
 ): DiscoveredJsonFile[] {
     if (treeResponse.truncated) {
         throw new Error(`GitHub returned a truncated tree for ${dataPath}; refusing to use an incomplete inventory`);
@@ -58,7 +58,13 @@ export function discoverJsonFilesFromTree(
         throw new Error(`GitHub tree response for ${dataPath} has no tree array`);
     }
 
-    const prefix = `${dataPath.replace(/^\/+|\/+$/g, "")}/`;
+    const normalizedDataPath = dataPath.replace(/^\/+|\/+$/g, "");
+    if (!normalizedDataPath && !options.allowedFiles) {
+        throw new Error("Root-level JSON discovery requires an explicit allowlist");
+    }
+    const prefix = normalizedDataPath ? `${normalizedDataPath}/` : "";
+    const sourceLabel = normalizedDataPath || "repository root";
+    const allowed = options.allowedFiles ? new Set(options.allowedFiles) : null;
     const generated = new Set(options.generatedFiles ?? []);
     const ignored = new Set(options.ignoredFiles ?? []);
     const upstreamGenerated = treeResponse.tree
@@ -66,7 +72,7 @@ export function discoverJsonFilesFromTree(
         .map((entry) => entry.path.slice(prefix.length))
         .filter((relativePath) => !relativePath.includes("/") && generated.has(relativePath));
     if (upstreamGenerated.length > 0) {
-        throw new Error(`Generated local aggregate(s) unexpectedly exist upstream under ${dataPath}: ${upstreamGenerated.join(", ")}; inspect the new upstream contract before updating`);
+        throw new Error(`Generated local aggregate(s) unexpectedly exist upstream under ${sourceLabel}: ${upstreamGenerated.join(", ")}; inspect the new upstream contract before updating`);
     }
     const discovered = treeResponse.tree
         .filter((entry) => entry.type === "blob")
@@ -74,19 +80,20 @@ export function discoverJsonFilesFromTree(
         .map((entry) => ({ entry, relativePath: entry.path.slice(prefix.length) }))
         .filter(({ relativePath }) => !relativePath.includes("/"))
         .filter(({ relativePath }) => relativePath.toLowerCase().endsWith(".json"))
+        .filter(({ relativePath }) => !allowed || allowed.has(relativePath))
         .filter(({ relativePath }) => !generated.has(relativePath))
         .filter(({ relativePath }) => !ignored.has(relativePath))
         .map(({ entry, relativePath }) => ({ name: relativePath, path: entry.path, sha: entry.sha }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
     if (discovered.length === 0) {
-        throw new Error(`No upstream JSON files discovered under ${dataPath}`);
+        throw new Error(`No upstream JSON files discovered under ${sourceLabel}`);
     }
 
     const names = new Set(discovered.map((entry) => entry.name));
     const missing = options.requiredFiles.filter((name) => !names.has(name));
     if (missing.length > 0) {
-        throw new Error(`Upstream inventory under ${dataPath} is missing required file(s): ${missing.join(", ")}`);
+        throw new Error(`Upstream inventory under ${sourceLabel} is missing required file(s): ${missing.join(", ")}`);
     }
 
     return discovered;

@@ -16,6 +16,8 @@ export type AlecaFrameKind = "item" | "mod" | "arcane" | "riven";
 export interface AlecaFrameCatalogMatch {
   catalogId: string;
   kind: AlecaFrameKind;
+  /** Explicitly marks a sticker item stored in AlecaFrame's stacked RawUpgrades section. */
+  rawUpgradeItem?: boolean;
 }
 
 export interface AlecaFrameIssue {
@@ -420,7 +422,9 @@ export async function parseAlecaFrameInventory(
 
     const expectedKindMatches = match &&
       ((expected === "item" && match.kind === "item") ||
-        (expected === "upgrade" && match.kind !== "item"));
+        (expected === "upgrade" && match.kind !== "item") ||
+        (expected === "upgrade" && section === "RawUpgrades" &&
+          match.kind === "item" && match.rawUpgradeItem === true));
     const stackedRivenTemplate = expected === "upgrade" &&
       section === "RawUpgrades" && match?.kind === "riven";
     if (!expectedKindMatches || (match?.kind === "riven" && section !== "Upgrades" && !stackedRivenTemplate)) {
@@ -480,9 +484,9 @@ export async function parseAlecaFrameInventory(
             "The personalized Riven fields could not be normalized.",
           ) ? "unresolved" : "failed";
         }
-      } else if (section === "RawUpgrades") {
+      } else if (section === "RawUpgrades" && (match.kind === "mod" || match.kind === "arcane")) {
         rank = 0;
-      } else {
+      } else if (match.kind === "mod" || match.kind === "arcane") {
         const fingerprint = fingerprintObject(entry);
         if (!fingerprint || !isSafeInteger(fingerprint.lvl, 20)) {
           issue(warnings, section, index, path, "The individual mod or arcane copy is retained, but its rank is not recorded.");

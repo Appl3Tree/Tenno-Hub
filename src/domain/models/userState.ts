@@ -34,7 +34,7 @@ export interface UserMetaV2 {
     updatedAtIso: string;
 }
 
-export type PlatformKey = "PC" | "PlayStation" | "Xbox" | "Switch" | "Mobile";
+export type PlatformKey = "PC" | "PlayStation" | "Xbox" | "Switch" | "Mobile" | "Android";
 
 export interface UserPlayerV2 {
     platform: PlatformKey;

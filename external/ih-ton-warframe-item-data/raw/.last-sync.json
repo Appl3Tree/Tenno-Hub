@@ -1,0 +1,8 @@
+{
+  "dataset": "ih-ton-warframe-item-data-legacy-upgrades",
+  "sourceCommitSha": "f93ac0a5a94e58a153d625d1cb013a7318ce1a1e",
+  "sourceCommitDate": "2018-01-20T06:36:50Z",
+  "sourceRepository": "https://github.com/IhToN/warframe-item-data",
+  "sourceFile": "data/upgrades.json",
+  "sourceBlobSha": "465ea5d30e46d7cf44cfa7d0d864da0e4be6b66b"
+}

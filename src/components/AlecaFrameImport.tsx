@@ -36,6 +36,16 @@ function isUpgradeSection(section: string): boolean {
 
 function exactCatalogMatch(path: string, section: string): AlecaFrameCatalogMatch | null {
   if (isUpgradeSection(section)) {
+    const itemId = "items:" + path;
+    const item = FULL_CATALOG.recordsById[itemId as CatalogId];
+    if (item?.categories.includes("Peely Pix")) {
+      return {
+        catalogId: itemId,
+        kind: "item",
+        ...(section === "RawUpgrades" ? { rawUpgradeItem: true } : {}),
+      };
+    }
+
     const rivenId = "rivens:" + path;
     const riven = FULL_CATALOG.recordsById[rivenId as CatalogId];
     if (riven) return { catalogId: rivenId, kind: "riven" };
@@ -50,7 +60,6 @@ function exactCatalogMatch(path: string, section: string): AlecaFrameCatalogMatc
       mod.categories.some((category) => category.toLowerCase().includes("arcane"));
     return { catalogId: modId, kind: arcane ? "arcane" : "mod" };
   }
-
   const itemId = "items:" + path;
   return FULL_CATALOG.recordsById[itemId as CatalogId]
     ? { catalogId: itemId, kind: "item" }

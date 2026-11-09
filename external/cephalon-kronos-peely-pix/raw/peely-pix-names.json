@@ -1,0 +1,77 @@
+{
+  "/Lotus/Upgrades/Stickers/DropSpecialItemChanceOnWeakpointKillSticker": {
+    "name": "Argon Combo #2"
+  },
+  "/Lotus/Upgrades/Stickers/ToxinGasResistanceOnHealthOrbSticker": {
+    "name": "Breathless"
+  },
+  "/Lotus/Upgrades/Stickers/DropHealingBurgerChanceSticker": {
+    "name": "Burgerfest"
+  },
+  "/Lotus/Upgrades/Stickers/StickerSporePrimer": {
+    "name": "Catscratch Fever"
+  },
+  "/Lotus/Upgrades/Stickers/CreateShieldOnHeavySlamSticker": {
+    "name": "Crushing Chills"
+  },
+  "/Lotus/Upgrades/Stickers/StickerEnemyShotgun": {
+    "name": "Doktor's Orders"
+  },
+  "/Lotus/Upgrades/Stickers/DropEfervonGrenadeChanceSticker": {
+    "name": "Fly, Fly!"
+  },
+  "/Lotus/Upgrades/Stickers/AvatarKnockdownResistanceSticker": {
+    "name": "Going Steady"
+  },
+  "/Lotus/Upgrades/Stickers/DeathPreventionOnKillsSticker": {
+    "name": "Hi-Score"
+  },
+  "/Lotus/Upgrades/Stickers/CreateChasingAntiMatterDropSticker": {
+    "name": "It Sees You"
+  },
+  "/Lotus/Upgrades/Stickers/ToxinProcOnDamageSticker": {
+    "name": "Old Pizza"
+  },
+  "/Lotus/Upgrades/Stickers/StickerEnemyMelee": {
+    "name": "Only Knives"
+  },
+  "/Lotus/Upgrades/Stickers/FreezePlayerOverTimeSticker": {
+    "name": "Optimism"
+  },
+  "/Lotus/Upgrades/Stickers/NPCReviveSticker": {
+    "name": "Panic Call"
+  },
+  "/Lotus/Upgrades/Stickers/StickerEnemyRifle": {
+    "name": "Resolutions"
+  },
+  "/Lotus/Upgrades/Stickers/RemoveStatusesOnHeavyAttackSticker": {
+    "name": "Reverse-O"
+  },
+  "/Lotus/Upgrades/Stickers/EjectButtonSticker": {
+    "name": "Slippery Customer"
+  },
+  "/Lotus/Upgrades/Stickers/NullStarOnWeakpointKillSticker": {
+    "name": "Spinnin' Around"
+  },
+  "/Lotus/Upgrades/Stickers/ElementalAmmoChanceOnEximusKillSticker": {
+    "name": "Super Scavenger"
+  },
+  "/Lotus/Upgrades/Stickers/StickerEnemySmg": {
+    "name": "Through My Heart"
+  },
+  "/Lotus/Upgrades/Stickers/DecoyOnDamagedSticker": {
+    "name": "Too Hot"
+  },
+  "/Lotus/Upgrades/Stickers/AllowNecramechSummonSticker": {
+    "name": "Vintage Tech"
+  },
+  "/Lotus/Upgrades/Stickers/AllowThermianRpgSummonSticker": {
+    "name": "Wakeup Call"
+  },
+  "/Lotus/Upgrades/Stickers/SuperGlideParkourSticker": {
+    "name": "Walking on Air"
+  },
+  "/Lotus/Upgrades/Stickers/WeaponColdDamageSticker": {
+    "name": "XL Frosty"
+  }
+}

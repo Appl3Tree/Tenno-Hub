@@ -18,7 +18,7 @@ import type {
     ResetDisplayMode,
     SyndicateState
 } from "../domain/types";
-import type { PageKey, UserGoalV1, UserStateV2 } from "../domain/models/userState";
+import type { PageKey, PlatformKey, UserGoalV1, UserStateV2 } from "../domain/models/userState";
 import { migrateToUserStateV2 } from "./migrations";
 import type { ProfileImportResult } from "../utils/profileImport";
 import { SY } from "../domain/ids/syndicateIds";
@@ -73,7 +73,7 @@ export interface TrackerStore {
     setIntrinsicRank: (mode: "proxima" | "duviri", key: string, rank: number) => void;
 
     setAccountId: (accountId: string) => void;
-    setPlatform: (platform: "PC" | "PlayStation" | "Xbox" | "Switch" | "Mobile") => void;
+    setPlatform: (platform: PlatformKey) => void;
 
     importProfileViewingDataJson: (text: string) => Promise<{ ok: boolean; error?: string }>;
     importProfileFromWarframeStatApi: (json: unknown) => Promise<{ ok: boolean; error?: string }>;

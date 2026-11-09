@@ -13,6 +13,7 @@ import {
 const item = "/Lotus/Types/Items/MiscItems/AlloyPlate";
 const mod = "/Lotus/Upgrades/Mods/Rifle/WeaponClipMaxMod";
 const riven = "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare";
+const sticker = "/Lotus/Upgrades/Stickers/TestSticker";
 const now = "2026-01-01T00:00:00.000Z";
 
 function fixture(): Record<string, unknown> {
@@ -26,6 +27,11 @@ function fixture(): Record<string, unknown> {
 
 const classify = (path: string, section: string) => {
   if (section === "RawUpgrades" || section === "Upgrades") {
+    if (path === sticker) return {
+      catalogId: `items:${path}`,
+      kind: "item" as const,
+      ...(section === "RawUpgrades" ? { rawUpgradeItem: true } : {}),
+    };
     if (path === riven) return { catalogId: `rivens:${path}`, kind: "riven" as const };
     if (path === mod) return { catalogId: `mods:${path}`, kind: "mod" as const };
     return null;
@@ -166,6 +172,23 @@ describe("AlecaFrame inventory parser", () => {
     expect(result.unresolvedRecords).toHaveLength(0);
     expect(result.totalCopies).toBe(4);
     expect(result.sections.RawUpgrades).toMatchObject({ status: "imported", importedCopies: 4 });
+  });
+
+  it("imports stacked Peely Pix as counted items without assigning mod ranks", async () => {
+    const root = fixture();
+    root.RawUpgrades = [{ ItemType: sticker, ItemCount: 7 }];
+    const result = await parseAlecaFrameInventory(root, classify, resolveRiven);
+    expect(result.records).toMatchObject([{
+      catalogId: `items:${sticker}`,
+      path: sticker,
+      kind: "item",
+      quantity: 7,
+      sourceSections: ["RawUpgrades"],
+    }]);
+    expect(result.records[0].rankCounts).toBeUndefined();
+    expect(result.records[0].unknownRankCount).toBeUndefined();
+    expect(result.unresolvedRecords).toHaveLength(0);
+    expect(result.sections.RawUpgrades).toMatchObject({ status: "imported", importedCopies: 7 });
   });
 
   it("keeps no-instance-ID Riven identities stable when other fingerprints reorder", async () => {

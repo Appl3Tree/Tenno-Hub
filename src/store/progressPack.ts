@@ -42,7 +42,7 @@ export function makeDefaultState(): UserStateV2 {
     };
 }
 
-const PlatformSchema = z.enum(["PC", "PlayStation", "Xbox", "Switch", "Mobile"]);
+const PlatformSchema = z.enum(["PC", "PlayStation", "Xbox", "Switch", "Mobile", "Android"]);
 
 const InventorySchema = z.object({
     credits: z.number().int().min(0),

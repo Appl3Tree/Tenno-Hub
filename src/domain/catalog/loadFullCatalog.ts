@@ -3,6 +3,9 @@
 
 import wfcdItemsJson from "../../data/_generated/wfcd-items.byCatalogId.auto.json";
 import lotusItemsJson from "../../data/_generated/items-lean.auto.json";
+import publicExportItemsJson from "../../data/_generated/public-export-items.auto.json";
+import publicExportUpgradesJson from "../../data/_generated/public-export-mods.auto.json";
+import legacyUpgradesJson from "../../data/_generated/legacy-upgrades.auto.json";
 
 import modsJson from "../../data/_generated/mods-lean.auto.json";
 
@@ -499,6 +502,11 @@ export function buildFullCatalog(): FullCatalog {
     }
 
     const lotusItemsByPath = parseJsonMap("items", lotusItemsJson);
+    const publicExportItemsByPath = parseJsonMap("Public Export Plus items", publicExportItemsJson);
+    const publicExportUpgrades = parseJsonMap("Public Export Plus upgrades", publicExportUpgradesJson);
+    const publicExportModsByPath = parseJsonMap("Public Export Plus mods", publicExportUpgrades.mods);
+    const publicExportRivensByPath = parseJsonMap("Public Export Plus Rivens", publicExportUpgrades.rivens);
+    const legacyUpgradesByPath = parseJsonMap("legacy upgrade identities", legacyUpgradesJson);
 
     const wfdataJson = buildWfdataFromExternal();
     const foundryOverrides = buildFoundryOverrides(wfdataJson, wfcdItemsByPath);
@@ -516,6 +524,14 @@ export function buildFullCatalog(): FullCatalog {
         const wfcdRec = wfcdItemsByPath[pathKey] ?? null;
         const lotusRec = lotusItemsByPath[pathKey] ?? null;
         itemsMap[pathKey] = mergeItemRecord(pathKey, wfcdRec, lotusRec, foundryOverrides);
+    }
+    // Public Export Plus provides exact Lotus-path records missing from both
+    // WFCD's item aggregate and Overframe's curated item map. These records are
+    // generated globally from upstream exports, never from a profile sample.
+    for (const [pathKey, record] of Object.entries(publicExportItemsByPath)) {
+        if (Object.prototype.hasOwnProperty.call(itemsMap, pathKey)) continue;
+        itemsMap[pathKey] = record;
+        inventoryAllow.add(pathKey);
     }
 
     const modsMap = parseJsonMap("mods", modsJson);
@@ -545,8 +561,20 @@ export function buildFullCatalog(): FullCatalog {
             };
         }
     }
+    for (const [path, record] of Object.entries(publicExportModsByPath)) {
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) modsMap[path] = record;
+    }
+    // A pinned MIT-licensed 2018 catalog preserves exact names for a few
+    // legacy upgrades missing from all maintained sources. It is strictly the
+    // last fallback and never replaces a current canonical record.
+    for (const [path, record] of Object.entries(legacyUpgradesByPath)) {
+        if (!Object.prototype.hasOwnProperty.call(modsMap, path)) modsMap[path] = record;
+    }
     const modsetsMap = parseJsonMap("modsets", buildModsetsFromExternal());
     const rivensMap = parseJsonMap("rivens", buildRivensFromExternal());
+    for (const [path, record] of Object.entries(publicExportRivensByPath)) {
+        if (!Object.prototype.hasOwnProperty.call(rivensMap, path)) rivensMap[path] = record;
+    }
     const moddescriptionsMap: Record<string, any> = {}; // covered by All.json levelStats
 
     const recordsById: Record<CatalogId, CatalogRecordBase> = {} as any;
