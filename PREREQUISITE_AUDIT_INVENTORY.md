@@ -2,17 +2,17 @@
 
 Generated from `PREREQ_REGISTRY`, `MILESTONE_REGISTRY`, `SOURCE_INDEX`, and `STAR_CHART_DATA` by `npm run audit:prerequisites`.
 
-- Registry entries: 221
-- Direct required edges: 240
+- Registry entries: 220
+- Direct required edges: 239
 - Alternative prerequisite references: 29
 - Milestone rollups: 46
 - Source catalog entries: 16256
 - Star Chart nodes: 514
 - Star Chart junctions: 13
-- Prerequisite categories: Quests 25; Systems 96; SideQuests 20; Hubs 11; Railjack 13; Segments 16; Necramech 5; Syndicates 35
+- Prerequisite categories: Quests 25; Systems 95; SideQuests 20; Hubs 11; Railjack 13; Segments 16; Necramech 5; Syndicates 35
 - Root entries: quest_awakening, hub_relay, system_clan_dojo_access, system_necramech_market_acquired, system_railjack_market_acquired, system_operator_amp_owned, system_rank30_warframe_eligible, system_adversary_slot_clear, companion_mature_helminth_cyst, mastery_rank_5, mastery_rank_8, mastery_rank_10, mastery_rank_15, mastery_rank_30
-- Entries with release metadata: 28
-- Entries introduced after the Update 41 baseline: 13 (Quests 2; Hubs 2; Systems 8; Railjack 1)
+- Entries with release metadata: 27
+- Entries introduced after the Update 41 baseline: 12 (Quests 2; Hubs 2; Systems 7; Railjack 1)
 - Duplicate IDs: none
 - Duplicate milestone IDs: none
 - Duplicate canonical labels: none
@@ -39,7 +39,7 @@ Generated from `PREREQ_REGISTRY`, `MILESTONE_REGISTRY`, `SOURCE_INDEX`, and `STA
 | Identifier | Name | Category | Required (AND) | Alternative (OR) | Typed conditions (AND) | Direct dependents | Completion source | Evidence / release metadata |
 |---|---|---|---|---|---|---|---|---|
 | `quest_awakening` | The Awakening | Quests | — | — | — | Vor's Prize | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Awakening); release not tagged |
-| `quest_vors_prize` | Vor's Prize | Quests | The Awakening | — | — | Invasions Available, Nightmare Missions Unlocked, Operation: Taubound (Limited Event), Orbiter: Arsenal Segment, Orbiter: Communications Segment, Orbiter: Foundry Segment, Saya's Vigil, The Teacher, Void Fissures | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Vor%27s_Prize); release not tagged |
+| `quest_vors_prize` | Vor's Prize | Quests | The Awakening | — | — | Invasions Available, Nightmare Missions Unlocked, Orbiter: Arsenal Segment, Orbiter: Communications Segment, Orbiter: Foundry Segment, Saya's Vigil, The Teacher, Void Fissures | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Vor%27s_Prize); release not tagged |
 | `quest_the_teacher` | The Teacher | Quests | Vor's Prize | — | — | Cetus (Plains of Eidolon) Access, Junction: Earth → Venus, Nightwave Access, Opt into Dark Refractory Mission Preview, Orbiter: Modding Segment, Vox Solaris | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/The_Teacher); release not tagged |
 | `quest_once_awake` | Once Awake | Quests | Junction: Venus → Mercury | — | — | Junction: Earth → Mars, Orbiter: Void Relic Segment, Patient Zero | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Once_Awake); release not tagged |
 | `quest_the_archwing` | The Archwing | Quests | Junction: Earth → Mars | — | — | Empyrean Proxima Access, Junction: Europa → Saturn, Natah, Railjack: Intrinsics Unlocked, The Limbo Theorem, Void Storms | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/The_Archwing); release not tagged |
@@ -143,7 +143,6 @@ Generated from `PREREQ_REGISTRY`, `MILESTONE_REGISTRY`, `SOURCE_INDEX`, and `STA
 | `activity_perita_rebellion` | The Perita Rebellion | Systems | Dark Refractory Access | — | — | — | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/patch-notes/pc/41-0-0); introduced Update 41 (December 10, 2025) |
 | `system_amir_chemistry_close` | Amir Chemistry: Close | Systems | Höllvania Central Mall Access | — | — | Fables & Frontiers: Running Late | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/patch-notes/pc/43-5-0); introduced Update 43.5 (August 12, 2026) |
 | `activity_fables_frontiers` | Fables & Frontiers: Running Late | Systems | The Hex, The Hex Finale, The Hex: Rank 5 (Pizza Party), Amir Chemistry: Close | — | — | — | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/patch-notes/pc/43-5-0); introduced Update 43.5 (August 12, 2026) |
-| `activity_epoch_operation_taubound` | Operation: Taubound (Limited Event) | Systems | Vor's Prize | — | Available 2026-10-15 through 2026-11-17 | — | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/news/epoch-operation-taubound); introduced Update 44.1.2 (October 15, 2026) |
 | `activity_kuva_lich` | Kuva Lich System | Systems | The War Within, Adversary Slot Clear | Railjack: Ship Constructed OR Railjack Purchased from the Market | Mastery Rank 5 | — | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Kuva_Lich); [wiki](https://wiki.warframe.com/w/Adversary_System); release not tagged |
 | `activity_sister_of_parvos` | Sisters of Parvos System | Systems | The War Within, Call of the Tempestarii, Adversary Slot Clear | — | Mastery Rank 5 | Vanquished a Sister of Parvos | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Sisters_of_Parvos); [wiki](https://wiki.warframe.com/w/Adversary_System); release not tagged |
 | `activity_sister_vanquished` | Vanquished a Sister of Parvos | Systems | Sisters of Parvos System | — | — | Hound Companion Reward | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Hound); release not tagged |

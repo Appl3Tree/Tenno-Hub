@@ -1,7 +1,7 @@
 // ===== FILE: src/catalog/prereqs/prereqRegistry.ts =====
 //
 // Prerequisite definitions for all tracked progression gates.
-// Updated: 2026-11 — current progression gates through Update 44.1.4.1, with temporary Operation: Taubound.
+// Updated: 2026-11 — current progression gates through Update 44.1.4.1.
 //
 // Design rules:
 // - Entries represent gates a player must pass through on the path to endgame.
@@ -32,8 +32,7 @@ export type PrereqCondition =
     | { type: "item_owned"; catalogId: string }
     | { type: "resource_owned"; catalogId: string; quantity: number }
     | { type: "star_chart_access"; activity: "steel_path" | "nightmare" }
-    | { type: "railjack_intrinsic_rank"; rank: number; skillId?: string }
-    | { type: "availability_window"; startsOn: string; endsOn: string };
+    | { type: "railjack_intrinsic_rank"; rank: number; skillId?: string };
 
 export interface PrereqEvidence {
     kind: "official" | "wiki" | "forum";
@@ -60,7 +59,6 @@ export function describePrereqCondition(cond: PrereqCondition, prereqLabelFor?: 
             ? "Complete the eligible Star Chart nodes required to unlock The Steel Path"
             : "Complete all nodes on at least one eligible planet to unlock Nightmare missions";
         case "railjack_intrinsic_rank": return `${cond.skillId ? `${cond.skillId.replace(/^LPS_/, "").replaceAll("_", " ")} ` : "Any Railjack Intrinsic "}Rank ${cond.rank} required`;
-        case "availability_window": return `Available ${cond.startsOn} through ${cond.endsOn}`;
     }
 }
 
@@ -1065,16 +1063,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         prerequisites: [PR.THE_HEX, PR.THE_HEX_FINALE, PR.SYNDICATE_HEX_RANK5, PR.SYSTEM_AMIR_CLOSE],
         introducedIn: "Update 43.5 (August 12, 2026)",
         evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-5-0", verifiedOn: "2026-11-09", classification: "required", note: "Update 43.5 explicitly requires both The Hex Quest and The Hex Finale, Hex Rank 5 (Pizza Party), and Chemistry Rank 5 (Close) with Amir. The Hex Finale depends on The Hex in the registry, but the game lists both separately." }]
-    },
-    {
-        id: PR.ACTIVITY_TAUBOUND,
-        label: "Operation: Taubound (Limited Event)",
-        category: "Systems",
-        description: "Temporary Eris route available October 15 through November 17, 2026. During the event it only requires Vor's Prize and bypasses the usual Eris Star Chart and Junction gates.",
-        prerequisites: [PR.VORS_PRIZE],
-        conditions: [{ type: "availability_window", startsOn: "2026-10-15", endsOn: "2026-11-17" }],
-        introducedIn: "Update 44.1.2 (October 15, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/news/epoch-operation-taubound", verifiedOn: "2026-11-08", classification: "conditional", note: "The active operation bypasses normal Eris Star Chart requirements for its event mission path and ends November 17, 2026." }]
     },
     {
         id: PR.ACTIVITY_KUVA_LICH,

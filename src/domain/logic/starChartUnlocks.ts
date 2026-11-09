@@ -1,6 +1,5 @@
 import { PR } from "../ids/prereqIds";
 import { STAR_CHART_DATA } from "../catalog/starChart";
-import { isPrereqUnlocked } from "./unlockGraph";
 
 /**
  * Returns the Star Chart destinations available from normal progression.
@@ -10,7 +9,6 @@ import { isPrereqUnlocked } from "./unlockGraph";
 export function getUnlockedStarChartDestinationIds(
     completedPrereqs: Record<string, boolean>,
     normalNodeCompletedMap: Record<string, boolean>,
-    currentDate?: string,
 ): Set<string> {
     const unlocked = new Set<string>(["planet:earth"]);
 
@@ -51,12 +49,6 @@ export function getUnlockedStarChartDestinationIds(
     if (completedPrereqs[PR.SYSTEM_PROXIMA_PLUTO_ACCESS] === true) unlocked.add("region:pluto_proxima");
     if (completedPrereqs[PR.SYSTEM_PROXIMA_VEIL_ACCESS] === true) unlocked.add("region:veil_proxima");
     if (completedPrereqs[PR.SYSTEM_URANUS_PROXIMA] === true) unlocked.add("region:uranus_proxima");
-
-    // Operation: Taubound temporarily exposes its Eris route without the
-    // permanent chart path. The event gate includes its current time window.
-    if (isPrereqUnlocked(completedPrereqs, PR.ACTIVITY_TAUBOUND, undefined, { currentDate })) {
-        unlocked.add("planet:eris");
-    }
 
     return unlocked;
 }

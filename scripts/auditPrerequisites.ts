@@ -81,15 +81,6 @@ for (const def of PREREQ_REGISTRY) {
         )) {
             conditionMissingRefs.push(`${def.id} -> invalid Railjack Intrinsic condition ${condition.skillId ?? "any"} rank ${condition.rank}`);
         }
-        if (condition.type === "availability_window" && (
-            !/^\d{4}-\d{2}-\d{2}$/.test(condition.startsOn)
-            || !/^\d{4}-\d{2}-\d{2}$/.test(condition.endsOn)
-            || condition.startsOn > condition.endsOn
-            || Number.isNaN(Date.parse(`${condition.startsOn}T00:00:00Z`))
-            || Number.isNaN(Date.parse(`${condition.endsOn}T00:00:00Z`))
-        )) {
-            conditionMissingRefs.push(`${def.id} -> invalid availability window ${condition.startsOn} through ${condition.endsOn}`);
-        }
     }
 }
 
@@ -331,7 +322,6 @@ for (const def of PREREQ_REGISTRY) {
                 ? "Steel Path Star Chart node set complete"
                 : "Nightmare eligible planet node set complete";
             case "railjack_intrinsic_rank": return `${condition.skillId ?? "Any Railjack Intrinsic"} Rank ${condition.rank}`;
-            case "availability_window": return `Available ${condition.startsOn} through ${condition.endsOn}`;
         }
     }).join(" AND ") || "—";
     const escapeCell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ");

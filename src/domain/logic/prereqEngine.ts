@@ -10,8 +10,6 @@ export interface PrereqEvaluationContext {
     inventoryCounts?: Record<string, number>;
     syndicateRankById?: Record<string, number>;
     railjackIntrinsics?: Record<string, number>;
-    /** UTC calendar date, accepted as YYYY-MM-DD for deterministic time-gated checks. */
-    currentDate?: string;
 }
 
 export interface PrereqStatus {
@@ -74,10 +72,6 @@ export function isPrereqConditionSatisfied(
                 return (Number(intrinsics[cond.skillId]) || 0) >= cond.rank;
             }
             return Object.values(intrinsics).some((rank) => Number.isFinite(rank) && rank >= cond.rank);
-        }
-        case "availability_window": {
-            const today = context.currentDate ?? new Date().toISOString().slice(0, 10);
-            return today >= cond.startsOn && today <= cond.endsOn;
         }
     }
 }

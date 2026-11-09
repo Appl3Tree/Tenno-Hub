@@ -28,7 +28,7 @@ describe("Star Chart destination access", () => {
         expect(unlocked.has("planet:mercury")).toBe(true);
     });
 
-    it("resolves the current direct region routes and the temporary Taubound route", () => {
+    it("resolves the current direct region routes", () => {
         const directRoutes = getUnlockedStarChartDestinationIds({
             [PR.DEIMOS_ACCESS]: true,
             [PR.WAR_WITHIN]: true,
@@ -38,12 +38,6 @@ describe("Star Chart destination access", () => {
         expect(directRoutes.has("region:kuva_fortress")).toBe(true);
         expect(directRoutes.has("region:lua")).toBe(true);
 
-        const beforeOperation = getUnlockedStarChartDestinationIds({ [PR.VORS_PRIZE]: true }, {}, "2026-10-14");
-        const duringOperation = getUnlockedStarChartDestinationIds({ [PR.VORS_PRIZE]: true }, {}, "2026-11-09");
-        const afterOperation = getUnlockedStarChartDestinationIds({ [PR.VORS_PRIZE]: true }, {}, "2026-11-18");
-        expect(beforeOperation.has("planet:eris")).toBe(false);
-        expect(duringOperation.has("planet:eris")).toBe(true);
-        expect(afterOperation.has("planet:eris")).toBe(false);
     });
 
     it("opens the correct Proxima regions from quest, Intrinsic, and Update 43 progression", () => {

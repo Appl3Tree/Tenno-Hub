@@ -305,7 +305,6 @@ export const PR = {
     ACTIVITY_DESCENDIA:             "activity_descendia",               // Update 41; accessible from Dark Refractory
     ACTIVITY_PERITA_REBELLION:      "activity_perita_rebellion",        // Update 41; accessible from Dark Refractory
     ACTIVITY_FABLES_FRONTIERS:      "activity_fables_frontiers",        // Update 43.5; Hex finale/rank 5/Amir Close
-    ACTIVITY_TAUBOUND:              "activity_epoch_operation_taubound", // Temporary Update 44 event, live Oct 15–Nov 17 2026
     SYSTEM_URANUS_PROXIMA:          "system_uranus_proxima",             // Update 43; Jade Shadows: Constellations
     ACTIVITY_KUVA_WYTCH:            "activity_kuva_wytch",               // Update 43 Uranus Proxima mission
     ACTIVITY_SCORIAS_ANGEL:         "activity_scorias_angel",            // Update 43 Uranus Proxima mission

@@ -501,7 +501,7 @@ describe("current Warframe progression gates", () => {
         expect(unlocked.unlocked).toBe(true);
     });
 
-    it("keeps recommendations nonblocking and uses live event date boundaries", () => {
+    it("keeps recommendations nonblocking", () => {
         const recommendedOnly = {
             id: PR.VORS_PRIZE,
             label: "Recommended equipment",
@@ -512,10 +512,6 @@ describe("current Warframe progression gates", () => {
         };
         expect(computeUnlockGraphSnapshot({}, [recommendedOnly]).byId[PR.VORS_PRIZE].unlocked).toBe(true);
 
-        const eventEntry = { [PR.VORS_PRIZE]: true };
-        expect(isPrereqUnlocked(eventEntry, PR.ACTIVITY_TAUBOUND, undefined, { currentDate: "2026-10-15" })).toBe(true);
-        expect(isPrereqUnlocked(eventEntry, PR.ACTIVITY_TAUBOUND, undefined, { currentDate: "2026-11-17" })).toBe(true);
-        expect(isPrereqUnlocked(eventEntry, PR.ACTIVITY_TAUBOUND, undefined, { currentDate: "2026-11-18" })).toBe(false);
     });
 
     it("requires both quests for Tau Prologue and Chains of Harrow for Follie's Hunt", () => {

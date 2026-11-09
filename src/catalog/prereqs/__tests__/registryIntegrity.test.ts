@@ -9,6 +9,10 @@ import { SY } from "../../../domain/ids/syndicateIds";
 import { computeUnlockGraphSnapshot } from "../../../domain/logic/unlockGraph";
 
 describe("prerequisite registry integrity", () => {
+    it("does not track temporary Operation: Taubound as persistent progression", () => {
+        expect(PREREQ_REGISTRY.some((def) => def.label.startsWith("Operation: Taubound"))).toBe(false);
+    });
+
     it("defines every prerequisite referenced by other registry rows", () => {
         const ids = new Set(PREREQ_REGISTRY.map((def) => def.id));
         const missing = PREREQ_REGISTRY.flatMap((def) =>
