@@ -6,8 +6,9 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { STAR_CHART_DATA } from "../../domain/catalog/starChart";
 import type { NodeId, PlanetId, StarChartNode, StarChartPlanet } from "../../domain/models/starChart";
 import { getRegionResourcesForPlanet } from "../../domain/catalog/starChart/regionResources";
-import { PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
+import { describePrereqCondition, PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
 import { PR } from "../../domain/ids/prereqIds";
+import { getUnlockedStarChartDestinationIds } from "../../domain/logic/starChartUnlocks";
 import { FULL_CATALOG, type CatalogId } from "../../domain/catalog/loadFullCatalog";
 import { useTrackerStore } from "../../store/store";
 import { getDropSourcesForStarChartNode } from "../../domain/catalog/starChart/nodeDropSourceMap";
@@ -188,6 +189,12 @@ export default function StarChartMap(props: {
         return m;
     }, []);
 
+    const junctionPrereqDef = useMemo(() => {
+        if (!junctionNode) return undefined;
+        const prereqId = junctionNode.id.replace(/^node:/, "");
+        return PREREQ_REGISTRY.find((def) => def.id === prereqId);
+    }, [junctionNode]);
+
     // 6.5: Derive unlocked planet name for junction node
     const planetsById = useMemo(() => {
         const m = new Map<string, StarChartPlanet>();
@@ -223,21 +230,21 @@ export default function StarChartMap(props: {
         const derived: Record<string, boolean> = completedPrereqs[PR.VORS_PRIZE]
             ? { ...VORS_PRIZE_IMPLIES_COMPLETED }
             : {};
+        for (const node of STAR_CHART_DATA.nodes) {
+            if (node.nodeType === "junction" && completedPrereqs[node.id.replace(/^node:/, "")] === true) {
+                derived[node.id] = true;
+            }
+        }
         return { ...derived, ...nodeCompletedMap };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [steelPathMode, completedPrereqs, nodeCompletedMap, spNodeCompletedMap]);
 
     // Derive which planets are unlocked from completed junctions.
-    // Mercury is the starting planet and is always accessible.
-    const unlockedPlanetIds = useMemo(() => {
-        const unlocked = new Set<string>(["planet:mercury"]);
-        for (const n of STAR_CHART_DATA.nodes) {
-            if (n.nodeType === "junction" && n.unlocksPlanetId && effectiveNodeCompletedMap[n.id]) {
-                unlocked.add(n.unlocksPlanetId);
-            }
-        }
-        return unlocked;
-    }, [effectiveNodeCompletedMap]);
+    // Earth is the starting planet; Venus and Mercury have separate junctions.
+    const unlockedPlanetIds = useMemo(
+        () => getUnlockedStarChartDestinationIds(completedPrereqs, nodeCompletedMap),
+        [completedPrereqs, nodeCompletedMap],
+    );
 
     const svgRef = useRef<SVGSVGElement | null>(null);
     const vbRef = useRef<ViewBox>(vb);
@@ -1390,17 +1397,39 @@ export default function StarChartMap(props: {
                                         </div>
                                     )}
 
-                                    {Array.isArray(junctionNode.prereqIds) && junctionNode.prereqIds.length > 0 && (
+                                    {junctionPrereqDef && (
                                         <div>
                                             <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">Requirements</div>
-                                            <ul className="space-y-1">
-                                                {junctionNode.prereqIds.map((pid) => (
-                                                    <li key={pid} className="text-xs text-slate-300 flex items-center gap-1">
-                                                        <span className="text-cyan-500">—</span>
-                                                        {prereqLabelIndex[pid] ?? pid}
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                            {(junctionPrereqDef.prerequisites.length > 0
+                                                || (junctionPrereqDef.anyPrerequisites?.length ?? 0) > 0
+                                                || (junctionPrereqDef.conditions?.length ?? 0) > 0) && (
+                                                <ul className="space-y-1">
+                                                    {junctionPrereqDef.prerequisites.map((pid) => (
+                                                        <li key={pid} className="text-xs text-slate-300 flex items-center gap-1">
+                                                            <span className="text-cyan-500">—</span>
+                                                            {prereqLabelIndex[pid] ?? pid}
+                                                        </li>
+                                                    ))}
+                                                    {!!junctionPrereqDef.anyPrerequisites?.length && (
+                                                        <li key="any" className="text-xs text-slate-300 flex items-center gap-1">
+                                                            <span className="text-cyan-500">—</span>
+                                                            Either {junctionPrereqDef.anyPrerequisites.map((pid) => prereqLabelIndex[pid] ?? pid).join(" or ")}
+                                                        </li>
+                                                    )}
+                                                    {(junctionPrereqDef.conditions ?? []).map((condition, index) => {
+                                                        const label = condition.type === "node_complete"
+                                                            ? `Complete ${STAR_CHART_DATA.nodes.find((node) => node.id === condition.nodeId)?.name ?? condition.nodeId}`
+                                                            : describePrereqCondition(condition, (id) => prereqLabelIndex[id] ?? id);
+                                                        return (
+                                                            <li key={`condition-${index}`} className="text-xs text-slate-300 flex items-center gap-1">
+                                                                <span className="text-cyan-500">—</span>
+                                                                {label}
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            )}
+                                            <p className="mt-2 text-xs leading-relaxed text-slate-400">{junctionPrereqDef.description}</p>
                                         </div>
                                     )}
 

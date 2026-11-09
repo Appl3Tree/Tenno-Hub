@@ -1,7 +1,7 @@
 // ===== FILE: src/domain/ids/prereqIds.ts =====
 //
 // Comprehensive registry of all trackable prerequisites in Warframe.
-// Updated: 2026-03 — covers all content through The Hex / Update 38 + hotfixes.
+// Updated: 2026-11 — current progression gates verified through Update 44.1.
 //
 // Naming convention:
 //   QUEST_*      — story or side quest completion gate  (key prefix is the quest name)
@@ -43,7 +43,7 @@ export const PR = {
     ARCHWING:               "quest_the_archwing",           // Unlocks Archwing gear + missions; current wiki page lists Mars Junction
     STOLEN_DREAMS:          "quest_stolen_dreams",          // Unlocks Cephalon Simaris relay scanner; req. Phobos Junction
     NEW_STRANGE:            "quest_the_new_strange",        // Unlocks Simaris standing + Chroma BP; req. Stolen Dreams
-    NATAH:                  "quest_natah",                  // Gatekeeper to Second Dream; req. Uranus Junction
+    NATAH:                  "quest_natah",                  // Automatically unlocked after The Archwing; no Uranus scan/junction gate
 
     // -------------------------------------------------------------------------
     // Arc 2 — The Second Dream / War Within
@@ -53,7 +53,7 @@ export const PR = {
                                                             //   unlocks Kuva Fortress, Sorties, Kuva Lich;
                                                             //   gates full Focus tree + Quills access;
                                                             //   req. Second Dream + Pluto access + MR5
-    CHAINS_HARROW:          "quest_chains_of_harrow",       // Harrow BP; req. War Within + obtaining Mote Amp from Onkko
+    CHAINS_HARROW:          "quest_chains_of_harrow",       // Harrow BP; req. visit Onkko after War Within (not Mote Amp ownership)
     APOSTASY:               "quest_apostasy_prologue",      // Short cinematic; req. War Within + Personal Quarters segment
     SACRIFICE:              "quest_the_sacrifice",          // Excalibur Umbra; req. Apostasy Prologue
 
@@ -63,14 +63,14 @@ export const PR = {
     CHIMERA_PROLOGUE:       "quest_chimera_prologue",       // Short cinematic; req. The Sacrifice
     ERRA:                   "quest_erra",                   // Short cinematic; req. Chimera Prologue
     PRELUDE_TO_WAR:         "quest_prelude_to_war",         // Compilation of miniquests; req. Erra
-    NEW_WAR:                "quest_the_new_war",            // Major story gate; unlocks Zariman, Veilbreaker, Jade Shadows;
-                                                            //   req. Prelude to War + Railjack + Amp
+    NEW_WAR:                "quest_the_new_war",            // Major story gate; requires Prelude to War + owned Railjack;
+                                                            //   Amp and owned Necramech are not current requirements
     JADE_SHADOWS:           "quest_jade_shadows",           // Jade Warframe; req. New War
 
     // -------------------------------------------------------------------------
     // Arc 4 — The Duviri Paradox
-    // Note: Can be started from The Second Dream (alt entry point),
-    //       but completing it is REQUIRED for The Hex (Arc 5 late).
+    // Current Codex unlock is the Saturn → Uranus Junction reward; completion is
+    // REQUIRED for The Hex even though it is not part of the main quest spine.
     // -------------------------------------------------------------------------
     DUVIRI_PARADOX:         "quest_the_duviri_paradox",     // Unlocks The Circuit, Drifter Intrinsics, Incarnon Genesis adapters;
                                                             //   required prerequisite for The Hex
@@ -87,6 +87,9 @@ export const PR = {
     // Arc 6 — The Old Peace (Update 41, Dec 2025)
     // -------------------------------------------------------------------------
     THE_OLD_PEACE:          "quest_the_old_peace",          // Dark Refractory / Descendia content; req. The Lotus Eaters
+    JADE_SHADOWS_CONSTELLATIONS: "quest_jade_shadows_constellations", // Update 43; requires Jade Shadows
+    THE_HEX_FINALE:         "quest_the_hex_finale",         // Update 38 epilogue; all Hex members Liked at rank 3
+    TAU_PROLOGUE:           "quest_tau_prologue_series",    // Update 44.1.2; requires both The Hex and The Old Peace
 
     // =========================================================================
     // SIDE QUESTS — Feature Gates
@@ -125,18 +128,20 @@ export const PR = {
     JUNCTION_EARTH_MARS:            "junction_earth_mars",
     JUNCTION_MARS_PHOBOS:           "junction_mars_phobos",
     JUNCTION_MARS_CERES:            "junction_mars_ceres",
-    JUNCTION_MARS_DEIMOS:           "junction_mars_deimos",
-    JUNCTION_PHOBOS_CERES:          "junction_phobos_ceres",
-    JUNCTION_CERES_JUPITER:         "junction_ceres_jupiter",
+    DEIMOS_ACCESS:                 "junction_mars_deimos",            // Legacy saved-state key; Deimos opens after War on Mars, not a Junction
+    JUNCTION_PHOBOS_CERES:          "junction_phobos_ceres",          // Legacy saved-state key; removed from current Star Chart path
+    JUNCTION_CERES_JUPITER:         "junction_ceres_jupiter",        // Stable legacy key for the current Deimos-located Jupiter Junction
     JUNCTION_JUPITER_EUROPA:        "junction_jupiter_europa",
     JUNCTION_EUROPA_SATURN:         "junction_europa_saturn",
     JUNCTION_SATURN_URANUS:         "junction_saturn_uranus",
     JUNCTION_URANUS_NEPTUNE:        "junction_uranus_neptune",
     JUNCTION_NEPTUNE_PLUTO:         "junction_neptune_pluto",
-    JUNCTION_PLUTO_SEDNA:           "junction_pluto_sedna",
-    JUNCTION_SEDNA_ERIS:            "junction_sedna_eris",
-    JUNCTION_EARTH_LUA:             "junction_earth_lua",
-    JUNCTION_ERIS_KUVA_FORTRESS:    "junction_eris_kuva_fortress",
+    JUNCTION_PLUTO_SEDNA:           "junction_pluto_sedna",          // Stable key for current Pluto → Eris Junction (profile mapping)
+    JUNCTION_SEDNA_ERIS:            "junction_sedna_eris",            // Stable key for current Eris → Sedna Junction (profile mapping)
+    SYSTEM_ERIS_FOCUS_LENS:         "system_eris_junction_focus_lens", // Eris Junction task; its completion unlocks Arbitrations
+    JUNCTION_EARTH_LUA:             "junction_earth_lua",             // Legacy saved-state key; now tracks Lua access after The Second Dream
+    // Stable saved-state key retained from the old pseudo-junction model.
+    KUVA_FORTRESS_ACCESS:           "junction_eris_kuva_fortress",
 
     // =========================================================================
     // OPEN WORLD HUBS
@@ -148,6 +153,9 @@ export const PR = {
     HUB_ZARIMAN:            "hub_zariman",                  // Chrysalith; gates Holdfasts; req. Angels of Zariman
     HUB_SANCTUM:            "hub_sanctum_anatomica",        // Sanctum Anatomica; gates Cavia; req. Whispers in the Walls
     HUB_HOLLVANIA:          "hub_hollvania",                // 1999 hub; req. The Hex
+    HUB_YUVAN_PEAK:         "hub_yuvan_peak",               // Update 44; req. Angels of the Zariman + Whispers in the Walls
+    HUB_PONTIS_TOWER:       "hub_pontis_tower",             // Update 43; unlocked with Uranus Proxima
+    HUB_LA_CATHEDRALE:      "hub_la_cathedrale",            // Update 41; Old Peace complete, enter as the Drifter
     HUB_RELAY:              "hub_relay",                    // Any Relay; gates Cephalon Simaris, Syndicates, Conclave
     HUB_DRIFTERS_CAMP:      "hub_drifters_camp",            // Drifter's Camp; gates Kahl's Garrison; req. New War
     CLAN_DOJO:              "system_clan_dojo_access",      // Join or create a Clan and access its Dojo; gates clan research and dojo replication
@@ -189,7 +197,7 @@ export const PR = {
 
     FOCUS_UNLOCKED:                 "focus_system_unlocked",            // Focus passives (2 per school); req. Second Dream completion
     FOCUS_FULL:                     "focus_full_trees_unlocked",        // All 10 Ways per school unlockable;
-                                                                        //   req. War Within + Saya's Vigil + visiting The Quills
+                                                                        //   req. War Within + Quills Rank 1 (Cetus access; Saya's Vigil is not required)
 
     // Focus Schools (choose 1 at end of Second Dream; buy others for 50,000 Focus each):
     FOCUS_SCHOOL_ZENURIK:           "focus_school_zenurik",             // Energy/Void regen — most popular for energy sustain
@@ -203,7 +211,10 @@ export const PR = {
     // Tiers 1–4 from The Quills (Cetus); tiers 5–7 from Vox Solaris (Fortuna)
     // =========================================================================
 
-    AMP_MOTE:               "amp_mote",                                 // Starter Amp; req. War Within + visiting Quill Onkko
+    AMP_MOTE:               "amp_mote",                                 // Mote Amp item ownership, kept on its stable saved-state key
+    SYSTEM_OPERATOR_AMP:    "system_operator_amp_owned",                // Any owned Operator Amp satisfies The New War's Amp gate
+    SYSTEM_RANK30_WARFRAME: "system_rank30_warframe_eligible",           // Rank 30 Warframe or MR30+Forma exception for Sorties/Arbitrations
+    SYSTEM_ONKKO_VISITED:    "system_onkko_visited",                     // Current Chains of Harrow gate: visit Onkko after War Within
     AMP_SIROCCO:            "amp_sirocco",                              // Pre-built Amp reward from The New War
     AMP_TIER1:              "amp_tier1_parts",                          // Raplak/Pencha/Clapkra parts; req. Quills rank 1
     AMP_TIER2:              "amp_tier2_parts",                          // Shwaak/Shraksun/Juttni parts; req. Quills rank 2
@@ -267,6 +278,24 @@ export const PR = {
                                                                         //   rank-30 frame required; instant-death on down
     ACTIVITY_ABYSSAL_ZONE:          "activity_abyssal_zone",            // Abyssal Zone mission access; req. Relay access + any pledged main Syndicate at Rank 2
     ACTIVITY_DEEP_ARCHIMEDEA:       "activity_deep_archimedea",         // Elite endgame activity; req. Whispers + Cavia rank 5 (Family)
+    ACTIVITY_ELITE_DEEP_ARCHIMEDEA: "activity_elite_deep_archimedea",   // Manually track permanent unlock after 25 research points
+    ACTIVITY_TEMPORAL_ARCHIMEDEA:   "activity_temporal_archimedea",     // Update 38; Hex quest + Hex rank 5
+    ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA: "activity_elite_temporal_archimedea", // Manually track permanent unlock after 25 research points
+    ACTIVITY_ICEBIND:               "activity_icebind",                 // Update 44.1; two quests + either Elite Archimedea unlock
+    ACTIVITY_FOLLIES_HUNT:          "activity_follies_hunt",            // Update 42; Chains of Harrow
+    ACTIVITY_ASPIRANT_ZORBA:        "activity_aspirant_zorba_vendor",    // Update 42; Chains of Harrow
+    ACTIVITY_DARK_REFRACTORY:       "activity_dark_refractory",         // Update 41; Old Peace or conditional mission preview
+    ACTIVITY_DESCENDIA:             "activity_descendia",               // Update 41; accessible from Dark Refractory
+    ACTIVITY_PERITA_REBELLION:      "activity_perita_rebellion",        // Update 41; accessible from Dark Refractory
+    ACTIVITY_FABLES_FRONTIERS:      "activity_fables_frontiers",        // Update 43.5; Hex finale/rank 5/Amir Close
+    ACTIVITY_TAUBOUND:              "activity_epoch_operation_taubound", // Temporary Update 44 event, live Oct 15–Nov 17 2026
+    SYSTEM_URANUS_PROXIMA:          "system_uranus_proxima",             // Update 43; Jade Shadows: Constellations
+    ACTIVITY_KUVA_WYTCH:            "activity_kuva_wytch",               // Update 43 Uranus Proxima mission
+    ACTIVITY_SCORIAS_ANGEL:         "activity_scorias_angel",            // Update 43 Uranus Proxima mission
+    SYSTEM_DEVILS_TRIAD_KIM:        "system_devils_triad_kim",           // Update 41; The Old Peace
+    SYSTEM_DARK_REFRACTORY_PREVIEW: "system_dark_refractory_preview",     // Update 41; opt-in to Mission Preview after The Teacher
+    SYSTEM_HEX_ALL_LIKED:           "system_hex_all_liked",              // Manual KIM state; Rank 3 + Liked with six members
+    SYSTEM_AMIR_CLOSE:              "system_amir_chemistry_close",       // Manual KIM state; Amir Chemistry Rank 5
 
     // ---- Open World Bounties ----
     // ---- Steel Path ----
@@ -299,7 +328,8 @@ export const PR = {
     SYNDICATE_QUILLS_RANK1:         "syndicate_quills_rank1",           // Mote — T1 Amp parts
     SYNDICATE_QUILLS_RANK2:         "syndicate_quills_rank2",           // Observer — T2 Amp parts + Mask of the Revenant
     SYNDICATE_QUILLS_RANK3:         "syndicate_quills_rank3",           // Adherent — T3 Amp parts
-    SYNDICATE_QUILLS_RANK4:         "syndicate_quills_rank4",           // Instrument — T4 Amp parts (highest tracked Quills rank here)
+    SYNDICATE_QUILLS_RANK4:         "syndicate_quills_rank4",           // Instrument — T4 Amp parts
+    SYNDICATE_QUILLS_RANK5:         "syndicate_quills_rank5",           // Architect — final Quills standing rank
 
     // The Holdfasts (Zariman) — gates Chrysalith vendor inventory:
     SYNDICATE_HOLDFASTS_RANK1:      "syndicate_holdfasts_rank1",        // Fallen
@@ -309,8 +339,9 @@ export const PR = {
     SYNDICATE_HOLDFASTS_RANK5:      "syndicate_holdfasts_rank5",        // Angel
 
     // Entrati (Necralisk) — gates Helminth:
-    SYNDICATE_ENTRATI_RANK3:        "syndicate_entrati_rank3",          // Associate (rank 3) — Helminth Segment BP (also req. MR8)
-    SYNDICATE_ENTRATI_RANK5:        "syndicate_entrati_rank5",          // Family (rank 5) — Helminth Invigoration Segment BP (also req. MR8)
+    SYNDICATE_ENTRATI_RANK3:        "syndicate_entrati_rank3",          // Associate (rank 3) — Helminth Segment blueprint rank gate
+    SYNDICATE_ENTRATI_RANK4:        "syndicate_entrati_rank4",          // Friend (rank 4)
+    SYNDICATE_ENTRATI_RANK5:        "syndicate_entrati_rank5",          // Family (rank 5) — Invigoration Segment rank gate
 
     // Cavia (Sanctum Anatomica) — gates Coalescent + Deep Archimedea:
     SYNDICATE_CAVIA_RANK2:          "syndicate_cavia_rank2",            // Researcher — Helminth Coalescent Segment BP (Bird 3)
@@ -321,9 +352,10 @@ export const PR = {
     SYNDICATE_HEX_RANK5:            "syndicate_hex_rank5",              // Pizza Party (rank 5) — Temporal Archimedea access
 
     // Vox Solaris (Fortuna) — gates Profit-Taker + T5–7 Amp parts:
-    SYNDICATE_VOX_RANK1:            "syndicate_vox_rank1",              // Little Duck contact — T5 Amp parts
-    SYNDICATE_VOX_RANK2:            "syndicate_vox_rank2",              // Neutral — T6 Amp parts
-    SYNDICATE_VOX_RANK3:            "syndicate_vox_rank3",              // Mistral — T7 Amp parts + Amp gilding
+    SYNDICATE_VOX_RANK1:            "syndicate_vox_rank1",              // Operative — T5 Amp parts
+    SYNDICATE_VOX_RANK2:            "syndicate_vox_rank2",              // Agent — T6 Amp parts
+    SYNDICATE_VOX_RANK3:            "syndicate_vox_rank3",              // Hand — T7 Amp parts + Amp gilding
+    SYNDICATE_VOX_RANK4:            "syndicate_vox_rank4",              // Instrument — rank 4 Little Duck offerings
     SYNDICATE_VOX_RANK5:            "syndicate_vox_rank5",              // Shadow — top-tier Little Duck offerings
 
     // =========================================================================

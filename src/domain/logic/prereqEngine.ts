@@ -1,6 +1,7 @@
 // ===== FILE: src/domain/logic/prereqEngine.ts =====
 import type { PrereqCondition, PrereqDef } from "../../catalog/prereqs/prereqRegistry";
 import { PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
+import { isNightmareUnlockedFromNodeCompletion, isSteelPathUnlockedFromNodeCompletion } from "./starChartProgression";
 
 export interface PrereqEvaluationContext {
     masteryRank?: number | null;
@@ -8,6 +9,8 @@ export interface PrereqEvaluationContext {
     planetUnlockedMap?: Record<string, boolean>;
     inventoryCounts?: Record<string, number>;
     syndicateRankById?: Record<string, number>;
+    /** UTC calendar date, accepted as YYYY-MM-DD for deterministic time-gated checks. */
+    currentDate?: string;
 }
 
 export interface PrereqStatus {
@@ -15,6 +18,7 @@ export interface PrereqStatus {
     completed: boolean;
     isUnlocked: boolean;
     missingPrereqs: string[];
+    missingAnyPrerequisites: string[];
     missingConditions: PrereqCondition[];
 }
 
@@ -59,6 +63,14 @@ export function isPrereqConditionSatisfied(
             return Number(context.inventoryCounts?.[cond.catalogId] ?? 0) > 0;
         case "resource_owned":
             return Number(context.inventoryCounts?.[cond.catalogId] ?? 0) >= cond.quantity;
+        case "star_chart_access":
+            return cond.activity === "steel_path"
+                ? isSteelPathUnlockedFromNodeCompletion(context.nodeCompletedMap)
+                : isNightmareUnlockedFromNodeCompletion(context.nodeCompletedMap);
+        case "availability_window": {
+            const today = context.currentDate ?? new Date().toISOString().slice(0, 10);
+            return today >= cond.startsOn && today <= cond.endsOn;
+        }
     }
 }
 
@@ -91,6 +103,16 @@ export function getMissingPrereqs(
     return missing;
 }
 
+export function getMissingAnyPrereqs(
+    index: Record<string, PrereqDef>,
+    completedMap: Record<string, boolean>,
+    prereqIds: string[] | undefined,
+): string[] {
+    if (!prereqIds?.length || prereqIds.some((id) => index[id] && isPrereqCompleted(completedMap, id))) return [];
+    // Fail closed: unknown alternatives remain visible and cannot satisfy the OR group.
+    return [...prereqIds];
+}
+
 export function computePrereqStatuses(
     defs: PrereqDef[],
     completedMap: Record<string, boolean>,
@@ -101,14 +123,16 @@ export function computePrereqStatuses(
     return defs.map((d) => {
         const completed = isPrereqCompleted(completedMap, d.id);
         const missing = getMissingPrereqs(index, completedMap, d.id);
+        const missingAnyPrerequisites = getMissingAnyPrereqs(index, completedMap, d.anyPrerequisites);
         const missingConditions = getMissingConditions(d, completedMap, context);
-        const unlocked = missing.length === 0 && missingConditions.length === 0;
+        const unlocked = missing.length === 0 && missingAnyPrerequisites.length === 0 && missingConditions.length === 0;
 
         return {
             id: d.id,
             completed,
             isUnlocked: unlocked,
             missingPrereqs: missing,
+            missingAnyPrerequisites,
             missingConditions,
         };
     });

@@ -74,23 +74,23 @@ const SYNDICATE_VENDOR_ALIASES: Array<{ prefix: string; canonicalName: string }>
 ] as const;
 
 const STAR_CHART_REGION_PREREQS: Array<{ prefix: string; prereqIds: string[] }> = [
-    { prefix: "Mercury", prereqIds: [PR.VORS_PRIZE] },
-    { prefix: "Venus", prereqIds: [PR.JUNCTION_MERCURY_VENUS] },
+    { prefix: "Mercury", prereqIds: [PR.JUNCTION_MERCURY_VENUS] },
+    { prefix: "Venus", prereqIds: [PR.JUNCTION_VENUS_EARTH] },
     { prefix: "Earth", prereqIds: [PR.VORS_PRIZE] },
     { prefix: "Mars", prereqIds: [PR.JUNCTION_EARTH_MARS] },
     { prefix: "Phobos", prereqIds: [PR.JUNCTION_MARS_PHOBOS] },
     { prefix: "Ceres", prereqIds: [PR.JUNCTION_MARS_CERES] },
-    { prefix: "Deimos", prereqIds: [PR.JUNCTION_MARS_DEIMOS] },
+    { prefix: "Deimos", prereqIds: [PR.DEIMOS_ACCESS] },
     { prefix: "Jupiter", prereqIds: [PR.JUNCTION_CERES_JUPITER] },
     { prefix: "Europa", prereqIds: [PR.JUNCTION_JUPITER_EUROPA] },
     { prefix: "Saturn", prereqIds: [PR.JUNCTION_EUROPA_SATURN] },
     { prefix: "Uranus", prereqIds: [PR.JUNCTION_SATURN_URANUS] },
     { prefix: "Neptune", prereqIds: [PR.JUNCTION_URANUS_NEPTUNE] },
     { prefix: "Pluto", prereqIds: [PR.JUNCTION_NEPTUNE_PLUTO] },
-    { prefix: "Sedna", prereqIds: [PR.JUNCTION_PLUTO_SEDNA] },
-    { prefix: "Eris", prereqIds: [PR.JUNCTION_SEDNA_ERIS] },
+    { prefix: "Sedna", prereqIds: [PR.JUNCTION_SEDNA_ERIS] },
+    { prefix: "Eris", prereqIds: [PR.JUNCTION_PLUTO_SEDNA] },
     { prefix: "Lua", prereqIds: [PR.JUNCTION_EARTH_LUA] },
-    { prefix: "Kuva Fortress", prereqIds: [PR.JUNCTION_ERIS_KUVA_FORTRESS] },
+    { prefix: "Kuva Fortress", prereqIds: [PR.KUVA_FORTRESS_ACCESS] },
     { prefix: "Void", prereqIds: [PR.JUNCTION_MARS_PHOBOS] },
     { prefix: "Sanctuary", prereqIds: [PR.HUB_RELAY, PR.NEW_STRANGE] },
     { prefix: "Veil Proxima", prereqIds: [PR.RAILJACK_CONSTRUCTED] },
@@ -246,7 +246,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/^(?:Transient Reward|WFItems Location(?: \(Legacy\))?):\s*Derelict Vault$/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.CLAN_DOJO, PR.JUNCTION_MARS_DEIMOS],
+            prereqIds: [PR.CLAN_DOJO, PR.DEIMOS_ACCESS],
             type: "drop",
         };
     }
@@ -444,7 +444,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/^(?:Enemy|Enemy Drop|Enemy Mod Drop|Resource Drop \(Avatar\)|Additional Drop \(Avatar\)|Avatar Drop|WFItems Location(?: \(Legacy\))?):\s*Leaping Thrasher$/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.JUNCTION_MARS_DEIMOS],
+            prereqIds: [PR.DEIMOS_ACCESS],
             type: "drop",
         };
     }
@@ -700,9 +700,17 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     }
 
     if (/Quills (Adherent|Architect|Instrument|Mote|Observer) Sigil/i.test(quantityNormalized)) {
+        const rankByTitle: Record<string, string> = {
+            Mote: PR.SYNDICATE_QUILLS_RANK1,
+            Observer: PR.SYNDICATE_QUILLS_RANK2,
+            Adherent: PR.SYNDICATE_QUILLS_RANK3,
+            Instrument: PR.SYNDICATE_QUILLS_RANK4,
+            Architect: PR.SYNDICATE_QUILLS_RANK5,
+        };
+        const title = quantityNormalized.match(/Quills (Adherent|Architect|Instrument|Mote|Observer) Sigil/i)?.[1];
         return {
             label: raw,
-            prereqIds: [PR.SAYA_VIGIL, PR.WAR_WITHIN],
+            prereqIds: title ? [rankByTitle[title]] : [PR.WAR_WITHIN],
             type: "vendor",
         };
     }
@@ -718,7 +726,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/Teralyst Sigil/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.SAYA_VIGIL, PR.AMP_MOTE],
+            prereqIds: [PR.HUB_CETUS],
             type: "drop",
         };
     }
@@ -726,7 +734,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/Gantulyst Sigil|Hydrolyst Sigil/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.SAYA_VIGIL, PR.AMP_MOTE],
+            prereqIds: [PR.HUB_CETUS],
             type: "drop",
         };
     }
@@ -734,7 +742,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/Lephantis Sigil/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.JUNCTION_MARS_DEIMOS],
+            prereqIds: [PR.DEIMOS_ACCESS],
             type: "drop",
         };
     }
@@ -750,7 +758,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/Leaping Thrasher Sigil/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.JUNCTION_MARS_DEIMOS],
+            prereqIds: [PR.DEIMOS_ACCESS],
             type: "drop",
         };
     }
@@ -1175,7 +1183,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         if (/Eidolon Teralyst/i.test(quantityNormalized)) {
             return {
                 label: raw,
-                prereqIds: [PR.SAYA_VIGIL, PR.AMP_MOTE],
+                prereqIds: [PR.HUB_CETUS],
                 type: "drop",
             };
         }
@@ -1183,7 +1191,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         if (/Eidolon Gantulyst|Eidolon Hydrolyst/i.test(quantityNormalized)) {
             return {
                 label: raw,
-                prereqIds: [PR.SAYA_VIGIL, PR.AMP_MOTE],
+                prereqIds: [PR.HUB_CETUS],
                 type: "drop",
             };
         }
@@ -1191,7 +1199,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         if (/Derelict Vault/i.test(quantityNormalized)) {
             return {
                 label: raw,
-                prereqIds: [PR.CLAN_DOJO, PR.JUNCTION_MARS_DEIMOS],
+                prereqIds: [PR.CLAN_DOJO, PR.DEIMOS_ACCESS],
                 type: "drop",
             };
         }
@@ -1338,7 +1346,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         if (/Breath Of The Eidolon|Orokin Animus Matrix|Orokin Ballistics Matrix|Orokin Orientation Matrix/i.test(quantityNormalized)) {
             return {
                 label: raw,
-                prereqIds: [PR.SAYA_VIGIL, PR.AMP_MOTE],
+                prereqIds: [PR.HUB_CETUS],
                 type: "drop",
             };
         }
@@ -1530,7 +1538,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/Kela De Thaym/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.JUNCTION_PLUTO_SEDNA],
+            prereqIds: [PR.JUNCTION_SEDNA_ERIS],
             type: "drop",
         };
     }
@@ -1818,11 +1826,11 @@ function buildRankedSyndicateSources(): RawSource[] {
     const seen = new Set<string>();
 
     const quillsRanks: Array<{ token: string; label: string; prereqIds: string[] }> = [
-        { token: "mote", label: "Buy from The Quills (Mote rank)", prereqIds: [PR.SAYA_VIGIL, PR.WAR_WITHIN] },
-        { token: "observer", label: "Buy from The Quills (Observer rank)", prereqIds: [PR.SAYA_VIGIL, PR.WAR_WITHIN, PR.SYNDICATE_QUILLS_RANK1] },
-        { token: "adherent", label: "Buy from The Quills (Adherent rank)", prereqIds: [PR.SAYA_VIGIL, PR.WAR_WITHIN, PR.SYNDICATE_QUILLS_RANK2] },
-        { token: "instrument", label: "Buy from The Quills (Instrument rank)", prereqIds: [PR.SAYA_VIGIL, PR.WAR_WITHIN, PR.SYNDICATE_QUILLS_RANK3] },
-        { token: "architect", label: "Buy from The Quills (Architect rank)", prereqIds: [PR.SAYA_VIGIL, PR.WAR_WITHIN, PR.SYNDICATE_QUILLS_RANK4] },
+        { token: "mote", label: "Buy from The Quills (Mote rank)", prereqIds: [PR.SYNDICATE_QUILLS_RANK1] },
+        { token: "observer", label: "Buy from The Quills (Observer rank)", prereqIds: [PR.SYNDICATE_QUILLS_RANK2] },
+        { token: "adherent", label: "Buy from The Quills (Adherent rank)", prereqIds: [PR.SYNDICATE_QUILLS_RANK3] },
+        { token: "instrument", label: "Buy from The Quills (Instrument rank)", prereqIds: [PR.SYNDICATE_QUILLS_RANK4] },
+        { token: "architect", label: "Buy from The Quills (Architect rank)", prereqIds: [PR.SYNDICATE_QUILLS_RANK5] },
     ];
 
     for (const rank of quillsRanks) {

@@ -2,6 +2,7 @@
 // src/domain/logic/startupValidation.ts
 
 import { SOURCE_CATALOG } from "../../catalog/sources/sourceCatalog";
+import { PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
 
 type ValidationIssueSeverity = "error" | "warning";
 
@@ -237,7 +238,8 @@ async function validateStarChart(issues: ValidationIssue[]): Promise<void> {
         if (nodeType !== "junction") continue;
 
         const unlocksPlanetId = String((n as any)?.unlocksPlanetId ?? "").trim();
-        const prereqIds = (n as any)?.prereqIds;
+        const prereqId = id.replace(/^node:/, "");
+        const prereqDef = PREREQ_REGISTRY.find((def) => def.id === prereqId);
 
         if (!unlocksPlanetId || !planetIds.has(unlocksPlanetId)) {
             issues.push(
@@ -249,28 +251,36 @@ async function validateStarChart(issues: ValidationIssue[]): Promise<void> {
             );
         }
 
-        // prereqIds must be an array; empty is allowed (root junction has no prerequisites).
-        if (!Array.isArray(prereqIds)) {
+        if (!prereqDef) {
             issues.push(
                 issue(
                     "STAR_CHART_JUNCTION_NODE_INVALID",
                     "error",
-                    `Junction node (${id}) prereqIds must be an array (may be empty for the root junction).`
+                    `Junction node (${id}) has no matching prerequisite registry entry (${prereqId}).`
                 )
             );
         } else {
-            for (const pr of prereqIds) {
-                const prId = String(pr ?? "").trim();
-                if (!prId) {
+            const registryIds = new Set(PREREQ_REGISTRY.map((def) => def.id));
+            const refs = [...prereqDef.prerequisites, ...(prereqDef.anyPrerequisites ?? [])];
+            for (const ref of refs) {
+                if (!registryIds.has(ref)) {
                     issues.push(
                         issue(
                             "STAR_CHART_JUNCTION_NODE_INVALID",
                             "error",
-                            `Junction node (${id}) has empty prereq id.`
+                            `Junction node (${id}) references an unknown prerequisite (${ref}) in PREREQ_REGISTRY.`
                         )
                     );
                 }
             }
+        }
+
+        if ((n as any)?.prereqIds !== undefined) {
+            issues.push(issue(
+                "STAR_CHART_JUNCTION_NODE_INVALID",
+                "error",
+                `Junction node (${id}) duplicates prerequisites outside PREREQ_REGISTRY.`
+            ));
         }
     }
 }

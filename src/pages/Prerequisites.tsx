@@ -64,8 +64,13 @@ export default function Prerequisites() {
     );
 
     const evalContext = useMemo(
-        () => ({ masteryRank, nodeCompletedMap, inventoryCounts }),
-        [masteryRank, nodeCompletedMap, inventoryCounts],
+        () => ({
+            masteryRank,
+            nodeCompletedMap,
+            inventoryCounts,
+            syndicateRankById: Object.fromEntries(syndicates.map((syndicate) => [syndicate.id, syndicate.rank])),
+        }),
+        [masteryRank, nodeCompletedMap, inventoryCounts, syndicates],
     );
 
     const index    = useMemo(() => buildPrereqIndex(PREREQ_REGISTRY), []);
@@ -73,7 +78,7 @@ export default function Prerequisites() {
     const snap     = useMemo(() => computeUnlockGraphSnapshot(mergedMap, PREREQ_REGISTRY, evalContext), [mergedMap, evalContext]);
 
     const statusById = useMemo(() => {
-        const map: Record<string, { completed: boolean; isUnlocked: boolean; missingPrereqs: string[]; missingConditions: import("../catalog/prereqs/prereqRegistry").PrereqCondition[] }> = {};
+        const map: Record<string, { completed: boolean; isUnlocked: boolean; missingPrereqs: string[]; missingAnyPrerequisites: string[]; missingConditions: import("../catalog/prereqs/prereqRegistry").PrereqCondition[] }> = {};
         for (const s of statuses) map[s.id] = s;
         return map;
     }, [statuses]);
@@ -242,13 +247,16 @@ export default function Prerequisites() {
                         {isOpen && (
                             <div className="px-4 pb-3 flex flex-col gap-1.5">
                                 {defs.map((d) => {
-                                    const st          = statusById[d.id] ?? { completed: false, isUnlocked: false, missingPrereqs: [], missingConditions: [] };
+                                    const st          = statusById[d.id] ?? { completed: false, isUnlocked: false, missingPrereqs: [], missingAnyPrerequisites: [], missingConditions: [] };
                                     const locked      = !st.isUnlocked;
                                     const autoTracked = isAutoTrackedPrereq(d.id);
                                     const missingConditionLabels = st.missingConditions.map((cond) =>
                                         describePrereqCondition(cond, (id) => labelFor(id)),
                                     );
-                                    const missingLabels = [...st.missingPrereqs.map((m) => labelFor(m)), ...missingConditionLabels];
+                                    const missingAnyLabels = st.missingAnyPrerequisites.length > 0
+                                        ? [`Either ${st.missingAnyPrerequisites.map((id) => labelFor(id)).join(" or ")}`]
+                                        : [];
+                                    const missingLabels = [...st.missingPrereqs.map((m) => labelFor(m)), ...missingAnyLabels, ...missingConditionLabels];
 
                                     return (
                                         <div
@@ -265,7 +273,7 @@ export default function Prerequisites() {
                                                 <div className="shrink-0 mt-0.5">
                                                     {autoTracked ? (
                                                         <div
-                                                            title="Tracked automatically via Syndicates"
+                                                            title="Tracked automatically from Star Chart, Syndicate, or Mastery Rank data"
                                                             className={[
                                                                 "w-4 h-4 rounded border flex items-center justify-center",
                                                                 st.completed

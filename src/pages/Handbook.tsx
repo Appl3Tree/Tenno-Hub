@@ -297,17 +297,17 @@ const QUESTS: Quest[] = [
     {
         name: "Hidden Messages",
         type: "warframe",
-        note: "Unlocks Mirage component blueprints by solving riddles hidden in Warframe's Codex entries. Requires the Pluto → Sedna Junction. The main Mirage blueprint must be purchased from the Market separately.",
+        note: "Unlocks Mirage component blueprints by solving riddles hidden in Warframe's Codex entries. Requires the Eris → Sedna Junction. The main Mirage blueprint must be purchased from the Market separately.",
     },
     {
         name: "Patient Zero",
         type: "side",
-        note: "Unlocks the Mutalist Alad V boss fight on Eris, whose assassination node drops Mesa's Neuroptics blueprint. Requires the Sedna → Eris Junction.",
+        note: "Unlocks the Mutalist Alad V boss fight on Eris, whose assassination node drops Mesa's Neuroptics blueprint. Requires the Pluto → Eris Junction.",
     },
     {
         name: "The Jordas Precept",
         type: "warframe",
-        note: "Unlocks Atlas; an Archwing-heavy quest ending in the Jordas Golem assassination. Requires the Sedna → Eris Junction and an Archwing.",
+        note: "Unlocks Atlas; an Archwing-heavy quest ending in the Jordas Golem assassination. Requires the Pluto → Eris Junction and an Archwing.",
     },
     {
         name: "Rising Tide",

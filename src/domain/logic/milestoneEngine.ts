@@ -1,15 +1,13 @@
 // src/domain/logic/milestoneEngine.ts
 import type { PrereqId } from "../ids/prereqIds";
-
-// Import as "any" so we do not hard-couple to a single registry export shape.
-// Your milestoneRegistry.ts can evolve without forcing engine churn.
-import * as Milestones from "../../catalog/prereqs/milestoneRegistry";
+import { MILESTONE_REGISTRY, type MilestoneRule } from "../../catalog/prereqs/milestoneRegistry";
 
 export type MilestoneDef = {
     id: string;
     label: string;
     description: string;
     prereqIds: PrereqId[];
+    rule: MilestoneRule;
     tags?: string[];
 };
 
@@ -24,6 +22,7 @@ export type MilestoneStatus = {
 
     missing: PrereqId[];
     completedPrereqs: PrereqId[];
+    rule: MilestoneRule;
 
     tags: string[];
 };
@@ -46,53 +45,14 @@ export type MilestoneSnapshot = {
  * - default export array
  */
 function resolveRegistry(): MilestoneDef[] {
-    const anyMod = Milestones as any;
-
-    const reg =
-        anyMod?.MILESTONE_REGISTRY ??
-        anyMod?.MILESTONES ??
-        anyMod?.default ??
-        [];
-
-    if (!Array.isArray(reg)) return [];
-
-    // Normalize to a safe shape (fail-closed)
-    const out: MilestoneDef[] = [];
-    for (const r of reg) {
-        if (!r || typeof r !== "object") continue;
-
-        const id = String((r as any).id ?? "").trim();
-        const label = String((r as any).label ?? "").trim();
-        const description = String((r as any).description ?? "").trim();
-
-        const prereqIdsRaw =
-            (r as any).prereqIds ??
-            (r as any).prereqs ??
-            (r as any).prerequisiteIds;
-
-        const prereqIds: PrereqId[] = Array.isArray(prereqIdsRaw)
-            ? prereqIdsRaw
-                .map((x: any) => String(x) as PrereqId)
-                .filter(Boolean)
-            : [];
-
-        const tagsRaw = (r as any).tags;
-        const tags = Array.isArray(tagsRaw)
-            ? tagsRaw.map((t: any) => String(t)).filter(Boolean)
-            : [];
-
-        if (!id || !label) continue;
-
-        out.push({
-            id,
-            label,
-            description,
-            prereqIds,
-            tags
-        });
-    }
-
-    return out;
+    return MILESTONE_REGISTRY.map((def) => ({
+        id: def.id,
+        label: def.label,
+        description: def.description,
+        prereqIds: def.rule.prereqIds,
+        rule: def.rule,
+        tags: [],
+    }));
 }
 
 function uniq<T>(arr: T[]): T[] {
@@ -109,7 +69,9 @@ export function computeMilestoneSnapshot(
 
     const milestones: MilestoneStatus[] = defs.map((m) => {
         const prereqIds = Array.isArray(m.prereqIds) ? m.prereqIds : [];
-        const total = prereqIds.length;
+        const requiredCount = m.rule.type === "all"
+            ? prereqIds.length
+            : Math.min(prereqIds.length, Math.max(1, Math.floor(m.rule.need ?? 1)));
 
         const missing: PrereqId[] = [];
         const completedPrereqs: PrereqId[] = [];
@@ -122,18 +84,24 @@ export function computeMilestoneSnapshot(
             }
         }
 
-        const completedCount = completedPrereqs.length;
-        const completed = total > 0 ? completedCount === total : false;
+        const completedCount = Math.min(completedPrereqs.length, requiredCount);
+        const completed = requiredCount > 0 && completedCount >= requiredCount;
+        const missingForRule = completed
+            ? []
+            : m.rule.type === "all"
+                ? missing
+                : missing.slice(0, Math.max(0, requiredCount - completedPrereqs.length));
 
         return {
             id: m.id,
             label: m.label,
             description: m.description,
-            total,
+            total: requiredCount,
             completedCount,
             completed,
-            missing: uniq(missing),
+            missing: uniq(missingForRule),
             completedPrereqs: uniq(completedPrereqs),
+            rule: m.rule,
             tags: Array.isArray(m.tags) ? m.tags : []
         };
     });
@@ -149,9 +117,7 @@ export function computeMilestoneSnapshot(
         return a.label.localeCompare(b.label);
     });
 
-    const allPrereqs = uniq(
-        milestones.flatMap((m) => m.completedPrereqs.concat(m.missing))
-    );
+    const allPrereqs = uniq(defs.flatMap((def) => def.rule.prereqIds));
 
     const completedTracked = allPrereqs.filter((p) => completedMap[p] === true);
 
@@ -201,7 +167,7 @@ export function computeMilestonePrereqImpact(): Array<{
     const map = new Map<string, { milestoneIds: string[] }>();
 
     for (const m of defs) {
-        const ids = Array.isArray(m.prereqIds) ? m.prereqIds : [];
+        const ids = Array.isArray(m.rule.prereqIds) ? m.rule.prereqIds : [];
         for (const p of ids) {
             const key = String(p);
             if (!map.has(key)) map.set(key, { milestoneIds: [] });

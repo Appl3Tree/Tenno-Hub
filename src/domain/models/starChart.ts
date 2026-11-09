@@ -57,12 +57,7 @@ export interface StarChartNode {
      */
     unlocksPlanetId?: PlanetId;
 
-    /**
-     * Junction-only: prereq IDs that must be satisfied to clear this junction.
-     * These should resolve via prereqRegistry / prereqEngine.
-     *
-     * NOTE: This is NOT "node completion" prereqs (Phase 2.4). This is your canonical prereq registry IDs.
-     */
+    /** @deprecated Junction prerequisites now live only in PREREQ_REGISTRY. */
     prereqIds?: string[];
     dropGroupToken?: string;
     dropNodeToken?: string;

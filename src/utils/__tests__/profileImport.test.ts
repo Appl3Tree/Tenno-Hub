@@ -3,6 +3,20 @@ import { readFileSync } from "node:fs";
 import { parseProfileImportText, parseWarframeStatApiProfile } from "../profileImport";
 
 describe("parseWarframeStatApiProfile", () => {
+    it("keeps the imported early Junction tags aligned with their canonical Star Chart IDs", () => {
+        const parsed = parseWarframeStatApiProfile({
+            missions: [
+                { nodeKey: "EarthToVenusJunction" },
+                { nodeKey: "VenusToMercuryJunction" },
+            ],
+        });
+
+        expect(parsed.completedNodeIds).toEqual([
+            "node:junction_venus_earth",
+            "node:junction_mercury_venus",
+        ]);
+    });
+
     it("imports mastery XP from current warframestat.us loadout payloads", () => {
         const samplePath = new URL("../../../external/profile-sample.json", import.meta.url);
         const sample = JSON.parse(readFileSync(samplePath, "utf8"));

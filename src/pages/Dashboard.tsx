@@ -37,11 +37,12 @@ export default function Dashboard() {
 
     const progressionSteps = useMemo(() => {
         try {
-            return (buildProgressionPlan(mergedMap, { masteryRank, nodeCompletedMap, inventoryCounts }).steps ?? []).filter((s: any) => s.id !== "planner_error_no_steps");
+            const syndicateRankById = Object.fromEntries(syndicates.map((syndicate) => [syndicate.id, syndicate.rank]));
+            return (buildProgressionPlan(mergedMap, { masteryRank, nodeCompletedMap, inventoryCounts, syndicateRankById }).steps ?? []).filter((s: any) => s.id !== "planner_error_no_steps");
         } catch {
             return [];
         }
-    }, [inventoryCounts, masteryRank, mergedMap, nodeCompletedMap]);
+    }, [inventoryCounts, masteryRank, mergedMap, nodeCompletedMap, syndicates]);
 
     const hasProgressionSteps = progressionSteps.length > 0;
     const isNewPlayer = masteryRank == null && syndicates.length === 0 && Object.keys(completedMap).length === 0;

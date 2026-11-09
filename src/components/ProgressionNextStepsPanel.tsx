@@ -45,8 +45,13 @@ export default function ProgressionNextStepsPanel({ embedded = false }: { embedd
     );
 
     const evalContext = useMemo(
-        () => ({ masteryRank, nodeCompletedMap, inventoryCounts }),
-        [masteryRank, nodeCompletedMap, inventoryCounts],
+        () => ({
+            masteryRank,
+            nodeCompletedMap,
+            inventoryCounts,
+            syndicateRankById: Object.fromEntries(syndicates.map((syndicate) => [syndicate.id, syndicate.rank])),
+        }),
+        [masteryRank, nodeCompletedMap, inventoryCounts, syndicates],
     );
 
     const prereqIndex = useMemo(() => buildPrereqIndex(PREREQ_REGISTRY), []);
@@ -63,6 +68,7 @@ export default function ProgressionNextStepsPanel({ embedded = false }: { embedd
         const currentActionableIds = new Set(currentSnap.actionable.map((s) => s.id));
 
         for (const step of enrichedSteps) {
+            if (step.blocked) continue;
             const simMap  = { ...mergedMap, [step.prereqId]: true };
             const simSnap = computeUnlockGraphSnapshot(simMap, PREREQ_REGISTRY, evalContext);
             const newlyActionable = simSnap.actionable
@@ -151,6 +157,10 @@ export default function ProgressionNextStepsPanel({ embedded = false }: { embedd
                                             Update from your <span className="text-sky-400 font-medium">profile or trackers</span>
                                         </div>
                                     </div>
+                                ) : step.blocked ? (
+                                    <span className="shrink-0 rounded-full border border-amber-900/50 bg-amber-950/30 px-2 py-1 text-[10px] font-medium text-amber-300">
+                                        Locked
+                                    </span>
                                 ) : (
                                     <label className="flex items-center gap-2 text-xs text-slate-400 shrink-0 cursor-pointer hover:text-slate-200 transition-colors">
                                         <input

@@ -2,13 +2,14 @@
 import { describePrereqCondition, type PrereqCondition, type PrereqDef } from "../../catalog/prereqs/prereqRegistry";
 import { PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
 import type { PrereqId } from "../ids/prereqIds";
-import { getMissingConditions, type PrereqEvaluationContext } from "./prereqEngine";
+import { getMissingAnyPrereqs, getMissingConditions, type PrereqEvaluationContext } from "./prereqEngine";
 
 export interface UnlockNodeStatus {
     id: PrereqId;
     completed: boolean;
     unlocked: boolean;          // all prereqs completed
     missing: PrereqId[];        // prereqs not completed
+    missingAnyPrerequisites: PrereqId[];
     missingConditions: PrereqCondition[];
 }
 
@@ -27,14 +28,18 @@ export interface UnlockGraphSnapshot {
 }
 
 export function describeUnlockNodeMissingLabels(
-    status: Pick<UnlockNodeStatus, "missing" | "missingConditions">,
+    status: Pick<UnlockNodeStatus, "missing" | "missingAnyPrerequisites" | "missingConditions">,
     index: Record<string, PrereqDef>,
 ): string[] {
     const prereqLabels = status.missing.map((id) => index[id]?.label ?? id);
+    const missingAny = status.missingAnyPrerequisites;
+    const anyLabels = missingAny.length
+        ? [`Either ${missingAny.map((id) => index[id]?.label ?? id).join(" or ")}`]
+        : [];
     const conditionLabels = status.missingConditions.map((cond) =>
         describePrereqCondition(cond, (id) => index[id]?.label ?? id),
     );
-    return [...prereqLabels, ...conditionLabels];
+    return [...prereqLabels, ...anyLabels, ...conditionLabels];
 }
 
 /**
@@ -56,7 +61,8 @@ export function buildPrereqIndex(defs: PrereqDef[] = PREREQ_REGISTRY): Record<st
 /**
  * Compute a stable "availability order" rank using dependency depth:
  * - rank = 0 for roots (no prerequisites)
- * - rank = 1 + max(rank(prereq)) otherwise
+ * - AND parents use their maximum rank; OR parents use their minimum rank.
+ * - rank = 1 + max(AND parent rank, best OR parent rank).
  * Unknown prereqs contribute +1_000_000 (pushes the node late, fail-closed).
  * Cycles are handled fail-closed by assigning a large rank.
  */
@@ -84,16 +90,27 @@ function computeRankById(index: Record<string, PrereqDef>, defs: PrereqDef[]): R
         visiting.add(id);
 
         const prereqs = Array.isArray(def.prerequisites) ? def.prerequisites : [];
-        if (prereqs.length === 0) {
+        const alternatives = Array.isArray(def.anyPrerequisites) ? def.anyPrerequisites : [];
+        const conditionPrereqs = (def.conditions ?? []).flatMap((condition) =>
+            condition.type === "quest_complete" ? [condition.prereqId]
+                : condition.type === "junction_complete" ? [condition.junctionId]
+                    : [],
+        );
+        if (prereqs.length === 0 && alternatives.length === 0 && conditionPrereqs.length === 0) {
             memo[id] = 0;
             visiting.delete(id);
             return memo[id];
         }
 
         let maxChild = 0;
-        for (const p of prereqs) {
+        for (const p of [...prereqs, ...conditionPrereqs]) {
             const child = index[p] ? rankOf(p) : UNKNOWN_RANK;
             maxChild = Math.max(maxChild, child);
+        }
+
+        if (alternatives.length > 0) {
+            const bestAlternative = Math.min(...alternatives.map((p) => index[p] ? rankOf(p) : UNKNOWN_RANK));
+            maxChild = Math.max(maxChild, bestAlternative);
         }
 
         memo[id] = maxChild + 1;
@@ -128,13 +145,16 @@ export function computeUnlockGraphSnapshot(
             }
         }
 
+        const missingAnyPrerequisites = getMissingAnyPrereqs(index, completedMap, d.anyPrerequisites) as PrereqId[];
+
         const missingConditions = getMissingConditions(d, completedMap, context);
 
         return {
             id: d.id,
             completed,
-            unlocked: missing.length === 0 && missingConditions.length === 0,
+            unlocked: missing.length === 0 && missingAnyPrerequisites.length === 0 && missingConditions.length === 0,
             missing,
+            missingAnyPrerequisites,
             missingConditions,
         };
     });

@@ -1,7 +1,7 @@
 // ===== FILE: src/catalog/prereqs/milestoneRegistry.ts =====
 //
 // Milestone definitions — derived rollups of prereqs for high-level capability tracking.
-// Updated: 2026-03 — covers all content through The Hex / The Old Peace.
+// Updated: 2026-11 — rollups use current junction semantics through Update 44.1.2.
 //
 // Design intent:
 // - Milestones are derived; they are NOT directly user-completed.
@@ -194,23 +194,23 @@ export const MILESTONE_REGISTRY: MilestoneDef[] = [
     {
         id: "ms_star_to_sedna",
         label: "Star Chart: Sedna Reached",
-        description: "Pluto → Sedna junction complete. Required for The War Within.",
-        category: "StarChart",
-        showWhenComplete: true,
-        rule: { type: "all", prereqIds: [PR.JUNCTION_PLUTO_SEDNA] }
-    },
-    {
-        id: "ms_star_eris_reached",
-        label: "Star Chart: Eris Reached",
-        description: "Sedna → Eris junction complete. Unlocks Infested Salvage, Nidus quest, and Atlas quest.",
+        description: "Eris → Sedna Junction complete. The War Within now unlocks from Pluto Junction, before the Eris/Sedna branch.",
         category: "StarChart",
         showWhenComplete: true,
         rule: { type: "all", prereqIds: [PR.JUNCTION_SEDNA_ERIS] }
     },
     {
+        id: "ms_star_eris_reached",
+        label: "Star Chart: Eris Reached",
+        description: "Pluto → Eris Junction complete. Unlocks Eris and Arbitrations.",
+        category: "StarChart",
+        showWhenComplete: true,
+        rule: { type: "all", prereqIds: [PR.JUNCTION_PLUTO_SEDNA] }
+    },
+    {
         id: "ms_star_lua_reached",
         label: "Star Chart: Lua Reached",
-        description: "Earth → Lua junction unlocked (requires The Second Dream). Unlocks Octavia's Anthem.",
+        description: "Lua access unlocked by completing The Second Dream. Unlocks Lua missions and Octavia's Anthem.",
         category: "StarChart",
         showWhenComplete: true,
         rule: { type: "all", prereqIds: [PR.JUNCTION_EARTH_LUA] }
@@ -218,10 +218,10 @@ export const MILESTONE_REGISTRY: MilestoneDef[] = [
     {
         id: "ms_star_kuva_fortress_reached",
         label: "Star Chart: Kuva Fortress Reached",
-        description: "Eris → Kuva Fortress junction complete. Required for Kuva Lich system.",
+        description: "The War Within unlocks Kuva Fortress access.",
         category: "StarChart",
         showWhenComplete: true,
-        rule: { type: "all", prereqIds: [PR.JUNCTION_ERIS_KUVA_FORTRESS] }
+        rule: { type: "all", prereqIds: [PR.KUVA_FORTRESS_ACCESS] }
     },
 
     // =========================================================================
@@ -428,18 +428,18 @@ export const MILESTONE_REGISTRY: MilestoneDef[] = [
     {
         id: "ms_syndicate_entrati_helminth",
         label: "Entrati: Helminth Segments Available",
-        description: "Entrati Associate rank reached. Base Helminth segment purchasable.",
+        description: "Entrati Associate rank reached; the base Helminth Segment also requires MR8.",
         category: "Syndicates",
         showWhenComplete: true,
-        rule: { type: "all", prereqIds: [PR.SYNDICATE_ENTRATI_RANK3] }
+        rule: { type: "all", prereqIds: [PR.SYNDICATE_ENTRATI_RANK3, PR.MR_8] }
     },
     {
         id: "ms_syndicate_entrati_family",
         label: "Entrati: Family Rank",
-        description: "Max Entrati rank reached. Helminth Invigoration segment purchasable.",
+        description: "Max Entrati rank reached; the Helminth Invigoration Segment also requires MR8.",
         category: "Syndicates",
         showWhenComplete: true,
-        rule: { type: "all", prereqIds: [PR.SYNDICATE_ENTRATI_RANK5] }
+        rule: { type: "all", prereqIds: [PR.SYNDICATE_ENTRATI_RANK5, PR.MR_8] }
     },
     {
         id: "ms_syndicate_cavia_family",

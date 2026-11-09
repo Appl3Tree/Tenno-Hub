@@ -75,7 +75,7 @@ export function buildProgressionPlan(
                 description:
                     "This prerequisite is referenced but not defined in the registry.",
                 blocked: false,
-                missingPrereqs: st?.missing ?? [],
+                missingPrereqs: st ? [...st.missing, ...st.missingAnyPrerequisites] : [],
                 missingLabels: st ? describeUnlockNodeMissingLabels(st, snap.index) : [],
                 tags: ["Unlock", "Unknown", tag]
             };
@@ -86,8 +86,8 @@ export function buildProgressionPlan(
             prereqId: def.id,
             title: def.label,
             description: def.description,
-            blocked: false,
-            missingPrereqs: st?.missing ?? [],
+            blocked: st ? !st.unlocked : false,
+            missingPrereqs: st ? [...st.missing, ...st.missingAnyPrerequisites] : [],
             missingLabels: st ? describeUnlockNodeMissingLabels(st, snap.index) : [],
             tags: [
                 "Unlock",
@@ -95,6 +95,21 @@ export function buildProgressionPlan(
                 isMilestone ? "Milestone" : "Leaf",
                 tag
             ]
+        };
+    }
+
+    function makeConditionBlockedStep(id: PrereqId): ProgressionStep {
+        const def = defById(id);
+        const st = snap.byId[id];
+        return {
+            id: `condition_${id}`,
+            prereqId: id,
+            title: def?.label ?? `Progression requirement: ${id}`,
+            description: def?.description ?? "Complete the displayed requirement to unlock this progression step.",
+            blocked: true,
+            missingPrereqs: st ? [...st.missing, ...st.missingAnyPrerequisites] : [],
+            missingLabels: st ? describeUnlockNodeMissingLabels(st, snap.index) : [],
+            tags: ["Unlock", ...(def ? [def.category] : []), "Blocked", "Condition"],
         };
     }
 
@@ -131,28 +146,45 @@ export function buildProgressionPlan(
 
     const blocked = snap.blocked
         .filter((s) => !s.completed)
-        .map((s) => ({
-            id: s.id,
-            missing: s.missing ?? []
+        .map((status) => ({
+            status,
+            missingCount: status.missing.length
+                + (status.missingAnyPrerequisites.length > 0 ? 1 : 0)
+                + status.missingConditions.length,
         }))
-        .filter((x) => x.missing.length > 0);
+        .filter((x) => x.missingCount > 0);
 
     if (blocked.length > 0) {
         let minMissing = Infinity;
         for (const b of blocked) {
-            minMissing = Math.min(minMissing, b.missing.length);
+            minMissing = Math.min(minMissing, b.missingCount);
         }
 
-        const closest = blocked.filter((b) => b.missing.length === minMissing);
+        const closest = blocked.filter((b) => b.missingCount === minMissing);
         const nextIds = new Set<PrereqId>();
+        const conditionBlockedIds = new Set<PrereqId>();
 
         for (const c of closest) {
-            for (const m of c.missing) {
+            const status = c.status;
+            for (const m of status.missing) {
                 if (completedMap[String(m)] !== true) nextIds.add(String(m) as PrereqId);
+            }
+            for (const alternative of status.missingAnyPrerequisites) {
+                if (completedMap[String(alternative)] !== true) nextIds.add(String(alternative) as PrereqId);
+            }
+            for (const condition of status.missingConditions) {
+                if (condition.type === "quest_complete") {
+                    nextIds.add(condition.prereqId);
+                } else if (condition.type === "junction_complete") {
+                    nextIds.add(condition.junctionId as PrereqId);
+                } else {
+                    conditionBlockedIds.add(status.id);
+                }
             }
         }
 
-        const nextSteps = Array.from(nextIds)
+        const nextSteps = [
+            ...Array.from(nextIds)
             .sort((a, b) => {
                 const aAuto = isAutoTrackedPrereq(a);
                 const bAuto = isAutoTrackedPrereq(b);
@@ -170,7 +202,11 @@ export function buildProgressionPlan(
 
                 return a.localeCompare(b);
             })
-            .map((id) => makeStep(id, "Closest Missing"));
+            .map((id) => makeStep(id, "Closest Missing")),
+            ...Array.from(conditionBlockedIds)
+                .sort((a, b) => rankOf(a) - rankOf(b) || a.localeCompare(b))
+                .map((id) => makeConditionBlockedStep(id)),
+        ];
 
         if (nextSteps.length > 0) {
             return { steps: nextSteps };

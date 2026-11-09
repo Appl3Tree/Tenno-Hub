@@ -78,6 +78,7 @@ const CURATED_STAR_CHART_PLANETS: StarChartPlanet[] = [
     { id: "region:neptune_proxima", name: "Neptune Proxima", kind: "region", sortOrder: 340 },
     { id: "region:pluto_proxima", name: "Pluto Proxima", kind: "region", sortOrder: 350 },
     { id: "region:veil_proxima", name: "Veil Proxima", kind: "region", sortOrder: 360 },
+    { id: "region:uranus_proxima", name: "Uranus Proxima", kind: "region", sortOrder: 370 },
 
     // =============================
     // Hubs (accessed via Star Chart / navigation)

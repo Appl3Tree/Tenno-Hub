@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { STAR_CHART_DATA } from "../../domain/catalog/starChart";
 import type { StarChartNode } from "../../domain/models/starChart";
 import { PR } from "../../domain/ids/prereqIds";
+import { getUnlockedStarChartDestinationIds } from "../../domain/logic/starChartUnlocks";
 import { useTrackerStore } from "../../store/store";
 import { EMPTY_NODE_COMPLETED, VORS_PRIZE_IMPLIES_COMPLETED, isInMainMap, displayNameFromBase } from "./starChartMapData";
 
@@ -42,27 +43,20 @@ function StarChartListView({ steelPathMode, mapMode = "normal" }: SCListProps) {
         const derived: Record<string, boolean> = completedPrereqs[PR.VORS_PRIZE]
             ? { ...VORS_PRIZE_IMPLIES_COMPLETED }
             : {};
+        for (const node of STAR_CHART_DATA.nodes) {
+            if (node.nodeType === "junction" && completedPrereqs[node.id.replace(/^node:/, "")] === true) {
+                derived[node.id] = true;
+            }
+        }
         return { ...derived, ...nodeCompletedMap };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [steelPathMode, completedPrereqs, nodeCompletedMap, spNodeCompletedMap]);
 
     // Build unlocked set (always from normal junctions, not SP)
-    const unlockedPlanetIds = useMemo(() => {
-        const unlocked = new Set<string>(["planet:mercury"]);
-        for (const n of STAR_CHART_DATA.nodes) {
-            if (n.nodeType === "junction" && n.unlocksPlanetId) {
-                const base = n.id;
-                const vorsImplied = VORS_PRIZE_IMPLIES_COMPLETED[base];
-                if (vorsImplied && completedPrereqs[PR.VORS_PRIZE]) {
-                    unlocked.add(n.unlocksPlanetId);
-                } else if (nodeCompletedMap[base]) {
-                    unlocked.add(n.unlocksPlanetId);
-                }
-            }
-        }
-        return unlocked;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [completedPrereqs, nodeCompletedMap]);
+    const unlockedPlanetIds = useMemo(
+        () => getUnlockedStarChartDestinationIds(completedPrereqs, nodeCompletedMap),
+        [completedPrereqs, nodeCompletedMap],
+    );
 
     // Planets filtered by current map mode
     const planets = useMemo(() => {

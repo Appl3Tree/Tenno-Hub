@@ -18,12 +18,10 @@ export type { NodeId, PlanetId, StarChartNode, StarChartPlanet };
 export const EMPTY_NODE_COMPLETED: Record<string, boolean> = {};
 
 // ── Vor's Prize implied completions ──────────────────────────────────────────
-// Completing Vor's Prize requires clearing these early nodes on Mercury/Earth,
-// so they are treated as done whenever the quest prereq is marked complete.
+// Completing Vor's Prize clears these early tutorial mission nodes. The Venus
+// and Mercury Junctions remain separate gates and are not implied completions.
 // Shared by StarChartMap and StarChartListView so the logic stays in sync.
 export const VORS_PRIZE_IMPLIES_COMPLETED: Record<string, true> = {
-    "node:junction_mercury_venus": true,
-    "node:junction_venus_earth":   true,
     "node:mr/earth/e-prime":       true,
     "node:mr/earth/mariana":       true,
     "node:mr/earth/mantle":        true,

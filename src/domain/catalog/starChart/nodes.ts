@@ -1,7 +1,6 @@
 // ===== FILE: src/domain/catalog/starChart/nodes.ts =====
 
 import type { StarChartNode } from "../../models/starChart";
-import { PR } from "../../ids/prereqIds";
 
 /**
  * Authoritative node registry.
@@ -17,177 +16,21 @@ export const STAR_CHART_NODES: StarChartNode[] = [
     // =============================
     // Junctions — full Star Chart progression chain
     // =============================
-    {
-        id: "node:junction_mercury_venus",
-        planetId: "planet:mercury",
-        name: "Mercury → Venus Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:venus",
-        prereqIds: []
-    },
-    {
-        id: "node:junction_venus_earth",
-        planetId: "planet:venus",
-        name: "Venus → Earth Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:earth",
-        prereqIds: [PR.JUNCTION_MERCURY_VENUS]
-    },
-    {
-        id: "node:junction_earth_mars",
-        planetId: "planet:earth",
-        name: "Earth → Mars Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:mars",
-        prereqIds: [PR.VORS_PRIZE, PR.JUNCTION_VENUS_EARTH]
-    },
-    {
-        id: "node:junction_mars_phobos",
-        planetId: "planet:mars",
-        name: "Mars → Phobos Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:phobos",
-        prereqIds: [PR.JUNCTION_EARTH_MARS]
-    },
-    {
-        id: "node:junction_mars_ceres",
-        planetId: "planet:mars",
-        name: "Mars → Ceres Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:ceres",
-        prereqIds: [PR.JUNCTION_EARTH_MARS]
-    },
-    {
-        id: "node:junction_mars_deimos",
-        planetId: "planet:mars",
-        name: "Mars → Deimos Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:deimos",
-        prereqIds: [PR.JUNCTION_EARTH_MARS, PR.HEART_OF_DEIMOS]
-    },
-    {
-        id: "node:junction_phobos_ceres",
-        planetId: "planet:phobos",
-        name: "Phobos → Ceres Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:ceres",
-        prereqIds: [PR.JUNCTION_MARS_PHOBOS]
-    },
-    {
-        id: "node:junction_ceres_jupiter",
-        planetId: "planet:ceres",
-        name: "Ceres → Jupiter Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:jupiter",
-        prereqIds: [PR.JUNCTION_PHOBOS_CERES]
-    },
-    {
-        id: "node:junction_jupiter_europa",
-        planetId: "planet:jupiter",
-        name: "Jupiter → Europa Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:europa",
-        prereqIds: [PR.JUNCTION_CERES_JUPITER]
-    },
-    {
-        id: "node:junction_europa_saturn",
-        planetId: "planet:europa",
-        name: "Europa → Saturn Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:saturn",
-        prereqIds: [PR.JUNCTION_JUPITER_EUROPA, PR.ARCHWING]
-    },
-    {
-        id: "node:junction_saturn_uranus",
-        planetId: "planet:saturn",
-        name: "Saturn → Uranus Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:uranus",
-        prereqIds: [PR.JUNCTION_EUROPA_SATURN]
-    },
-    {
-        id: "node:junction_uranus_neptune",
-        planetId: "planet:uranus",
-        name: "Uranus → Neptune Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:neptune",
-        prereqIds: [PR.JUNCTION_SATURN_URANUS]
-    },
-    {
-        id: "node:junction_neptune_pluto",
-        planetId: "planet:neptune",
-        name: "Neptune → Pluto Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:pluto",
-        prereqIds: [PR.JUNCTION_URANUS_NEPTUNE]
-    },
-    {
-        id: "node:junction_pluto_sedna",
-        planetId: "planet:pluto",
-        name: "Pluto → Sedna Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:sedna",
-        prereqIds: [PR.JUNCTION_NEPTUNE_PLUTO]
-    },
-    {
-        id: "node:junction_sedna_eris",
-        planetId: "planet:sedna",
-        name: "Sedna → Eris Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "planet:eris",
-        prereqIds: [PR.JUNCTION_PLUTO_SEDNA]
-    },
-    {
-        id: "node:junction_earth_lua",
-        planetId: "planet:earth",
-        name: "Earth → Lua Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "region:lua",
-        prereqIds: [PR.SECOND_DREAM]
-    },
-    {
-        id: "node:junction_eris_kuva_fortress",
-        planetId: "planet:eris",
-        name: "Eris → Kuva Fortress Junction",
-        nodeType: "junction",
-        pos: undefined,
-        edges: [],
-        unlocksPlanetId: "region:kuva_fortress",
-        prereqIds: [PR.JUNCTION_SEDNA_ERIS, PR.WAR_WITHIN]
-    },
-
+    // Keep the legacy IDs because imported profiles store these keys; the
+    // in-game profile tags establish the actual planet direction.
+    { id: "node:junction_venus_earth", planetId: "planet:earth", name: "Venus Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:venus" },
+    { id: "node:junction_mercury_venus", planetId: "planet:venus", name: "Mercury Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:mercury" },
+    { id: "node:junction_earth_mars", planetId: "planet:earth", name: "Earth → Mars Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:mars" },
+    { id: "node:junction_mars_phobos", planetId: "planet:mars", name: "Mars → Phobos Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:phobos" },
+    { id: "node:junction_mars_ceres", planetId: "planet:mars", name: "Mars → Ceres Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:ceres" },
+    { id: "node:junction_ceres_jupiter", planetId: "planet:deimos", name: "Jupiter Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:jupiter" },
+    { id: "node:junction_jupiter_europa", planetId: "planet:jupiter", name: "Jupiter → Europa Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:europa" },
+    { id: "node:junction_europa_saturn", planetId: "planet:europa", name: "Europa → Saturn Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:saturn" },
+    { id: "node:junction_saturn_uranus", planetId: "planet:saturn", name: "Saturn → Uranus Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:uranus" },
+    { id: "node:junction_uranus_neptune", planetId: "planet:uranus", name: "Uranus → Neptune Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:neptune" },
+    { id: "node:junction_neptune_pluto", planetId: "planet:neptune", name: "Neptune → Pluto Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:pluto" },
+    { id: "node:junction_pluto_sedna", planetId: "planet:pluto", name: "Pluto → Eris Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:eris" },
+    { id: "node:junction_sedna_eris", planetId: "planet:eris", name: "Eris → Sedna Junction", nodeType: "junction", pos: undefined, edges: [], unlocksPlanetId: "planet:sedna" },
     // =============================
     // Earth (missionRewards-backed starters)
     // These ids auto-map to data:node/<planet>/<node> via nodeDropSourceMap.ts
@@ -4971,6 +4814,26 @@ export const STAR_CHART_NODES: StarChartNode[] = [
     },
 
     // =============================
+    // Uranus Proxima (Update 43)
+    // =============================
+    {
+        id: "node:mr/uranus-proxima/the-kuva-wytch",
+        planetId: "region:uranus_proxima",
+        name: "The Kuva Wytch",
+        nodeType: "mission",
+        pos: undefined,
+        edges: []
+    },
+    {
+        id: "node:mr/uranus-proxima/scorias-angel",
+        planetId: "region:uranus_proxima",
+        name: "Scoria's Angel",
+        nodeType: "mission",
+        pos: undefined,
+        edges: []
+    },
+
+    // =============================
     // Hub / Open World nodes
     // These are nodes that appear as selectable locations in the Star Chart
     // but lead to social hubs or open-world zones rather than standard missions.
@@ -5127,6 +4990,34 @@ export const STAR_CHART_NODES: StarChartNode[] = [
         id: "node:hub/zariman/chrysalith",
         planetId: "region:zariman",
         name: "Chrysalith",
+        nodeType: "hub",
+        pos: undefined,
+        edges: []
+    },
+    {
+        id: "node:hub/zariman/yuvan-peak",
+        planetId: "region:zariman",
+        name: "Yuvan Peak",
+        nodeType: "hub",
+        pos: undefined,
+        edges: []
+    },
+
+    // --- Uranus Proxima hubs ---
+    {
+        id: "node:hub/uranus-proxima/pontis-tower",
+        planetId: "region:uranus_proxima",
+        name: "Pontis Tower",
+        nodeType: "hub",
+        pos: undefined,
+        edges: []
+    },
+
+    // --- Dark Refractory hubs ---
+    {
+        id: "node:hub/dark-refractory-deimos/la-cathedrale",
+        planetId: "region:dark_refractory_deimos",
+        name: "La Cathédrale",
         nodeType: "hub",
         pos: undefined,
         edges: []
