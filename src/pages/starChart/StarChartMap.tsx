@@ -9,6 +9,7 @@ import { getRegionResourcesForPlanet } from "../../domain/catalog/starChart/regi
 import { describePrereqCondition, PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
 import { PR } from "../../domain/ids/prereqIds";
 import { getUnlockedStarChartDestinationIds } from "../../domain/logic/starChartUnlocks";
+import { deriveCompletedMap } from "../../domain/logic/syndicatePrereqs";
 import { FULL_CATALOG, type CatalogId } from "../../domain/catalog/loadFullCatalog";
 import { useTrackerStore } from "../../store/store";
 import { getDropSourcesForStarChartNode } from "../../domain/catalog/starChart/nodeDropSourceMap";
@@ -121,6 +122,8 @@ function rarityClass(rarity: string): string {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const EMPTY_INTRINSICS: Record<string, number> = {};
+
 export default function StarChartMap(props: {
     isInModal: boolean;
     vb: ViewBox;
@@ -215,7 +218,13 @@ export default function StarChartMap(props: {
     const setBulkSteelPathNodesCompleted = useTrackerStore((s) => s.setBulkSteelPathNodesCompleted);
     const nodeCompletedMap       = useTrackerStore((s) => s.state.missions?.nodeCompleted       ?? EMPTY_NODE_COMPLETED);
     const spNodeCompletedMap     = useTrackerStore((s) => s.state.missions?.steelPathNodeCompleted ?? EMPTY_NODE_COMPLETED);
-    const completedPrereqs       = useTrackerStore((s) => s.state.prereqs?.completed            ?? EMPTY_NODE_COMPLETED);
+    const baseCompletedPrereqs  = useTrackerStore((s) => s.state.prereqs?.completed            ?? EMPTY_NODE_COMPLETED);
+    const railjackIntrinsics    = useTrackerStore((s) => s.state.intrinsics?.railjack          ?? EMPTY_INTRINSICS);
+    const masteryRank           = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
+    const completedPrereqs      = useMemo(
+        () => deriveCompletedMap(baseCompletedPrereqs, [], masteryRank, nodeCompletedMap, railjackIntrinsics),
+        [baseCompletedPrereqs, masteryRank, nodeCompletedMap, railjackIntrinsics],
+    );
 
     // When in Steel Path mode, setters and raw map point to the SP tracking store.
     const activeSetNodeCompleted      = steelPathMode ? setSteelPathNodeCompleted      : setNodeCompleted;

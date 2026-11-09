@@ -45,4 +45,29 @@ describe("Star Chart destination access", () => {
         expect(duringOperation.has("planet:eris")).toBe(true);
         expect(afterOperation.has("planet:eris")).toBe(false);
     });
+
+    it("opens the correct Proxima regions from quest, Intrinsic, and Update 43 progression", () => {
+        const startingProxima = getUnlockedStarChartDestinationIds({ [PR.SYSTEM_PROXIMA_ACCESS]: true }, {});
+        expect(startingProxima.has("region:earth_proxima")).toBe(true);
+        expect(startingProxima.has("region:venus_proxima")).toBe(true);
+        expect(startingProxima.has("region:saturn_proxima")).toBe(false);
+
+        const rankThreeProxima = getUnlockedStarChartDestinationIds({
+            [PR.SYSTEM_PROXIMA_ACCESS]: true,
+            [PR.SYSTEM_PROXIMA_SATURN_ACCESS]: true,
+            [PR.SYSTEM_PROXIMA_NEPTUNE_ACCESS]: true,
+        }, {});
+        expect(rankThreeProxima.has("region:saturn_proxima")).toBe(true);
+        expect(rankThreeProxima.has("region:neptune_proxima")).toBe(true);
+        expect(rankThreeProxima.has("region:pluto_proxima")).toBe(false);
+
+        const allProgression = getUnlockedStarChartDestinationIds({
+            [PR.SYSTEM_PROXIMA_PLUTO_ACCESS]: true,
+            [PR.SYSTEM_PROXIMA_VEIL_ACCESS]: true,
+            [PR.SYSTEM_URANUS_PROXIMA]: true,
+        }, {});
+        expect(allProgression.has("region:pluto_proxima")).toBe(true);
+        expect(allProgression.has("region:veil_proxima")).toBe(true);
+        expect(allProgression.has("region:uranus_proxima")).toBe(true);
+    });
 });

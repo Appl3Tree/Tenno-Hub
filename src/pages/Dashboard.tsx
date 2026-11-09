@@ -7,6 +7,7 @@ const EMPTY_GOALS: never[] = [];
 const EMPTY_DAILY_TASKS: never[] = [];
 const EMPTY_NODE_COMPLETED: Record<string, boolean> = {};
 const EMPTY_INVENTORY_COUNTS: Record<string, number> = {};
+const EMPTY_INTRINSICS: Record<string, number> = {};
 import WarframeResetTracker from "../components/WarframeResetTracker";
 import ProgressionNextStepsPanel from "../components/ProgressionNextStepsPanel";
 import DailyChecklist from "../components/DailyChecklist";
@@ -18,7 +19,7 @@ import { WorkspaceAction, WorkspacePanel } from "../components/workspace/Workspa
 
 export default function Dashboard() {
     const setActivePage = useTrackerStore((s) => s.setActivePage);
-    const { completedMap, syndicates, masteryRank, goals, dailyTasks, nodeCompletedMap, inventoryCounts } = useTrackerStore(
+    const { completedMap, syndicates, masteryRank, goals, dailyTasks, nodeCompletedMap, inventoryCounts, railjackIntrinsics } = useTrackerStore(
         useShallow((s) => ({
             completedMap: s.state.prereqs?.completed ?? EMPTY_COMPLETED,
             syndicates: s.state.syndicates ?? EMPTY_SYNDICATES,
@@ -27,22 +28,23 @@ export default function Dashboard() {
             dailyTasks: s.state.dailyTasks ?? EMPTY_DAILY_TASKS,
             nodeCompletedMap: s.state.missions?.nodeCompleted ?? EMPTY_NODE_COMPLETED,
             inventoryCounts: s.state.inventory.counts ?? EMPTY_INVENTORY_COUNTS,
+            railjackIntrinsics: s.state.intrinsics?.railjack ?? EMPTY_INTRINSICS,
         }))
     );
 
     const mergedMap = useMemo(
-        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap),
-        [completedMap, syndicates, masteryRank, nodeCompletedMap]
+        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
+        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics]
     );
 
     const progressionSteps = useMemo(() => {
         try {
             const syndicateRankById = Object.fromEntries(syndicates.map((syndicate) => [syndicate.id, syndicate.rank]));
-            return (buildProgressionPlan(mergedMap, { masteryRank, nodeCompletedMap, inventoryCounts, syndicateRankById }).steps ?? []).filter((s: any) => s.id !== "planner_error_no_steps");
+            return (buildProgressionPlan(mergedMap, { masteryRank, nodeCompletedMap, inventoryCounts, railjackIntrinsics, syndicateRankById }).steps ?? []).filter((s: any) => s.id !== "planner_error_no_steps");
         } catch {
             return [];
         }
-    }, [inventoryCounts, masteryRank, mergedMap, nodeCompletedMap, syndicates]);
+    }, [inventoryCounts, masteryRank, mergedMap, nodeCompletedMap, syndicates, railjackIntrinsics]);
 
     const hasProgressionSteps = progressionSteps.length > 0;
     const isNewPlayer = masteryRank == null && syndicates.length === 0 && Object.keys(completedMap).length === 0;

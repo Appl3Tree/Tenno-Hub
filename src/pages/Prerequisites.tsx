@@ -12,6 +12,7 @@ type StatusFilter = "all" | "incomplete" | "complete";
 
 const EMPTY_COMPLETED_MAP: Record<string, boolean> = {};
 const EMPTY_INVENTORY_COUNTS: Record<string, number> = {};
+const EMPTY_INTRINSICS: Record<string, number> = {};
 const EMPTY_SYNDICATES: UserStateV2["syndicates"] = [];
 
 // ── Chevron icon ──────────────────────────────────────────────────────────────
@@ -53,14 +54,15 @@ export default function Prerequisites() {
     const masteryRank        = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
     const nodeCompletedMap   = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? EMPTY_COMPLETED_MAP);
     const inventoryCounts    = useTrackerStore((s) => s.state.inventory.counts ?? EMPTY_INVENTORY_COUNTS);
+    const railjackIntrinsics = useTrackerStore((s) => s.state.intrinsics?.railjack ?? EMPTY_INTRINSICS);
 
     const [search, setSearch]             = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [collapsed, setCollapsed]       = useState<Record<string, boolean>>({});
 
     const mergedMap = useMemo(
-        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap),
-        [completedMap, syndicates, masteryRank, nodeCompletedMap],
+        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
+        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics],
     );
 
     const evalContext = useMemo(
@@ -68,9 +70,10 @@ export default function Prerequisites() {
             masteryRank,
             nodeCompletedMap,
             inventoryCounts,
+            railjackIntrinsics,
             syndicateRankById: Object.fromEntries(syndicates.map((syndicate) => [syndicate.id, syndicate.rank])),
         }),
-        [masteryRank, nodeCompletedMap, inventoryCounts, syndicates],
+        [masteryRank, nodeCompletedMap, inventoryCounts, syndicates, railjackIntrinsics],
     );
 
     const index    = useMemo(() => buildPrereqIndex(PREREQ_REGISTRY), []);

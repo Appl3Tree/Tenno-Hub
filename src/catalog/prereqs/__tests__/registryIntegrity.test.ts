@@ -6,6 +6,7 @@ import { MILESTONE_REGISTRY } from "../milestoneRegistry";
 import { STAR_CHART_NODES } from "../../../domain/catalog/starChart/nodes";
 import { STAR_CHART_PLANETS } from "../../../domain/catalog/starChart/planets";
 import { SY } from "../../../domain/ids/syndicateIds";
+import { computeUnlockGraphSnapshot } from "../../../domain/logic/unlockGraph";
 
 describe("prerequisite registry integrity", () => {
     it("defines every prerequisite referenced by other registry rows", () => {
@@ -73,6 +74,27 @@ describe("prerequisite registry integrity", () => {
         }
     });
 
+    it("records fact-specific, reviewable evidence for every registry entry and hard gate", () => {
+        const invalid = PREREQ_REGISTRY.flatMap((def) => {
+            const hasGate = def.prerequisites.length > 0 || (def.anyPrerequisites?.length ?? 0) > 0 || (def.conditions?.length ?? 0) > 0;
+            const evidence = def.evidence ?? [];
+            return [
+                ...(evidence.length === 0 ? [`${def.id}: no evidence`] : []),
+                ...(hasGate && !evidence.some((source) => source.classification === "required" || source.classification === "conditional")
+                    ? [`${def.id}: no evidence classified as a current enforced requirement`]
+                    : []),
+                ...evidence.flatMap((source, index) => [
+                    ...(!source.url.startsWith("https://") ? [`${def.id} evidence ${index + 1}: invalid URL`] : []),
+                    ...(!/^\d{4}-\d{2}-\d{2}$/.test(source.verifiedOn) ? [`${def.id} evidence ${index + 1}: invalid date`] : []),
+                    ...(!source.note.trim() ? [`${def.id} evidence ${index + 1}: empty note`] : []),
+                    ...(/direct gate tracked for|generic progression entry/i.test(source.note) ? [`${def.id} evidence ${index + 1}: generic note`] : []),
+                ]),
+            ];
+        });
+
+        expect(invalid).toEqual([]);
+    });
+
     it("keeps Star Chart junction relationships centralized in the prerequisite registry", () => {
         const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
         const junctionNodes = STAR_CHART_NODES.filter((node) => node.nodeType === "junction");
@@ -137,14 +159,46 @@ describe("prerequisite registry integrity", () => {
             .map((def) => def.id)
             .sort();
 
-        expect(roots).toEqual([PR.SYSTEM_OPERATOR_AMP, PR.SYSTEM_RANK30_WARFRAME, PR.VORS_PRIZE].sort());
+        expect(roots).toEqual([
+            PR.CLAN_DOJO,
+            PR.COMPANION_MATURE_CYST,
+            PR.NECRAMECH_MARKET,
+            PR.RAILJACK_MARKET_ACQUIRED,
+            PR.SYSTEM_ADVERSARY_SLOT_CLEAR,
+            PR.SYSTEM_OPERATOR_AMP,
+            PR.SYSTEM_RANK30_WARFRAME,
+            PR.AWAKENING,
+            PR.HUB_RELAY,
+            PR.MR_5,
+            PR.MR_8,
+            PR.MR_10,
+            PR.MR_15,
+            PR.MR_30,
+        ].sort());
     });
 
-    it("makes every other prerequisite reachable from Vor's Prize", () => {
+    it("connects progression entries to a tutorial or documented independent acquisition root", () => {
         const index = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const independentRoots = new Set<string>([
+            PR.AWAKENING,
+            PR.SYSTEM_OPERATOR_AMP,
+            PR.SYSTEM_RANK30_WARFRAME,
+            PR.CLAN_DOJO,
+            PR.COMPANION_MATURE_CYST,
+            PR.HELMINTH_MARKET_BUNDLE,
+            PR.NECRAMECH_MARKET,
+            PR.RAILJACK_MARKET_ACQUIRED,
+            PR.SYSTEM_ADVERSARY_SLOT_CLEAR,
+            PR.HUB_RELAY,
+            PR.MR_5,
+            PR.MR_8,
+            PR.MR_10,
+            PR.MR_15,
+            PR.MR_30,
+        ]);
 
         function reachesVors(id: string, seen = new Set<string>()): boolean {
-            if (id === PR.VORS_PRIZE || id === PR.SYSTEM_OPERATOR_AMP || id === PR.SYSTEM_RANK30_WARFRAME) return true;
+            if (independentRoots.has(id)) return true;
             if (seen.has(id)) return false;
             seen.add(id);
             const def = index.get(id);
@@ -156,7 +210,7 @@ describe("prerequisite registry integrity", () => {
         }
 
         const disconnected = PREREQ_REGISTRY
-            .filter((def) => def.id !== PR.VORS_PRIZE && def.id !== PR.SYSTEM_OPERATOR_AMP && def.id !== PR.SYSTEM_RANK30_WARFRAME)
+            .filter((def) => !independentRoots.has(def.id))
             .map((def) => def.id)
             .filter((id) => !reachesVors(id));
 
@@ -179,7 +233,145 @@ describe("prerequisite registry integrity", () => {
         expect(rank4.prerequisites).toEqual([PR.SYNDICATE_ENTRATI_RANK3]);
         expect(rank5.prerequisites).toEqual([PR.SYNDICATE_ENTRATI_RANK4]);
         expect(rank5.conditions).toBeUndefined();
+        expect(PREREQ_REGISTRY.find((def) => def.id === PR.SEGMENT_HELMINTH_SON_ACCESS)?.conditions)
+            .toContainEqual({ type: "mastery_rank", value: 8 });
+        expect(PREREQ_REGISTRY.find((def) => def.id === PR.HELMINTH_MARKET_BUNDLE)?.conditions)
+            .toContainEqual({ type: "mastery_rank", value: 8 });
         expect(PREREQ_REGISTRY.find((def) => def.id === PR.SEGMENT_HELMINTH)?.conditions)
             .toContainEqual({ type: "mastery_rank", value: 8 });
+    });
+
+    it("keeps newly tracked syndicate ranks connected through their actual previous rank", () => {
+        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        expect(byId.get(PR.SYNDICATE_NECRALOID_RANK1)?.prerequisites).toEqual([PR.HUB_NECRALISK, PR.WAR_WITHIN]);
+        expect(byId.get(PR.SYNDICATE_NECRALOID_RANK2)?.prerequisites).toEqual([PR.SYNDICATE_NECRALOID_RANK1]);
+        expect(byId.get(PR.SYNDICATE_NECRALOID_RANK3)?.prerequisites).toEqual([PR.SYNDICATE_NECRALOID_RANK2]);
+        expect(byId.get(PR.SYNDICATE_HEX_RANK5)?.prerequisites).toEqual([PR.SYNDICATE_HEX_RANK4]);
+    });
+
+    it("keeps direct gates separate from their transitively implied progression", () => {
+        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        expect(byId.get(PR.JUNCTION_NEPTUNE_PLUTO)?.prerequisites).toEqual([PR.SECOND_DREAM]);
+        expect(byId.get(PR.JUNCTION_PLUTO_SEDNA)?.prerequisites).toEqual([PR.WAR_WITHIN, PR.SYSTEM_ERIS_FOCUS_LENS]);
+        expect(byId.get(PR.ACTIVITY_STEEL_PATH_HONORS)?.prerequisites).toEqual([PR.ACTIVITY_STEEL_PATH]);
+        expect(byId.get(PR.ACTIVITY_ROPALOLYST)?.prerequisites).toEqual([PR.CHIMERA_PROLOGUE]);
+        expect(byId.get(PR.ACTIVITY_FABLES_FRONTIERS)?.prerequisites).toEqual([
+            PR.THE_HEX,
+            PR.THE_HEX_FINALE,
+            PR.SYNDICATE_HEX_RANK5,
+            PR.SYSTEM_AMIR_CLOSE,
+        ]);
+    });
+
+    it("has no redundant direct AND edges unless the game explicitly checks both flags", () => {
+        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const memo = new Map<string, Set<string>>();
+
+        function mandatoryClosure(id: string, active = new Set<string>()): Set<string> {
+            const cached = memo.get(id);
+            if (cached) return cached;
+            if (active.has(id)) return new Set([id]);
+            active.add(id);
+            const def = byId.get(id);
+            const result = new Set<string>([id]);
+            if (def) {
+                const conditionParents = (def.conditions ?? []).flatMap((condition) =>
+                    condition.type === "quest_complete" ? [condition.prereqId]
+                        : condition.type === "junction_complete" ? [condition.junctionId]
+                            : [],
+                );
+                for (const parent of [...def.prerequisites, ...conditionParents]) {
+                    for (const ancestor of mandatoryClosure(parent, active)) result.add(ancestor);
+                }
+                const options = def.anyPrerequisites ?? [];
+                if (options.length) {
+                    const optionClosures = options.map((parent) => mandatoryClosure(parent, active));
+                    for (const ancestor of optionClosures[0]) {
+                        if (optionClosures.every((option) => option.has(ancestor))) result.add(ancestor);
+                    }
+                }
+            }
+            active.delete(id);
+            memo.set(id, result);
+            return result;
+        }
+
+        const redundant: string[] = [];
+        for (const def of PREREQ_REGISTRY) {
+            const conditionParents = (def.conditions ?? []).flatMap((condition) =>
+                condition.type === "quest_complete" ? [condition.prereqId]
+                    : condition.type === "junction_complete" ? [condition.junctionId]
+                        : [],
+            );
+            const andParents = [...def.prerequisites, ...conditionParents];
+            for (const directParent of andParents) {
+                if (andParents.some((other) => other !== directParent && mandatoryClosure(other).has(directParent))) {
+                    redundant.push(`${def.id} -> ${directParent}`);
+                }
+            }
+        }
+
+        expect(redundant.sort()).toEqual([
+            `${PR.WHISPERS_WALL} -> ${PR.HEART_OF_DEIMOS}`,
+            `${PR.SECOND_DREAM} -> ${PR.NATAH}`,
+            `${PR.WAR_WITHIN} -> ${PR.SECOND_DREAM}`,
+            `${PR.PATIENT_ZERO} -> ${PR.ONCE_AWAKE}`,
+            `${PR.ACTIVITY_DEEP_ARCHIMEDEA} -> ${PR.WHISPERS_WALL}`,
+            `${PR.ACTIVITY_TEMPORAL_ARCHIMEDEA} -> ${PR.THE_HEX}`,
+            `${PR.ACTIVITY_SISTER_PARVOS} -> ${PR.WAR_WITHIN}`,
+            `${PR.SAYA_VIGIL} -> ${PR.VORS_PRIZE}`,
+            `${PR.VOX_SOLARIS} -> ${PR.THE_TEACHER}`,
+            `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX}`,
+            `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX_FINALE}`,
+            `${PR.SYNDICATE_VOX_RANK1} -> ${PR.VOX_SOLARIS}`,
+        ].sort());
+    });
+
+    it("uses separate open-world and Railjack deployment requirements for Necramechs", () => {
+        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const openWorld = byId.get(PR.NECRAMECH_UNLOCKED)!;
+        const railjack = byId.get(PR.NECRAMECH_RAILJACK_DEPLOYMENT)!;
+        expect(openWorld.prerequisites).toEqual([PR.WAR_WITHIN]);
+        expect(openWorld.anyPrerequisites).toEqual([PR.NECRAMECH_VOIDRIG, PR.NECRAMECH_BONEWIDOW, PR.NECRAMECH_MARKET]);
+        expect(openWorld.conditions).toBeUndefined();
+        expect(railjack.prerequisites).toEqual([PR.NECRAMECH_UNLOCKED, PR.SYSTEM_PROXIMA_ACCESS]);
+        expect(railjack.conditions).toContainEqual({ type: "railjack_intrinsic_rank", rank: 5, skillId: "LPS_TACTICAL" });
+    });
+
+    it("tracks the shared dynamic Adversary slot for Lich, Sister, and Coda creation", () => {
+        const cases = [
+            { id: PR.ACTIVITY_KUVA_LICH, prerequisites: [PR.WAR_WITHIN, PR.SYSTEM_ADVERSARY_SLOT_CLEAR], anyPrerequisites: [PR.RAILJACK_CONSTRUCTED, PR.RAILJACK_MARKET_ACQUIRED] },
+            { id: PR.ACTIVITY_SISTER_PARVOS, prerequisites: [PR.WAR_WITHIN, PR.CALL_TEMPESTARII], anyPrerequisites: [] },
+            { id: PR.ACTIVITY_TECHNOCYTE_CODA, prerequisites: [PR.THE_HEX], anyPrerequisites: [] },
+        ];
+
+        for (const entry of cases) {
+            const progress = Object.fromEntries([...entry.prerequisites, ...entry.anyPrerequisites, PR.SYSTEM_ADVERSARY_SLOT_CLEAR].map((id) => [id, true]));
+            const ready = computeUnlockGraphSnapshot(progress, undefined, { masteryRank: 5 }).byId[entry.id];
+            expect(ready.unlocked, entry.id).toBe(true);
+
+            const occupiedSlot = { ...progress, [PR.SYSTEM_ADVERSARY_SLOT_CLEAR]: false };
+            const locked = computeUnlockGraphSnapshot(occupiedSlot, undefined, { masteryRank: 5 }).byId[entry.id];
+            expect(locked.unlocked, entry.id).toBe(false);
+            expect(locked.missing, entry.id).toContain(PR.SYSTEM_ADVERSARY_SLOT_CLEAR);
+        }
+
+        expect(PREREQ_REGISTRY.find((def) => def.id === PR.ACTIVITY_KUVA_LICH)?.anyPrerequisites)
+            .toEqual([PR.RAILJACK_CONSTRUCTED, PR.RAILJACK_MARKET_ACQUIRED]);
+
+        const purchasedRailjack = computeUnlockGraphSnapshot({
+            [PR.WAR_WITHIN]: true,
+            [PR.RAILJACK_MARKET_ACQUIRED]: true,
+            [PR.SYSTEM_ADVERSARY_SLOT_CLEAR]: true,
+        }, undefined, { masteryRank: 5 }).byId[PR.ACTIVITY_KUVA_LICH];
+        expect(purchasedRailjack.unlocked).toBe(true);
+    });
+
+    it("tracks the actual Kavat segment and mature Helminth cyst requirements", () => {
+        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        expect(byId.get(PR.SEGMENT_KAVAT_UPGRADE)?.prerequisites).toEqual([PR.SEGMENT_INCUBATOR]);
+        expect(byId.get(PR.COMPANION_KAVAT)?.prerequisites).toEqual([PR.SEGMENT_KAVAT_UPGRADE]);
+        expect(byId.get(PR.COMPANION_HELMINTH_CHARGER)?.prerequisites).toEqual([PR.SEGMENT_INCUBATOR, PR.COMPANION_MATURE_CYST]);
+        expect(byId.get(PR.COMPANION_HELMINTH_CHARGER)?.prerequisites).not.toContain(PR.SEGMENT_HELMINTH);
     });
 });

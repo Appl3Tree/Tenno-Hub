@@ -37,7 +37,8 @@ export const PR = {
     // -------------------------------------------------------------------------
     // Arc 1 — The Awakening (tutorial + early game)
     // -------------------------------------------------------------------------
-    VORS_PRIZE:             "quest_vors_prize",             // Forced tutorial; installs all base Orbiter segments
+    AWAKENING:              "quest_awakening",             // First-login quest and direct predecessor to Vor's Prize
+    VORS_PRIZE:             "quest_vors_prize",             // Forced tutorial after Awakening; installs base Orbiter segments
     THE_TEACHER:            "quest_the_teacher",            // Modding tutorial (Update 40, Oct 2025)
     ONCE_AWAKE:             "quest_once_awake",             // Mercury Grineer arc; req. Mercury Junction
     ARCHWING:               "quest_the_archwing",           // Unlocks Archwing gear + missions; current wiki page lists Mars Junction
@@ -52,7 +53,7 @@ export const PR = {
     WAR_WITHIN:             "quest_the_war_within",         // Upgrades Operator to full Transference + Void powers;
                                                             //   unlocks Kuva Fortress, Sorties, Kuva Lich;
                                                             //   gates full Focus tree + Quills access;
-                                                            //   req. Second Dream + Pluto access + MR5
+                                                            //   req. Neptune → Pluto Junction; no current MR gate
     CHAINS_HARROW:          "quest_chains_of_harrow",       // Harrow BP; req. visit Onkko after War Within (not Mote Amp ownership)
     APOSTASY:               "quest_apostasy_prologue",      // Short cinematic; req. War Within + Personal Quarters segment
     SACRIFICE:              "quest_the_sacrifice",          // Excalibur Umbra; req. Apostasy Prologue
@@ -63,7 +64,7 @@ export const PR = {
     CHIMERA_PROLOGUE:       "quest_chimera_prologue",       // Short cinematic; req. The Sacrifice
     ERRA:                   "quest_erra",                   // Short cinematic; req. Chimera Prologue
     PRELUDE_TO_WAR:         "quest_prelude_to_war",         // Compilation of miniquests; req. Erra
-    NEW_WAR:                "quest_the_new_war",            // Major story gate; requires Prelude to War + owned Railjack;
+    NEW_WAR:                "quest_the_new_war",            // Major story gate; Prelude to War + owned Railjack (Rising Tide or Market);
                                                             //   Amp and owned Necramech are not current requirements
     JADE_SHADOWS:           "quest_jade_shadows",           // Jade Warframe; req. New War
 
@@ -99,7 +100,7 @@ export const PR = {
     SAYA_VIGIL:             "quest_sayas_vigil",            // Gara BP; combined with War Within unlocks The Quills; req. one Cetus Bounty
     VOX_SOLARIS:            "quest_vox_solaris",            // Unlocks Vox Solaris syndicate; auto-starts on first Fortuna visit
     HEART_OF_DEIMOS:        "quest_heart_of_deimos",        // Unlocks Necralisk / Cambion Drift / Entrati; req. Earth->Mars Junction
-    RISING_TIDE:            "quest_rising_tide",            // Unlocks Railjack construction; req. War Within
+    RISING_TIDE:            "quest_rising_tide",            // Unlocks Railjack construction; current gate is War Within (Update 39)
     VEILBREAKER:            "quest_veilbreaker",            // Unlocks Kahl's Garrison + Archon Hunts; req. New War
     CALL_TEMPESTARII:       "quest_call_of_the_tempestarii",// Unlocks Sisters of Parvos + Railjack Corpus nodes; req. Railjack + Deadlock Protocol + MR4
     DEADLOCK_PROTOCOL:      "quest_the_deadlock_protocol",  // Protea BP; Sisters of Parvos eligibility; req. Saturn Junction + MR4
@@ -109,15 +110,15 @@ export const PR = {
     // =========================================================================
 
     LIMBO_THEOREM:          "quest_the_limbo_theorem",      // Limbo BP; req. Void access
-    SILVER_GROVE:           "quest_the_silver_grove",       // Titania BP; req. Cetus + MR7 + New Loka relay talk
-    SANDS_INAROS:           "quest_sands_of_inaros",        // Inaros BP; beacon purchased from Baro Ki'Teer
+    SILVER_GROVE:           "quest_the_silver_grove",       // Titania BP; Second Dream + MR7; start by speaking to New Loka at a Relay
+    SANDS_INAROS:           "quest_sands_of_inaros",        // Inaros BP; MR5; beacon can be bought or traded
     OCTAVIA_ANTHEM:         "quest_octavias_anthem",        // Octavia BP; req. Lua access (Earth-Lua junction)
     JORDAS_PRECEPT:         "quest_the_jordas_precept",     // Atlas BP; req. Pluto->Eris Junction
     GLAST_GAMBIT:           "quest_the_glast_gambit",       // Nidus BP; req. War Within
-    MASK_REVENANT:          "quest_mask_of_the_revenant",   // Revenant BP; req. Cetus + Quills rank 2 (Observer)
+    MASK_REVENANT:          "quest_mask_of_the_revenant",   // Revenant BP; req. Quills rank 2 (Observer)
     HIDDEN_MESSAGES:        "quest_hidden_messages",        // Mirage BP; req. Saturn access
     WAVERIDER:             "quest_the_waverider",          // Yareli BP; req. Vox Solaris + MR3
-    PATIENT_ZERO:           "quest_patient_zero",           // Infested Salvage node + Mesa BP; req. Eris access
+    PATIENT_ZERO:           "quest_patient_zero",           // Infested Salvage node + Mesa BP; lists Once Awake + Eris access
 
     // =========================================================================
     // STAR CHART JUNCTIONS
@@ -159,6 +160,7 @@ export const PR = {
     HUB_RELAY:              "hub_relay",                    // Any Relay; gates Cephalon Simaris, Syndicates, Conclave
     HUB_DRIFTERS_CAMP:      "hub_drifters_camp",            // Drifter's Camp; gates Kahl's Garrison; req. New War
     CLAN_DOJO:              "system_clan_dojo_access",      // Join or create a Clan and access its Dojo; gates clan research and dojo replication
+    CLAN_DRY_DOCK:          "system_clan_dry_dock_access",  // Access a Clan Dojo with a constructed Dry Dock
 
     // =========================================================================
     // ORBITER SEGMENTS
@@ -167,12 +169,12 @@ export const PR = {
     // Obtained via Vor's Prize (base ship function; always present):
     SEGMENT_ARSENAL:                "segment_arsenal",
     SEGMENT_COMMUNICATIONS:         "segment_communications",
-    SEGMENT_CODEX_SCANNER:          "segment_codex_scanner",
     SEGMENT_FOUNDRY:                "segment_foundry",
     SEGMENT_MODDING:                "segment_modding_table",
 
     // Obtained via Junctions or Quests:
     SEGMENT_INCUBATOR:              "segment_incubator",                // Companion incubation; granted by Howl of the Kubrow
+    SEGMENT_KAVAT_UPGRADE:          "segment_kavat_upgrade",            // Installed Kavat Incubator Upgrade Segment
     SEGMENT_VOID_RELIC:             "segment_void_relic",               // Void fissures & relics
     SEGMENT_PERSONAL_QUARTERS:      "segment_personal_quarters",        // War Within quest reward; REQUIRED for Apostasy Prologue
     SEGMENT_MELEE_UPGRADE:          "segment_melee_upgrade",            // Melee Arcanes + Exilus slots; Whispers in the Walls reward
@@ -190,6 +192,9 @@ export const PR = {
     SEGMENT_HELMINTH_COALESCENT:    "segment_helminth_coalescent",      // Archon Shard fusion (create Tauforged shards);
                                                                         //   purchased from Bird 3 (Cavia);
                                                                         //   req. Cavia rank 2 (Researcher)
+    SEGMENT_HELMINTH_SON_ACCESS:    "system_helminth_son_segment_access", // Son purchase route: MR8 + Entrati rank 3
+    SEGMENT_HELMINTH_INVIGORATION_SON_ACCESS: "system_helminth_invigoration_son_access", // Son route: MR8 + Entrati rank 5
+    HELMINTH_MARKET_BUNDLE:         "system_helminth_market_bundle_acquired", // Purchased Helminth Segments Market bundle
 
     // =========================================================================
     // OPERATOR / FOCUS SYSTEM
@@ -207,6 +212,8 @@ export const PR = {
     FOCUS_SCHOOL_MADURAI:           "focus_school_madurai",             // Damage amp / Void Strike (Eidolon meta)
 
     // =========================================================================
+    SYSTEM_TAURON_STRIKE:           "system_tauron_strike",              // Permanent Tauron Strike access after acquiring a Tektolyst Artifact
+
     // AMP SYSTEM (Operator weapon tiers)
     // Tiers 1–4 from The Quills (Cetus); tiers 5–7 from Vox Solaris (Fortuna)
     // =========================================================================
@@ -214,6 +221,7 @@ export const PR = {
     AMP_MOTE:               "amp_mote",                                 // Mote Amp item ownership, kept on its stable saved-state key
     SYSTEM_OPERATOR_AMP:    "system_operator_amp_owned",                // Any owned Operator Amp satisfies The New War's Amp gate
     SYSTEM_RANK30_WARFRAME: "system_rank30_warframe_eligible",           // Rank 30 Warframe or MR30+Forma exception for Sorties/Arbitrations
+    SYSTEM_ADVERSARY_SLOT_CLEAR: "system_adversary_slot_clear",          // Manual dynamic gate: no active Kuva Lich, Sister, or Technocyte Coda
     SYSTEM_ONKKO_VISITED:    "system_onkko_visited",                     // Current Chains of Harrow gate: visit Onkko after War Within
     AMP_SIROCCO:            "amp_sirocco",                              // Pre-built Amp reward from The New War
     AMP_TIER1:              "amp_tier1_parts",                          // Raplak/Pencha/Clapkra parts; req. Quills rank 1
@@ -230,8 +238,9 @@ export const PR = {
     // =========================================================================
 
     COMPANION_KUBROW:               "companion_kubrow_breeding",        // Kubrow; req. Howl of the Kubrow + Incubator segment
-    COMPANION_KAVAT:                "companion_kavat_breeding",         // Kavat; req. Incubator segment + Kavat Genetic Code (Mars Survival)
-    COMPANION_HELMINTH_CHARGER:     "companion_helminth_charger",       // Req. Nidus Helminth cyst (natural or from another player) + Incubator
+    COMPANION_KAVAT:                "companion_kavat_breeding",         // Kavat; requires the Incubator plus Kavat upgrade segment
+    COMPANION_HELMINTH_CHARGER:     "companion_helminth_charger",       // Requires the Incubator plus a mature Helminth Cyst
+    COMPANION_MATURE_CYST:          "companion_mature_helminth_cyst",   // Manual, dynamic prerequisite for Helminth Charger incubation
     COMPANION_MOA:                  "companion_moa",                    // MOA robotic companion; crafted in Fortuna; req. Solaris United rank 1
     COMPANION_HOUND:                "companion_hound",                  // Hound; obtained by keeping a defeated Sister of Parvos's Hound
     COMPANION_PREDASITE:            "companion_predasite",              // Req. Necralisk + Daughter (Son's sister); Deimos companion
@@ -242,20 +251,27 @@ export const PR = {
     // NECRAMECH SYSTEM
     // =========================================================================
 
-    NECRAMECH_UNLOCKED:     "system_necramech_unlocked",                // Deploy Necramech in open worlds + Railjack;
-                                                                        //   req. Heart of Deimos quest;
-                                                                        //   craft Voidrig or Bonewidow from Necraloid standing
-    NECRAMECH_VOIDRIG:      "system_necramech_voidrig",                 // Voidrig (gun platform); req. Necraloid standing
-    NECRAMECH_BONEWIDOW:    "system_necramech_bonewidow",               // Bonewidow (melee); req. Necraloid standing
+    NECRAMECH_UNLOCKED:     "system_necramech_unlocked",                // Open-world use; requires War Within and an owned Necramech
+    NECRAMECH_VOIDRIG:      "system_necramech_voidrig",                 // Voidrig build/acquisition milestone; blueprint from Heart of Deimos
+    NECRAMECH_BONEWIDOW:    "system_necramech_bonewidow",               // Bonewidow build/acquisition milestone; main BP at Necraloid R3
+    NECRAMECH_MARKET:       "system_necramech_market_acquired",         // Pre-built Necramech purchased from the Market
+    NECRAMECH_RAILJACK_DEPLOYMENT: "system_necramech_railjack_deployment", // Deploy an owned Necramech in Railjack; Tactical 5
 
     // =========================================================================
     // RAILJACK SYSTEM
     // =========================================================================
 
     RAILJACK_CONSTRUCTED:   "system_railjack_constructed",              // Railjack built + playable; req. Rising Tide quest
-    RAILJACK_INTRINSICS:    "system_railjack_intrinsics",               // Intrinsics skill tree; unlocked on first Railjack mission
+    RAILJACK_MARKET_ACQUIRED: "system_railjack_market_acquired",         // Purchased Railjack ownership alternative to Rising Tide
+    RAILJACK_INTRINSICS:    "system_railjack_intrinsics",               // Intrinsics skill tree; can be progressed after joining Railjack missions
     RAILJACK_CORPUS_NODES:  "system_railjack_corpus_nodes",             // Corpus Proxima nodes; req. Call of the Tempestarii
-    RAILJACK_VOID_STORMS:   "system_railjack_void_storms",              // Void Storm Fissures in Railjack; req. Call of the Tempestarii
+    RAILJACK_VOID_STORMS:   "system_railjack_void_storms",              // Compatibility alias for general Void Storm access
+    SYSTEM_PROXIMA_ACCESS:          "system_proxima_access",             // Proxima public mission access after The Archwing
+    SYSTEM_PROXIMA_SATURN_ACCESS:   "system_proxima_saturn_access",      // Saturn Proxima; any Railjack Intrinsic Rank 3
+    SYSTEM_PROXIMA_NEPTUNE_ACCESS:  "system_proxima_neptune_access",     // Neptune Proxima; any Railjack Intrinsic Rank 3
+    SYSTEM_PROXIMA_PLUTO_ACCESS:    "system_proxima_pluto_access",       // Pluto Proxima; any Railjack Intrinsic Rank 5
+    SYSTEM_PROXIMA_VEIL_ACCESS:     "system_proxima_veil_access",        // Veil Proxima; any Railjack Intrinsic Rank 7
+    SYSTEM_RAILJACK_ARMAMENTS_ACCESS: "system_railjack_armaments_access", // Sigma research in Dojo or salvaged armaments in Proxima
 
     // =========================================================================
     // ENDGAME ACTIVITIES
@@ -265,10 +281,9 @@ export const PR = {
     ACTIVITY_SORTIES:               "activity_sorties",                 // Daily 3-mission Sortie; req. War Within + MR5 + rank-30 frame
     ACTIVITY_INVASIONS:            "activity_invasions",               // Invasion missions available
     ACTIVITY_NIGHTMARE:            "activity_nightmare_missions",      // Nightmare mission access; req. all nodes complete on a planet
-    ACTIVITY_THERMIA_FRACTURES:    "activity_thermia_fractures",       // Orb Vallis event; req. Vox Solaris quest
+    ACTIVITY_THERMIA_FRACTURES:    "activity_thermia_fractures",       // Orb Vallis event; requires access to Orb Vallis
     ACTIVITY_NIGHTWAVE:             "activity_nightwave",               // Nightwave system active/unlocked enough to earn Creds and rank rewards
-    ACTIVITY_ROPALOLYST:            "activity_ropalolyst",              // Jupiter assassination boss node;
-                                                                        //   req. New Strange + Jupiter junction clear
+    ACTIVITY_ROPALOLYST:            "activity_ropalolyst",              // Jupiter boss node; req. Chimera Prologue + Jupiter node access
     ACTIVITY_INDEX:                 "activity_the_index",               // The Index arena on Neptune
     ACTIVITY_DEFECTION:             "activity_defection",               // Defection missions
 
@@ -278,6 +293,8 @@ export const PR = {
                                                                         //   rank-30 frame required; instant-death on down
     ACTIVITY_ABYSSAL_ZONE:          "activity_abyssal_zone",            // Abyssal Zone mission access; req. Relay access + any pledged main Syndicate at Rank 2
     ACTIVITY_DEEP_ARCHIMEDEA:       "activity_deep_archimedea",         // Elite endgame activity; req. Whispers + Cavia rank 5 (Family)
+    ACTIVITY_NETRACELL_COMPLETED:   "activity_netracell_completed",     // Persistent milestone: at least one Netracell has been completed
+    ACTIVITY_SISTER_VANQUISHED:     "activity_sister_vanquished",       // Manual milestone for the vanquished Sister's Hound reward
     ACTIVITY_ELITE_DEEP_ARCHIMEDEA: "activity_elite_deep_archimedea",   // Manually track permanent unlock after 25 research points
     ACTIVITY_TEMPORAL_ARCHIMEDEA:   "activity_temporal_archimedea",     // Update 38; Hex quest + Hex rank 5
     ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA: "activity_elite_temporal_archimedea", // Manually track permanent unlock after 25 research points
@@ -298,6 +315,7 @@ export const PR = {
     SYSTEM_AMIR_CLOSE:              "system_amir_chemistry_close",       // Manual KIM state; Amir Chemistry Rank 5
 
     // ---- Open World Bounties ----
+    ACTIVITY_CETUS_BOUNTY_COMPLETED: "activity_cetus_bounty_completed", // Manual Saya's Vigil unlock task: complete one Cetus bounty
     // ---- Steel Path ----
     ACTIVITY_STEEL_PATH:            "activity_steel_path",              // Steel Path star chart toggle;
                                                                         //   req. all pre-New-War connected nodes cleared
@@ -307,17 +325,17 @@ export const PR = {
                                                                         //   req. Duviri Paradox + Steel Path
 
     // ---- Void Fissures ----
-    ACTIVITY_VOID_FISSURES:         "activity_void_fissures",           // Void Relic cracking; req. Void Relic segment + unlocked target node
-    ACTIVITY_VOID_STORMS:           "activity_void_storms",             // Railjack Void Fissures; req. Railjack + Call of Tempestarii
+    ACTIVITY_VOID_FISSURES:         "activity_void_fissures",           // Fissure missions on unlocked nodes; segment is for refining relics
+    ACTIVITY_VOID_STORMS:           "activity_void_storms",             // Join after Archwing or host with an owned Railjack
+    ACTIVITY_KUVA_SIPHON:           "activity_kuva_siphon",             // Kuva Siphon/Flood missions; requires MR5 + War Within
 
     // ---- Nemesis Systems ----
-    ACTIVITY_KUVA_LICH:             "activity_kuva_lich",               // Kuva Lich nemesis; req. War Within + MR5 + Railjack
-    ACTIVITY_SISTER_PARVOS:         "activity_sister_of_parvos",        // Sister of Parvos nemesis; req. Call of Tempestarii + Deadlock Protocol
-    ACTIVITY_TECHNOCYTE_CODA:       "activity_technocyte_coda",         // Technocyte Coda nemesis; req. The Hex + Railjack final confrontation
+    ACTIVITY_KUVA_LICH:             "activity_kuva_lich",               // Kuva Lich creation; War Within + MR5 + owned Railjack + empty slot
+    ACTIVITY_SISTER_PARVOS:         "activity_sister_of_parvos",        // Sister creation; req. War Within + Call of Tempestarii + MR5 + empty adversary slot
+    ACTIVITY_TECHNOCYTE_CODA:       "activity_technocyte_coda",         // Coda creation; The Hex + no active Kuva Lich/Sister; Railjack only for final showdown
 
     // ---- The Circuit (Duviri) ----
     ACTIVITY_CIRCUIT:               "activity_the_circuit",             // Circuit run mode; req. Duviri Paradox
-    ACTIVITY_CIRCUIT_STEEL_PATH_2:  "activity_circuit_sp",              // Steel Path Circuit; req. Duviri + Steel Path
 
     // =========================================================================
     // SYNDICATE RANK MILESTONES
@@ -339,16 +357,29 @@ export const PR = {
     SYNDICATE_HOLDFASTS_RANK5:      "syndicate_holdfasts_rank5",        // Angel
 
     // Entrati (Necralisk) — gates Helminth:
+    SYNDICATE_ENTRATI_RANK1:        "syndicate_entrati_rank1",          // Stranger
+    SYNDICATE_ENTRATI_RANK2:        "syndicate_entrati_rank2",          // Acquaintance
     SYNDICATE_ENTRATI_RANK3:        "syndicate_entrati_rank3",          // Associate (rank 3) — Helminth Segment blueprint rank gate
     SYNDICATE_ENTRATI_RANK4:        "syndicate_entrati_rank4",          // Friend (rank 4)
     SYNDICATE_ENTRATI_RANK5:        "syndicate_entrati_rank5",          // Family (rank 5) — Invigoration Segment rank gate
 
     // Cavia (Sanctum Anatomica) — gates Coalescent + Deep Archimedea:
+    SYNDICATE_CAVIA_RANK1:          "syndicate_cavia_rank1",            // Stranger
     SYNDICATE_CAVIA_RANK2:          "syndicate_cavia_rank2",            // Researcher — Helminth Coalescent Segment BP (Bird 3)
+    SYNDICATE_CAVIA_RANK3:          "syndicate_cavia_rank3",            // Collaborator
+    SYNDICATE_CAVIA_RANK4:          "syndicate_cavia_rank4",            // Genius
     SYNDICATE_CAVIA_RANK5:          "syndicate_cavia_rank5",            // Illuminate — weekly Archon Shard purchase
+    SYNDICATE_NECRALOID_RANK1:      "syndicate_necraloid_rank1",        // Clearance: Agnesis
+    SYNDICATE_NECRALOID_RANK2:      "syndicate_necraloid_rank2",        // Clearance: Modus
+    SYNDICATE_NECRALOID_RANK3:      "syndicate_necraloid_rank3",        // Clearance: Odima — Bonewidow blueprint
     SYNDICATE_SOLARIS_RANK5:        "syndicate_solaris_united_rank5",   // Old Mate — required for Orb Vallis heists
+    SYNDICATE_SOLARIS_RANK1:        "syndicate_solaris_united_rank1",   // Outworlder
+    SYNDICATE_SOLARIS_RANK2:        "syndicate_solaris_united_rank2",   // Rapscallion
+    SYNDICATE_SOLARIS_RANK3:        "syndicate_solaris_united_rank3",   // Doer
+    SYNDICATE_SOLARIS_RANK4:        "syndicate_solaris_united_rank4",   // Cove
 
     // The Hex (Höllvania / 1999) — gates Temporal Archimedea:
+    SYNDICATE_HEX_RANK4:            "syndicate_hex_rank4",              // Hot & Fresh; requires The Hex Finale
     SYNDICATE_HEX_RANK5:            "syndicate_hex_rank5",              // Pizza Party (rank 5) — Temporal Archimedea access
 
     // Vox Solaris (Fortuna) — gates Profit-Taker + T5–7 Amp parts:

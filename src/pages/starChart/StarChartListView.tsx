@@ -6,8 +6,11 @@ import { STAR_CHART_DATA } from "../../domain/catalog/starChart";
 import type { StarChartNode } from "../../domain/models/starChart";
 import { PR } from "../../domain/ids/prereqIds";
 import { getUnlockedStarChartDestinationIds } from "../../domain/logic/starChartUnlocks";
+import { deriveCompletedMap } from "../../domain/logic/syndicatePrereqs";
 import { useTrackerStore } from "../../store/store";
 import { EMPTY_NODE_COMPLETED, VORS_PRIZE_IMPLIES_COMPLETED, isInMainMap, displayNameFromBase } from "./starChartMapData";
+
+const EMPTY_INTRINSICS: Record<string, number> = {};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // List view: flat planet/node list with completion checkboxes
@@ -32,7 +35,13 @@ function StarChartListView({ steelPathMode, mapMode = "normal" }: SCListProps) {
     const setBulkSteelPathNodesCompleted = useTrackerStore((s) => s.setBulkSteelPathNodesCompleted);
     const nodeCompletedMap   = useTrackerStore((s) => s.state.missions?.nodeCompleted           ?? EMPTY_NODE_COMPLETED);
     const spNodeCompletedMap = useTrackerStore((s) => s.state.missions?.steelPathNodeCompleted  ?? EMPTY_NODE_COMPLETED);
-    const completedPrereqs   = useTrackerStore((s) => s.state.prereqs?.completed               ?? EMPTY_NODE_COMPLETED);
+    const baseCompletedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed             ?? EMPTY_NODE_COMPLETED);
+    const railjackIntrinsics   = useTrackerStore((s) => s.state.intrinsics?.railjack           ?? EMPTY_INTRINSICS);
+    const masteryRank          = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
+    const completedPrereqs     = useMemo(
+        () => deriveCompletedMap(baseCompletedPrereqs, [], masteryRank, nodeCompletedMap, railjackIntrinsics),
+        [baseCompletedPrereqs, masteryRank, nodeCompletedMap, railjackIntrinsics],
+    );
 
     const activeMap        = steelPathMode ? spNodeCompletedMap   : nodeCompletedMap;
     const activeSetOne     = steelPathMode ? setSteelPathNodeCompleted : setNodeCompleted;

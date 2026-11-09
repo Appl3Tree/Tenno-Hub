@@ -6,6 +6,7 @@ import { SEED_INVENTORY, SEED_MASTERY, SEED_MISSIONS, SEED_SYNDICATES } from "..
 import { nowIso } from "./storeUtils";
 import { makeDefaultResetChecklistState, ensureResetChecklistState } from "./resetChecklist";
 import { normalizeArcaneRankMap } from "../domain/logic/arcaneInventory";
+import { PR } from "../domain/ids/prereqIds";
 
 export function makeDefaultState(): UserStateV2 {
     const iso = nowIso();
@@ -182,6 +183,10 @@ export function mergeProgressPackIntoState(current: UserStateV2, incoming: any):
                 ...incoming.prereqs.completed
             }
         };
+    }
+
+    if (next.prereqs.completed[PR.VORS_PRIZE] === true) {
+        next.prereqs.completed[PR.AWAKENING] = true;
     }
 
     if (incoming.inventory) {

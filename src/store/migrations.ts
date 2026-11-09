@@ -11,6 +11,7 @@ import {
     getCurrentWeeklyFridayResetKey,
 } from "./storeUtils";
 import { normalizeArcaneRankMap } from "../domain/logic/arcaneInventory";
+import { PR } from "../domain/ids/prereqIds";
 
 const LegacyPayloadSchema = z
     .object({
@@ -310,6 +311,13 @@ function normalizePrereqsCompleted(raw: any): Record<string, boolean> {
     for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
         out[String(k)] = v === true;
     }
+    if (out.activity_circuit_sp === true) {
+        out.activity_circuit_steel_path = true;
+    }
+    delete out.activity_circuit_sp;
+    // Anyone who has completed Vor's Prize necessarily completed its newly
+    // tracked predecessor, The Awakening. Avoid backtracking old saves.
+    if (out[PR.VORS_PRIZE] === true) out[PR.AWAKENING] = true;
     return out;
 }
 

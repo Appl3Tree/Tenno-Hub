@@ -91,9 +91,14 @@ const STAR_CHART_REGION_PREREQS: Array<{ prefix: string; prereqIds: string[] }> 
     { prefix: "Eris", prereqIds: [PR.JUNCTION_PLUTO_SEDNA] },
     { prefix: "Lua", prereqIds: [PR.JUNCTION_EARTH_LUA] },
     { prefix: "Kuva Fortress", prereqIds: [PR.KUVA_FORTRESS_ACCESS] },
-    { prefix: "Void", prereqIds: [PR.JUNCTION_MARS_PHOBOS] },
     { prefix: "Sanctuary", prereqIds: [PR.HUB_RELAY, PR.NEW_STRANGE] },
-    { prefix: "Veil Proxima", prereqIds: [PR.RAILJACK_CONSTRUCTED] },
+    { prefix: "Earth Proxima", prereqIds: [PR.SYSTEM_PROXIMA_ACCESS] },
+    { prefix: "Venus Proxima", prereqIds: [PR.SYSTEM_PROXIMA_ACCESS] },
+    { prefix: "Saturn Proxima", prereqIds: [PR.SYSTEM_PROXIMA_SATURN_ACCESS] },
+    { prefix: "Neptune Proxima", prereqIds: [PR.SYSTEM_PROXIMA_NEPTUNE_ACCESS] },
+    { prefix: "Pluto Proxima", prereqIds: [PR.SYSTEM_PROXIMA_PLUTO_ACCESS] },
+    { prefix: "Veil Proxima", prereqIds: [PR.SYSTEM_PROXIMA_VEIL_ACCESS] },
+    { prefix: "Uranus Proxima", prereqIds: [PR.SYSTEM_URANUS_PROXIMA] },
     { prefix: "Zariman", prereqIds: [PR.HUB_ZARIMAN] },
     { prefix: "Sanctum Anatomica", prereqIds: [PR.HUB_SANCTUM] },
     { prefix: "Höllvania", prereqIds: [PR.HUB_HOLLVANIA] },
@@ -534,7 +539,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/^(?:Enemy|Enemy Drop|Enemy Mod Drop|Resource Drop \(Avatar\)|Additional Drop \(Avatar\)|Avatar Drop|WFItems Location(?: \(Legacy\))?):\s*(Axio|Taro|Vorac|Orm) Detron Crewman$/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.RAILJACK_CONSTRUCTED],
+            prereqIds: [PR.SYSTEM_PROXIMA_ACCESS],
             type: "drop",
         };
     }
@@ -1143,7 +1148,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         if (/\b(Axio|Taro|Vorac|Orm|Aurax)\b/.test(quantityNormalized)) {
             return {
                 label: raw,
-                prereqIds: [PR.RAILJACK_CONSTRUCTED],
+                prereqIds: [PR.SYSTEM_PROXIMA_ACCESS],
                 type: "drop",
             };
         }
@@ -1167,7 +1172,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         if (/Void Storm/i.test(quantityNormalized)) {
             return {
                 label: raw,
-                prereqIds: [PR.RAILJACK_CONSTRUCTED, PR.CALL_TEMPESTARII],
+                prereqIds: [PR.ACTIVITY_VOID_STORMS],
                 type: "drop",
             };
         }

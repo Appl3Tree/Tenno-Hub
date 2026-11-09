@@ -48,7 +48,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:landing-craft/scimitar", label: "Unlock by acquiring the Scimitar Landing Craft", type: "other" },
     { id: "data:landing-craft/skaut", label: "Unlock by acquiring the Skaut Landing Craft", type: "other", prereqIds: ["quest_veilbreaker"] },
     { id: "data:landing-craft/xiphos", label: "Unlock by acquiring the Xiphos Landing Craft", type: "other" },
-    { id: "data:railjack/armaments", label: "Research Sigma armaments in the Dry Dock or repair salvaged Railjack armaments", type: "other", prereqIds: ["quest_rising_tide", "system_clan_dojo_access"] },
+    { id: "data:railjack/armaments", label: "Research Sigma armaments in a Clan Dojo Dry Dock or repair salvaged armaments in Proxima", type: "other", prereqIds: [PR.SYSTEM_RAILJACK_ARMAMENTS_ACCESS] },
     { id: "data:quest/vors-prize", label: "Earn from completing Vor's Prize", type: "other" },
     { id: "data:junction/mercury-venus", label: "Earn from completing the Mercury Junction", type: "other", prereqIds: ["junction_mercury_venus"] },
     { id: "data:junction/earth-mars", label: "Earn from completing the Earth -> Mars Junction", type: "other", prereqIds: ["junction_earth_mars"] },

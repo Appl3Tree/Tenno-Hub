@@ -2444,9 +2444,12 @@ export default function Inventory() {
   const nodeCompletedMap = useTrackerStore(
     (s) => s.state.missions?.nodeCompleted ?? EMPTY_BOOL_RECORD,
   );
+  const railjackIntrinsics = useTrackerStore(
+    (s) => s.state.intrinsics?.railjack ?? EMPTY_NUM_RECORD,
+  );
   const effectiveCompletedPrereqs = useMemo(
-    () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap),
-    [completedPrereqs, masteryRank, nodeCompletedMap, syndicates],
+    () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
+    [completedPrereqs, masteryRank, nodeCompletedMap, railjackIntrinsics, syndicates],
   );
 
   const goals = useTrackerStore((s) => s.state.goals ?? EMPTY_ARRAY);

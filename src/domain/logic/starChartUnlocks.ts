@@ -42,6 +42,16 @@ export function getUnlockedStarChartDestinationIds(
         unlocked.add("region:lua");
     }
 
+    if (completedPrereqs[PR.SYSTEM_PROXIMA_ACCESS] === true) {
+        unlocked.add("region:earth_proxima");
+        unlocked.add("region:venus_proxima");
+    }
+    if (completedPrereqs[PR.SYSTEM_PROXIMA_SATURN_ACCESS] === true) unlocked.add("region:saturn_proxima");
+    if (completedPrereqs[PR.SYSTEM_PROXIMA_NEPTUNE_ACCESS] === true) unlocked.add("region:neptune_proxima");
+    if (completedPrereqs[PR.SYSTEM_PROXIMA_PLUTO_ACCESS] === true) unlocked.add("region:pluto_proxima");
+    if (completedPrereqs[PR.SYSTEM_PROXIMA_VEIL_ACCESS] === true) unlocked.add("region:veil_proxima");
+    if (completedPrereqs[PR.SYSTEM_URANUS_PROXIMA] === true) unlocked.add("region:uranus_proxima");
+
     // Operation: Taubound temporarily exposes its Eris route without the
     // permanent chart path. The event gate includes its current time window.
     if (isPrereqUnlocked(completedPrereqs, PR.ACTIVITY_TAUBOUND, undefined, { currentDate })) {

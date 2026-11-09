@@ -108,11 +108,19 @@ export const MILESTONE_REGISTRY: MilestoneDef[] = [
     },
     {
         id: "ms_main_arc6_reached",
-        label: "Arc 6 Reached (The Old Peace)",
-        description: "The Old Peace complete. Continues the 1999 arc with further Höllvania content.",
+        label: "The Old Peace Complete",
+        description: "The Old Peace complete; the latest permanent main-story quest in the Void War Saga before the Tau Prologue series.",
         category: "Mainline",
         showWhenComplete: true,
         rule: { type: "all", prereqIds: [PR.THE_OLD_PEACE] }
+    },
+    {
+        id: "ms_main_tau_prologue_complete",
+        label: "Tau Prologue Series Complete",
+        description: "Completed the Codex prologue chapters unlocked by completing both The Hex and The Old Peace.",
+        category: "Mainline",
+        showWhenComplete: true,
+        rule: { type: "all", prereqIds: [PR.TAU_PROLOGUE] }
     },
 
     // =========================================================================

@@ -6,8 +6,35 @@ import {
     replaceProgressPackState,
 } from "../progressPack";
 import { migrateToUserStateV2 } from "../migrations";
+import { PR } from "../../domain/ids/prereqIds";
 
 describe("progress pack inventory serialization", () => {
+    it("migrates the legacy Steel Path Circuit alias without losing completed progress", () => {
+        const state = makeDefaultState();
+        state.prereqs.completed = {
+            activity_circuit_sp: true,
+            activity_circuit_steel_path: false,
+        };
+
+        const migrated = migrateToUserStateV2(state);
+
+        expect(migrated?.prereqs.completed.activity_circuit_steel_path).toBe(true);
+        expect(migrated?.prereqs.completed).not.toHaveProperty("activity_circuit_sp");
+    });
+
+    it("keeps existing Vor's Prize completion valid after tracking its Awakening predecessor", () => {
+        const state = makeDefaultState();
+        state.prereqs.completed[PR.VORS_PRIZE] = true;
+
+        const migrated = migrateToUserStateV2(state);
+        expect(migrated?.prereqs.completed[PR.AWAKENING]).toBe(true);
+
+        const merged = mergeProgressPackIntoState(makeDefaultState(), {
+            prereqs: { completed: { [PR.VORS_PRIZE]: true } },
+        });
+        expect(merged.prereqs.completed[PR.AWAKENING]).toBe(true);
+    });
+
     it("replaces local progress from a backup instead of retaining post-backup inventory", () => {
         const current = makeDefaultState();
         current.inventory.counts["items:/Lotus/Types/Items/MiscItems/AddedAfterBackup"] = 1;

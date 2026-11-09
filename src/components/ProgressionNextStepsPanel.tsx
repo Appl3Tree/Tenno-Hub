@@ -14,6 +14,7 @@ const EMPTY_COMPLETED: Record<string, boolean> = {};
 const EMPTY_SYNDICATES: SyndicateState[] = [];
 const EMPTY_NODE_COMPLETED: Record<string, boolean> = {};
 const EMPTY_INVENTORY_COUNTS: Record<string, number> = {};
+const EMPTY_INTRINSICS: Record<string, number> = {};
 
 function PrereqsLink() {
     const setActivePage = useTrackerStore((s) => s.setActivePage);
@@ -29,19 +30,20 @@ function PrereqsLink() {
 
 export default function ProgressionNextStepsPanel({ embedded = false }: { embedded?: boolean }) {
     const setPrereqCompleted = useTrackerStore((s) => s.setPrereqCompleted);
-    const { completedMap, syndicates, masteryRank, nodeCompletedMap, inventoryCounts } = useTrackerStore(
+    const { completedMap, syndicates, masteryRank, nodeCompletedMap, inventoryCounts, railjackIntrinsics } = useTrackerStore(
         useShallow((s) => ({
             completedMap:     s.state.prereqs?.completed ?? EMPTY_COMPLETED,
             syndicates:       s.state.syndicates ?? EMPTY_SYNDICATES,
             masteryRank:      s.state.player?.masteryRank ?? null,
             nodeCompletedMap: s.state.missions?.nodeCompleted ?? EMPTY_NODE_COMPLETED,
             inventoryCounts:  s.state.inventory.counts ?? EMPTY_INVENTORY_COUNTS,
+            railjackIntrinsics: s.state.intrinsics?.railjack ?? EMPTY_INTRINSICS,
         }))
     );
 
     const mergedMap = useMemo(
-        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap),
-        [completedMap, syndicates, masteryRank, nodeCompletedMap]
+        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
+        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics]
     );
 
     const evalContext = useMemo(
@@ -49,9 +51,10 @@ export default function ProgressionNextStepsPanel({ embedded = false }: { embedd
             masteryRank,
             nodeCompletedMap,
             inventoryCounts,
+            railjackIntrinsics,
             syndicateRankById: Object.fromEntries(syndicates.map((syndicate) => [syndicate.id, syndicate.rank])),
         }),
-        [masteryRank, nodeCompletedMap, inventoryCounts, syndicates],
+        [masteryRank, nodeCompletedMap, inventoryCounts, syndicates, railjackIntrinsics],
     );
 
     const prereqIndex = useMemo(() => buildPrereqIndex(PREREQ_REGISTRY), []);

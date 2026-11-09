@@ -2,6 +2,7 @@ import { PREREQ_REGISTRY } from "../src/catalog/prereqs/prereqRegistry";
 import { MILESTONE_REGISTRY } from "../src/catalog/prereqs/milestoneRegistry";
 import { SOURCE_INDEX } from "../src/catalog/sources/sourceCatalog";
 import { STAR_CHART_DATA } from "../src/domain/catalog/starChart";
+import { PR } from "../src/domain/ids/prereqIds";
 import { SY } from "../src/domain/ids/syndicateIds";
 
 const ids = PREREQ_REGISTRY.map((def) => def.id);
@@ -72,6 +73,14 @@ for (const def of PREREQ_REGISTRY) {
         if (condition.type === "resource_owned" && (!Number.isFinite(condition.quantity) || condition.quantity <= 0)) {
             conditionMissingRefs.push(`${def.id} -> invalid resource quantity ${condition.quantity}`);
         }
+        if (condition.type === "railjack_intrinsic_rank" && (
+            !Number.isInteger(condition.rank)
+            || condition.rank < 1
+            || condition.rank > 10
+            || (condition.skillId !== undefined && !["LPS_COMMAND", "LPS_ENGINEERING", "LPS_GUNNERY", "LPS_PILOTING", "LPS_TACTICAL"].includes(condition.skillId))
+        )) {
+            conditionMissingRefs.push(`${def.id} -> invalid Railjack Intrinsic condition ${condition.skillId ?? "any"} rank ${condition.rank}`);
+        }
         if (condition.type === "availability_window" && (
             !/^\d{4}-\d{2}-\d{2}$/.test(condition.startsOn)
             || !/^\d{4}-\d{2}-\d{2}$/.test(condition.endsOn)
@@ -114,6 +123,71 @@ function visit(id: string) {
     visited.add(id);
 }
 for (const id of ids) visit(id);
+
+// Find hard AND edges already guaranteed by another direct requirement. OR
+// branches contribute only ancestors common to every option, so a single
+// alternative cannot incorrectly make a separate edge appear redundant.
+const registryById = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+const mandatoryClosureCache = new Map<string, Set<string>>();
+function mandatoryClosure(id: string, active = new Set<string>()): Set<string> {
+    const cached = mandatoryClosureCache.get(id);
+    if (cached) return cached;
+    if (active.has(id)) return new Set([id]);
+    active.add(id);
+    const def = registryById.get(id);
+    const closure = new Set<string>([id]);
+    if (def) {
+        const conditionParents = (def.conditions ?? []).flatMap((condition) =>
+            condition.type === "quest_complete" ? [condition.prereqId]
+                : condition.type === "junction_complete" ? [condition.junctionId]
+                    : [],
+        );
+        for (const parent of [...def.prerequisites, ...conditionParents]) {
+            for (const ancestor of mandatoryClosure(parent, active)) closure.add(ancestor);
+        }
+        const alternatives = def.anyPrerequisites ?? [];
+        if (alternatives.length) {
+            const alternativeClosures = alternatives.map((parent) => mandatoryClosure(parent, active));
+            for (const ancestor of alternativeClosures[0]) {
+                if (alternativeClosures.every((candidate) => candidate.has(ancestor))) closure.add(ancestor);
+            }
+        }
+    }
+    active.delete(id);
+    mandatoryClosureCache.set(id, closure);
+    return closure;
+}
+const redundantEdges: string[] = [];
+for (const def of PREREQ_REGISTRY) {
+    const conditionParents = (def.conditions ?? []).flatMap((condition) =>
+        condition.type === "quest_complete" ? [condition.prereqId]
+            : condition.type === "junction_complete" ? [condition.junctionId]
+                : [],
+    );
+    const andParents = [...def.prerequisites, ...conditionParents];
+    for (const parent of andParents) {
+        if (andParents.some((other) => other !== parent && mandatoryClosure(other).has(parent))) {
+            redundantEdges.push(`${def.id} -> ${parent}`);
+        }
+    }
+}
+// The live game explicitly checks both sides of these requirements even though
+// one is implied by the other in the progression graph.
+const explicitlyRequiredRedundancies = new Set([
+    `${PR.WHISPERS_WALL} -> ${PR.HEART_OF_DEIMOS}`,
+    `${PR.SECOND_DREAM} -> ${PR.NATAH}`,
+    `${PR.WAR_WITHIN} -> ${PR.SECOND_DREAM}`,
+    `${PR.PATIENT_ZERO} -> ${PR.ONCE_AWAKE}`,
+    `${PR.ACTIVITY_DEEP_ARCHIMEDEA} -> ${PR.WHISPERS_WALL}`,
+    `${PR.ACTIVITY_TEMPORAL_ARCHIMEDEA} -> ${PR.THE_HEX}`,
+    `${PR.ACTIVITY_SISTER_PARVOS} -> ${PR.WAR_WITHIN}`,
+    `${PR.SAYA_VIGIL} -> ${PR.VORS_PRIZE}`,
+    `${PR.VOX_SOLARIS} -> ${PR.THE_TEACHER}`,
+    `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX}`,
+    `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX_FINALE}`,
+    `${PR.SYNDICATE_VOX_RANK1} -> ${PR.VOX_SOLARIS}`,
+]);
+const unapprovedRedundantEdges = redundantEdges.filter((edge) => !explicitlyRequiredRedundancies.has(edge));
 
 const sourceMissingRefs = Object.entries(SOURCE_INDEX).flatMap(([sourceId, source]) =>
     (source.prereqIds ?? [])
@@ -158,10 +232,29 @@ for (const def of introducedAfterUpdate41) postCutoffByCategory.set(def.category
 const gatedEntriesWithoutEvidence = PREREQ_REGISTRY
     .filter((def) => (def.prerequisites.length > 0 || (def.anyPrerequisites?.length ?? 0) > 0 || (def.conditions?.length ?? 0) > 0) && !def.evidence?.length)
     .map((def) => def.id);
+const gatedEntriesWithoutCurrentEvidence = PREREQ_REGISTRY
+    .filter((def) => (def.prerequisites.length > 0 || (def.anyPrerequisites?.length ?? 0) > 0 || (def.conditions?.length ?? 0) > 0)
+        && !def.evidence?.some((entry) => entry.classification === "required" || entry.classification === "conditional"))
+    .map((def) => def.id);
 const referencesWithoutEvidence = gatedEntriesWithoutEvidence.reduce((count, id) => {
     const def = PREREQ_REGISTRY.find((entry) => entry.id === id)!;
     return count + def.prerequisites.length + (def.anyPrerequisites?.length ?? 0) + (def.conditions?.length ?? 0);
 }, 0);
+const invalidEvidence = PREREQ_REGISTRY.flatMap((def) => (def.evidence ?? []).flatMap((entry, index) => {
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(entry.verifiedOn)
+        && !Number.isNaN(Date.parse(`${entry.verifiedOn}T00:00:00Z`));
+    return [
+        ...(!/^https:\/\//.test(entry.url) ? [`${def.id} evidence ${index + 1}: URL must be HTTPS`] : []),
+        ...(!validDate ? [`${def.id} evidence ${index + 1}: invalid verification date ${entry.verifiedOn}`] : []),
+        ...(!entry.note.trim() ? [`${def.id} evidence ${index + 1}: note is empty`] : []),
+        ...(!["required", "conditional", "recommended", "historical"].includes(entry.classification)
+            ? [`${def.id} evidence ${index + 1}: invalid classification ${entry.classification}`]
+            : []),
+        ...(/direct gate tracked for|generic progression entry/i.test(entry.note)
+            ? [`${def.id} evidence ${index + 1}: generic note is not acceptable provenance`]
+            : []),
+    ];
+}));
 
 const lines = [
     "# Prerequisite Registry Inventory",
@@ -187,14 +280,18 @@ const lines = [
     `- Unresolved prerequisite references: ${missingRefs.length ? missingRefs.join("; ") : "none"}`,
     `- Unresolved source-catalog references: ${sourceMissingRefs.length ? sourceMissingRefs.join("; ") : "none"}`,
     `- Unresolved milestone references: ${milestoneMissingRefs.length ? milestoneMissingRefs.join("; ") : "none"}`,
-    `- Unresolved quest/junction condition references: ${conditionMissingRefs.length ? conditionMissingRefs.join("; ") : "none"}`,
+    `- Invalid condition references or values: ${conditionMissingRefs.length ? conditionMissingRefs.join("; ") : "none"}`,
     `- Dependency cycles: ${cyclicComponents.length ? cyclicComponents.map((cycle) => cycle.join(" → ")).join("; ") : "none"}`,
+    `- Redundant direct prerequisite edges: ${unapprovedRedundantEdges.length ? unapprovedRedundantEdges.join("; ") : "none"}`,
+    `- Explicit game-checked redundant pairs retained: ${[...explicitlyRequiredRedundancies].filter((edge) => redundantEdges.includes(edge)).join("; ") || "none"}`,
     `- Junction definitions missing or duplicated on chart nodes: ${junctionIssues.length ? junctionIssues.join("; ") : "none"}`,
     `- Duplicate Star Chart node IDs: ${duplicateChartNodeIds.length ? duplicateChartNodeIds.join(", ") : "none"}`,
     `- Invalid Star Chart planet/node relationships: ${chartReferenceIssues.length ? chartReferenceIssues.join("; ") : "none"}`,
     `- Entries without per-entry evidence metadata: ${entriesWithoutEvidence.length}`,
     `- Gated entries without per-entry evidence: ${gatedEntriesWithoutEvidence.length}`,
+    `- Gated entries without current required/conditional evidence: ${gatedEntriesWithoutCurrentEvidence.length ? gatedEntriesWithoutCurrentEvidence.join(", ") : "none"}`,
     `- Direct relationships / conditions on entries without evidence: ${referencesWithoutEvidence}`,
+    `- Invalid evidence records: ${invalidEvidence.length ? invalidEvidence.join("; ") : "none"}`,
     "",
     "## Tracked Entries",
     "",
@@ -233,6 +330,7 @@ for (const def of PREREQ_REGISTRY) {
             case "star_chart_access": return condition.activity === "steel_path"
                 ? "Steel Path Star Chart node set complete"
                 : "Nightmare eligible planet node set complete";
+            case "railjack_intrinsic_rank": return `${condition.skillId ?? "Any Railjack Intrinsic"} Rank ${condition.rank}`;
             case "availability_window": return `Available ${condition.startsOn} through ${condition.endsOn}`;
         }
     }).join(" AND ") || "—";
@@ -242,6 +340,6 @@ for (const def of PREREQ_REGISTRY) {
 
 console.log(lines.join("\n"));
 
-if (duplicates.length || duplicateMilestoneIds.length || duplicateLabels.length || selfReferences.length || duplicateEdges.length || missingRefs.length || sourceMissingRefs.length || milestoneMissingRefs.length || conditionMissingRefs.length || cyclicComponents.length || junctionIssues.length || duplicateChartNodeIds.length || chartReferenceIssues.length) {
+if (duplicates.length || duplicateMilestoneIds.length || duplicateLabels.length || selfReferences.length || duplicateEdges.length || missingRefs.length || sourceMissingRefs.length || milestoneMissingRefs.length || conditionMissingRefs.length || cyclicComponents.length || unapprovedRedundantEdges.length || junctionIssues.length || duplicateChartNodeIds.length || chartReferenceIssues.length || entriesWithoutEvidence.length || gatedEntriesWithoutEvidence.length || gatedEntriesWithoutCurrentEvidence.length || invalidEvidence.length) {
     process.exitCode = 1;
 }

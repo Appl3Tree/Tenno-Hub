@@ -10,6 +10,7 @@
 
 import { PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
 import { PR } from "../ids/prereqIds";
+import { SY } from "../ids/syndicateIds";
 import type { SyndicateState } from "../types";
 import { isNightmareUnlockedFromNodeCompletion, isSteelPathUnlockedFromNodeCompletion } from "./starChartProgression";
 
@@ -26,6 +27,7 @@ export function deriveCompletedMap(
     syndicates: SyndicateState[],
     masteryRank?: number | null,
     nodeCompletedMap: Record<string, boolean> = {},
+    railjackIntrinsics: Record<string, number> = {},
 ): Record<string, boolean> {
     // Build a fast rank lookup: syndicateId -> current rank
     const rankBySyndicateId: Record<string, number> = {};
@@ -39,6 +41,17 @@ export function deriveCompletedMap(
     const normalizedMasteryRank = typeof masteryRank === "number" && Number.isFinite(masteryRank)
         ? Math.max(0, Math.floor(masteryRank))
         : -1;
+
+    // Helminth segments can be bought from Son or as a built segment in the
+    // Market bundle. Model Son's rank + mastery purchase eligibility as an
+    // auto-derived alternative; it is not a separate user-completed milestone.
+    const entratiRank = rankBySyndicateId[SY.ENTRATI] ?? -1;
+    if (normalizedMasteryRank >= 8 && entratiRank >= 3) {
+        merged[PR.SEGMENT_HELMINTH_SON_ACCESS] = true;
+    }
+    if (normalizedMasteryRank >= 8 && entratiRank >= 5) {
+        merged[PR.SEGMENT_HELMINTH_INVIGORATION_SON_ACCESS] = true;
+    }
 
     for (const def of PREREQ_REGISTRY) {
         if (def.validatedBySyndicate) {
@@ -74,7 +87,7 @@ export function deriveCompletedMap(
         }
     }
 
-    if (isSteelPathUnlockedFromNodeCompletion(nodeCompletedMap)) {
+    if (normalizedMasteryRank >= 5 && isSteelPathUnlockedFromNodeCompletion(nodeCompletedMap)) {
         merged[PR.ACTIVITY_STEEL_PATH] = true;
     }
 
@@ -106,6 +119,24 @@ export function deriveCompletedMap(
         merged[PR.DEIMOS_ACCESS] = true;
     }
 
+    // Railjack Intrinsics are already imported and manually editable. Derive
+    // the Proxima region milestones from those ranks so the Star Chart and
+    // source availability do not require a duplicate checkbox.
+    if (merged[PR.ARCHWING] === true) {
+        merged[PR.SYSTEM_PROXIMA_ACCESS] = true;
+        const highestIntrinsicRank = Object.values(railjackIntrinsics)
+            .reduce((highest, value) => Math.max(highest, Number.isFinite(value) ? Math.floor(value) : 0), 0);
+        if (highestIntrinsicRank >= 3) {
+            merged[PR.SYSTEM_PROXIMA_SATURN_ACCESS] = true;
+            merged[PR.SYSTEM_PROXIMA_NEPTUNE_ACCESS] = true;
+        }
+        if (highestIntrinsicRank >= 5) merged[PR.SYSTEM_PROXIMA_PLUTO_ACCESS] = true;
+        if (highestIntrinsicRank >= 7) merged[PR.SYSTEM_PROXIMA_VEIL_ACCESS] = true;
+    }
+    if (merged[PR.CLAN_DRY_DOCK] === true || merged[PR.SYSTEM_PROXIMA_ACCESS] === true) {
+        merged[PR.SYSTEM_RAILJACK_ARMAMENTS_ACCESS] = true;
+    }
+
     // The Mote Amp is one valid Operator Amp and therefore satisfies the generic
     // equipment gate used by The New War. Other owned Amp models can be marked there.
     if (merged[PR.AMP_MOTE] === true) {
@@ -134,6 +165,10 @@ export function isValidatedBySyndicate(prereqId: string): boolean {
 
 const COMPLETION_DERIVED_FROM_PROGRESS = new Set<string>([
     PR.DEIMOS_ACCESS,
+    PR.SEGMENT_HELMINTH_SON_ACCESS,
+    PR.SEGMENT_HELMINTH_INVIGORATION_SON_ACCESS,
+    PR.SYSTEM_PROXIMA_ACCESS,
+    PR.SYSTEM_RAILJACK_ARMAMENTS_ACCESS,
     PR.JUNCTION_EARTH_LUA,
     PR.KUVA_FORTRESS_ACCESS,
     PR.SYSTEM_ERIS_FOCUS_LENS,
@@ -146,6 +181,7 @@ export function isAutoTrackedPrereq(prereqId: string): boolean {
         || !!def.validatedByAnySyndicate
         || typeof def.validatedByMasteryRank === "number"
         || def.conditions?.some((condition) => condition.type === "star_chart_access") === true
+        || def.conditions?.some((condition) => condition.type === "railjack_intrinsic_rank") === true
         || def.label.startsWith("Junction:")
         || COMPLETION_DERIVED_FROM_PROGRESS.has(def.id);
 }

@@ -9,6 +9,7 @@ export interface PrereqEvaluationContext {
     planetUnlockedMap?: Record<string, boolean>;
     inventoryCounts?: Record<string, number>;
     syndicateRankById?: Record<string, number>;
+    railjackIntrinsics?: Record<string, number>;
     /** UTC calendar date, accepted as YYYY-MM-DD for deterministic time-gated checks. */
     currentDate?: string;
 }
@@ -67,6 +68,13 @@ export function isPrereqConditionSatisfied(
             return cond.activity === "steel_path"
                 ? isSteelPathUnlockedFromNodeCompletion(context.nodeCompletedMap)
                 : isNightmareUnlockedFromNodeCompletion(context.nodeCompletedMap);
+        case "railjack_intrinsic_rank": {
+            const intrinsics = context.railjackIntrinsics ?? {};
+            if (cond.skillId) {
+                return (Number(intrinsics[cond.skillId]) || 0) >= cond.rank;
+            }
+            return Object.values(intrinsics).some((rank) => Number.isFinite(rank) && rank >= cond.rank);
+        }
         case "availability_window": {
             const today = context.currentDate ?? new Date().toISOString().slice(0, 10);
             return today >= cond.startsOn && today <= cond.endsOn;
