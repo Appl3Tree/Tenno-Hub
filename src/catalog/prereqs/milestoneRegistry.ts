@@ -109,18 +109,26 @@ export const MILESTONE_REGISTRY: MilestoneDef[] = [
     {
         id: "ms_main_arc6_reached",
         label: "The Old Peace Complete",
-        description: "The Old Peace complete; the latest permanent main-story quest in the Void War Saga before the Tau Prologue series.",
+        description: "The Old Peace complete; one of the released main-story quests in the Void War Saga.",
         category: "Mainline",
         showWhenComplete: true,
         rule: { type: "all", prereqIds: [PR.THE_OLD_PEACE] }
     },
     {
-        id: "ms_main_tau_prologue_complete",
-        label: "Tau Prologue Series Complete",
-        description: "Completed the Codex prologue chapters unlocked by completing both The Hex and The Old Peace.",
+        id: "ms_main_jade_constellations_complete",
+        label: "Jade Shadows: Constellations Complete",
+        description: "The Update 43 main quest is complete; Uranus Proxima and Pontis Tower are unlocked.",
         category: "Mainline",
         showWhenComplete: true,
-        rule: { type: "all", prereqIds: [PR.TAU_PROLOGUE] }
+        rule: { type: "all", prereqIds: [PR.JADE_SHADOWS_CONSTELLATIONS] }
+    },
+    {
+        id: "ms_main_tau_prologue_complete",
+        label: "Prologue to Tau: Released Chapters Complete",
+        description: "Both currently released permanent chapters, Lua and Vessel, are complete. Unreleased chapters are not counted.",
+        category: "Mainline",
+        showWhenComplete: true,
+        rule: { type: "all", prereqIds: [PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL] }
     },
 
     // =========================================================================

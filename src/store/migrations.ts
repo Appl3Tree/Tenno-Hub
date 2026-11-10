@@ -12,6 +12,7 @@ import {
 } from "./storeUtils";
 import { normalizeArcaneRankMap } from "../domain/logic/arcaneInventory";
 import { PR } from "../domain/ids/prereqIds";
+import { migratePrereqCompletionAliases } from "./prereqCompletionMigration";
 
 const LegacyPayloadSchema = z
     .object({
@@ -318,7 +319,7 @@ function normalizePrereqsCompleted(raw: any): Record<string, boolean> {
     // Anyone who has completed Vor's Prize necessarily completed its newly
     // tracked predecessor, The Awakening. Avoid backtracking old saves.
     if (out[PR.VORS_PRIZE] === true) out[PR.AWAKENING] = true;
-    return out;
+    return migratePrereqCompletionAliases(out);
 }
 
 function normalizeGoals(raw: any): any[] {

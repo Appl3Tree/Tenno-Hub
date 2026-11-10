@@ -7,6 +7,7 @@ import { nowIso } from "./storeUtils";
 import { makeDefaultResetChecklistState, ensureResetChecklistState } from "./resetChecklist";
 import { normalizeArcaneRankMap } from "../domain/logic/arcaneInventory";
 import { PR } from "../domain/ids/prereqIds";
+import { migratePrereqCompletionAliases } from "./prereqCompletionMigration";
 
 export function makeDefaultState(): UserStateV2 {
     const iso = nowIso();
@@ -180,10 +181,12 @@ export function mergeProgressPackIntoState(current: UserStateV2, incoming: any):
             ...next.prereqs,
             completed: {
                 ...next.prereqs.completed,
-                ...incoming.prereqs.completed
+                ...migratePrereqCompletionAliases(incoming.prereqs.completed)
             }
         };
     }
+
+    next.prereqs.completed = migratePrereqCompletionAliases(next.prereqs.completed);
 
     if (next.prereqs.completed[PR.VORS_PRIZE] === true) {
         next.prereqs.completed[PR.AWAKENING] = true;

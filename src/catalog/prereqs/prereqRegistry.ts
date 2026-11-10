@@ -96,7 +96,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
     // =========================================================================
     {
         id: PR.AWAKENING,
-        label: "The Awakening",
+        label: "Awakening",
         category: "Quests",
         description: "First-login tutorial quest. It directly precedes Vor's Prize in the current quest sequence.",
         prerequisites: [],
@@ -230,7 +230,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
     },
     {
         id: PR.PRELUDE_TO_WAR,
-        label: "Prelude to War — The Maker",
+        label: "The Maker",
         category: "Quests",
         description: "Chapter 3 of Prelude to War. Required for The New War.",
         prerequisites: [PR.ERRA],
@@ -326,7 +326,10 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         description: "Quest that unlocks Uranus Proxima and its new Railjack missions. Requires Jade Shadows.",
         prerequisites: [PR.JADE_SHADOWS],
         introducedIn: "Update 43 (June 17, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-0-0", verifiedOn: "2026-11-08", classification: "required", note: "The Jade Shadows: Constellations quest requires Jade Shadows; completing it opens Uranus Proxima." }]
+        evidence: [
+            { kind: "wiki", url: "https://wiki.warframe.com/w/Jade_Shadows:_Constellations", verifiedOn: "2026-11-10", classification: "required", note: "The current quest information lists Jade Shadows as its completed-quest requirement; the quest is a main quest introduced on June 17, 2026." },
+            { kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-0-0", verifiedOn: "2026-11-10", classification: "required", note: "Update 43 requires completing Jade Shadows to unlock the quest and states that completion opens Uranus Proxima, its two Railjack missions, and Pontis Tower." }
+        ]
     },
     {
         id: PR.SYSTEM_HEX_ALL_LIKED,
@@ -340,26 +343,52 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
     },
     {
         id: PR.THE_HEX_FINALE,
-        label: "The Hex Finale",
+        label: "Finale",
         category: "Quests",
         description: "The Hex epilogue. Requires all six Hex members at Liked chemistry and the Rank 3 trigger milestone.",
         prerequisites: [PR.SYSTEM_HEX_ALL_LIKED],
         introducedIn: "Update 38 (December 2024)",
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Hex_%28Quest%29", verifiedOn: "2026-11-08", classification: "required", note: "The quest becomes available after the KIM relationship and rank conditions are met." }]
+        partOf: "The Hex",
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Hex_%28Quest%29", verifiedOn: "2026-11-10", classification: "required", note: "The current page presents the separate epilogue as Finale, requiring all six Hex members at Liked Chemistry after reaching Syndicate Rank 3; its patch history also uses the phrase The Hex Finale." }]
     },
     {
-        id: PR.TAU_PROLOGUE,
-        label: "Tau Prologue Quest Series",
+        id: PR.TAU_PROLOGUE_LUA,
+        label: "Lua",
         category: "Quests",
-        description: "Codex quest series made available after completing both The Hex and The Old Peace.",
+        description: "First released main quest chapter of Prologue to Tau. Requires both The Hex and The Old Peace.",
         prerequisites: [PR.THE_HEX, PR.THE_OLD_PEACE],
-        introducedIn: "Update 44.1.2 (October 15, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/44-1-2", verifiedOn: "2026-11-08", classification: "required", note: "The update says the Tau Prologue appears in the Codex after both quests are complete." }]
+        introducedIn: "Hotfix 44.1.2 (October 15, 2026)",
+        partOf: "Prologue to Tau",
+        chapterIndex: 1,
+        evidence: [
+            { kind: "wiki", url: "https://wiki.warframe.com/w/Lua_(Quest)", verifiedOn: "2026-11-10", classification: "required", note: "The quest page identifies Lua as a replayable Main Quest, the first Prologue to Tau act, introduced October 15, 2026, and directly requires completed The Hex and The Old Peace." },
+            { kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/44-1-2", verifiedOn: "2026-11-10", classification: "required", note: "Hotfix 44.1.2 makes the permanent, replayable Prologue to Tau chapters available in the Codex after both The Hex and The Old Peace." }
+        ]
+    },
+    {
+        id: PR.TAU_PROLOGUE_VESSEL,
+        label: "Vessel",
+        category: "Quests",
+        description: "Second released main quest chapter of Prologue to Tau. Requires completing Lua.",
+        prerequisites: [PR.TAU_PROLOGUE_LUA],
+        introducedIn: "Hotfix 44.1.2 (October 15, 2026)",
+        partOf: "Prologue to Tau",
+        chapterIndex: 2,
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vessel_(Quest)", verifiedOn: "2026-11-10", classification: "required", note: "The quest page identifies Vessel as a replayable Main Quest, the second Prologue to Tau act, introduced October 15, 2026, with completed Lua as its direct requirement." }]
     },
 
     // =========================================================================
     // SIDE QUESTS — Feature Gates
     // =========================================================================
+    {
+        id: PR.A_MAN_FEW_WORDS,
+        label: "A Man of Few Words",
+        category: "SideQuests",
+        description: "Optional side quest started by speaking to Darvo at any Relay; completion unlocks the weekly Help Clem mission.",
+        prerequisites: [PR.HUB_RELAY],
+        introducedIn: "Hotfix 17.4.3 (September 16, 2015)",
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/A_Man_of_Few_Words", verifiedOn: "2026-11-10", classification: "required", note: "The quest requirement is speaking with Darvo at any Relay; its completion unlocks the weekly Help Clem mission. The page lists no preceding quest requirement." }]
+    },
     {
         id: PR.HOWL_KUBROW,
         label: "Howl of the Kubrow",
@@ -949,7 +978,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.ACTIVITY_ICEBIND,
         label: "The Icebind",
         category: "Systems",
-        description: "Access the 2026 Halloween mission. Requires both Angels of the Zariman and Whispers in the Walls, plus either Elite Deep Archimedea or Elite Temporal Archimedea unlocked.",
+        description: "Access the permanent Icebind endgame mode from Yuvan's Peak. Requires both Angels of the Zariman and Whispers in the Walls, plus either Elite Deep Archimedea or Elite Temporal Archimedea unlocked.",
         prerequisites: [PR.ANGELS_ZARIMAN, PR.WHISPERS_WALL],
         anyPrerequisites: [PR.ACTIVITY_ELITE_DEEP_ARCHIMEDEA, PR.ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA],
         introducedIn: "Update 44.1 (October 7, 2026)",
@@ -2193,6 +2222,10 @@ const ENTRY_EVIDENCE_PAGES = new Map<PrereqId, string>([
     [PR.THE_HEX, "https://wiki.warframe.com/w/The_Hex_%28Quest%29"],
     [PR.THE_OLD_PEACE, "https://wiki.warframe.com/w/The_Old_Peace"],
     [PR.JADE_SHADOWS, "https://wiki.warframe.com/w/Jade_Shadows"],
+    [PR.JADE_SHADOWS_CONSTELLATIONS, "https://wiki.warframe.com/w/Jade_Shadows:_Constellations"],
+    [PR.TAU_PROLOGUE_LUA, "https://wiki.warframe.com/w/Lua_(Quest)"],
+    [PR.TAU_PROLOGUE_VESSEL, "https://wiki.warframe.com/w/Vessel_(Quest)"],
+    [PR.A_MAN_FEW_WORDS, "https://wiki.warframe.com/w/A_Man_of_Few_Words"],
     [PR.HOWL_KUBROW, "https://wiki.warframe.com/w/Howl_of_the_Kubrow"],
     [PR.STOLEN_DREAMS, "https://wiki.warframe.com/w/Stolen_Dreams"],
     [PR.SAYA_VIGIL, "https://wiki.warframe.com/w/Saya%27s_Vigil"],

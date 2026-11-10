@@ -35,6 +35,36 @@ describe("progress pack inventory serialization", () => {
         expect(merged.prereqs.completed[PR.AWAKENING]).toBe(true);
     });
 
+    it("migrates the retired Tau series completion into both released chapter completions", () => {
+        const legacyState = makeDefaultState();
+        legacyState.prereqs.completed[PR.TAU_PROLOGUE] = true;
+
+        const migrated = migrateToUserStateV2(legacyState)!;
+        expect(migrated.prereqs.completed[PR.TAU_PROLOGUE_LUA]).toBe(true);
+        expect(migrated.prereqs.completed[PR.TAU_PROLOGUE_VESSEL]).toBe(true);
+        expect(migrated.prereqs.completed).not.toHaveProperty(PR.TAU_PROLOGUE);
+
+        const imported = mergeProgressPackIntoState(makeDefaultState(), {
+            prereqs: { completed: { [PR.TAU_PROLOGUE]: true } },
+        });
+        expect(imported.prereqs.completed[PR.TAU_PROLOGUE_LUA]).toBe(true);
+        expect(imported.prereqs.completed[PR.TAU_PROLOGUE_VESSEL]).toBe(true);
+        expect(imported.prereqs.completed).not.toHaveProperty(PR.TAU_PROLOGUE);
+    });
+
+    it("preserves explicit chapter progress when migrating a legacy Tau series key", () => {
+        const merged = mergeProgressPackIntoState(makeDefaultState(), {
+            prereqs: {
+                completed: {
+                    [PR.TAU_PROLOGUE]: true,
+                    [PR.TAU_PROLOGUE_LUA]: false,
+                },
+            },
+        });
+        expect(merged.prereqs.completed[PR.TAU_PROLOGUE_LUA]).toBe(false);
+        expect(merged.prereqs.completed[PR.TAU_PROLOGUE_VESSEL]).toBe(true);
+    });
+
     it("replaces local progress from a backup instead of retaining post-backup inventory", () => {
         const current = makeDefaultState();
         current.inventory.counts["items:/Lotus/Types/Items/MiscItems/AddedAfterBackup"] = 1;

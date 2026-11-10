@@ -4,6 +4,8 @@
 **Starting revision:** `da413c03` on `main`
 **Scope:** quest, Star Chart, hub, activity, system, segment, equipment, syndicate, source-catalog, and milestone progression relationships.
 
+> **November 10 follow-up:** This report preserves the November 9 audit and its historical counts. The follow-up reconciled the independent Handbook quest list against the current Wiki and registry, split Prologue to Tau into Lua and Vessel completion identities, added A Man of Few Words, and migrated saved completion data. Current application coverage and counts are in [APPLICATION_CONTENT_RECONCILIATION.md](./APPLICATION_CONTENT_RECONCILIATION.md) and the regenerated [PREREQUISITE_AUDIT_INVENTORY.md](./PREREQUISITE_AUDIT_INVENTORY.md).
+
 ## Architecture and baseline
 
 The application did not have one complete graph consumer. Atomic gates lived in `src/catalog/prereqs/prereqRegistry.ts`; Star Chart node and junction unlocks were duplicated in `src/domain/catalog/starChart/nodes.ts`; acquisition source records in `src/catalog/sources/curatedSources.ts` and the generated `SOURCE_INDEX` held additional prerequisite references; and `MILESTONE_REGISTRY` contained rollup rules that `milestoneEngine.ts` was not evaluating. Player quest/system progress is persisted in `state.prereqs.completed`; syndicate ranks and Mastery Rank are derived from their trackers, while Star Chart nodes and some manual gates have separate completion inputs.
@@ -25,7 +27,7 @@ The repository’s patch-note index and PC update forum identify **Iceblade of N
 
 Official PC notes and relevant hotfixes were reviewed from Update 41 through Hotfix 44.1.4.1, including Updates 41.1, 42, 43, 43.5, 44, 44.1, and 44.1.2; the PC patch index and latest patch page were rechecked on November 9. The newest prerequisite-bearing release is the **Tau Prologue Quest Series** in Hotfix 44.1.2, released October 15, 2026. Hotfix 44.1.4.1 (October 27) contains no new progression gate. [Operation: Taubound](https://www.warframe.com/en/news/epoch-operation-taubound) was reviewed but excluded from progression tracking: it is a temporary event, not a prerequisite for persistent content; active event listings belong in World State. Older sources were revisited where the baseline contained questionable gates, including Updates 29, 33.5, 35.5, 38.5, and 39. Official notes were cross-checked against current Warframe Wiki pages for detailed junction, activity, syndicate, and access mechanics. The [October 2026 event calendar](https://www.warframe.com/en/news/october-in-warframe) was checked for the event window and permanent Tau Prologue availability.
 
-The current prerequisite registry has **220 entries, 239 direct AND edges, and 29 OR references**. Compared with the starting revision, **67 entries were added and five obsolete entries were removed**. The additions by functional category are:
+At completion of the November 9 audit, the prerequisite registry had **220 entries, 239 direct AND edges, and 29 OR references**. Compared with that audit's starting revision, **67 entries were added and five obsolete entries were removed**. The additions by functional category were:
 
 | Category | Added entries | Examples |
 |---|---:|---|

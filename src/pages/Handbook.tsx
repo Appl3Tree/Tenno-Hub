@@ -3,7 +3,9 @@
 // Player guidance for game mechanics, quest progression, and farming.
 // Content is static — no store reads needed.
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import { QUEST_GUIDE_ENTRIES, QUEST_GUIDE_GROUPS, type QuestClassification } from "../catalog/quests/questCatalog";
+import { describePrereqCondition, PREREQ_REGISTRY } from "../catalog/prereqs/prereqRegistry";
 import { WorkspaceHero, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,16 +87,55 @@ function TableWrap({ children }: { children: React.ReactNode }) {
 // Quest types and components
 // ─────────────────────────────────────────────────────────────────────────────
 
-type QuestType = "main" | "side" | "warframe";
-type Chapter = { name: string; note: string };
+type QuestType = QuestClassification;
+type QuestRequirement = { text: string; alternative?: boolean };
 type Quest = {
+    prereqId: string;
     name: string;
     type: QuestType;
     note: string;
-    chapters?: Chapter[];
-    unlocks?: string[];
-    keyGate?: string;
+    subgroup?: string;
+    chapterIndex?: number;
+    partOf?: string;
+    requirements: QuestRequirement[];
 };
+
+const PREREQ_BY_ID: ReadonlyMap<string, (typeof PREREQ_REGISTRY)[number]> = new Map(
+    PREREQ_REGISTRY.map((definition) => [definition.id, definition]),
+);
+
+const QUESTS: Quest[] = QUEST_GUIDE_ENTRIES.map((entry) => {
+    const definition = PREREQ_BY_ID.get(entry.prereqId);
+    if (!definition) {
+        throw new Error(`Handbook quest ${entry.prereqId} is missing from the progression registry.`);
+    }
+
+    const requirements: QuestRequirement[] = definition.prerequisites.map((id) => ({
+        text: PREREQ_BY_ID.get(id)?.label ?? id,
+    }));
+    if (definition.anyPrerequisites?.length) {
+        requirements.push({
+            text: `Either ${definition.anyPrerequisites.map((id) => PREREQ_BY_ID.get(id)?.label ?? id).join(" or ")}`,
+            alternative: true,
+        });
+    }
+    for (const condition of definition.conditions ?? []) {
+        requirements.push({
+            text: describePrereqCondition(condition, (id) => PREREQ_BY_ID.get(id)?.label ?? id),
+        });
+    }
+
+    return {
+        prereqId: entry.prereqId,
+        name: definition.label,
+        type: entry.classification,
+        note: entry.summary,
+        subgroup: entry.subgroup,
+        chapterIndex: definition.chapterIndex,
+        partOf: definition.partOf,
+        requirements,
+    };
+});
 
 const TYPE_BADGE_CLASS: Record<QuestType, string> = {
     main: "bg-sky-900/40 text-sky-300 border border-sky-800/50",
@@ -127,268 +168,25 @@ function QuestEntry({ quest, index }: { quest: Quest; index: number }) {
                         <QuestBadge type={quest.type} />
                     </div>
                     <p className="mt-1 text-xs text-slate-400 leading-relaxed">{quest.note}</p>
-                    {quest.unlocks && quest.unlocks.length > 0 && (
-                        <p className="mt-1.5 text-xs text-amber-300/90">
-                            <span className="font-semibold">Unlocks: </span>
-                            {quest.unlocks.join(", ")}
-                        </p>
-                    )}
-                    {quest.keyGate && (
+                    {quest.requirements.length > 0 && (
                         <p className="mt-1.5 text-xs text-sky-300/90">
-                            <span className="font-semibold">Key Gate: </span>
-                            {quest.keyGate}
+                            <span className="font-semibold">Required to unlock: </span>
+                            {quest.requirements.map((requirement) => requirement.text).join("; ")}
                         </p>
                     )}
-                    {quest.chapters && (
-                        <ul className="mt-2.5 space-y-2 pl-3 border-l border-slate-700/40">
-                            {quest.chapters.map((ch, i) => (
-                                <li key={i}>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-xs font-medium text-slate-200">{ch.name}</span>
-                                        <span className="text-xs text-slate-600">Part {i + 1}</span>
-                                    </div>
-                                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{ch.note}</p>
-                                </li>
-                            ))}
-                        </ul>
+                    {quest.requirements.length === 0 && (
+                        <p className="mt-1.5 text-xs text-slate-500">No tracked progression requirement.</p>
+                    )}
+                    {quest.partOf && (
+                        <p className="mt-1 text-xs text-slate-500">
+                            {quest.chapterIndex ? `Chapter ${quest.chapterIndex} of ${quest.partOf}.` : `Part of ${quest.partOf}.`}
+                        </p>
                     )}
                 </div>
             </div>
         </li>
     );
 }
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Unified quest list — in chronological order of availability
-// ─────────────────────────────────────────────────────────────────────────────
-
-const QUESTS: Quest[] = [
-    {
-        name: "Awakening",
-        type: "main",
-        note: "Opening cinematic; your Tenno awakens from the Reservoir for the first time.",
-    },
-    {
-        name: "Vor's Prize",
-        type: "main",
-        note: "Tutorial quest teaching movement and combat. Unlocks the full Star Chart and your Orbiter.",
-        keyGate: "Unlocks the full Star Chart, your Orbiter, and access to all planet navigation.",
-    },
-    {
-        name: "The Teacher",
-        type: "main",
-        note: "Introduces Cephalon Simaris and the Synthesis scanner system.",
-    },
-    {
-        name: "Howl of the Kubrow",
-        type: "side",
-        note: "Unlocks Kubrow companion breeding via the Incubator Segment. Available after completing the Mercury Junction on Venus.",
-    },
-    {
-        name: "A Man of Few Words",
-        type: "side",
-        note: "Unlocks repeatable weekly Clem missions from Darvo. Visit Darvo in any Relay and select \"What's the job?\" — available as soon as you have Relay access.",
-    },
-    {
-        name: "Saya's Vigil",
-        type: "side",
-        note: "Unlocks Cetus, the Ostron syndicate, and the Plains of Eidolon open world on Earth. Rewards the Gara Warframe blueprint.",
-        keyGate: "Required to access the Plains of Eidolon — necessary for Eidolon hunting later in the game.",
-    },
-    {
-        name: "Vox Solaris",
-        type: "main",
-        note: "Unlocks the Fortuna hub on Venus and access to the Vox Solaris syndicate.",
-        unlocks: ["The Waverider (requires MR 3)"],
-    },
-    {
-        name: "The Waverider",
-        type: "warframe",
-        note: "Unlocks Yareli; involves completing K-Drive trick challenges in Fortuna. Requires Vox Solaris completion + Mastery Rank 3.",
-    },
-    {
-        name: "Once Awake",
-        type: "main",
-        note: "Short early quest involving Alad V; unlocks Corpus missions on the Star Chart.",
-    },
-    {
-        name: "Heart of Deimos",
-        type: "main",
-        note: "Unlocks the Necralisk hub, Cambion Drift open world, and the Entrati syndicate.",
-        keyGate: "Begin farming Necramech parts here as soon as possible — a Necramech is required to complete The New War.",
-    },
-    {
-        name: "The Archwing",
-        type: "main",
-        note: "Awards the Archwing Launcher and unlocks Archwing flight missions.",
-        unlocks: ["Stolen Dreams → The New Strange"],
-    },
-    {
-        name: "Stolen Dreams",
-        type: "side",
-        note: "Unlocks the Arcane Codex system. Directly unlocks The New Strange upon completion.",
-        unlocks: ["The New Strange"],
-    },
-    {
-        name: "The New Strange",
-        type: "warframe",
-        note: "Unlocks Chroma; a multi-tileset investigation with Cephalon Simaris. Requires Stolen Dreams.",
-    },
-    {
-        name: "The Limbo Theorem",
-        type: "warframe",
-        note: "Unlocks Limbo component blueprints. Available after completing the Jupiter → Europa Junction. Note: the main Limbo blueprint must be purchased from the Market or Cephalon Simaris separately.",
-    },
-    {
-        name: "The Deadlock Protocol",
-        type: "warframe",
-        note: "Unlocks Protea and the Corpus Ship Railjack tileset. Unlocked as a reward for completing the Saturn Junction. Requires Mastery Rank 4.",
-    },
-    {
-        name: "The Duviri Paradox",
-        type: "main",
-        note: "Unlocks the Duviri open world, The Circuit game mode, and the Incarnon Genesis weapon system. Can be played early as an alternate entry point (\"Arc 0\") or in story order here.",
-    },
-    {
-        name: "Natah",
-        type: "main",
-        note: "Investigates the Lotus's true origins; required gate before The Second Dream.",
-    },
-    {
-        name: "The Second Dream",
-        type: "main",
-        note: "Reveals the Tenno's nature; unlocks Operator mode and the Focus school system. One of the most important story milestones.",
-        keyGate: "Unlocks your Operator, Void Dash, Amp crafting via the Quills, and the Focus school system. Required before Eidolon hunting.",
-        unlocks: ["Octavia's Anthem", "The Silver Grove"],
-    },
-    {
-        name: "Octavia's Anthem",
-        type: "warframe",
-        note: "Unlocks Octavia; features a unique music-composition puzzle in the Orokin Moon. Requires The Second Dream.",
-    },
-    {
-        name: "The Silver Grove",
-        type: "warframe",
-        note: "Unlocks Titania; introduces Apothic crafting and Silver Grove Specter encounters. Requires The Second Dream.",
-    },
-    {
-        name: "Mask of the Revenant",
-        type: "warframe",
-        note: "Unlocks Revenant; set primarily on the Plains of Eidolon at night. Requires reaching Rank 2 (Observer) with The Quills syndicate, earned by hunting Eidolons and turning in Eidolon Shards.",
-    },
-    {
-        name: "The War Within",
-        type: "main",
-        note: "Expands Operator Transference abilities and unlocks the Kuva Fortress, Sorties, and Kuva Siphons.",
-        keyGate: "Unlocks Sorties, Kuva Siphons, the Kuva Fortress, and the Kuva Lich nemesis system.",
-        unlocks: ["The Glast Gambit"],
-    },
-    {
-        name: "The Glast Gambit",
-        type: "warframe",
-        note: "Unlocks Nidus; set in the Infested Salvage tileset. Requires The War Within.",
-    },
-    {
-        name: "Sands of Inaros",
-        type: "warframe",
-        note: "Unlocks Inaros; requires a special vessel purchased from Baro Ki'Teer (100 Ducats + 25,000 Credits) or the Market bundle. Baro visits relays every two weeks — plan ahead. Requires Mastery Rank 5.",
-    },
-    {
-        name: "Hidden Messages",
-        type: "warframe",
-        note: "Unlocks Mirage component blueprints by solving riddles hidden in Warframe's Codex entries. Requires the Eris → Sedna Junction. The main Mirage blueprint must be purchased from the Market separately.",
-    },
-    {
-        name: "Patient Zero",
-        type: "side",
-        note: "Unlocks the Mutalist Alad V boss fight on Eris, whose assassination node drops Mesa's Neuroptics blueprint. Requires the Pluto → Eris Junction.",
-    },
-    {
-        name: "The Jordas Precept",
-        type: "warframe",
-        note: "Unlocks Atlas; an Archwing-heavy quest ending in the Jordas Golem assassination. Requires the Pluto → Eris Junction and an Archwing.",
-    },
-    {
-        name: "Rising Tide",
-        type: "main",
-        note: "Build your personal Railjack ship in a Clan Dojo Dry Dock.",
-        keyGate: "A Railjack is required to complete The New War and Call of the Tempestarii. Build this early.",
-    },
-    {
-        name: "Call of the Tempestarii",
-        type: "warframe",
-        note: "Unlocks Sevagoth; a major Railjack story quest. Requires The Deadlock Protocol + a Railjack (Rising Tide) + Mastery Rank 4.",
-    },
-    {
-        name: "Chains of Harrow",
-        type: "main",
-        note: "Unlocks Harrow; set aboard an Infested prison ship on the Defection tileset.",
-    },
-    {
-        name: "Apostasy Prologue",
-        type: "main",
-        note: "Short cinematic quest bridging The War Within and The Sacrifice storylines.",
-    },
-    {
-        name: "The Sacrifice",
-        type: "main",
-        note: "Unlocks Excalibur Umbra and the Skiajati nikana; a major emotional turning point in the story.",
-    },
-    {
-        name: "Prelude to War",
-        type: "main",
-        note: "Three-chapter quest series that directly leads into The New War. All three parts must be completed before The New War unlocks.",
-        keyGate: "Chimera Prologue unlocks all Lua and Kuva Fortress Star Chart nodes. Completing all three chapters unlocks The New War.",
-        chapters: [
-            { name: "Chimera Prologue", note: "Adds the Ropalolyst assassination node to Jupiter. Also unlocks Lua and Kuva Fortress nodes on the Star Chart — needed for Steel Path completion." },
-            { name: "Erra", note: "The Sentient invasion escalates; the Lotus's true allegiance is brought into question." },
-            { name: "The Maker", note: "Final chapter of Prelude to War. Completing this unlocks The New War." },
-        ],
-    },
-    {
-        name: "The New War",
-        type: "main",
-        note: "Feature-length cinematic quest requiring both a Railjack and a Necramech. Unlocks Kahl-175 weekly missions and all post-New-War content.",
-        keyGate: "Requires a Railjack (Rising Tide) and a Necramech (Isolation Vaults on Deimos). Build both well before attempting this quest.",
-        unlocks: ["Angels of the Zariman", "Veilbreaker", "Jade Shadows"],
-    },
-    {
-        name: "Veilbreaker",
-        type: "side",
-        note: "Unlocks Kahl-175 weekly missions and the Kahl mission hub. Requires The New War.",
-    },
-    {
-        name: "Angels of the Zariman",
-        type: "main",
-        note: "Unlocks the Chrysalith hub, the Holdfasts syndicate, and Zariman tileset missions.",
-    },
-    {
-        name: "Jade Shadows",
-        type: "main",
-        note: "Unlocks Jade Warframe; set in the aftermath of The New War.",
-    },
-    {
-        name: "Whispers in the Walls",
-        type: "main",
-        note: "Unlocks the Sanctum Anatomica hub on Deimos and the Cavia syndicate.",
-    },
-    {
-        name: "The Lotus Eaters",
-        type: "main",
-        note: "Direct story continuation following the events of Whispers in the Walls.",
-    },
-    {
-        name: "The Hex",
-        type: "main",
-        note: "Unlocks Höllvania (the 1999 open world), The Hex syndicate, and the Technocyte Coda adversary system.",
-    },
-    {
-        name: "The Old Peace",
-        type: "main",
-        note: "Most recent main story quest (Update 41, December 2025).",
-    },
-];
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -405,6 +203,16 @@ function QuestOrderSection() {
         warframe: QUESTS.filter((q) => q.type === "warframe").length,
     };
 
+    const visibleGroups = QUEST_GUIDE_GROUPS
+        .map((group) => ({
+            ...group,
+            quests: group.entries
+                .filter((entry) => filter === "all" || entry.classification === filter)
+                .map((entry) => QUESTS.find((quest) => quest.prereqId === entry.prereqId)!)
+                .filter(Boolean),
+        }))
+        .filter((group) => group.quests.length > 0);
+
     const filterBtnCls = (f: "all" | QuestType) =>
         f === filter
             ? "shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold border border-slate-500 bg-slate-700 text-slate-100 transition-colors"
@@ -415,8 +223,8 @@ function QuestOrderSection() {
             {/* Legend */}
             <div className="flex flex-wrap gap-2 text-xs">
                 <span className={`rounded px-2 py-1 font-mono ${TYPE_BADGE_CLASS.main}`}>Main — primary storyline</span>
-                <span className={`rounded px-2 py-1 font-mono ${TYPE_BADGE_CLASS.side}`}>Side — unlocks systems & hubs</span>
-                <span className={`rounded px-2 py-1 font-mono ${TYPE_BADGE_CLASS.warframe}`}>Warframe — rewards a specific Warframe</span>
+                <span className={`rounded px-2 py-1 font-mono ${TYPE_BADGE_CLASS.side}`}>Side — optional quests</span>
+                <span className={`rounded px-2 py-1 font-mono ${TYPE_BADGE_CLASS.warframe}`}>Warframe — optional Warframe stories</span>
             </div>
 
             {/* Filter buttons */}
@@ -427,13 +235,32 @@ function QuestOrderSection() {
                 <button onClick={() => setFilter("warframe")} className={filterBtnCls("warframe")}>Warframe ({counts.warframe})</button>
             </div>
 
-            {/* Quest list — global index always preserved so position-in-story is visible */}
+            <p className="text-xs text-slate-500">
+                Requirements are the direct access gates recorded for each quest. The Prologue to Tau group lists its two released permanent chapters: Lua and Vessel.
+            </p>
+
+            {/* Quest identity and requirements come from the shared progression registry. */}
             <ol className="list-none m-0 p-0">
-                {QUESTS.map((q, i) =>
-                    filter === "all" || q.type === filter
-                        ? <QuestEntry key={q.name} quest={q} index={i + 1} />
-                        : null
-                )}
+                {visibleGroups.map((group) => (
+                    <Fragment key={group.id}>
+                        <li role="presentation" className="pt-4 pb-1 text-sm font-semibold text-slate-300">
+                            <h3>{group.title}</h3>
+                        </li>
+                        {group.quests.map((quest, index) => (
+                            <Fragment key={quest.prereqId}>
+                                {quest.subgroup && quest.subgroup !== group.quests[index - 1]?.subgroup && (
+                                    <li role="presentation" className="pt-3 pb-1 text-xs font-semibold text-slate-500">
+                                        <h4>{quest.subgroup}</h4>
+                                    </li>
+                                )}
+                                <QuestEntry
+                                    quest={quest}
+                                    index={QUESTS.findIndex((item) => item.prereqId === quest.prereqId) + 1}
+                                />
+                            </Fragment>
+                        ))}
+                    </Fragment>
+                ))}
             </ol>
         </>
     );
@@ -454,7 +281,7 @@ const SECTIONS: Section[] = [
     {
         id: "quest-order",
         title: "Quest Order",
-        summary: "All quests in chronological order of availability — main, side, and Warframe quests woven together.",
+        summary: "Current Warframe quests grouped by story arc and the Wiki's main, side, and Warframe quest categories.",
         content: <QuestOrderSection />,
     },
     {

@@ -37,7 +37,7 @@ export const PR = {
     // -------------------------------------------------------------------------
     // Arc 1 — The Awakening (tutorial + early game)
     // -------------------------------------------------------------------------
-    AWAKENING:              "quest_awakening",             // First-login quest and direct predecessor to Vor's Prize
+    AWAKENING:              "quest_awakening",             // Canonical name: Awakening; direct predecessor to Vor's Prize
     VORS_PRIZE:             "quest_vors_prize",             // Forced tutorial after Awakening; installs base Orbiter segments
     THE_TEACHER:            "quest_the_teacher",            // Modding tutorial (Update 40, Oct 2025)
     ONCE_AWAKE:             "quest_once_awake",             // Mercury Grineer arc; req. Mercury Junction
@@ -90,13 +90,16 @@ export const PR = {
     THE_OLD_PEACE:          "quest_the_old_peace",          // Dark Refractory / Descendia content; req. The Lotus Eaters
     JADE_SHADOWS_CONSTELLATIONS: "quest_jade_shadows_constellations", // Update 43; requires Jade Shadows
     THE_HEX_FINALE:         "quest_the_hex_finale",         // Update 38 epilogue; all Hex members Liked at rank 3
-    TAU_PROLOGUE:           "quest_tau_prologue_series",    // Update 44.1.2; requires both The Hex and The Old Peace
+    TAU_PROLOGUE:           "quest_tau_prologue_series",    // Legacy series-completion key, migrated to the released chapters below
+    TAU_PROLOGUE_LUA:       "quest_tau_prologue_lua",       // First released Prologue to Tau quest; requires The Hex and The Old Peace
+    TAU_PROLOGUE_VESSEL:    "quest_tau_prologue_vessel",    // Second released Prologue to Tau quest; requires Lua
 
     // =========================================================================
     // SIDE QUESTS — Feature Gates
     // =========================================================================
 
     HOWL_KUBROW:            "quest_howl_of_the_kubrow",     // Unlocks Kubrow incubation & breeding; req. Mercury Junction path
+    A_MAN_FEW_WORDS:        "quest_a_man_of_few_words",     // Optional side quest; start by speaking to Darvo at a Relay
     SAYA_VIGIL:             "quest_sayas_vigil",            // Gara BP; combined with War Within unlocks The Quills; req. one Cetus Bounty
     VOX_SOLARIS:            "quest_vox_solaris",            // Unlocks Vox Solaris syndicate; auto-starts on first Fortuna visit
     HEART_OF_DEIMOS:        "quest_heart_of_deimos",        // Unlocks Necralisk / Cambion Drift / Entrati; req. Earth->Mars Junction

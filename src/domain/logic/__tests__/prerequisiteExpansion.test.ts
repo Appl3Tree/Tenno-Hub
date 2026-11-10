@@ -514,12 +514,18 @@ describe("current Warframe progression gates", () => {
 
     });
 
-    it("requires both quests for Tau Prologue and Chains of Harrow for Follie's Hunt", () => {
-        const tau = computeUnlockGraphSnapshot({
+    it("requires both parent quests for Lua, then Lua for Vessel, and Chains of Harrow for Follie's Hunt", () => {
+        const oneParent = computeUnlockGraphSnapshot({
+            [PR.THE_HEX]: true,
+        }).byId[PR.TAU_PROLOGUE_LUA];
+        const bothParents = computeUnlockGraphSnapshot({
             [PR.THE_HEX]: true,
             [PR.THE_OLD_PEACE]: true,
-        }).byId[PR.TAU_PROLOGUE];
-        expect(tau.unlocked).toBe(true);
+        });
+        expect(oneParent.unlocked).toBe(false);
+        expect(bothParents.byId[PR.TAU_PROLOGUE_LUA].unlocked).toBe(true);
+        expect(bothParents.byId[PR.TAU_PROLOGUE_VESSEL].unlocked).toBe(false);
+        expect(computeUnlockGraphSnapshot({ [PR.TAU_PROLOGUE_LUA]: true }).byId[PR.TAU_PROLOGUE_VESSEL].unlocked).toBe(true);
         expect(definition(PR.ACTIVITY_FOLLIES_HUNT).prerequisites).toEqual([PR.CHAINS_HARROW]);
     });
 
@@ -544,11 +550,13 @@ describe("milestone rule evaluation", () => {
         expect(onePath.completedCount).toBe(1);
     });
 
-    it("resolves the newest Tau Prologue milestone from its tracked completion gate", () => {
+    it("resolves the Tau Prologue milestone only after both released chapters are complete", () => {
         const incomplete = computeMilestoneSnapshot({}).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
-        const complete = computeMilestoneSnapshot({ [PR.TAU_PROLOGUE]: true }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
+        const oneChapter = computeMilestoneSnapshot({ [PR.TAU_PROLOGUE_LUA]: true }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
+        const complete = computeMilestoneSnapshot({ [PR.TAU_PROLOGUE_LUA]: true, [PR.TAU_PROLOGUE_VESSEL]: true }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
         expect(incomplete.completed).toBe(false);
+        expect(oneChapter.completed).toBe(false);
         expect(complete.completed).toBe(true);
-        expect(complete.completedPrereqs).toEqual([PR.TAU_PROLOGUE]);
+        expect(complete.completedPrereqs).toEqual([PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL]);
     });
 });
