@@ -41,6 +41,12 @@ The independent quest reconciliation verifies all **47** Wiki-index entries agai
 
 The raw external-data validator is not clean: **21 of 23** drop-data files pass; `all.slim.json` has 13 upstream `NaN` chance values and `relics.json` has one record with an undefined relic name. These source snapshots were not edited as part of this reconciliation.
 
+### Live browser verification
+
+After the user provided the accessible `/Tenno-Hub/` route, the in-app browser opened the running application. At the default **994×831** viewport, the Handbook displayed the complete 47-entry list; All/Main/Side/Warframe filters showed 47/29/6/12 entries. The visible list included Jade Shadows: Constellations, Lua, Vessel, A Man of Few Words, and the corrected direct access requirements.
+
+At **390×844** and **768×1024**, the Handbook and Prerequisites page had no horizontal overflow. The Prerequisites page rendered Jade Shadows: Constellations as locked behind Jade Shadows, Lua behind both The Hex and The Old Peace, and Vessel behind Lua. At mobile width, the Star Chart's Proxima list showed the Uranus Proxima group with Pontis Tower, Scoria's Angel, and The Kuva Wytch; Yuvan Peak appeared in the Zariman list. The browser was returned to the default viewport and left on the Handbook. No CAPTCHA or Wiki access restriction appeared. No saved completion checkboxes were changed during browser inspection.
+
 Research and validation sources:
 
 - [WARFRAME Wiki: Quest index and progression](https://wiki.warframe.com/w/Quest)
@@ -53,7 +59,8 @@ Research and validation sources:
 
 ## Known limits
 
-- The in-app browser could read the Wiki and official patch pages, but could not reach the locally running Tenno-Hub page at `http://localhost:80/` (connection timed out); opening Brave for an alternate local-browser check was denied by the environment's automatic review. The Handbook was therefore verified by a React server-rendered output test, but its live layout and responsive behavior remain visually unverified. No CAPTCHA or Wiki access challenge appeared. To finish that check, the local app must be made reachable from the in-app browser or an accessible preview URL must be provided.
 - Star Chart map edges are not treated as mission unlock rules, so the application does not calculate every node-to-node route. It tracks the supported node, planet/region, junction, quest, and activity gates.
+- Full-repository ESLint still reports its recorded baseline of 1,870 errors and 37 warnings; focused ESLint for the changed content and quest files passes. The changed files introduced no additional lint errors.
+- Strict external-data validation still finds 13 `NaN` drop chances in `all.slim.json` and one missing `relicName` in `relics.json`; 21/23 drop-data files pass. These upstream raw data records were not altered here.
 - The external-data updater's GitHub tree API check was unavailable in the earlier refresh attempt. The committed external snapshots are pinned and dated November 8, two days before the latest release reviewed here; they were not overwritten with unverified scraped data.
 - The Wiki shows the next Prologue to Tau installment only as an unreleased `???`. It remains outside the tracker until it has a released name and verified access/completion behavior.
