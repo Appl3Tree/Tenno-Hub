@@ -7,10 +7,14 @@ import { useTrackerStore } from "../store/store";
 import { WorkspaceAction, WorkspaceHero, WorkspaceSegmented, WorkspaceSegmentedButton, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
 import {
     fetchWorldState,
+    alertCompletionKey,
+    archonHuntCompletionKey,
+    arbitrationCompletionKey,
     eventCompletionKey,
     getCurrentWorldActivitySummary,
     getCurrentNightwaveChallenges,
     isWorldStateEntryActive,
+    sortieCompletionKey,
     type WorldStateData,
     type Fissure,
     type WsCycle,
@@ -40,6 +44,33 @@ function msToHms(ms: number): string {
 
 function Countdown({ expiry, now, className }: { expiry: string; now: number; className?: string }) {
     return <span className={className}>{msToHms(new Date(expiry).getTime() - now)}</span>;
+}
+
+function WorldStateCompletionButton({ done, label, onToggle, compact = false }: {
+    done: boolean;
+    label: string;
+    onToggle: () => void;
+    compact?: boolean;
+}) {
+    const action = done ? "Mark incomplete" : "Mark complete";
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-pressed={done}
+            aria-label={`${action}: ${label}`}
+            title={`${action}: ${label}`}
+            className={[
+                "shrink-0 rounded-md border transition-colors",
+                compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[10px]",
+                done
+                    ? "border-emerald-800/60 bg-emerald-950/30 text-emerald-300 hover:text-slate-300"
+                    : "border-slate-700 bg-slate-900/50 text-slate-400 hover:border-emerald-700/60 hover:text-emerald-300",
+            ].join(" ")}
+        >
+            {compact ? (done ? "Undo" : "Done") : (done ? "✓ Completed" : "Mark complete")}
+        </button>
+    );
 }
 
 function worldStateRecord(value: unknown): WorldStateRecord | null {
@@ -440,6 +471,10 @@ function CalendarModal({ calendar, onClose }: { calendar: Calendar; onClose: () 
 function OverviewTab({ data }: { data: WorldStateData }) {
     const now = useWorldStateNow();
     const [calendarOpen, setCalendarOpen] = useState(false);
+    const doneActivityInstances = useTrackerStore((s) => s.state.worldState?.doneWorldStateActivityInstances ?? EMPTY_COMPLETION_IDS);
+    const setWorldStateActivityInstanceDone = useTrackerStore((s) => s.setWorldStateActivityInstanceDone);
+    const sortieKey = data.sortie ? sortieCompletionKey(data.sortie) : null;
+    const archonHuntKey = data.archonHunt ? archonHuntCompletionKey(data.archonHunt) : null;
 
     const cycles: Array<{ name: string; cycle: WsCycle; nextLabel: string }> = [
         data.cetusCycle   && { name: "Plains of Eidolon", cycle: data.cetusCycle,   nextLabel: data.cetusCycle.state   === "day"  ? "Night" : "Day"  },
@@ -610,8 +645,16 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
 
                     {data.sortie && isWorldStateEntryActive(data.sortie, now) && (
-                        <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-                            <div className="text-[11px] text-slate-500 mb-0.5">Daily Sortie</div>
+                        <div className={["rounded-xl border px-3 py-2.5", sortieKey && doneActivityInstances.includes(sortieKey) ? "border-emerald-900/40 bg-emerald-950/10" : "border-slate-800 bg-slate-900/40"].join(" ")}>
+                            <div className="flex items-center justify-between gap-2 mb-0.5">
+                                <div className="text-[11px] text-slate-500">Daily Sortie</div>
+                                {sortieKey && <WorldStateCompletionButton
+                                    done={doneActivityInstances.includes(sortieKey)}
+                                    label="Daily Sortie"
+                                    onToggle={() => setWorldStateActivityInstanceDone(sortieKey, !doneActivityInstances.includes(sortieKey))}
+                                    compact
+                                />}
+                            </div>
                             <div className={["text-sm font-semibold", FACTION_COLORS[data.sortie.faction] ?? "text-slate-200"].join(" ")}>
                                 {data.sortie.boss}
                             </div>
@@ -628,8 +671,16 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                     )}
 
                     {data.archonHunt && isWorldStateEntryActive(data.archonHunt, now) && (
-                        <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-                            <div className="text-[11px] text-slate-500 mb-0.5">Weekly Archon Hunt</div>
+                        <div className={["rounded-xl border px-3 py-2.5", archonHuntKey && doneActivityInstances.includes(archonHuntKey) ? "border-emerald-900/40 bg-emerald-950/10" : "border-slate-800 bg-slate-900/40"].join(" ")}>
+                            <div className="flex items-center justify-between gap-2 mb-0.5">
+                                <div className="text-[11px] text-slate-500">Weekly Archon Hunt</div>
+                                {archonHuntKey && <WorldStateCompletionButton
+                                    done={doneActivityInstances.includes(archonHuntKey)}
+                                    label="Weekly Archon Hunt"
+                                    onToggle={() => setWorldStateActivityInstanceDone(archonHuntKey, !doneActivityInstances.includes(archonHuntKey))}
+                                    compact
+                                />}
+                            </div>
                             <div className={["text-sm font-semibold", FACTION_COLORS[data.archonHunt.faction] ?? "text-slate-200"].join(" ")}>
                                 {data.archonHunt.boss}
                             </div>
@@ -1024,6 +1075,11 @@ function ArchimedeaCard({ arch, now }: { arch: Archimedea; now: number }) {
 function MissionsTab({ data }: { data: WorldStateData }) {
     const now = useWorldStateNow();
     const activeArchs = data.archimedeas.filter((a) => !a.expired);
+    const doneActivityInstances = useTrackerStore((s) => s.state.worldState?.doneWorldStateActivityInstances ?? EMPTY_COMPLETION_IDS);
+    const setWorldStateActivityInstanceDone = useTrackerStore((s) => s.setWorldStateActivityInstanceDone);
+    const sortieKey = data.sortie ? sortieCompletionKey(data.sortie) : null;
+    const archonHuntKey = data.archonHunt ? archonHuntCompletionKey(data.archonHunt) : null;
+    const arbitrationKey = data.arbitration ? arbitrationCompletionKey(data.arbitration) : null;
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -1032,8 +1088,16 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Daily Sortie</div>
-                        <div className="text-[10px] text-slate-500">
-                            Resets <Countdown expiry={data.sortie.expiry} now={now} className="font-mono text-slate-400" />
+                        <div className="flex items-center gap-2">
+                            <div className="text-[10px] text-slate-500">
+                                Resets <Countdown expiry={data.sortie.expiry} now={now} className="font-mono text-slate-400" />
+                            </div>
+                            {sortieKey && <WorldStateCompletionButton
+                                done={doneActivityInstances.includes(sortieKey)}
+                                label="Daily Sortie"
+                                onToggle={() => setWorldStateActivityInstanceDone(sortieKey, !doneActivityInstances.includes(sortieKey))}
+                                compact
+                            />}
                         </div>
                     </div>
                     <div className="p-3">
@@ -1080,8 +1144,16 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Weekly Archon Hunt</div>
-                        <div className="text-[10px] text-slate-500">
-                            Resets <Countdown expiry={data.archonHunt.expiry} now={now} className="font-mono text-slate-400" />
+                        <div className="flex items-center gap-2">
+                            <div className="text-[10px] text-slate-500">
+                                Resets <Countdown expiry={data.archonHunt.expiry} now={now} className="font-mono text-slate-400" />
+                            </div>
+                            {archonHuntKey && <WorldStateCompletionButton
+                                done={doneActivityInstances.includes(archonHuntKey)}
+                                label="Weekly Archon Hunt"
+                                onToggle={() => setWorldStateActivityInstanceDone(archonHuntKey, !doneActivityInstances.includes(archonHuntKey))}
+                                compact
+                            />}
                         </div>
                     </div>
                     <div className="p-3">
@@ -1120,8 +1192,16 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Arbitration</div>
-                        <div className="text-[10px] text-slate-500">
-                            Rotates <Countdown expiry={data.arbitration.expiry} now={now} className="font-mono text-slate-400" />
+                        <div className="flex items-center gap-2">
+                            <div className="text-[10px] text-slate-500">
+                                Rotates <Countdown expiry={data.arbitration.expiry} now={now} className="font-mono text-slate-400" />
+                            </div>
+                            {arbitrationKey && <WorldStateCompletionButton
+                                done={doneActivityInstances.includes(arbitrationKey)}
+                                label="Arbitration"
+                                onToggle={() => setWorldStateActivityInstanceDone(arbitrationKey, !doneActivityInstances.includes(arbitrationKey))}
+                                compact
+                            />}
                         </div>
                     </div>
                     <div className="p-3 flex items-center gap-3">
@@ -1387,6 +1467,8 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
     const doneInvasions = useTrackerStore((s) => s.state.worldState?.doneInvasions ?? EMPTY_COMPLETION_IDS);
     const toggleEventInstanceDone = useTrackerStore((s) => s.toggleEventInstanceDone);
     const doneEventInstances = useTrackerStore((s) => s.state.worldState?.doneEventInstances ?? EMPTY_COMPLETION_IDS);
+    const doneActivityInstances = useTrackerStore((s) => s.state.worldState?.doneWorldStateActivityInstances ?? EMPTY_COMPLETION_IDS);
+    const setWorldStateActivityInstanceDone = useTrackerStore((s) => s.setWorldStateActivityInstanceDone);
     const hiddenWorldStateCategories = useTrackerStore((s) => s.state.ui.hiddenWorldStateCategories ?? EMPTY_COMPLETION_IDS);
     const isInvasionDone = (id: string) => doneInvasions.includes(id);
 
@@ -1395,27 +1477,39 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
             {/* Nightwave challenges */}
             {hasNightwave && data.nightwave && <NightwaveSection nightwave={{ ...data.nightwave, activeChallenges: currentNightwaveChallenges }} />}
 
-            {/* Alert missions are globally available; the API does not report personal completion. */}
             {currentAlerts.length > 0 && !hiddenWorldStateCategories.includes("alerts" as any) && (
                 <section>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Alerts ({currentAlerts.length})</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {currentAlerts.map((alert) => (
-                            <article key={alert.id} className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                        {currentAlerts.slice().sort((a, b) => {
+                            const aKey = alertCompletionKey(a);
+                            const bKey = alertCompletionKey(b);
+                            return Number(!!aKey && doneActivityInstances.includes(aKey)) - Number(!!bKey && doneActivityInstances.includes(bKey));
+                        }).map((alert) => {
+                            const completionKey = alertCompletionKey(alert);
+                            const done = completionKey != null && doneActivityInstances.includes(completionKey);
+                            return <article key={alert.id} className={["rounded-xl border px-3 py-2.5 transition-colors", done ? "border-emerald-900/40 bg-emerald-950/10 opacity-60" : "border-slate-800 bg-slate-900/40"].join(" ")}>
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                        <div className="text-xs font-medium text-slate-200">{alert.description || alert.missionType || "Alert mission"}</div>
+                                        <div className={["text-xs font-medium", done ? "line-through text-slate-500" : "text-slate-200"].join(" ")}>{alert.description || alert.missionType || "Alert mission"}</div>
                                         <div className="mt-0.5 text-[10px] text-slate-400">{alert.missionType}{alert.node ? ` · ${alert.node}` : ""}{alert.faction ? ` · ${alert.faction}` : ""}</div>
                                         {alert.minEnemyLevel != null && <div className="text-[10px] text-slate-500">Enemy level {alert.minEnemyLevel}–{alert.maxEnemyLevel ?? alert.minEnemyLevel}</div>}
                                     </div>
-                                    {alert.expiry && <Countdown expiry={alert.expiry} now={now} className="shrink-0 font-mono text-[10px] text-slate-400" />}
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        {alert.expiry && <Countdown expiry={alert.expiry} now={now} className="font-mono text-[10px] text-slate-400" />}
+                                        {completionKey && <WorldStateCompletionButton
+                                            done={done}
+                                            label={alert.description || alert.missionType || "Alert mission"}
+                                            onToggle={() => setWorldStateActivityInstanceDone(completionKey, !done)}
+                                            compact
+                                        />}
+                                    </div>
                                 </div>
                                 {(alert.reward || alert.credits > 0 || alert.items.length > 0) && (
                                     <div className="mt-1.5 text-[10px] text-amber-300/80">{alert.reward || [...alert.items, ...(alert.credits ? [`${alert.credits.toLocaleString()} Credits`] : [])].join(", ")}</div>
                                 )}
-                                <div className="mt-1 text-[9px] text-slate-600">World State availability; completion is not reported by the API.</div>
-                            </article>
-                        ))}
+                            </article>;
+                        })}
                     </div>
                 </section>
             )}

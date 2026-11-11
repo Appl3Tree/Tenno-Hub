@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTrackerStore } from "../../store/store";
-import { eventCompletionKey, getCurrentWorldActivitySummary, isWorldStateEntryActive } from "../../lib/worldStateCache";
+import { alertCompletionKey, eventCompletionKey, getCurrentWorldActivitySummary, isWorldStateEntryActive } from "../../lib/worldStateCache";
 import { useWorldStateNow, useWorldStateSnapshot } from "../../lib/useWorldStateData";
 import CatalogSearchPalette from "../../components/search/CatalogSearchPalette";
 import PageJumpPalette from "../../components/search/PageJumpPalette";
@@ -231,12 +231,19 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
     const doneNightwaveChallenges = useTrackerStore((s) => s.state.worldState?.doneNightwaveChallenges ?? EMPTY_WORLD_STATE_IDS);
     const toggleEventInstanceDone = useTrackerStore((s) => s.toggleEventInstanceDone);
     const doneEventInstances = useTrackerStore((s) => s.state.worldState?.doneEventInstances ?? EMPTY_WORLD_STATE_IDS);
+    const doneActivityInstances = useTrackerStore((s) => s.state.worldState?.doneWorldStateActivityInstances ?? EMPTY_WORLD_STATE_IDS);
+    const setWorldStateActivityInstanceDone = useTrackerStore((s) => s.setWorldStateActivityInstanceDone);
     const hiddenWorldStateCategories = useTrackerStore((s) => s.state.ui.hiddenWorldStateCategories ?? EMPTY_WORLD_STATE_IDS);
     const activitySummary = getCurrentWorldActivitySummary(data, now);
     const currentEvents = activitySummary.events;
     const currentAlerts = activitySummary.alerts;
     const currentNightwave = activitySummary.nightwave;
     const currentInvasions = activitySummary.invasions;
+    const sortedAlerts = currentAlerts.slice().sort((a, b) => {
+        const aKey = alertCompletionKey(a);
+        const bKey = alertCompletionKey(b);
+        return Number(!!aKey && doneActivityInstances.includes(aKey)) - Number(!!bKey && doneActivityInstances.includes(bKey));
+    });
     const isInvasionDone = (id: string) => doneInvasions.includes(id);
     const isNightwaveChallengeDone = (id: string) => doneNightwaveChallenges.includes(id);
     const isWorldStateCategoryHidden = (category: string) => hiddenWorldStateCategories.includes(category as any);
@@ -264,7 +271,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
     }, [open]);
 
     // The bell indicates actionable current content; personal completion clears
-    // invasions, Nightwave acts, and event occurrences from the badge.
+    // alerts, invasions, Nightwave acts, and event occurrences from the badge.
     const baroActive     = data?.voidTrader ? isWorldStateEntryActive(data.voidTrader, now) : false;
     const varziaActive   = data?.vaultTrader ? isWorldStateEntryActive(data.vaultTrader, now) : false;
     const sentientActive = data?.sentientOutposts ? isWorldStateEntryActive(data.sentientOutposts, now) : false;
@@ -272,13 +279,17 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
         const key = eventCompletionKey(ev);
         return !key || !doneEventInstances.includes(key);
     }).length;
+    const pendingAlerts = currentAlerts.filter((alert) => {
+        const key = alertCompletionKey(alert);
+        return !key || !doneActivityInstances.includes(key);
+    }).length;
     const pendingInvasions = currentInvasions.filter((inv) => !doneInvasions.includes(inv.id)).length;
     const pendingNightwave = currentNightwave.filter((act) => !doneNightwaveChallenges.includes(act.id)).length;
     const showBadge = !!(
         (baroActive && !isWorldStateCategoryHidden("baro"))
         || (varziaActive && !isWorldStateCategoryHidden("varzia"))
         || (sentientActive && !isWorldStateCategoryHidden("sentient"))
-        || (currentAlerts.length && !isWorldStateCategoryHidden("alerts"))
+        || (pendingAlerts && !isWorldStateCategoryHidden("alerts"))
         || (pendingEvents && !isWorldStateCategoryHidden("events"))
         || (pendingInvasions && !isWorldStateCategoryHidden("invasions"))
         || (pendingNightwave && !isWorldStateCategoryHidden("nightwave"))
@@ -345,20 +356,31 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                             <div className="px-2 py-3 text-xs text-slate-500 text-center">No data available.</div>
                         )}
 
-                        {/* Current alerts are globally available; their checkbox is not a player completion claim. */}
                         {!!currentAlerts.length && !isWorldStateCategoryHidden("alerts") && (
                             <div className="rounded-lg px-3 py-2 bg-slate-900/60">
-                                <div className="text-[10px] font-semibold text-slate-400 mb-1 uppercase tracking-wide">Alerts ({currentAlerts.length})</div>
+                                <div className="text-[10px] font-semibold text-slate-400 mb-1 uppercase tracking-wide">Alerts ({pendingAlerts} pending)</div>
                                 <div className="space-y-1.5">
-                                    {currentAlerts.slice(0, 5).map((alert) => (
-                                        <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0">
+                                    {sortedAlerts.slice(0, 5).map((alert) => {
+                                        const completionKey = alertCompletionKey(alert);
+                                        const done = completionKey != null && doneActivityInstances.includes(completionKey);
+                                        return <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className="text-[10px] text-slate-200 truncate">{alert.description || alert.missionType || "Alert"} · {alert.node || "Unknown node"}</span>
-                                                {alert.expiry && <span className="shrink-0 font-mono text-[9px] text-slate-500">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
+                                                <span className={["text-[10px] truncate", done ? "text-slate-500 line-through" : "text-slate-200"].join(" ")}>{alert.description || alert.missionType || "Alert"} · {alert.node || "Unknown node"}</span>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {alert.expiry && <span className="font-mono text-[9px] text-slate-500">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
+                                                    {completionKey && <button
+                                                        type="button"
+                                                        onClick={() => setWorldStateActivityInstanceDone(completionKey, !done)}
+                                                        aria-pressed={done}
+                                                        aria-label={`${done ? "Mark incomplete" : "Mark complete"}: ${alert.description || alert.missionType || "Alert"}`}
+                                                        title={done ? "Mark as not done" : "Mark as done"}
+                                                        className={["rounded border px-1 py-0.5 text-[9px] transition-colors", done ? "border-emerald-800/60 text-emerald-300 hover:text-slate-300" : "border-slate-700 text-slate-500 hover:border-emerald-700/60 hover:text-emerald-300"].join(" ")}
+                                                    >{done ? "Undo" : "Done"}</button>}
+                                                </div>
                                             </div>
                                             <div className="text-[9px] text-slate-500">{alert.faction}{alert.minEnemyLevel != null ? ` · ${alert.minEnemyLevel}–${alert.maxEnemyLevel ?? alert.minEnemyLevel}` : ""}{alert.reward ? ` · ${alert.reward}` : ""}</div>
-                                        </div>
-                                    ))}
+                                        </div>;
+                                    })}
                                 </div>
                             </div>
                         )}
