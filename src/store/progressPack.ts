@@ -8,6 +8,7 @@ import { makeDefaultResetChecklistState, ensureResetChecklistState } from "./res
 import { normalizeArcaneRankMap } from "../domain/logic/arcaneInventory";
 import { PR } from "../domain/ids/prereqIds";
 import { migratePrereqCompletionAliases } from "./prereqCompletionMigration";
+import { normalizeWorldStateProgress } from "./migrations";
 
 export function makeDefaultState(): UserStateV2 {
     const iso = nowIso();
@@ -116,6 +117,7 @@ export const ProgressPackSchemaV2 = z
             doneNightwaveChallenges: z.array(z.string()).optional(),
             doneEvents: z.array(z.string()).optional(),
             doneEventInstances: z.array(z.string()).optional(),
+            doneWorldStateActivityInstances: z.array(z.string()).optional(),
         }).passthrough().optional(),
         modBuilder: z.any().optional()
     })
@@ -294,6 +296,7 @@ export function mergeProgressPackIntoState(current: UserStateV2, incoming: any):
     ensureGoalsArray(next);
     ensureUiExpansion(next);
     ensureResetChecklistState(next);
+    normalizeWorldStateProgress(next);
 
     return next;
 }

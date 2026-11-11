@@ -1,7 +1,8 @@
 // ===== FILE: src/components/WarframeResetTracker.tsx =====
 //
 // Self-contained reset tracker. Persists via localStorage key "wfpt:resetChecklist".
-// No store changes required — reads completedPrereqs + syndicates read-only.
+// The checklist remains local for ordinary reset tasks; World State-backed task
+// completions are shared with the profile store so the World State page stays in sync.
 //
 // Features:
 //  - Relay faction standing tasks filter to only pledged faction(s).
@@ -20,7 +21,16 @@ import { useTrackerStore } from "../store/store";
 import { PR } from "../domain/ids/prereqIds";
 import { SY } from "../domain/ids/syndicateIds";
 import type { SyndicateState } from "../domain/types";
-import { fetchWorldState, getCurrentOrNextVoidTrader, type CalendarEvent, type WorldStateData } from "../lib/worldStateCache";
+import {
+    archonHuntCompletionKey,
+    arbitrationCompletionKey,
+    fetchWorldState,
+    getCurrentOrNextVoidTrader,
+    isWorldStateEntryActive,
+    sortieCompletionKey,
+    type CalendarEvent,
+    type WorldStateData,
+} from "../lib/worldStateCache";
 import { useWorldStateData } from "../lib/useWorldStateData";
 import { WorkspacePanel, WorkspaceSegmented, WorkspaceSegmentedButton } from "./workspace/WorkspaceChrome";
 
@@ -76,6 +86,7 @@ type CalendarScale = "day" | "week" | "month";
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const LS_KEY = "wfpt:resetChecklist";
+const EMPTY_WORLD_STATE_ACTIVITY_INSTANCES: string[] = [];
 
 import type { SyndicateId } from "../domain/ids/syndicateIds";
 
@@ -2859,6 +2870,8 @@ export default function WarframeResetTracker() {
     const completedPrereqs = useTrackerStore((s) => s.state.prereqs.completed) ?? {};
     const syndicates = useTrackerStore((s) => s.state.syndicates) ?? [];
     const setNightwaveChallengesDone = useTrackerStore((s) => s.setNightwaveChallengesDone);
+    const doneWorldStateActivityInstances = useTrackerStore((s) => s.state.worldState?.doneWorldStateActivityInstances ?? EMPTY_WORLD_STATE_ACTIVITY_INSTANCES);
+    const setWorldStateActivityInstanceDone = useTrackerStore((s) => s.setWorldStateActivityInstanceDone);
 
     const [rc, setRc] = useState<RCState>(() => loadState());
     const [now, setNow] = useState(() => new Date());
@@ -2881,6 +2894,57 @@ export default function WarframeResetTracker() {
         window.addEventListener("wfpt:resetChecklist:external-update", handler);
         return () => window.removeEventListener("wfpt:resetChecklist:external-update", handler);
     }, []);
+
+    // Migrate existing Reset Tracker checks for these world-state-backed tasks
+    // into the shared profile state once their current rotation is known.
+    useEffect(() => {
+        const legacy: Array<{ key: string | null; id: string; bucket: Bucket }> = [
+            {
+                key: wsData?.sortie && isWorldStateEntryActive(wsData.sortie, now.getTime()) ? sortieCompletionKey(wsData.sortie) : null,
+                id: "sortie_set",
+                bucket: "secondary_daily",
+            },
+            {
+                key: wsData?.archonHunt && isWorldStateEntryActive(wsData.archonHunt, now.getTime()) ? archonHuntCompletionKey(wsData.archonHunt) : null,
+                id: "archon_hunt",
+                bucket: "weekly_monday",
+            },
+            {
+                key: wsData?.arbitration && isWorldStateEntryActive(wsData.arbitration, now.getTime()) ? arbitrationCompletionKey(wsData.arbitration) : null,
+                id: "arbitration",
+                bucket: "rotation",
+            },
+        ];
+        const currentResetKeys = getCurrentKeys(now);
+        const migrated = legacy.filter(({ key, id, bucket }) => {
+            if (!key) return false;
+            if (bucket === "secondary_daily") {
+                return rc.secondaryDailyResetKey === currentResetKeys.secondary_daily && rc.completedSecondaryDailyTaskIds.includes(id);
+            }
+            if (bucket === "weekly_monday") {
+                return rc.weeklyMondayResetKey === currentResetKeys.weekly_monday && rc.completedWeeklyMondayTaskIds.includes(id);
+            }
+            return dynamicTaskInstanceKey(id, wsData) != null && rc.completedRotationTaskInstanceKeys[id] === dynamicTaskInstanceKey(id, wsData);
+        });
+        if (migrated.length === 0) return;
+
+        const migratedIds = new Set(migrated.map(({ id }) => id));
+        for (const { key } of migrated) {
+            if (key) setWorldStateActivityInstanceDone(key, true);
+        }
+        setRc((prev) => ({
+            ...prev,
+            completedSecondaryDailyTaskIds: migratedIds.has("sortie_set")
+                ? prev.completedSecondaryDailyTaskIds.filter((id) => id !== "sortie_set")
+                : prev.completedSecondaryDailyTaskIds,
+            completedWeeklyMondayTaskIds: migratedIds.has("archon_hunt")
+                ? prev.completedWeeklyMondayTaskIds.filter((id) => id !== "archon_hunt")
+                : prev.completedWeeklyMondayTaskIds,
+            completedRotationTaskInstanceKeys: Object.fromEntries(
+                Object.entries(prev.completedRotationTaskInstanceKeys).filter(([id]) => id !== "arbitration" || !migratedIds.has("arbitration"))
+            ),
+        }));
+    }, [wsData, now, rc, setWorldStateActivityInstanceDone]);
 
     const lastResetKeysRef = useRef("");
     useEffect(() => {
@@ -2908,17 +2972,25 @@ export default function WarframeResetTracker() {
     const completedIds = useMemo((): Record<Exclude<Bucket, "conclave">, string[]> & { conclave_daily: string[]; conclave_weekly: string[] } => {
         const keys = getCurrentKeys(now);
         const get = (rk: keyof RCState, ck: keyof RCState, key: string) => rc[rk] === key ? (rc[ck] as string[]) : [];
+        const activeSortieKey = wsData?.sortie && isWorldStateEntryActive(wsData.sortie, now.getTime()) ? sortieCompletionKey(wsData.sortie) : null;
+        const activeArchonHuntKey = wsData?.archonHunt && isWorldStateEntryActive(wsData.archonHunt, now.getTime()) ? archonHuntCompletionKey(wsData.archonHunt) : null;
+        const secondaryDaily = get("secondaryDailyResetKey", "completedSecondaryDailyTaskIds", keys.secondary_daily);
+        const weeklyMonday = get("weeklyMondayResetKey", "completedWeeklyMondayTaskIds", keys.weekly_monday);
         return {
             primary_daily: get("primaryDailyResetKey", "completedPrimaryDailyTaskIds", keys.primary_daily),
             eight_hour: get("eightHourResetKey", "completedEightHourTaskIds", keys.eight_hour),
-            secondary_daily: get("secondaryDailyResetKey", "completedSecondaryDailyTaskIds", keys.secondary_daily),
-            weekly_monday: get("weeklyMondayResetKey", "completedWeeklyMondayTaskIds", keys.weekly_monday),
+            secondary_daily: activeSortieKey && doneWorldStateActivityInstances.includes(activeSortieKey)
+                ? [...new Set([...secondaryDaily, "sortie_set"])]
+                : secondaryDaily,
+            weekly_monday: activeArchonHuntKey && doneWorldStateActivityInstances.includes(activeArchonHuntKey)
+                ? [...new Set([...weeklyMonday, "archon_hunt"])]
+                : weeklyMonday,
             four_day: get("fourDayResetKey", "completedFourDayTaskIds", keys.four_day),
             rotation: [],
             conclave_daily: get("conclaveDailyResetKey", "completedConclaveDailyTaskIds", keys.conclave_daily),
             conclave_weekly: get("conclaveWeeklyResetKey", "completedConclaveWeeklyTaskIds", keys.conclave_weekly),
         };
-    }, [rc, now]);
+    }, [rc, now, wsData, doneWorldStateActivityInstances]);
 
     const { inline: wsInlineHints, expandable: wsExpandableHints } = useMemo(
         () => buildWorldStateHints(wsData),
@@ -2948,11 +3020,17 @@ export default function WarframeResetTracker() {
     const rotationCompletedIds = useMemo(
         () => rotationTasks
             .filter((task) => {
+                if (task.id === "arbitration") {
+                    const key = wsData?.arbitration && isWorldStateEntryActive(wsData.arbitration, now.getTime())
+                        ? arbitrationCompletionKey(wsData.arbitration)
+                        : null;
+                    return !!key && doneWorldStateActivityInstances.includes(key);
+                }
                 const instanceKey = dynamicTaskInstanceKey(task.id, wsData);
                 return !!instanceKey && rc.completedRotationTaskInstanceKeys[task.id] === instanceKey;
             })
             .map((task) => task.id),
-        [rotationTasks, wsData, rc.completedRotationTaskInstanceKeys]
+        [rotationTasks, wsData, now, doneWorldStateActivityInstances, rc.completedRotationTaskInstanceKeys]
     );
     const calendarTaskStateById = useMemo(
         () => Object.fromEntries(
@@ -3064,11 +3142,39 @@ export default function WarframeResetTracker() {
         }
 
         if (bucket === "secondary_daily") {
+            if (id === "sortie_set") {
+                const key = wsData?.sortie && isWorldStateEntryActive(wsData.sortie, now.getTime())
+                    ? sortieCompletionKey(wsData.sortie)
+                    : null;
+                if (key) {
+                    const markingDone = !completedIds.secondary_daily.includes(id);
+                    setWorldStateActivityInstanceDone(key, markingDone);
+                    setRc((prev) => ({
+                        ...prev,
+                        completedSecondaryDailyTaskIds: prev.completedSecondaryDailyTaskIds.filter((taskId) => taskId !== id),
+                    }));
+                    return;
+                }
+            }
             toggleStandard(id, "completedSecondaryDailyTaskIds");
             return;
         }
 
         if (bucket === "weekly_monday") {
+            if (id === "archon_hunt") {
+                const key = wsData?.archonHunt && isWorldStateEntryActive(wsData.archonHunt, now.getTime())
+                    ? archonHuntCompletionKey(wsData.archonHunt)
+                    : null;
+                if (key) {
+                    const markingDone = !completedIds.weekly_monday.includes(id);
+                    setWorldStateActivityInstanceDone(key, markingDone);
+                    setRc((prev) => ({
+                        ...prev,
+                        completedWeeklyMondayTaskIds: prev.completedWeeklyMondayTaskIds.filter((taskId) => taskId !== id),
+                    }));
+                    return;
+                }
+            }
             if (id === TEMPORAL_ARCHIMEDEA_TASK_ID) {
                 setRc((prev) => {
                     const alreadyCompleted = prev.completedWeeklyMondayTaskIds.includes(TEMPORAL_ARCHIMEDEA_TASK_ID);
@@ -3103,6 +3209,22 @@ export default function WarframeResetTracker() {
         }
 
         if (bucket === "rotation") {
+            if (id === "arbitration") {
+                const key = wsData?.arbitration && isWorldStateEntryActive(wsData.arbitration, now.getTime())
+                    ? arbitrationCompletionKey(wsData.arbitration)
+                    : null;
+                if (key) {
+                    const markingDone = !rotationCompletedIds.includes(id);
+                    setWorldStateActivityInstanceDone(key, markingDone);
+                    setRc((prev) => {
+                        if (!prev.completedRotationTaskInstanceKeys.arbitration) return prev;
+                        const next = { ...prev.completedRotationTaskInstanceKeys };
+                        delete next.arbitration;
+                        return { ...prev, completedRotationTaskInstanceKeys: next };
+                    });
+                    return;
+                }
+            }
             const instanceKey = dynamicTaskInstanceKey(id, wsData);
             if (!instanceKey) return;
             setRc((prev) => {
@@ -3112,16 +3234,33 @@ export default function WarframeResetTracker() {
                 return { ...prev, completedRotationTaskInstanceKeys: next };
             });
         }
-    }, [toggleStandard, wsData, completedIds, setNightwaveChallengesDone]);
+    }, [toggleStandard, wsData, now, completedIds, rotationCompletedIds, setWorldStateActivityInstanceDone, setNightwaveChallengesDone]);
 
-    const clearBucket = useCallback((ck: keyof RCState) => setRc((p) => ({ ...p, [ck]: [] })), []);
+    const clearBucket = useCallback((ck: keyof RCState) => {
+        setRc((p) => ({ ...p, [ck]: [] }));
+        if (ck === "completedSecondaryDailyTaskIds" && wsData?.sortie && isWorldStateEntryActive(wsData.sortie, now.getTime())) {
+            const key = sortieCompletionKey(wsData.sortie);
+            if (key) setWorldStateActivityInstanceDone(key, false);
+        }
+    }, [wsData, now, setWorldStateActivityInstanceDone]);
     const clearWeeklyMonday = useCallback(() => {
         setRc((p) => ({
             ...p,
             completedWeeklyMondayTaskIds: [],
             netracellRuns: 0,
         }));
-    }, []);
+        if (wsData?.archonHunt && isWorldStateEntryActive(wsData.archonHunt, now.getTime())) {
+            const key = archonHuntCompletionKey(wsData.archonHunt);
+            if (key) setWorldStateActivityInstanceDone(key, false);
+        }
+    }, [wsData, now, setWorldStateActivityInstanceDone]);
+    const clearRotation = useCallback(() => {
+        setRc((p) => ({ ...p, completedRotationTaskInstanceKeys: {} }));
+        if (wsData?.arbitration && isWorldStateEntryActive(wsData.arbitration, now.getTime())) {
+            const key = arbitrationCompletionKey(wsData.arbitration);
+            if (key) setWorldStateActivityInstanceDone(key, false);
+        }
+    }, [wsData, now, setWorldStateActivityInstanceDone]);
 
     const setMode = useCallback((m: TimeMode) => setRc((p) => ({ ...p, timeMode: m })), []);
     const toggleHidden = useCallback((id: string) => {
@@ -3343,7 +3482,7 @@ export default function WarframeResetTracker() {
                             completedIds={(selected === "rotation" ? rotationCompletedIds : completedIds[selected as Exclude<Bucket, "conclave">]) as string[]}
                             tier={tierFor(selected)}
                             onToggle={(id) => toggle(id, selected)}
-                            onClear={() => selected === "weekly_monday" ? clearWeeklyMonday() : selected === "rotation" ? setRc((p) => ({ ...p, completedRotationTaskInstanceKeys: {} })) : clearBucket(COMPLETED_KEY[selected as Exclude<Bucket, "conclave" | "rotation">]!)}
+                            onClear={() => selected === "weekly_monday" ? clearWeeklyMonday() : selected === "rotation" ? clearRotation() : clearBucket(COMPLETED_KEY[selected as Exclude<Bucket, "conclave" | "rotation">]!)}
                             timeMode={rc.timeMode}
                             worldState={wsData}
                             now={now}

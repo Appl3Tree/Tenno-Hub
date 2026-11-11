@@ -133,6 +133,7 @@ export interface TrackerStore {
     isEventDone: (id: string) => boolean;
     toggleEventInstanceDone: (key: string) => void;
     isEventInstanceDone: (key: string) => boolean;
+    setWorldStateActivityInstanceDone: (key: string, done: boolean) => void;
 
     toggleWorldStateCategoryHidden: (cat: string) => void;
     isWorldStateCategoryHidden: (cat: string) => boolean;
@@ -1039,6 +1040,22 @@ export const useTrackerStore = create<TrackerStore>()(
 
             isEventInstanceDone: (key) => {
                 return get().state.worldState?.doneEventInstances?.includes(key) ?? false;
+            },
+
+            setWorldStateActivityInstanceDone: (key, done) => {
+                if (!key) return;
+                set((s) => {
+                    if (!s.state.worldState) s.state.worldState = { doneInvasions: [] };
+                    if (!s.state.worldState.doneWorldStateActivityInstances) {
+                        s.state.worldState.doneWorldStateActivityInstances = [];
+                    }
+                    const list = s.state.worldState.doneWorldStateActivityInstances;
+                    const index = list.indexOf(key);
+                    if (done && index < 0) list.push(key);
+                    else if (!done && index >= 0) list.splice(index, 1);
+                    else return;
+                    s.state.meta.updatedAtIso = nowIso();
+                });
             },
 
             toggleWorldStateCategoryHidden: (cat) => {

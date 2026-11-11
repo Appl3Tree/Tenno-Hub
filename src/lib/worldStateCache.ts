@@ -673,6 +673,31 @@ export function eventCompletionKey(event: Pick<WsEvent, "id" | "activation" | "e
     return `event:${encodeURIComponent(event.id)}:${encodeURIComponent(rotation)}`;
 }
 
+function worldStateActivityCompletionKey(kind: string, identity: string, rotation: string): string | null {
+    if (!identity || !rotation) return null;
+    return `${kind}:${encodeURIComponent(identity)}:${encodeURIComponent(rotation)}`;
+}
+
+/** Stable completion identity for a single alert rotation. */
+export function alertCompletionKey(alert: Pick<WorldStateAlert, "id" | "activation" | "expiry">): string | null {
+    return worldStateActivityCompletionKey("alert", alert.id, alert.activation || alert.expiry);
+}
+
+/** Stable completion identity for one daily Sortie set. */
+export function sortieCompletionKey(sortie: Pick<Sortie, "activation" | "expiry">): string | null {
+    return worldStateActivityCompletionKey("sortie", sortie.activation || "daily", sortie.expiry);
+}
+
+/** Stable completion identity for one weekly Archon Hunt. */
+export function archonHuntCompletionKey(hunt: Pick<ArchonHunt, "boss" | "faction" | "expiry">): string | null {
+    return worldStateActivityCompletionKey("archon-hunt", hunt.boss || hunt.faction || "weekly", hunt.expiry);
+}
+
+/** Stable completion identity for one Arbitration rotation. */
+export function arbitrationCompletionKey(arbitration: Pick<Arbitration, "node" | "type" | "expiry">): string | null {
+    return worldStateActivityCompletionKey("arbitration", `${arbitration.node}|${arbitration.type}`, arbitration.expiry);
+}
+
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
 const API = "https://api.warframestat.us/pc";

@@ -163,6 +163,8 @@ export interface UserStateV2 {
         doneEvents?: string[];
         /** Event occurrence keys (event ID + activation/expiry) marked personally completed. */
         doneEventInstances?: string[];
+        /** Time-bounded activity occurrence keys marked personally completed. */
+        doneWorldStateActivityInstances?: string[];
     };
 
     modBuilder?: {
