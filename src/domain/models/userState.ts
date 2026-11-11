@@ -53,6 +53,7 @@ export type WorldStateCategoryKey =
     | "baro"
     | "varzia"
     | "sentient"
+    | "alerts"
     | "invasions"
     | "nightwave"
     | "events";
@@ -160,6 +161,8 @@ export interface UserStateV2 {
         doneNightwaveChallenges?: string[];
         /** Event IDs the user has marked as personally completed. */
         doneEvents?: string[];
+        /** Event occurrence keys (event ID + activation/expiry) marked personally completed. */
+        doneEventInstances?: string[];
     };
 
     modBuilder?: {

@@ -9,6 +9,7 @@ const EMPTY_NODE_COMPLETED: Record<string, boolean> = {};
 const EMPTY_INVENTORY_COUNTS: Record<string, number> = {};
 const EMPTY_INTRINSICS: Record<string, number> = {};
 import WarframeResetTracker from "../components/WarframeResetTracker";
+import DashboardWorldState from "../components/DashboardWorldState";
 import ProgressionNextStepsPanel from "../components/ProgressionNextStepsPanel";
 import DailyChecklist from "../components/DailyChecklist";
 import { useTrackerStore } from "../store/store";
@@ -149,6 +150,8 @@ export default function Dashboard() {
                     </div>
                 </div>
             </WorkspacePanel>
+
+            <DashboardWorldState onOpen={() => setActivePage("world_state")} />
 
             <WorkspacePanel className="p-1">
                 <WarframeResetTracker />

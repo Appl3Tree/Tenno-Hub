@@ -2,12 +2,15 @@
 // World State page — tabbed layout: Overview | Fissures | Missions | Events
 // Data from https://api.warframestat.us (community API, no auth required).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTrackerStore } from "../store/store";
 import { WorkspaceAction, WorkspaceHero, WorkspaceSegmented, WorkspaceSegmentedButton, WorkspaceStat } from "../components/workspace/WorkspaceChrome";
 import {
     fetchWorldState,
-    processInvasions,
+    eventCompletionKey,
+    getCurrentWorldActivitySummary,
+    getCurrentNightwaveChallenges,
+    isWorldStateEntryActive,
     type WorldStateData,
     type Fissure,
     type WsCycle,
@@ -16,7 +19,11 @@ import {
     type Calendar,
     type CalendarEvent,
     type Nightwave,
+    type WorldStateRecord,
 } from "../lib/worldStateCache";
+import { useWorldStateNow, useWorldStateSnapshot } from "../lib/useWorldStateData";
+
+const EMPTY_COMPLETION_IDS: string[] = [];
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -31,17 +38,39 @@ function msToHms(ms: number): string {
     return `${String(m).padStart(2, "0")}m ${String(s % 60).padStart(2, "0")}s`;
 }
 
-function useNow(): number {
-    const [now, setNow] = useState(() => Date.now());
-    useEffect(() => {
-        const id = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(id);
-    }, []);
-    return now;
-}
-
 function Countdown({ expiry, now, className }: { expiry: string; now: number; className?: string }) {
     return <span className={className}>{msToHms(new Date(expiry).getTime() - now)}</span>;
+}
+
+function worldStateRecord(value: unknown): WorldStateRecord | null {
+    return value && typeof value === "object" && !Array.isArray(value) ? value as WorldStateRecord : null;
+}
+
+function sourceDisplayName(value: unknown): string {
+    if (typeof value !== "string") return "";
+    const tail = value.split("/").filter(Boolean).at(-1) ?? value;
+    return tail
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/_/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function recordText(record: WorldStateRecord | null, key: string): string {
+    if (!record) return "";
+    const value = record[key];
+    if (typeof value === "string" || typeof value === "number") return String(value);
+    const nested = worldStateRecord(value);
+    if (!nested) return "";
+    for (const candidate of ["name", "title", "description", "uniqueName"]) {
+        const text = nested[candidate];
+        if (typeof text === "string" && text) return sourceDisplayName(text);
+    }
+    return "";
+}
+
+function recordList(value: unknown): WorldStateRecord[] {
+    return Array.isArray(value) ? value.map(worldStateRecord).filter((record): record is WorldStateRecord => !!record) : [];
 }
 
 // ── Visual lookups ─────────────────────────────────────────────────────────────
@@ -409,7 +438,7 @@ function CalendarModal({ calendar, onClose }: { calendar: Calendar; onClose: () 
 }
 
 function OverviewTab({ data }: { data: WorldStateData }) {
-    const now = useNow();
+    const now = useWorldStateNow();
     const [calendarOpen, setCalendarOpen] = useState(false);
 
     const cycles: Array<{ name: string; cycle: WsCycle; nextLabel: string }> = [
@@ -420,10 +449,19 @@ function OverviewTab({ data }: { data: WorldStateData }) {
         data.earthCycle   && { name: "Earth",             cycle: data.earthCycle,   nextLabel: data.earthCycle.state   === "day"  ? "Night" : "Day"  },
     ].filter(Boolean) as Array<{ name: string; cycle: WsCycle; nextLabel: string }>;
 
-    const baroActive = data.voidTrader?.active;
+    const baroActive = data.voidTrader ? isWorldStateEntryActive(data.voidTrader, now) : false;
+    const varziaActive = data.vaultTrader ? isWorldStateEntryActive(data.vaultTrader, now) : false;
     const baroDue    = data.voidTrader && !baroActive && new Date(data.voidTrader.activation).getTime() > now;
 
     const cp = data.constructionProgress;
+    const descendia = worldStateRecord(data.descendia);
+    const descendiaChallenges = recordList(descendia?.challenges);
+    const initiative = worldStateRecord(data.clanWeeklyInitiative);
+    const initiativeRewards = recordList(initiative?.rewwards ?? initiative?.rewards);
+    const faceoff = worldStateRecord(data.faceoffBonus);
+    const conclave = data.conclaveChallenges.filter((challenge) => isWorldStateEntryActive(challenge, now));
+    const currentDeals = data.dailyDeals.filter((deal) => isWorldStateEntryActive(deal, now));
+    const currentGlobalUpgrades = data.globalUpgrades.filter((upgrade) => isWorldStateEntryActive(upgrade, now));
 
     return (
         <div className="space-y-4">
@@ -505,21 +543,21 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                     {data.vaultTrader && (
                         <div className={[
                             "rounded-xl border px-3 py-2.5",
-                            data.vaultTrader.active
+                            varziaActive
                                 ? "border-violet-700/60 bg-violet-950/20"
                                 : "border-slate-800 bg-slate-900/40",
                         ].join(" ")}>
                             <div className="text-[11px] text-slate-500 mb-0.5">Varzia (Primed Resurgence)</div>
-                            <div className={["text-sm font-semibold mb-1", data.vaultTrader.active ? "text-violet-300" : "text-slate-400"].join(" ")}>
-                                {data.vaultTrader.active ? "● Active" : "○ Inactive"}
+                            <div className={["text-sm font-semibold mb-1", varziaActive ? "text-violet-300" : "text-slate-400"].join(" ")}>
+                                {varziaActive ? "● Active" : "○ Inactive"}
                             </div>
                             {data.vaultTrader.location && (
                                 <div className="text-[11px] text-slate-400">{data.vaultTrader.location}</div>
                             )}
                             <div className="text-[10px] text-slate-500 mt-1">
-                                {data.vaultTrader.active && data.vaultTrader.expiry
+                                {varziaActive && data.vaultTrader.expiry
                                     ? <>Ends <Countdown expiry={data.vaultTrader.expiry} now={now} className="font-mono text-slate-300" /></>
-                                    : data.vaultTrader.activation
+                                    : data.vaultTrader.activation && new Date(data.vaultTrader.activation).getTime() > now
                                         ? <>Next <Countdown expiry={data.vaultTrader.activation} now={now} className="font-mono text-slate-300" /></>
                                         : null
                                 }
@@ -528,7 +566,7 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                     )}
 
                     {/* Steel Path current reward */}
-                    {data.steelPath?.currentReward && (
+                    {data.steelPath?.currentReward && (!data.steelPath.expiry || isWorldStateEntryActive({ expiry: data.steelPath.expiry }, now)) && (
                         <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
                             <div className="text-[11px] text-slate-500 mb-0.5">Steel Path Honor</div>
                             <div className="text-sm font-semibold text-slate-200 mb-0.5">
@@ -546,20 +584,20 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                     )}
 
                     {/* Darvo daily deal */}
-                    {data.dailyDeals.length > 0 && (
+                    {currentDeals.length > 0 && (
                         <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
                             <div className="text-[11px] text-slate-500 mb-0.5">Darvo Deal</div>
                             <div className="text-sm font-semibold text-slate-200 mb-0.5 truncate">
-                                {data.dailyDeals[0].item}
+                                {currentDeals[0].item}
                             </div>
                             <div className="flex items-center gap-2 text-[11px]">
-                                <span className="text-green-400 font-semibold">{data.dailyDeals[0].discount}% off</span>
-                                <span className="text-slate-500 line-through">{data.dailyDeals[0].originalPrice.toLocaleString()}</span>
-                                <span className="text-yellow-300">{data.dailyDeals[0].salePrice.toLocaleString()} ◈</span>
+                                <span className="text-green-400 font-semibold">{currentDeals[0].discount}% off</span>
+                                <span className="text-slate-500 line-through">{currentDeals[0].originalPrice.toLocaleString()}</span>
+                                <span className="text-yellow-300">{currentDeals[0].salePrice.toLocaleString()} ◈</span>
                             </div>
                             <div className="text-[10px] text-slate-500 mt-1">
-                                {data.dailyDeals[0].sold}/{data.dailyDeals[0].total} sold ·{" "}
-                                <Countdown expiry={data.dailyDeals[0].expiry} now={now} className="font-mono text-slate-300" />
+                                {currentDeals[0].sold}/{currentDeals[0].total} sold ·{" "}
+                                <Countdown expiry={currentDeals[0].expiry} now={now} className="font-mono text-slate-300" />
                             </div>
                         </div>
                     )}
@@ -571,7 +609,7 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                 <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Weekly & Daily</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
 
-                    {data.sortie && !data.sortie.expired && (
+                    {data.sortie && isWorldStateEntryActive(data.sortie, now) && (
                         <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
                             <div className="text-[11px] text-slate-500 mb-0.5">Daily Sortie</div>
                             <div className={["text-sm font-semibold", FACTION_COLORS[data.sortie.faction] ?? "text-slate-200"].join(" ")}>
@@ -589,7 +627,7 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                         </div>
                     )}
 
-                    {data.archonHunt?.active && (
+                    {data.archonHunt && isWorldStateEntryActive(data.archonHunt, now) && (
                         <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
                             <div className="text-[11px] text-slate-500 mb-0.5">Weekly Archon Hunt</div>
                             <div className={["text-sm font-semibold", FACTION_COLORS[data.archonHunt.faction] ?? "text-slate-200"].join(" ")}>
@@ -607,7 +645,7 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                             <div className="text-[11px] text-slate-500 mb-0.5">Nightwave</div>
                             <div className="text-sm font-semibold text-blue-300">Season {data.nightwave.season}</div>
                             <div className="text-[11px] text-slate-400 mt-0.5">
-                                {data.nightwave.activeChallenges.length} active acts
+                                {getCurrentNightwaveChallenges(data.nightwave, now).length} active acts
                             </div>
                             <div className="text-[10px] text-slate-500 mt-1">
                                 Ends <Countdown expiry={data.nightwave.expiry} now={now} className="font-mono text-slate-300" />
@@ -643,11 +681,11 @@ function OverviewTab({ data }: { data: WorldStateData }) {
             </section>
 
             {/* Active global boosters */}
-            {data.globalUpgrades.length > 0 && (
+            {currentGlobalUpgrades.length > 0 && (
                 <section>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Active Boosters</div>
                     <div className="flex flex-wrap gap-2">
-                        {data.globalUpgrades.map((g, i) => (
+                        {currentGlobalUpgrades.map((g, i) => (
                             <div key={i} className="rounded-xl border border-green-800/40 bg-green-950/20 px-3 py-2">
                                 <div className="text-xs font-semibold text-green-300">{g.desc || `${g.operationSymbol}${g.upgradeOperationValue} ${g.upgrade}`}</div>
                                 {g.expiry && (
@@ -662,7 +700,7 @@ function OverviewTab({ data }: { data: WorldStateData }) {
             )}
 
             {/* Sentient Outpost */}
-            {data.sentientOutposts?.active && (
+            {data.sentientOutposts && isWorldStateEntryActive(data.sentientOutposts, now) && (
                 <section>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Sentient Outpost</div>
                     <div className="rounded-xl border border-rose-800/50 bg-rose-950/20 px-3 py-2.5 inline-flex flex-wrap items-center gap-3">
@@ -685,7 +723,93 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                 </section>
             )}
 
+            {/* Current weekly and competitive rotations. */}
+            {(descendia || initiative || faceoff || conclave.length > 0) && (
+                <section>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Weekly and special rotations</div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        {descendia && (
+                            <div className="rounded-xl border border-cyan-900/40 bg-cyan-950/10 px-3 py-2.5">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <div className="text-xs font-semibold text-cyan-200">Descendia</div>
+                                        <div className="mt-0.5 text-[10px] text-slate-400">{descendiaChallenges.length} floor challenges · weekly rotation</div>
+                                    </div>
+                                    {typeof descendia.expiry === "string" && <Countdown expiry={descendia.expiry} now={now} className="font-mono text-[10px] text-slate-400" />}
+                                </div>
+                                <details className="mt-2">
+                                    <summary className="cursor-pointer text-[10px] text-cyan-300/80">View floor challenges</summary>
+                                    <ol className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                                        {descendiaChallenges.map((floor, index) => {
+                                            const auras = recordList(floor.auras).map((aura) => recordText(aura, "name")).filter(Boolean);
+                                            const specs = recordList(floor.specs).map((spec) => recordText(spec, "name")).filter(Boolean);
+                                            return (
+                                                <li key={`${String(floor.index ?? index)}:${String(floor.challengeKey ?? floor.challenge ?? index)}`} className="rounded-lg border border-cyan-900/30 bg-slate-950/20 px-2 py-1.5">
+                                                    <div className="text-[10px] font-medium text-slate-200">{String(floor.index ?? index + 1)}. {String(floor.challenge ?? "Challenge")}</div>
+                                                    {(auras.length > 0 || specs.length > 0) && <div className="mt-0.5 text-[9px] leading-snug text-slate-500">{[...auras, ...specs].slice(0, 3).join(" · ")}</div>}
+                                                </li>
+                                            );
+                                        })}
+                                    </ol>
+                                </details>
+                            </div>
+                        )}
+
+                        {initiative && (
+                            <div className="rounded-xl border border-indigo-900/40 bg-indigo-950/10 px-3 py-2.5">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <div className="text-xs font-semibold text-indigo-200">Clan Weekly Initiative</div>
+                                        <div className="mt-0.5 text-[10px] text-slate-400">Week {String(initiative.week ?? "")} · {String(initiative.bonusRegion ?? "Bonus region")}</div>
+                                    </div>
+                                    {typeof initiative.expiry === "string" && <Countdown expiry={initiative.expiry} now={now} className="font-mono text-[10px] text-slate-400" />}
+                                </div>
+                                <ul className="mt-2 space-y-1">
+                                    {initiativeRewards.map((reward, index) => (
+                                        <li key={`${String(reward.PointThreshold ?? index)}:${String(reward.Reward ?? index)}`} className="flex items-center justify-between gap-2 text-[10px]">
+                                            <span className="text-slate-400">{Number(reward.PointThreshold || 0).toLocaleString()} clan points</span>
+                                            <span className="truncate text-right text-slate-200">{Number(reward.ItemCount || 1)}× {sourceDisplayName(String(reward.Reward ?? "Reward"))}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <div className="mt-1.5 text-[9px] text-slate-600">The API lists reward thresholds, not your clan's current contribution.</div>
+                            </div>
+                        )}
+
+                        {faceoff && (
+                            <div className="rounded-xl border border-amber-900/40 bg-amber-950/10 px-3 py-2.5">
+                                <div className="text-xs font-semibold text-amber-200">Faceoff Bonus</div>
+                                {isWorldStateEntryActive(faceoff, now) && typeof faceoff.expiry === "string"
+                                    ? <div className="mt-1 text-[10px] text-slate-400">Active · ends in <Countdown expiry={faceoff.expiry} now={now} className="font-mono text-slate-300" /></div>
+                                    : typeof faceoff.next === "string" && <div className="mt-1 text-[10px] text-slate-400">Next bonus in <Countdown expiry={faceoff.next} now={now} className="font-mono text-slate-300" /></div>}
+                            </div>
+                        )}
+
+                        {conclave.length > 0 && (
+                            <div className="rounded-xl border border-slate-800 bg-slate-900/30 px-3 py-2.5">
+                                <div className="text-xs font-semibold text-slate-200">Conclave Challenges <span className="font-normal text-slate-500">({conclave.length})</span></div>
+                                <ul className="mt-2 space-y-1.5">
+                                    {conclave.slice(0, 4).map((challenge, index) => (
+                                        <li key={String(challenge.id ?? index)}>
+                                            <div className="text-[10px] font-medium text-slate-300">{String(challenge.title ?? "Challenge")}{typeof challenge.amount === "number" ? ` · ${challenge.amount}` : ""}</div>
+                                            {typeof challenge.description === "string" && <div className="text-[9px] leading-snug text-slate-500">{challenge.description}</div>}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
+
             {/* News */}
+            {data.kinepage && typeof data.kinepage.message === "string" && (
+                <section className="rounded-xl border border-violet-900/40 bg-violet-950/10 px-3 py-2.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-violet-300">Recent Kinepage announcement</div>
+                    <div className="mt-1 text-xs text-slate-200">{data.kinepage.message}</div>
+                    {typeof data.kinepage.timestamp === "string" && <div className="mt-1 text-[9px] text-slate-500">{new Date(data.kinepage.timestamp).toLocaleString()}</div>}
+                </section>
+            )}
             {data.news.length > 0 && (
                 <section>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">News</div>
@@ -734,12 +858,12 @@ function OverviewTab({ data }: { data: WorldStateData }) {
 // ── Fissures tab ──────────────────────────────────────────────────────────────
 
 function FissuresTab({ fissures }: { fissures: Fissure[] }) {
-    const now = useNow();
+    const now = useWorldStateNow();
     const [tierFilter, setTierFilter] = useState<string>("All");
     const [showSteel,  setShowSteel]  = useState(false);
     const [showStorm,  setShowStorm]  = useState(true);
 
-    const active = fissures.filter((f) => !f.expired);
+    const active = fissures.filter((f) => isWorldStateEntryActive(f, now));
     const tiers  = ["All", ...TIER_ORDER.filter((t) => active.some((f) => f.tier === t))];
 
     const shown = active
@@ -898,13 +1022,13 @@ function ArchimedeaCard({ arch, now }: { arch: Archimedea; now: number }) {
 // ── Missions tab ──────────────────────────────────────────────────────────────
 
 function MissionsTab({ data }: { data: WorldStateData }) {
-    const now = useNow();
+    const now = useWorldStateNow();
     const activeArchs = data.archimedeas.filter((a) => !a.expired);
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Sortie */}
-            {data.sortie && !data.sortie.expired && (
+            {data.sortie && isWorldStateEntryActive(data.sortie, now) && (
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Daily Sortie</div>
@@ -952,7 +1076,7 @@ function MissionsTab({ data }: { data: WorldStateData }) {
             )}
 
             {/* Archon Hunt */}
-            {data.archonHunt?.active && (
+            {data.archonHunt && isWorldStateEntryActive(data.archonHunt, now) && (
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Weekly Archon Hunt</div>
@@ -992,7 +1116,7 @@ function MissionsTab({ data }: { data: WorldStateData }) {
             ))}
 
             {/* Arbitration */}
-            {data.arbitration && (
+            {data.arbitration && isWorldStateEntryActive(data.arbitration, now) && (
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Arbitration</div>
@@ -1016,13 +1140,13 @@ function MissionsTab({ data }: { data: WorldStateData }) {
             )}
 
             {/* Kuva Siphons & Floods */}
-            {data.kuva.length > 0 && (
+            {data.kuva.filter((mission) => isWorldStateEntryActive(mission, now)).length > 0 && (
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden lg:col-span-2">
                     <div className="px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Live Kuva Missions</div>
                     </div>
                     <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-                        {data.kuva.map((k, i) => (
+                        {data.kuva.filter((mission) => isWorldStateEntryActive(mission, now)).map((k, i) => (
                             <div key={i} className={[
                                 "rounded-lg border px-2.5 py-2",
                                 k.isFlood
@@ -1057,12 +1181,14 @@ const NIGHTWAVE_RANK_COST = 10_000;         // standing per rank
 const NORA_CREDS_PER_PRESTIGE_RANK = 15;   // creds per prestige rank (ranks 31+); ranks 1–30 vary by season
 
 function NightwaveSection({ nightwave }: { nightwave: Nightwave }) {
-    const now = useNow();
+    const now = useWorldStateNow();
+    const activeChallenges = getCurrentNightwaveChallenges(nightwave, now);
     const toggleNightwaveChallengeDone = useTrackerStore((s) => s.toggleNightwaveChallengeDone);
-    const isNightwaveChallengeDone     = useTrackerStore((s) => s.isNightwaveChallengeDone);
+    const doneNightwaveChallenges = useTrackerStore((s) => s.state.worldState?.doneNightwaveChallenges ?? EMPTY_COMPLETION_IDS);
+    const isNightwaveChallengeDone = (id: string) => doneNightwaveChallenges.includes(id);
     const [showOptimizer, setShowOptimizer] = useState(false);
 
-    const sorted = nightwave.activeChallenges.slice().sort((a, b) => {
+    const sorted = activeChallenges.slice().sort((a, b) => {
         const aDone = isNightwaveChallengeDone(a.id) ? 1 : 0;
         const bDone = isNightwaveChallengeDone(b.id) ? 1 : 0;
         if (aDone !== bDone) return aDone - bDone;
@@ -1247,37 +1373,71 @@ function NightwaveSection({ nightwave }: { nightwave: Nightwave }) {
 // ── Activities tab ────────────────────────────────────────────────────────────
 
 function ActivitiesTab({ data }: { data: WorldStateData }) {
-    const now = useNow();
-    const processedInvasions = processInvasions(data.invasions);
-    const hasNightwave = !!(data.nightwave && data.nightwave.activeChallenges.length > 0);
-    const hasEvents    = data.events.length > 0;
+    const now = useWorldStateNow();
+    const activitySummary = getCurrentWorldActivitySummary(data, now);
+    const currentAlerts = activitySummary.alerts;
+    const currentEvents = activitySummary.events;
+    const currentNightwaveChallenges = activitySummary.nightwave;
+    const processedInvasions = activitySummary.invasions;
+    const hasNightwave = currentNightwaveChallenges.length > 0;
+    const hasEvents    = currentEvents.length > 0;
     const hasInvasions = processedInvasions.length > 0;
     const hasAcolytes  = data.persistentEnemies.length > 0;
     const toggleInvasionDone           = useTrackerStore((s) => s.toggleInvasionDone);
-    const isInvasionDone               = useTrackerStore((s) => s.isInvasionDone);
-    const toggleEventDone              = useTrackerStore((s) => s.toggleEventDone);
-    const isEventDone                  = useTrackerStore((s) => s.isEventDone);
+    const doneInvasions = useTrackerStore((s) => s.state.worldState?.doneInvasions ?? EMPTY_COMPLETION_IDS);
+    const toggleEventInstanceDone = useTrackerStore((s) => s.toggleEventInstanceDone);
+    const doneEventInstances = useTrackerStore((s) => s.state.worldState?.doneEventInstances ?? EMPTY_COMPLETION_IDS);
+    const hiddenWorldStateCategories = useTrackerStore((s) => s.state.ui.hiddenWorldStateCategories ?? EMPTY_COMPLETION_IDS);
+    const isInvasionDone = (id: string) => doneInvasions.includes(id);
 
     return (
         <div className="space-y-4">
             {/* Nightwave challenges */}
-            {hasNightwave && <NightwaveSection nightwave={data.nightwave!} />}
+            {hasNightwave && data.nightwave && <NightwaveSection nightwave={{ ...data.nightwave, activeChallenges: currentNightwaveChallenges }} />}
+
+            {/* Alert missions are globally available; the API does not report personal completion. */}
+            {currentAlerts.length > 0 && !hiddenWorldStateCategories.includes("alerts" as any) && (
+                <section>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Alerts ({currentAlerts.length})</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {currentAlerts.map((alert) => (
+                            <article key={alert.id} className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <div className="text-xs font-medium text-slate-200">{alert.description || alert.missionType || "Alert mission"}</div>
+                                        <div className="mt-0.5 text-[10px] text-slate-400">{alert.missionType}{alert.node ? ` · ${alert.node}` : ""}{alert.faction ? ` · ${alert.faction}` : ""}</div>
+                                        {alert.minEnemyLevel != null && <div className="text-[10px] text-slate-500">Enemy level {alert.minEnemyLevel}–{alert.maxEnemyLevel ?? alert.minEnemyLevel}</div>}
+                                    </div>
+                                    {alert.expiry && <Countdown expiry={alert.expiry} now={now} className="shrink-0 font-mono text-[10px] text-slate-400" />}
+                                </div>
+                                {(alert.reward || alert.credits > 0 || alert.items.length > 0) && (
+                                    <div className="mt-1.5 text-[10px] text-amber-300/80">{alert.reward || [...alert.items, ...(alert.credits ? [`${alert.credits.toLocaleString()} Credits`] : [])].join(", ")}</div>
+                                )}
+                                <div className="mt-1 text-[9px] text-slate-600">World State availability; completion is not reported by the API.</div>
+                            </article>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             {/* Active Events */}
             {hasEvents && (() => {
-                const sortedEvs = data.events.slice().sort((a, b) => {
-                    const aDone = isEventDone(a.id) ? 1 : 0;
-                    const bDone = isEventDone(b.id) ? 1 : 0;
+                const sortedEvs = currentEvents.slice().sort((a, b) => {
+                    const aKey = eventCompletionKey(a);
+                    const bKey = eventCompletionKey(b);
+                    const aDone = aKey && doneEventInstances.includes(aKey) ? 1 : 0;
+                    const bDone = bKey && doneEventInstances.includes(bKey) ? 1 : 0;
                     return aDone - bDone;
                 });
                 return (
                 <section>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        Active Events ({data.events.length})
+                        Active Events ({currentEvents.length})
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {sortedEvs.map((ev) => {
-                            const done = isEventDone(ev.id);
+                            const completionKey = eventCompletionKey(ev);
+                            const done = completionKey != null && doneEventInstances.includes(completionKey);
                             const title = ev.description || ev.tooltip || "Active Event";
                             const subtitle = ev.tooltip && ev.description && ev.tooltip !== ev.description ? ev.tooltip : null;
                             const location = ev.node || ev.victimNode;
@@ -1294,17 +1454,22 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
                                                 {subtitle && (
                                                     <div className="text-[10px] text-slate-500 mt-0.5">{subtitle}</div>
                                                 )}
+                                                {(ev.isPersonal || ev.isCommunity) && (
+                                                    <div className="text-[9px] text-cyan-400/70 mt-0.5">
+                                                        {ev.isPersonal && ev.isCommunity ? "Personal and community progress" : ev.isPersonal ? "Personal progress" : "Community progress"}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             {ev.expiry && (
                                                 <Countdown expiry={ev.expiry} now={now} className="font-mono text-[10px] text-slate-400" />
                                             )}
-                                            <button
-                                                onClick={() => toggleEventDone(ev.id)}
+                                            {completionKey && <button
+                                                onClick={() => toggleEventInstanceDone(completionKey)}
                                                 className={["text-[9px] transition-colors px-0.5", done ? "text-slate-700 hover:text-slate-400" : "text-slate-600 hover:text-green-400"].join(" ")}
-                                                title={done ? "Mark as not done" : "Mark as done"}
-                                            >{done ? "✕" : "✓"}</button>
+                                                title={done ? "Remove personal completion" : "Mark personally completed"}
+                                            >{done ? "✕" : "✓"}</button>}
                                         </div>
                                     </div>
 
@@ -1537,9 +1702,12 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
 // ── Traders tab ───────────────────────────────────────────────────────────────
 
 function TradersTab({ data }: { data: WorldStateData }) {
-    const now = useNow();
+    const now = useWorldStateNow();
     const [baroSearch, setBaroSearch] = useState("");
     const [varziaSearch, setVarziaSearch] = useState("");
+    const baroActive = data.voidTrader ? isWorldStateEntryActive(data.voidTrader, now) : false;
+    const varziaActive = data.vaultTrader ? isWorldStateEntryActive(data.vaultTrader, now) : false;
+    const currentFlashSales = data.flashSales.filter((sale) => isWorldStateEntryActive(sale, now));
 
     return (
         <div className="space-y-4">
@@ -1548,11 +1716,11 @@ function TradersTab({ data }: { data: WorldStateData }) {
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className={[
                         "flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60",
-                        data.voidTrader?.active ? "bg-amber-950/20" : "bg-slate-900/40",
+                        baroActive ? "bg-amber-950/20" : "bg-slate-900/40",
                     ].join(" ")}>
                         <div>
-                            <div className={["text-xs font-semibold uppercase tracking-wide", data.voidTrader?.active ? "text-amber-300" : "text-slate-200"].join(" ")}>
-                                {data.voidTrader?.active ? "● Baro Ki'Teer — Here Now" : "Baro Ki'Teer"}
+                            <div className={["text-xs font-semibold uppercase tracking-wide", baroActive ? "text-amber-300" : "text-slate-200"].join(" ")}>
+                                {baroActive ? "● Baro Ki'Teer — Here Now" : "Baro Ki'Teer"}
                             </div>
                             {data.voidTrader && (
                                 <div className="text-[10px] text-slate-500 mt-0.5">{data.voidTrader.location}</div>
@@ -1560,7 +1728,7 @@ function TradersTab({ data }: { data: WorldStateData }) {
                         </div>
                         {data.voidTrader && (
                             <div className="text-[10px] text-slate-500 text-right">
-                                {data.voidTrader.active
+                                {baroActive
                                     ? <>Leaves <Countdown expiry={data.voidTrader.expiry} now={now} className="font-mono text-slate-400" /></>
                                     : new Date(data.voidTrader.activation).getTime() > now
                                         ? <>Arrives <Countdown expiry={data.voidTrader.activation} now={now} className="font-mono text-slate-400" /></>
@@ -1570,7 +1738,7 @@ function TradersTab({ data }: { data: WorldStateData }) {
                         )}
                     </div>
                     <div className="p-3">
-                        {data.voidTrader?.active && data.voidTrader.inventory.length > 0 ? (() => {
+                        {baroActive && data.voidTrader?.inventory.length ? (() => {
                             const allItems = data.voidTrader.inventory;
                             const q = baroSearch.trim().toLowerCase();
                             const filtered = q ? allItems.filter((it) => it.item.toLowerCase().includes(q)) : allItems;
@@ -1644,18 +1812,18 @@ function TradersTab({ data }: { data: WorldStateData }) {
                     <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                         <div className={[
                             "flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60",
-                            data.vaultTrader.active ? "bg-violet-950/20" : "bg-slate-900/40",
+                            varziaActive ? "bg-violet-950/20" : "bg-slate-900/40",
                         ].join(" ")}>
                             <div>
-                                <div className={["text-xs font-semibold uppercase tracking-wide", data.vaultTrader.active ? "text-violet-300" : "text-slate-200"].join(" ")}>
-                                    {data.vaultTrader.active ? "● Varzia — Active" : "Varzia"} · Primed Resurgence
+                                <div className={["text-xs font-semibold uppercase tracking-wide", varziaActive ? "text-violet-300" : "text-slate-200"].join(" ")}>
+                                    {varziaActive ? "● Varzia — Active" : "Varzia"} · Primed Resurgence
                                 </div>
                                 {data.vaultTrader.location && (
                                     <div className="text-[10px] text-slate-500 mt-0.5">{data.vaultTrader.location}</div>
                                 )}
                             </div>
                             <div className="text-[10px] text-slate-500">
-                                {data.vaultTrader.active
+                                {varziaActive
                                     ? <>Ends <Countdown expiry={data.vaultTrader.expiry} now={now} className="font-mono text-slate-400" /></>
                                     : data.vaultTrader.activation && new Date(data.vaultTrader.activation).getTime() > now
                                         ? <>Returns <Countdown expiry={data.vaultTrader.activation} now={now} className="font-mono text-slate-400" /></>
@@ -1664,7 +1832,7 @@ function TradersTab({ data }: { data: WorldStateData }) {
                             </div>
                         </div>
                         <div className="p-3">
-                            {data.vaultTrader.active && data.vaultTrader.inventory.length > 0 ? (() => {
+                            {varziaActive && data.vaultTrader.inventory.length > 0 ? (() => {
                                 const allItems = data.vaultTrader.inventory;
                                 const q = varziaSearch.trim().toLowerCase();
                                 const filtered = q ? allItems.filter((it) => it.item.toLowerCase().includes(q)) : allItems;
@@ -1742,7 +1910,7 @@ function TradersTab({ data }: { data: WorldStateData }) {
                                 );
                             })() : (
                                 <div className="text-xs text-slate-500 py-2 text-center">
-                                    {data.vaultTrader.active ? "No inventory available." : "Varzia is not currently active."}
+                                    {varziaActive ? "No inventory available." : "Varzia is not currently active."}
                                 </div>
                             )}
                         </div>
@@ -1753,50 +1921,38 @@ function TradersTab({ data }: { data: WorldStateData }) {
             {!data.voidTrader && !data.vaultTrader && (
                 <div className="py-8 text-center text-sm text-slate-500">No trader data available.</div>
             )}
+
+            {currentFlashSales.length > 0 && (
+                <section>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Current Store Offers ({currentFlashSales.length})</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {currentFlashSales.slice(0, 6).map((sale, index) => (
+                            <div key={String(sale.id ?? index)} className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                <div className="text-xs font-medium text-slate-200">{String(sale.item ?? "Store offer")}</div>
+                                <div className="mt-1 text-[10px] text-slate-500">Limited availability · platform pricing may vary</div>
+                                {typeof sale.expiry === "string" && <div className="mt-1 text-[10px] text-slate-500">Ends in <Countdown expiry={sale.expiry} now={now} className="font-mono text-slate-400" /></div>}
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type LoadState = "idle" | "loading" | "ok" | "error";
-
 export default function WorldState() {
-    const [loadState, setLoadState] = useState<LoadState>("idle");
-    const [error, setError]         = useState<string | null>(null);
-    const [data, setData]           = useState<WorldStateData | null>(null);
-    const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+    const now = useWorldStateNow();
+    const snapshot = useWorldStateSnapshot();
+    const { data, fetchedAt, isLoading, isRefreshing, error } = snapshot;
     const [activeTab, setActiveTab] = useState<Tab>("overview");
-    const abortRef = useRef<AbortController | null>(null);
+    const loadState = !data ? (isLoading ? "loading" : "error") : "ok";
+    const refresh = () => { void fetchWorldState(true).catch(() => {}); };
 
-    const refresh = useCallback(async (force = false) => {
-        abortRef.current?.abort();
-        const ac = new AbortController();
-        abortRef.current = ac;
-        setLoadState("loading");
-        setError(null);
-        try {
-            const d = await fetchWorldState(force);
-            if (ac.signal.aborted) return;
-            setData(d);
-            setFetchedAt(new Date());
-            setLoadState("ok");
-        } catch (e: any) {
-            if (ac.signal.aborted) return;
-            setError(e.message ?? "Failed to load.");
-            setLoadState("error");
-        }
-    }, []);
-
-    useEffect(() => {
-        refresh();
-        const id = setInterval(() => refresh(), 5 * 60 * 1000);
-        return () => { clearInterval(id); abortRef.current?.abort(); };
-    }, [refresh]);
-
-    const activeFissures = data?.fissures.filter((f) => !f.expired && !f.isHard).length ?? 0;
-    const activeAlerts = (data?.events.length ?? 0) + (data?.nightwave?.activeChallenges.length ?? 0);
-    const traderInventory = data?.voidTrader?.active ? data.voidTrader.inventory.length : 0;
+    const activeFissures = data?.fissures.filter((f) => isWorldStateEntryActive(f, now) && !f.isHard).length ?? 0;
+    const activeActivities = getCurrentWorldActivitySummary(data, now).total;
+    const traderInventory = data?.voidTrader && isWorldStateEntryActive(data.voidTrader, now) ? data.voidTrader.inventory.length : 0;
 
     return (
         <div className="flex flex-col gap-4 pb-4">
@@ -1807,20 +1963,23 @@ export default function WorldState() {
                 actions={
                     <>
                         {fetchedAt && (
-                            <span className="text-[11px] text-[color:var(--wf-text-dim)]">updated {fetchedAt.toLocaleTimeString()}</span>
+                            <span className="text-[11px] text-[color:var(--wf-text-dim)]">
+                                Fetched {new Date(fetchedAt).toLocaleTimeString()}
+                                {data?.apiTimestamp ? ` · API ${new Date(data.apiTimestamp).toLocaleTimeString()}` : ""}
+                            </span>
                         )}
                         <WorkspaceAction
-                            onClick={() => refresh(true)}
+                            onClick={refresh}
                             className="inline-flex items-center gap-1.5 text-xs disabled:opacity-40"
                         >
                             <svg
-                                className={["h-3.5 w-3.5", loadState === "loading" ? "animate-spin" : ""].join(" ")}
+                                className={["h-3.5 w-3.5", isLoading || isRefreshing ? "animate-spin" : ""].join(" ")}
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                                 strokeLinecap="round" strokeLinejoin="round"
                             >
                                 <polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-4" />
                             </svg>
-                            {loadState === "loading" ? "Loading…" : "Refresh"}
+                            {isLoading || isRefreshing ? "Refreshing…" : "Refresh"}
                         </WorkspaceAction>
                     </>
                 }
@@ -1828,8 +1987,8 @@ export default function WorldState() {
                     <>
                         <WorkspaceStat
                             label="Intel status"
-                            value={loadState === "ok" ? "Live" : loadState === "loading" ? "Syncing" : "Retrying"}
-                            hint="Five-minute refresh cadence with manual refresh support."
+                            value={error ? "Stale" : loadState === "ok" ? "Live" : loadState === "loading" ? "Syncing" : "Retrying"}
+                            hint={data?.buildLabel ? `Warframe ${data.buildLabel}; shared five-minute refresh.` : "Shared five-minute refresh cadence."}
                         />
                         <WorkspaceStat
                             label="Active fissures"
@@ -1838,8 +1997,8 @@ export default function WorldState() {
                         />
                         <WorkspaceStat
                             label="Activities"
-                            value={activeAlerts}
-                            hint="Events and Nightwave acts competing for attention."
+                            value={activeActivities}
+                            hint="Current alerts, events, Nightwave acts, and open invasions."
                         />
                         <WorkspaceStat
                             label="Trader stock"
@@ -1861,17 +2020,23 @@ export default function WorldState() {
             )}
 
             {/* Error */}
-            {loadState === "error" && !data && (
+            {loadState === "error" && (
                 <div className="rounded-xl border border-rose-800/50 bg-rose-950/20 p-4 text-xs text-rose-300 space-y-2">
                     <div className="font-semibold">Failed to load world state</div>
                     <p className="text-rose-400/80">{error}</p>
                     <p className="text-rose-500">The warframestat.us API may be temporarily unavailable.</p>
                     <button
-                        onClick={() => refresh(true)}
+                        onClick={refresh}
                         className="rounded-lg border border-rose-700/50 px-3 py-1.5 text-[11px] text-rose-300 hover:bg-rose-950/40 transition-colors"
                     >
                         Try again
                     </button>
+                </div>
+            )}
+
+            {error && data && (
+                <div className="rounded-lg border border-amber-800/40 bg-amber-950/15 px-3 py-2 text-xs text-amber-200">
+                    Refresh failed; showing the last successful snapshot from {fetchedAt ? new Date(fetchedAt).toLocaleTimeString() : "an earlier request"}. {error}
                 </div>
             )}
 
@@ -1889,15 +2054,15 @@ export default function WorldState() {
                                 {tab.label}
                                 {tab.key === "fissures" && (
                                     <span className="ml-1.5 rounded-full bg-slate-700/60 px-1 text-[10px] text-slate-300">
-                                        {data.fissures.filter(f => !f.expired && !f.isHard).length}
+                                        {data.fissures.filter((f) => isWorldStateEntryActive(f, now) && !f.isHard).length}
                                     </span>
                                 )}
-                                {tab.key === "activities" && (data.events.length > 0 || (data.nightwave?.activeChallenges.length ?? 0) > 0) && (
+                                {tab.key === "activities" && activeActivities > 0 && (
                                     <span className="ml-1.5 rounded-full bg-blue-900/60 px-1 text-[10px] text-blue-300">
-                                        {data.events.length + (data.nightwave?.activeChallenges.length ?? 0)}
+                                        {activeActivities}
                                     </span>
                                 )}
-                                {tab.key === "traders" && data.voidTrader?.active && (
+                                {tab.key === "traders" && data.voidTrader && isWorldStateEntryActive(data.voidTrader, now) && (
                                     <span className="ml-1.5 rounded-full bg-amber-900/60 px-1 text-[10px] text-amber-300">
                                         {data.voidTrader.inventory.length}
                                     </span>

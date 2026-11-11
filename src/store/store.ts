@@ -19,7 +19,7 @@ import type {
     SyndicateState
 } from "../domain/types";
 import type { PageKey, PlatformKey, UserGoalV1, UserStateV2 } from "../domain/models/userState";
-import { migrateToUserStateV2 } from "./migrations";
+import { migrateToUserStateV2, normalizeWorldStateProgress } from "./migrations";
 import type { ProfileImportResult } from "../utils/profileImport";
 import { SY } from "../domain/ids/syndicateIds";
 import { PERSIST_KEY, PERSIST_VERSION } from "./persistence";
@@ -131,6 +131,8 @@ export interface TrackerStore {
 
     toggleEventDone: (id: string) => void;
     isEventDone: (id: string) => boolean;
+    toggleEventInstanceDone: (key: string) => void;
+    isEventInstanceDone: (key: string) => boolean;
 
     toggleWorldStateCategoryHidden: (cat: string) => void;
     isWorldStateCategoryHidden: (cat: string) => boolean;
@@ -1023,6 +1025,22 @@ export const useTrackerStore = create<TrackerStore>()(
                 return get().state.worldState?.doneEvents?.includes(id) ?? false;
             },
 
+            toggleEventInstanceDone: (key) => {
+                set((s) => {
+                    if (!s.state.worldState) s.state.worldState = { doneInvasions: [] };
+                    if (!s.state.worldState.doneEventInstances) s.state.worldState.doneEventInstances = [];
+                    const list = s.state.worldState.doneEventInstances;
+                    const idx = list.indexOf(key);
+                    if (idx >= 0) list.splice(idx, 1);
+                    else list.push(key);
+                    s.state.meta.updatedAtIso = nowIso();
+                });
+            },
+
+            isEventInstanceDone: (key) => {
+                return get().state.worldState?.doneEventInstances?.includes(key) ?? false;
+            },
+
             toggleWorldStateCategoryHidden: (cat) => {
                 set((s) => {
                     const hidden = s.state.ui.hiddenWorldStateCategories ?? [];
@@ -1094,6 +1112,7 @@ export const useTrackerStore = create<TrackerStore>()(
                 if (!migrated) {
                     return { state: makeDefaultState() } as any;
                 }
+                normalizeWorldStateProgress(migrated);
                 ensureGoalsArray(migrated as any);
                 ensureUiExpansion(migrated as any);
                 ensureResetChecklistState(migrated as any);

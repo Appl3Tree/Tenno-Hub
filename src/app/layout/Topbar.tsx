@@ -4,13 +4,15 @@
 // Clicking the profile area drops down the full edit panel (replaces old always-visible card).
 // The bar itself is always exactly h-12 (48px). The dropdown is absolutely positioned.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTrackerStore } from "../../store/store";
-import { fetchWorldState, getCachedWorldState, processInvasions, type WorldStateData } from "../../lib/worldStateCache";
+import { eventCompletionKey, getCurrentWorldActivitySummary, isWorldStateEntryActive } from "../../lib/worldStateCache";
+import { useWorldStateNow, useWorldStateSnapshot } from "../../lib/useWorldStateData";
 import CatalogSearchPalette from "../../components/search/CatalogSearchPalette";
 import PageJumpPalette from "../../components/search/PageJumpPalette";
 
 type PlatformKey = "pc" | "ps" | "xb" | "swi" | "mob" | "and";
+const EMPTY_WORLD_STATE_IDS: string[] = [];
 
 type PlatformOption = {
     key: PlatformKey;
@@ -207,15 +209,6 @@ function msToHms(ms: number): string {
     return `${m}m ${s % 60}s`;
 }
 
-function useNow(): number {
-    const [now, setNow] = useState(() => Date.now());
-    useEffect(() => {
-        const id = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(id);
-    }, []);
-    return now;
-}
-
 const BELL_FACTION_COLORS: Record<string, string> = {
     Grineer:  "text-red-400",
     Corpus:   "text-sky-400",
@@ -226,41 +219,29 @@ const BELL_FACTION_COLORS: Record<string, string> = {
 
 function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () => void }) {
     const [open, setOpen]       = useState(false);
-    const [data, setData]       = useState<WorldStateData | null>(() => getCachedWorldState());
-    const [loading, setLoading] = useState(false);
+    const snapshot = useWorldStateSnapshot();
+    const { data, isLoading, isRefreshing, error, fetchedAt } = snapshot;
+    const loading = isLoading || isRefreshing;
     const bellRef = useRef<HTMLDivElement>(null);
     const bellButtonRef = useRef<HTMLButtonElement>(null);
-    const now = useNow();
+    const now = useWorldStateNow();
     const toggleInvasionDone           = useTrackerStore((s) => s.toggleInvasionDone);
-    const isInvasionDone               = useTrackerStore((s) => s.isInvasionDone);
+    const doneInvasions = useTrackerStore((s) => s.state.worldState?.doneInvasions ?? EMPTY_WORLD_STATE_IDS);
     const toggleNightwaveChallengeDone = useTrackerStore((s) => s.toggleNightwaveChallengeDone);
-    const isNightwaveChallengeDone     = useTrackerStore((s) => s.isNightwaveChallengeDone);
-    const toggleEventDone              = useTrackerStore((s) => s.toggleEventDone);
-    const isEventDone                  = useTrackerStore((s) => s.isEventDone);
-    const isWorldStateCategoryHidden   = useTrackerStore((s) => s.isWorldStateCategoryHidden);
+    const doneNightwaveChallenges = useTrackerStore((s) => s.state.worldState?.doneNightwaveChallenges ?? EMPTY_WORLD_STATE_IDS);
+    const toggleEventInstanceDone = useTrackerStore((s) => s.toggleEventInstanceDone);
+    const doneEventInstances = useTrackerStore((s) => s.state.worldState?.doneEventInstances ?? EMPTY_WORLD_STATE_IDS);
+    const hiddenWorldStateCategories = useTrackerStore((s) => s.state.ui.hiddenWorldStateCategories ?? EMPTY_WORLD_STATE_IDS);
+    const activitySummary = getCurrentWorldActivitySummary(data, now);
+    const currentEvents = activitySummary.events;
+    const currentAlerts = activitySummary.alerts;
+    const currentNightwave = activitySummary.nightwave;
+    const currentInvasions = activitySummary.invasions;
+    const isInvasionDone = (id: string) => doneInvasions.includes(id);
+    const isNightwaveChallengeDone = (id: string) => doneNightwaveChallenges.includes(id);
+    const isWorldStateCategoryHidden = (category: string) => hiddenWorldStateCategories.includes(category as any);
     const [baroInventoryOpen, setBaroInventoryOpen] = useState(false);
     const [varziaInventoryOpen, setVarziaInventoryOpen] = useState(false);
-
-    const load = useCallback(async () => {
-        setLoading(true);
-        try {
-            const d = await fetchWorldState();
-            setData(d);
-        } catch {
-            /* silently fail — bell just shows nothing */
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    // Fetch on mount (uses cache if fresh)
-    useEffect(() => { load(); }, [load]);
-
-    // Refresh every 5 minutes
-    useEffect(() => {
-        const id = setInterval(load, 5 * 60 * 1000);
-        return () => clearInterval(id);
-    }, [load]);
 
     // Close on outside click
     useEffect(() => {
@@ -282,11 +263,26 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
         };
     }, [open]);
 
-    // Compute badge: true if Baro is active OR sentient outpost is active OR there are invasions
-    const baroActive     = data?.voidTrader?.active;
-    const varziaActive   = data?.vaultTrader?.active;
-    const sentientActive = data?.sentientOutposts?.active;
-    const showBadge      = !!(baroActive || varziaActive || sentientActive);
+    // The bell indicates actionable current content; personal completion clears
+    // invasions, Nightwave acts, and event occurrences from the badge.
+    const baroActive     = data?.voidTrader ? isWorldStateEntryActive(data.voidTrader, now) : false;
+    const varziaActive   = data?.vaultTrader ? isWorldStateEntryActive(data.vaultTrader, now) : false;
+    const sentientActive = data?.sentientOutposts ? isWorldStateEntryActive(data.sentientOutposts, now) : false;
+    const pendingEvents = currentEvents.filter((ev) => {
+        const key = eventCompletionKey(ev);
+        return !key || !doneEventInstances.includes(key);
+    }).length;
+    const pendingInvasions = currentInvasions.filter((inv) => !doneInvasions.includes(inv.id)).length;
+    const pendingNightwave = currentNightwave.filter((act) => !doneNightwaveChallenges.includes(act.id)).length;
+    const showBadge = !!(
+        (baroActive && !isWorldStateCategoryHidden("baro"))
+        || (varziaActive && !isWorldStateCategoryHidden("varzia"))
+        || (sentientActive && !isWorldStateCategoryHidden("sentient"))
+        || (currentAlerts.length && !isWorldStateCategoryHidden("alerts"))
+        || (pendingEvents && !isWorldStateCategoryHidden("events"))
+        || (pendingInvasions && !isWorldStateCategoryHidden("invasions"))
+        || (pendingNightwave && !isWorldStateCategoryHidden("nightwave"))
+    );
 
     // Items to show in dropdown
     const baroMs     = data?.voidTrader ? new Date(data.voidTrader.activation).getTime() - now : 0;
@@ -297,9 +293,10 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
 
     const hasAnything = !!(
         data?.voidTrader || data?.vaultTrader || sentientActive ||
-        (data?.events.length ?? 0) > 0 ||
-        (data?.invasions.filter((inv) => !inv.completed).length ?? 0) > 0 ||
-        (data?.nightwave?.activeChallenges.length ?? 0) > 0
+        currentAlerts.length > 0 ||
+        currentEvents.length > 0 ||
+        currentInvasions.length > 0 ||
+        currentNightwave.length > 0
     );
 
     return (
@@ -331,7 +328,10 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
             {open && (
                 <div id="world-events-popover" role="region" aria-label="World events" className="wf-popover absolute right-0 top-full z-50 mt-1 flex max-h-[85vh] w-80 flex-col overflow-hidden rounded-xl border">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 shrink-0">
-                        <span className="text-xs font-semibold text-slate-200">World Events</span>
+                        <div className="min-w-0">
+                            <span className="text-xs font-semibold text-slate-200">World Events</span>
+                            {fetchedAt && <div className="mt-0.5 text-[9px] text-slate-500">Fetched {new Date(fetchedAt).toLocaleTimeString()}</div>}
+                        </div>
                         {loading && (
                             <svg className="w-3 h-3 animate-spin text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-4" />
@@ -340,8 +340,27 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                     </div>
 
                     <div className="p-2 space-y-1 overflow-y-auto flex-1 min-h-0">
+                        {error && <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-2.5 py-2 text-[10px] text-amber-200">Showing the last successful World State snapshot. Refresh failed.</div>}
                         {!data && !loading && (
                             <div className="px-2 py-3 text-xs text-slate-500 text-center">No data available.</div>
+                        )}
+
+                        {/* Current alerts are globally available; their checkbox is not a player completion claim. */}
+                        {!!currentAlerts.length && !isWorldStateCategoryHidden("alerts") && (
+                            <div className="rounded-lg px-3 py-2 bg-slate-900/60">
+                                <div className="text-[10px] font-semibold text-slate-400 mb-1 uppercase tracking-wide">Alerts ({currentAlerts.length})</div>
+                                <div className="space-y-1.5">
+                                    {currentAlerts.slice(0, 5).map((alert) => (
+                                        <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-[10px] text-slate-200 truncate">{alert.description || alert.missionType || "Alert"} · {alert.node || "Unknown node"}</span>
+                                                {alert.expiry && <span className="shrink-0 font-mono text-[9px] text-slate-500">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
+                                            </div>
+                                            <div className="text-[9px] text-slate-500">{alert.faction}{alert.minEnemyLevel != null ? ` · ${alert.minEnemyLevel}–${alert.maxEnemyLevel ?? alert.minEnemyLevel}` : ""}{alert.reward ? ` · ${alert.reward}` : ""}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
 
                         {/* Baro Ki'Teer */}
@@ -505,8 +524,8 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                         )}
 
                         {/* Invasions — show all with rewards */}
-                        {data && data.invasions.length > 0 && !isWorldStateCategoryHidden("invasions") && (() => {
-                            const sorted = processInvasions(data.invasions).sort((a, b) => {
+                        {data && currentInvasions.length > 0 && !isWorldStateCategoryHidden("invasions") && (() => {
+                            const sorted = currentInvasions.slice().sort((a, b) => {
                                 const aDone = isInvasionDone(a.id) ? 1 : 0;
                                 const bDone = isInvasionDone(b.id) ? 1 : 0;
                                 return aDone - bDone;
@@ -596,8 +615,8 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                         })()}
 
                         {/* Nightwave active challenges */}
-                        {data?.nightwave && data.nightwave.activeChallenges.length > 0 && !isWorldStateCategoryHidden("nightwave") && (() => {
-                            const sorted = data.nightwave.activeChallenges
+                        {data?.nightwave && currentNightwave.length > 0 && !isWorldStateCategoryHidden("nightwave") && (() => {
+                            const sorted = currentNightwave
                                 .slice()
                                 .sort((a, b) => {
                                     const aDone = isNightwaveChallengeDone(a.id) ? 1 : 0;
@@ -668,25 +687,26 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                         })()}
 
                         {/* Active events */}
-                        {data && data.events.length > 0 && !isWorldStateCategoryHidden("events") && (
+                        {data && currentEvents.length > 0 && !isWorldStateCategoryHidden("events") && (
                             <div className="rounded-lg px-3 py-2 bg-slate-900/60">
                                 <div className="text-[10px] font-semibold text-slate-400 mb-1 uppercase tracking-wide">
-                                    Events ({data.events.length})
+                                    Events ({currentEvents.length})
                                 </div>
                                 <div className="space-y-1">
-                                    {data.events.map((ev) => {
-                                        const done = isEventDone(ev.id);
+                                    {currentEvents.map((ev) => {
+                                        const completionKey = eventCompletionKey(ev);
+                                        const done = completionKey != null && doneEventInstances.includes(completionKey);
                                         const label = ev.description || ev.tooltip || "Active Event";
                                         if (done) {
                                             return (
                                                 <div key={ev.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0 flex items-center gap-1.5">
                                                     <span className="text-green-500 text-xs shrink-0">✓</span>
                                                     <span className="text-[10px] text-slate-500 truncate flex-1 line-through">{label}</span>
-                                                    <button
-                                                        onClick={() => toggleEventDone(ev.id)}
+                                                    {completionKey && <button
+                                                        onClick={() => toggleEventInstanceDone(completionKey)}
                                                         className="shrink-0 text-[9px] text-slate-700 hover:text-slate-400 transition-colors"
                                                         title="Mark as not done"
-                                                    >✕</button>
+                                                    >✕</button>}
                                                 </div>
                                             );
                                         }
@@ -700,11 +720,11 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                                                                 {msToHms(new Date(ev.expiry).getTime() - now)}
                                                             </span>
                                                         )}
-                                                        <button
-                                                            onClick={() => toggleEventDone(ev.id)}
+                                                        {completionKey && <button
+                                                            onClick={() => toggleEventInstanceDone(completionKey)}
                                                             className="text-[9px] text-slate-600 hover:text-green-400 transition-colors px-0.5"
                                                             title="Mark as done"
-                                                        >✓</button>
+                                                        >✓</button>}
                                                     </div>
                                                 </div>
                                                 {ev.tooltip && ev.description && ev.tooltip !== ev.description && (

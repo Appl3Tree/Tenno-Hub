@@ -9,6 +9,50 @@ import { migrateToUserStateV2 } from "../migrations";
 import { PR } from "../../domain/ids/prereqIds";
 
 describe("progress pack inventory serialization", () => {
+    it("preserves rotation-scoped event completions and legacy IDs through a Progress Pack", () => {
+        const source = makeDefaultState();
+        source.worldState = {
+            doneInvasions: ["invasion-1"],
+            doneNightwaveChallenges: ["nightwave-18-week-2"],
+            doneEvents: ["legacy-event-id"],
+            doneEventInstances: ["event%3Athermia%3A2026-11-03T00%3A00%3A00.000Z"],
+        };
+
+        const parsed = ProgressPackSchemaV2.parse(source);
+        const restored = mergeProgressPackIntoState(makeDefaultState(), parsed);
+
+        expect(restored.worldState).toEqual(source.worldState);
+    });
+
+    it("accepts older World State progress without event-instance keys", () => {
+        const pack = ProgressPackSchemaV2.parse({
+            ...makeDefaultState(),
+            worldState: { doneInvasions: ["invasion-old"], doneEvents: ["event-old"] },
+        });
+
+        expect(pack.worldState).toMatchObject({ doneInvasions: ["invasion-old"], doneEvents: ["event-old"] });
+        expect(pack.worldState).not.toHaveProperty("doneEventInstances");
+    });
+
+    it("deduplicates World State completion records and preserves legacy event IDs during migration", () => {
+        const state = makeDefaultState();
+        state.worldState = {
+            doneInvasions: ["invasion-1", "invasion-1"],
+            doneNightwaveChallenges: ["nightwave-1", "nightwave-1"],
+            doneEvents: ["legacy-event"],
+            doneEventInstances: ["rotation-event", "rotation-event"],
+        };
+
+        const migrated = migrateToUserStateV2(state)!;
+
+        expect(migrated.worldState).toEqual({
+            doneInvasions: ["invasion-1"],
+            doneNightwaveChallenges: ["nightwave-1"],
+            doneEvents: ["legacy-event"],
+            doneEventInstances: ["rotation-event"],
+        });
+    });
+
     it("migrates the legacy Steel Path Circuit alias without losing completed progress", () => {
         const state = makeDefaultState();
         state.prereqs.completed = {

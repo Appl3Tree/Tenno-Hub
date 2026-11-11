@@ -384,6 +384,8 @@ export function migrateToUserStateV2(raw: unknown): UserStateV2 | null {
         data.resetChecklist = normalizeResetChecklist(data.resetChecklist);
         data.goals = normalizeGoals(data.goals);
 
+        normalizeWorldStateProgress(data as UserStateV2);
+
         return data as UserStateV2;
     }
 
@@ -483,4 +485,17 @@ export function migrateToUserStateV2(raw: unknown): UserStateV2 | null {
     }
 
     return null;
+}
+
+/** Normalize persisted World State completion arrays without applying ambiguous legacy event IDs. */
+export function normalizeWorldStateProgress(state: UserStateV2): void {
+    if (!state.worldState || typeof state.worldState !== "object") return;
+    const uniqueStrings = (value: unknown): string[] => Array.isArray(value)
+        ? [...new Set(value.filter((item): item is string => typeof item === "string" && item.length > 0))]
+        : [];
+    state.worldState.doneInvasions = uniqueStrings(state.worldState.doneInvasions);
+    state.worldState.doneNightwaveChallenges = uniqueStrings(state.worldState.doneNightwaveChallenges);
+    // Legacy IDs remain available for export/recovery but do not identify a specific event rotation.
+    state.worldState.doneEvents = uniqueStrings(state.worldState.doneEvents);
+    state.worldState.doneEventInstances = uniqueStrings(state.worldState.doneEventInstances);
 }
