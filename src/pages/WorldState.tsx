@@ -13,6 +13,7 @@ import {
     eventCompletionKey,
     getCurrentWorldActivitySummary,
     getCurrentNightwaveChallenges,
+    getInvasionCompletionPercent,
     isWorldStateEntryActive,
     sortieCompletionKey,
     type WorldStateData,
@@ -1481,11 +1482,7 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
                 <section>
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Alerts ({currentAlerts.length})</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {currentAlerts.slice().sort((a, b) => {
-                            const aKey = alertCompletionKey(a);
-                            const bKey = alertCompletionKey(b);
-                            return Number(!!aKey && doneActivityInstances.includes(aKey)) - Number(!!bKey && doneActivityInstances.includes(bKey));
-                        }).map((alert) => {
+                        {currentAlerts.map((alert) => {
                             const completionKey = alertCompletionKey(alert);
                             const done = completionKey != null && doneActivityInstances.includes(completionKey);
                             return <article key={alert.id} className={["rounded-xl border px-3 py-2.5 transition-colors", done ? "border-emerald-900/40 bg-emerald-950/10 opacity-60" : "border-slate-800 bg-slate-900/40"].join(" ")}>
@@ -1630,9 +1627,10 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
             {/* Invasions */}
             {hasInvasions && (() => {
                 const sorted = processedInvasions.slice().sort((a, b) => {
+                    const completion = getInvasionCompletionPercent(b) - getInvasionCompletionPercent(a);
                     const aDone = isInvasionDone(a.id) ? 1 : 0;
                     const bDone = isInvasionDone(b.id) ? 1 : 0;
-                    return aDone - bDone;
+                    return completion || aDone - bDone;
                 });
                 const doneCount = sorted.filter((inv) => isInvasionDone(inv.id)).length;
                 return (
@@ -2060,6 +2058,7 @@ export default function WorldState() {
                             <span className="text-[11px] text-[color:var(--wf-text-dim)]">
                                 Fetched {new Date(fetchedAt).toLocaleTimeString()}
                                 {data?.apiTimestamp ? ` · API ${new Date(data.apiTimestamp).toLocaleTimeString()}` : ""}
+                                {data?.alertsApiTimestamp && data.alertsApiTimestamp !== data.apiTimestamp ? ` · Alerts API ${new Date(data.alertsApiTimestamp).toLocaleTimeString()}` : ""}
                             </span>
                         )}
                         <WorkspaceAction

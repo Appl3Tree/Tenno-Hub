@@ -31,6 +31,7 @@ export default function DashboardWorldState({ onOpen }: { onOpen: () => void }) 
                     <p className="mt-1 text-xs text-[color:var(--wf-text-muted)]">
                         {data ? `${activityCount} active activities` : isLoading ? "Connecting to World State…" : "World State is unavailable."}
                         {fetchedAt ? ` · fetched ${new Date(fetchedAt).toLocaleTimeString()}` : ""}
+                        {data?.alertsApiTimestamp && <span className="block">Alerts API {new Date(data.alertsApiTimestamp).toLocaleString()}</span>}
                     </p>
                 </div>
                 <div className="flex gap-2">
