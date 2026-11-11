@@ -104,6 +104,7 @@ const WORLD_STATE_CATEGORIES: Array<{ key: string; label: string; description: s
     { key: "baro",      label: "Baro Ki'Teer",     description: "Void Trader visits and inventory" },
     { key: "varzia",    label: "Varzia",            description: "Primed Resurgence vault trader" },
     { key: "sentient",  label: "Sentient Outpost",  description: "Roaming sentient outpost alerts" },
+    { key: "alerts",    label: "Alert missions",    description: "Limited-time global mission rewards" },
     { key: "invasions", label: "Invasions",         description: "Active invasion missions" },
     { key: "nightwave", label: "Nightwave",         description: "Season challenges and rep rewards" },
     { key: "events",    label: "Events",            description: "Timed in-game events" },

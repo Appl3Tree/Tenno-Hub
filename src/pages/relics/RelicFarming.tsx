@@ -2,7 +2,8 @@
 import React, { useMemo, useState } from "react";
 import { getAllRelics, getRelicByKey, type RelicEntry } from "../../domain/catalog/relicCatalog";
 import { getRelicAvailabilityStatus, type RelicAvailabilityStatus } from "../../domain/catalog/relicAvailability";
-import { useVaultTraderData } from "../../lib/useVaultTraderData";
+import { useWorldStateData } from "../../lib/useWorldStateData";
+import { isWorldStateEntryActive } from "../../lib/worldStateCache";
 import missionRewardsRaw from "../../../external/warframe-drop-data/raw/missionRewards.json";
 
 // Build a static "Planet / Node" → gameMode lookup from the drop data.
@@ -361,7 +362,12 @@ interface RelicFarmingProps {
 }
 
 export default function RelicFarming({ selectedKeys, setSelectedKeys }: RelicFarmingProps) {
-    const vaultTrader = useVaultTraderData();
+    const worldState = useWorldStateData();
+    const vaultTrader = worldState?.vaultTrader ?? null;
+    const now = Date.now();
+    const activeFissures = (worldState?.fissures ?? [])
+        .filter((fissure) => isWorldStateEntryActive(fissure, now))
+        .sort((a, b) => a.tierNum - b.tierNum || Date.parse(a.expiry) - Date.parse(b.expiry));
 
     const allRelics = useMemo(
         () => getAllRelics().sort((a, b) => a.relicName.localeCompare(b.relicName)),
@@ -649,6 +655,29 @@ export default function RelicFarming({ selectedKeys, setSelectedKeys }: RelicFar
 
             {/* ── Right: Filters + Node results ── */}
             <div className="space-y-3">
+                {activeFissures.length > 0 && (
+                    <section className="rounded-2xl border border-cyan-900/40 bg-cyan-950/10 p-3" aria-label="Current fissure missions">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="text-[10px] uppercase tracking-wide text-cyan-300">Current missions for opening relics</div>
+                            <div className="text-[9px] text-slate-500">Shared World State</div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
+                            {activeFissures.slice(0, 6).map((fissure) => {
+                                const minutes = Math.max(0, Math.floor((Date.parse(fissure.expiry) - now) / 60000));
+                                return (
+                                    <div key={fissure.id} className="min-w-0 rounded-lg border border-cyan-900/30 bg-slate-950/20 px-2.5 py-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[10px] font-semibold text-slate-200">{fissure.tier}{fissure.isStorm ? " Storm" : ""}{fissure.isHard ? " · Steel Path" : ""}</span>
+                                            <span className="shrink-0 font-mono text-[9px] text-slate-500">{minutes}m</span>
+                                        </div>
+                                        <div className="mt-0.5 truncate text-[10px] text-slate-400">{fissure.missionType} · {fissure.node}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
                 {/* Controls card — ranking mode, rotation limit, mission type filter */}
                 {hasResults && (
                     <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">

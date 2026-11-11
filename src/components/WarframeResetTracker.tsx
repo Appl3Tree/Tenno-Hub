@@ -9,7 +9,7 @@
 //    weekly (Fri 00:00 UTC) split — Conclave runs on a separate cadence.
 //  - "Customize" panel lets users permanently hide tasks they don't care about.
 //  - If every eligible task in a bucket is hidden, the timer card is suppressed.
-//  - Baro Ki'Teer reference row is live-computed (anchor 2026-03-20T13:00Z, bi-weekly, 48h window).
+//  - Baro Ki'Teer timing uses the shared API schedule, with an estimate only if unavailable.
 //  - Temporal Archimedea and Netracells now share logic:
 //      * Marking Temporal Archimedea complete adds 2 Netracell/Search Pulse runs.
 //      * If 4+ Netracell runs are already spent, Temporal Archimedea is auto-crossed out
@@ -20,7 +20,8 @@ import { useTrackerStore } from "../store/store";
 import { PR } from "../domain/ids/prereqIds";
 import { SY } from "../domain/ids/syndicateIds";
 import type { SyndicateState } from "../domain/types";
-import { fetchWorldState, getCachedWorldState, type CalendarEvent, type WorldStateData } from "../lib/worldStateCache";
+import { fetchWorldState, getCurrentOrNextVoidTrader, type CalendarEvent, type WorldStateData } from "../lib/worldStateCache";
+import { useWorldStateData } from "../lib/useWorldStateData";
 import { WorkspacePanel, WorkspaceSegmented, WorkspaceSegmentedButton } from "./workspace/WorkspaceChrome";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -669,22 +670,59 @@ function getCompletedTaskCount(tasks: TaskDef[], completedIds: string[], netrace
 
 // ─── Baro Ki'Teer live computation ─────────────────────────────────────────────
 
-function getBaroStatus(now: Date, mode: TimeMode = "utc"): { present: boolean; label: string; detail: string; timeLeftMs: number; timeUntilMs: number } {
+function getBaroStatus(now: Date, worldState: WorldStateData | null = null): {
+    present: boolean;
+    label: string;
+    detail: string;
+    timeLeftMs: number | null;
+    timeUntilMs: number;
+    location: string;
+    source: "api" | "prediction";
+} {
     const ms = now.getTime();
+    const traders = worldState?.voidTraders.length
+        ? worldState.voidTraders
+        : worldState?.voidTrader ? [worldState.voidTrader] : [];
+    const liveWindow = getCurrentOrNextVoidTrader(traders, ms);
+    if (liveWindow) {
+        if (liveWindow.active) {
+            const remaining = liveWindow.timeLeftMs;
+            return {
+                present: true,
+                label: "Baro Ki'Teer — HERE NOW",
+                detail: remaining == null ? "The World State API reports an active visit." : `Leaves in ${fmtMs(remaining)} · live World State schedule`,
+                timeLeftMs: remaining,
+                timeUntilMs: 0,
+                location: liveWindow.trader.location,
+                source: "api",
+            };
+        }
+        return {
+            present: false,
+            label: "Baro Ki'Teer",
+            detail: `Arrives in ${fmtMs(liveWindow.timeUntilMs ?? 0)} · live World State schedule`,
+            timeLeftMs: 0,
+            timeUntilMs: liveWindow.timeUntilMs ?? 0,
+            location: liveWindow.trader.location,
+            source: "api",
+        };
+    }
+
     const offset = ((ms - BARO_ANCHOR_MS) % BARO_PERIOD_MS + BARO_PERIOD_MS) % BARO_PERIOD_MS;
     const cycleStart = ms - offset;
     const leaveMs = cycleStart + BARO_WINDOW_MS;
     const nextArrivalMs = cycleStart + BARO_PERIOD_MS;
-    const baroTime = fmtFixedUTC(13, 0, mode);
 
     if (ms < leaveMs) {
         const remaining = leaveMs - ms;
         return {
             present: true,
             label: "Baro Ki'Teer — HERE NOW",
-            detail: `Leaves in ${fmtMs(remaining)} · Every other Friday, 48 h window`,
+            detail: "Predicted window · estimated from the 14-day schedule; live API timing is unavailable.",
             timeLeftMs: remaining,
             timeUntilMs: 0,
+            location: "",
+            source: "prediction",
         };
     }
 
@@ -692,9 +730,11 @@ function getBaroStatus(now: Date, mode: TimeMode = "utc"): { present: boolean; l
     return {
         present: false,
         label: "Baro Ki'Teer",
-        detail: `Arrives in ${fmtMs(until)} · Every other Friday at ${baroTime}, 48 h window`,
+        detail: `Next predicted window in ${fmtMs(until)} · live API timing is unavailable.`,
         timeLeftMs: 0,
         timeUntilMs: until,
+        location: "",
+        source: "prediction",
     };
 }
 
@@ -2829,16 +2869,7 @@ export default function WarframeResetTracker() {
     const [calendarScale, setCalendarScale] = useState<CalendarScale>("week");
     const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
     const [selectedCalendarEventId, setSelectedCalendarEventId] = useState<string | null>(null);
-    const [wsData, setWsData] = useState<WorldStateData | null>(() => getCachedWorldState());
-
-    // Fetch world state once on mount (uses shared cache — no double-fetch with WorldState page)
-    useEffect(() => {
-        fetchWorldState().then(setWsData).catch(() => {});
-        const id = setInterval(() => {
-            fetchWorldState(true).then(setWsData).catch(() => {});
-        }, 5 * 60 * 1000);
-        return () => clearInterval(id);
-    }, []);
+    const wsData = useWorldStateData();
 
     useEffect(() => {
         saveState(rc);
@@ -2862,7 +2893,7 @@ export default function WarframeResetTracker() {
             const keys = getCurrentKeys(n);
             const keysStr = `${keys.primary_daily}|${keys.eight_hour}|${keys.secondary_daily}|${keys.weekly_monday}`;
             if (lastResetKeysRef.current && lastResetKeysRef.current !== keysStr) {
-                fetchWorldState(true).then(setWsData).catch(() => {});
+                void fetchWorldState(true).catch(() => {});
             }
             lastResetKeysRef.current = keysStr;
         };
@@ -2872,7 +2903,7 @@ export default function WarframeResetTracker() {
     }, []);
 
     const nextResets = useMemo(() => getNextResets(now), [now]);
-    const baro = useMemo(() => getBaroStatus(now, rc.timeMode), [now, rc.timeMode]);
+    const baro = useMemo(() => getBaroStatus(now, wsData), [now, wsData]);
 
     const completedIds = useMemo((): Record<Exclude<Bucket, "conclave">, string[]> & { conclave_daily: string[]; conclave_weekly: string[] } => {
         const keys = getCurrentKeys(now);
@@ -3179,17 +3210,19 @@ export default function WarframeResetTracker() {
                         </span>
                         <div className="min-w-0">
                             <div className="text-sm font-semibold text-amber-300">
-                                Baro Ki'Teer — {wsData?.voidTrader?.location ?? "at a Relay"}
+                                {baro.source === "api"
+                                    ? `Baro Ki'Teer — ${baro.location || "at a Relay"}`
+                                    : "Predicted Baro Ki'Teer visit"}
                             </div>
                             <div className="text-xs text-amber-500/80 mt-0.5">
-                                Visit before he leaves
+                                {baro.source === "api" ? "Live World State schedule" : baro.detail}
                             </div>
                         </div>
                     </div>
                     <div className="text-right shrink-0">
                         <div className="text-xs text-amber-500/70 uppercase tracking-wider font-medium">Leaves in</div>
                         <div className="text-lg font-semibold tabular-nums text-amber-300 leading-tight">
-                            {fmtMs(baro.timeLeftMs)}
+                            {baro.timeLeftMs == null ? "Time unavailable" : fmtMs(baro.timeLeftMs)}
                         </div>
                     </div>
                 </div>

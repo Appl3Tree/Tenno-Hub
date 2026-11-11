@@ -1,21 +1,7 @@
-import { useEffect, useState } from "react";
-import { fetchVaultTrader, getCachedVaultTrader } from "./vaultTraderCache";
+import { useWorldStateData } from "./useWorldStateData";
 import type { VaultTrader } from "./worldStateCache";
 
+/** Prime Resurgence is projected from the same World State snapshot as every other consumer. */
 export function useVaultTraderData(): VaultTrader | null {
-    const [data, setData] = useState<VaultTrader | null>(() => getCachedVaultTrader());
-
-    useEffect(() => {
-        let cancelled = false;
-        fetchVaultTrader(true)
-            .then((next) => {
-                if (!cancelled) setData(next);
-            })
-            .catch(() => {});
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-
-    return data;
+    return useWorldStateData()?.vaultTrader ?? null;
 }

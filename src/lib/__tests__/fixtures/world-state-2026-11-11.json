@@ -1,0 +1,110 @@
+{
+  "timestamp": "2026-11-11T14:55:15.000Z",
+  "buildLabel": "2026.10.28.09.54/8e7dGXr3Omgob8q-e55qeg",
+  "alerts": [
+    {
+      "id": "alert-current",
+      "activation": "2026-11-02T19:00:00.000Z",
+      "expiry": "2026-11-16T19:00:00.000Z",
+      "mission": {
+        "description": "Tenno United Alert",
+        "node": "Stephano (Uranus)",
+        "type": "Defense",
+        "faction": "Grineer",
+        "minEnemyLevel": 20,
+        "maxEnemyLevel": 30,
+        "reward": {
+          "items": [],
+          "countedItems": [{ "type": "Forma", "count": 3 }],
+          "credits": 10000
+        }
+      }
+    },
+    {
+      "id": "alert-expired",
+      "activation": "2026-11-01T00:00:00.000Z",
+      "expiry": "2026-11-11T14:00:00.000Z",
+      "mission": { "description": "Expired alert", "node": "Old Node", "type": "Exterminate" }
+    },
+    {
+      "id": "alert-future",
+      "activation": "2026-11-11T15:05:00.000Z",
+      "expiry": "2026-11-11T16:00:00.000Z",
+      "mission": { "description": "Upcoming alert", "node": "Future Node", "type": "Capture" }
+    }
+  ],
+  "arbitration": { "node": "Old Node", "type": "Defense", "enemy": "Grineer", "activation": "1970-01-01T00:00:00.000Z", "expiry": "+275760-09-13T00:00:00.000Z", "expired": true },
+  "archimedeas": [],
+  "archonHunt": { "boss": "Nira", "faction": "Grineer", "missions": [], "activation": "2026-11-10T00:00:00.000Z", "expiry": "2026-11-12T00:00:00.000Z", "active": true },
+  "calendar": { "days": [], "currentDay": "2026-11-11" },
+  "cambionCycle": { "state": "fass", "expiry": "2026-11-11T15:30:00.000Z", "timeLeft": "35m" },
+  "cetusCycle": { "state": "day", "expiry": "2026-11-11T16:00:00.000Z", "timeLeft": "1h" },
+  "clanWeeklyInitiative": {
+    "activation": "2026-11-09T00:00:00.000Z",
+    "expiry": "2026-11-16T00:00:00.000Z",
+    "week": 665,
+    "bonusRegion": "Fortress",
+    "rewwards": [{ "RewardClaimed": false, "PointThreshold": 500, "ItemCount": 12, "Reward": "/Lotus/StoreItems/Types/Items/MiscItems/OrokinCell" }]
+  },
+  "conclaveChallenges": [
+    { "id": "challenge-duplicate", "activation": "2026-11-06T02:05:03.195Z", "expiry": "2026-11-13T02:05:03.195Z", "amount": 6, "mode": "Any Mode", "category": "week", "title": "Match Won", "description": "Win 6 matches of any Game Type", "daily": false },
+    { "id": "challenge-duplicate", "activation": "2026-11-06T02:05:03.195Z", "expiry": "2026-11-13T02:05:03.195Z", "amount": 6, "mode": "Any Mode", "category": "week", "title": "Match Won", "description": "Duplicate record", "daily": false }
+  ],
+  "constructionProgress": { "fomorianProgress": "0", "razorbackProgress": "0", "unknownProgress": "0" },
+  "dailyDeals": [
+    { "item": "Current Deal", "uniqueName": "/Lotus/Items/Current", "discount": 20, "originalPrice": 100, "salePrice": 80, "total": 10, "sold": 2, "activation": "2026-11-11T12:00:00.000Z", "expiry": "2026-11-11T21:00:00.000Z" },
+    { "item": "Expired Deal", "uniqueName": "/Lotus/Items/Expired", "discount": 10, "originalPrice": 100, "salePrice": 90, "total": 10, "sold": 10, "activation": "2026-11-10T12:00:00.000Z", "expiry": "2026-11-11T14:00:00.000Z" }
+  ],
+  "darkSectors": [],
+  "descendia": {
+    "id": "rotation-665",
+    "activation": "2026-11-09T00:00:00.000Z",
+    "expiry": "2026-11-16T00:00:00.000Z",
+    "seed": 1075564534,
+    "challenges": [
+      { "index": 1, "type": "D T_ R A C E", "typeKey": "DT_RACE", "challenge": "Basic Race", "challengeKey": "BasicRace", "level": "Arena Coconut.level", "specs": [], "auras": [] },
+      { "index": 2, "type": "D T_ I N F E S T E D_ S A L V A G E", "typeKey": "DT_INFESTED_SALVAGE", "challenge": "Narmer Phobia", "challengeKey": "NarmerPhobia", "level": "Arena Grape.level", "specs": [{ "name": "Co H Entrati Exterminate Spec" }], "auras": [{ "name": "Co H Narmer Phobia Aura" }] }
+    ]
+  },
+  "duviriCycle": { "state": "Joy", "expiry": "2026-11-13T07:00:00.000Z", "choices": [{ "category": "hard", "categoryKey": "hard", "choices": ["Dread"] }] },
+  "earthCycle": { "state": "day", "expiry": "2026-11-11T16:00:00.000Z", "timeLeft": "1h" },
+  "events": [
+    { "id": "thermia", "description": "Thermia Fractures", "tooltip": "Community goal", "activation": "2026-11-03T00:00:00.000Z", "expiry": "2026-11-20T00:00:00.000Z", "active": true, "isPersonal": true, "isCommunity": true, "currentScore": 11, "maximumScore": 100, "interimSteps": [{ "goal": 25, "reward": { "items": ["Opticor Vandal"] } }], "rewards": [] },
+    { "id": "expired-event", "description": "Expired Operation", "activation": "2026-11-01T00:00:00.000Z", "expiry": "2026-11-10T00:00:00.000Z", "active": true, "rewards": [] }
+  ],
+  "faceoffBonus": { "activation": "2026-11-11T08:00:00.000Z", "expiry": "2026-11-11T10:00:00.000Z", "next": "2026-11-11T16:00:00.000Z" },
+  "fissures": [{ "id": "fissure-current", "node": "Circulus (Lua)", "nodeKey": "Circulus", "missionType": "Survival", "missionTypeKey": "MT_SURVIVAL", "enemy": "Grineer", "enemyKey": "Grineer", "tier": "Omnia", "tierNum": 6, "activation": "2026-11-11T14:00:00.000Z", "expiry": "2026-11-11T15:07:00.000Z", "eta": "12m", "isStorm": false, "isHard": false, "expired": false }],
+  "flashSales": [
+    { "id": "sale-current", "activation": "2026-11-01T04:01:00.000Z", "expiry": "2026-12-01T04:59:00.000Z", "item": "Avatar Image Movember", "uniqueName": "/Lotus/Types/StoreItems/AvatarImages/AvatarImageMovember", "regularOverride": 1 },
+    { "id": "sale-stale", "activation": "2025-07-21T00:00:00.000Z", "expiry": "2030-01-01T00:00:00.000Z", "item": "Old Offer" }
+  ],
+  "globalUpgrades": [],
+  "invasions": [],
+  "kinepage": { "timestamp": "2026-08-12T15:45:00.000Z", "message": "Old Kinepage message" },
+  "kuva": [],
+  "news": [
+    { "id": "news-current", "message": "Update 44.1.4.1", "link": "https://www.warframe.com/patch-notes/pc/44-1-4-1", "imageLink": "https://cdn.warframestat.us/img/update.png", "priority": true, "date": "2026-11-10T12:00:00.000Z", "update": true },
+    { "id": "news-permanent", "message": "Official Wiki", "link": "https://wiki.warframe.com/", "date": "1970-01-01T00:00:00.000Z" },
+    { "id": "news-unsafe", "message": "Bad URL", "link": "javascript:alert(1)", "date": "2026-11-10T12:00:00.000Z" }
+  ],
+  "nightwave": {
+    "season": 18,
+    "tag": "NIGHTWAVE_18",
+    "phase": 1,
+    "activeChallenges": [{ "id": "nw-active-1", "title": "Complete missions", "desc": "Complete 3 missions", "reputation": 4500, "isDaily": true, "expiry": "2026-11-12T00:00:00.000Z" }, { "id": "nw-expired", "title": "Old task", "desc": "Expired", "reputation": 4500, "expiry": "2026-11-10T00:00:00.000Z" }],
+    "possibleChallenges": [{ "id": "nw-possible", "title": "Not active", "desc": "Potential next task", "reputation": 7000, "expiry": "2026-11-20T00:00:00.000Z" }],
+    "expiry": "2026-12-01T00:00:00.000Z"
+  },
+  "persistentEnemies": [],
+  "sentientOutposts": { "active": true, "activation": "2021-01-01T00:00:00.000Z", "expiry": "2021-01-02T00:00:00.000Z", "mission": { "node": "Old Node", "faction": "Sentient", "type": "Assault" } },
+  "simaris": { "target": "Grineer Seeker", "isTargetActive": true },
+  "sortie": null,
+  "steelPath": null,
+  "syndicateMissions": [],
+  "timestampUnknownFutureKey": { "isIgnored": true },
+  "vallisCycle": { "state": "warm", "expiry": "2026-11-11T15:30:00.000Z", "timeLeft": "35m" },
+  "vaultTrader": { "active": true, "character": "Varzia", "location": "Maroo's Bazaar", "activation": "2026-10-29T00:00:00.000Z", "expiry": "2026-11-26T00:00:00.000Z", "inventory": [] },
+  "voidTrader": { "active": true, "character": "Baro Ki'Teer", "location": "Orcus Relay (Pluto)", "activation": "2026-11-13T14:00:00.000Z", "expiry": "2026-11-15T14:00:00.000Z", "inventory": [], "schedule": [] },
+  "voidTraders": [{ "id": "baro-1", "active": true, "character": "Baro Ki'Teer", "location": "Orcus Relay (Pluto)", "activation": "2026-11-13T14:00:00.000Z", "expiry": "2026-11-15T14:00:00.000Z", "inventory": [], "schedule": [] }],
+  "zarimanCycle": { "state": "grineer", "expiry": "2026-11-11T15:30:00.000Z", "timeLeft": "35m" }
+}

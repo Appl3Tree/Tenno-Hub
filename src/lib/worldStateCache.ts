@@ -154,6 +154,9 @@ export type WsEvent = {
     maximumScore?: number;
     scoreLocTag?: string;
     tag?: string;
+    activation?: string;
+    isPersonal?: boolean;
+    isCommunity?: boolean;
     rewards: WsEventReward[];
     interimSteps: WsEventInterimStep[];
 };
@@ -312,6 +315,49 @@ function normalizeWorldStateLabel(label: string): string {
         .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
         .trim()
         .replace(/\s+/g, " ");
+}
+
+function activeInWindow(raw: any, now = Date.now()): boolean {
+    if (!raw || typeof raw !== "object" || raw.expired === true) return false;
+    const activation = typeof raw.activation === "string" ? Date.parse(raw.activation) : NaN;
+    const expiry = typeof raw.expiry === "string" ? Date.parse(raw.expiry) : NaN;
+    if (raw.activation && !Number.isFinite(activation)) return false;
+    if (raw.expiry && !Number.isFinite(expiry)) return false;
+    if (Number.isFinite(activation) && now < activation) return false;
+    if (Number.isFinite(expiry) && now >= expiry) return false;
+    if (Number.isFinite(activation) && Number.isFinite(expiry)) return now >= activation && now < expiry;
+    return raw.active !== false;
+}
+
+function sanitizeExternalUrl(value: unknown): string {
+    if (typeof value !== "string" || !value) return "";
+    try {
+        const url = new URL(value);
+        if (url.protocol !== "https:" || url.username || url.password) return "";
+        return url.toString();
+    } catch {
+        return "";
+    }
+}
+
+function normalizeVoidTrader(raw: any, now = Date.now()): VoidTrader {
+    return {
+        active: activeInWindow(raw, now),
+        character: raw?.character ?? "",
+        location: raw?.location ?? "",
+        inventory: Array.isArray(raw?.inventory) ? raw.inventory.map((item: any) => ({
+            item: item?.item ?? "",
+            ducats: Number(item?.ducats) || 0,
+            credits: Number(item?.credits) || 0,
+        })) : [],
+        activation: raw?.activation ?? "",
+        expiry: raw?.expiry ?? "",
+        completed: !!raw?.completed,
+        schedule: Array.isArray(raw?.schedule) ? raw.schedule.map((item: any) => ({
+            expiry: item?.expiry ?? "",
+            item: item?.item ?? "",
+        })) : [],
+    };
 }
 
 // Maps raw API type strings → canonical display types
@@ -507,6 +553,23 @@ export type PersistentEnemy = {
     isDiscovered: boolean;
 };
 
+export type WorldStateRecord = Record<string, unknown>;
+
+export type WorldStateAlert = {
+    id: string;
+    description: string;
+    activation: string;
+    expiry: string;
+    node: string;
+    missionType: string;
+    faction: string;
+    minEnemyLevel?: number;
+    maxEnemyLevel?: number;
+    reward: string;
+    credits: number;
+    items: string[];
+};
+
 // ── Simaris ───────────────────────────────────────────────────────────────────
 
 export type Simaris = {
@@ -517,6 +580,9 @@ export type Simaris = {
 // ── Combined WorldState ───────────────────────────────────────────────────────
 
 export type WorldStateData = {
+    apiTimestamp: string;
+    buildLabel: string;
+    alerts: WorldStateAlert[];
     cetusCycle:           WsCycle | null;
     vallisCycle:          WsCycle | null;
     cambionCycle:         WsCycle | null;
@@ -544,7 +610,68 @@ export type WorldStateData = {
     arbitration:          Arbitration | null;
     kuva:                 KuvaMission[];
     persistentEnemies:    PersistentEnemy[];
+    darkSectors:          WorldStateRecord[];
+    flashSales:           WorldStateRecord[];
+    conclaveChallenges:   WorldStateRecord[];
+    descendia:            WorldStateRecord | null;
+    clanWeeklyInitiative: WorldStateRecord | null;
+    faceoffBonus:         WorldStateRecord | null;
+    kinepage:             WorldStateRecord | null;
+    voidTraders:          VoidTrader[];
 };
+
+/** Recheck availability against local time so an item can disappear at expiry between API polls. */
+export function isWorldStateEntryActive(entry: { activation?: string; expiry?: string; active?: boolean; expired?: boolean }, now = Date.now()): boolean {
+    return activeInWindow(entry, now);
+}
+
+export function getCurrentWorldEvents(events: WsEvent[], now = Date.now()): WsEvent[] {
+    return events.filter((event) => activeInWindow(event, now));
+}
+
+export function getCurrentWorldAlerts(alerts: WorldStateAlert[], now = Date.now()): WorldStateAlert[] {
+    return alerts.filter((alert) => activeInWindow(alert, now));
+}
+
+export function getCurrentNightwaveChallenges(nightwave: Nightwave | null, now = Date.now()): NightwaveAct[] {
+    return nightwave?.activeChallenges.filter((challenge) => activeInWindow(challenge, now)) ?? [];
+}
+
+export type VoidTraderWindow = {
+    trader: VoidTrader;
+    active: boolean;
+    timeLeftMs: number | null;
+    timeUntilMs: number | null;
+};
+
+/** Choose the live or next Baro visit from the API schedule, rechecking it against local time. */
+export function getCurrentOrNextVoidTrader(traders: VoidTrader[], now = Date.now()): VoidTraderWindow | null {
+    const timed = traders.flatMap((trader) => {
+        const activation = Date.parse(trader.activation);
+        const expiry = Date.parse(trader.expiry);
+        if (!Number.isFinite(activation) || !Number.isFinite(expiry) || expiry <= activation) return [];
+        return [{ trader, activation, expiry }];
+    });
+    const current = timed.find(({ activation, expiry }) => activation <= now && now < expiry);
+    if (current) return { trader: current.trader, active: true, timeLeftMs: current.expiry - now, timeUntilMs: 0 };
+
+    const next = timed
+        .filter(({ activation, expiry }) => activation > now && expiry > now)
+        .sort((a, b) => a.activation - b.activation)[0];
+    if (next) return { trader: next.trader, active: false, timeLeftMs: 0, timeUntilMs: next.activation - now };
+
+    // Some API snapshots expose only an active flag. Accept it only when no
+    // timestamps were supplied, since expired timestamps are authoritative.
+    const statusOnly = traders.find((trader) => trader.active && !trader.activation && !trader.expiry);
+    return statusOnly ? { trader: statusOnly, active: true, timeLeftMs: null, timeUntilMs: 0 } : null;
+}
+
+/** Stable completion identity for a single limited-time event occurrence. */
+export function eventCompletionKey(event: Pick<WsEvent, "id" | "activation" | "expiry">): string | null {
+    const rotation = event.activation || event.expiry;
+    if (!event.id || !rotation) return null;
+    return `event:${encodeURIComponent(event.id)}:${encodeURIComponent(rotation)}`;
+}
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -552,7 +679,80 @@ const API = "https://api.warframestat.us/pc";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 let _cache: { data: WorldStateData; fetchedAt: number } | null = null;
-let _inflight: Promise<WorldStateData> | null = null;
+let _requestId = 0;
+let _inflight: { id: number; controller: AbortController; promise: Promise<WorldStateData> } | null = null;
+
+export type WorldStateSnapshot = {
+    data: WorldStateData | null;
+    fetchedAt: number | null;
+    isLoading: boolean;
+    isRefreshing: boolean;
+    error: string | null;
+};
+
+let _snapshot: WorldStateSnapshot = {
+    data: null,
+    fetchedAt: null,
+    isLoading: false,
+    isRefreshing: false,
+    error: null,
+};
+const _listeners = new Set<() => void>();
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let _visibilityHandler: (() => void) | null = null;
+let _onlineHandler: (() => void) | null = null;
+
+function publishSnapshot(next: WorldStateSnapshot): void {
+    _snapshot = next;
+    for (const listener of _listeners) listener();
+}
+
+export function getWorldStateSnapshot(): WorldStateSnapshot {
+    return _snapshot;
+}
+
+function scheduleRefresh(delayOverride?: number): void {
+    if (_refreshTimer) clearTimeout(_refreshTimer);
+    _refreshTimer = null;
+    if (_listeners.size === 0) return;
+    const due = delayOverride ?? (_cache ? Math.max(1000, _cache.fetchedAt + CACHE_TTL - Date.now()) : CACHE_TTL);
+    _refreshTimer = setTimeout(() => {
+        _refreshTimer = null;
+        void fetchWorldState().catch(() => {});
+    }, due);
+}
+
+export function subscribeWorldState(listener: () => void): () => void {
+    _listeners.add(listener);
+    if (_listeners.size === 1) {
+        if (typeof document !== "undefined") {
+            _visibilityHandler = () => {
+                if (document.visibilityState === "visible" && _cache && Date.now() - _cache.fetchedAt >= CACHE_TTL) {
+                    void fetchWorldState().catch(() => {});
+                }
+            };
+            document.addEventListener("visibilitychange", _visibilityHandler);
+        }
+        if (typeof window !== "undefined") {
+            _onlineHandler = () => {
+                if (!_cache || Date.now() - _cache.fetchedAt >= CACHE_TTL) void fetchWorldState().catch(() => {});
+            };
+            window.addEventListener("online", _onlineHandler);
+        }
+        void fetchWorldState().catch(() => {});
+        scheduleRefresh();
+    }
+    return () => {
+        _listeners.delete(listener);
+        if (_listeners.size !== 0) return;
+        if (_refreshTimer) clearTimeout(_refreshTimer);
+        _refreshTimer = null;
+        if (_visibilityHandler && typeof document !== "undefined") document.removeEventListener("visibilitychange", _visibilityHandler);
+        _visibilityHandler = null;
+        if (_onlineHandler && typeof window !== "undefined") window.removeEventListener("online", _onlineHandler);
+        _onlineHandler = null;
+    };
+}
 
 type PrimeResurgenceRelicDisplayResolver = (input: string) => string | null;
 
@@ -581,29 +781,76 @@ function normalizeVaultTraderItem(
 export async function fetchWorldState(force = false): Promise<WorldStateData> {
     const now = Date.now();
     if (!force && _cache && now - _cache.fetchedAt < CACHE_TTL) {
-        return _cache.data;
+        return Promise.resolve(_cache.data);
     }
-    // If a force-refresh is requested, cancel any in-flight non-forced request
-    // by clearing it so we issue a fresh network request.
-    if (force) _inflight = null;
-    if (_inflight) return _inflight;
+    if (_inflight && !force) return _inflight.promise;
+    if (force) _inflight?.controller.abort();
 
-    _inflight = (async () => {
+    const requestId = ++_requestId;
+    const controller = new AbortController();
+    publishSnapshot({
+        data: _cache?.data ?? null,
+        fetchedAt: _cache?.fetchedAt ?? null,
+        isLoading: !_cache,
+        isRefreshing: !!_cache,
+        error: null,
+    });
+
+    let succeeded = false;
+    const promise = (async () => {
         try {
             // Add cache-busting timestamp so the browser doesn't serve a stale
             // HTTP-cached response when the user clicks Refresh.
             const bust = force ? `&_=${Date.now()}` : "";
             const res = await fetch(`${API}?language=en${bust}`, {
                 cache: force ? "no-store" : "default",
+                signal: controller.signal,
             });
             if (!res.ok) throw new Error(`World state API returned ${res.status}`);
             const j = await res.json();
+            if (!j || typeof j !== "object") throw new Error("World state API returned an invalid response");
+            const fetchedAt = Date.now();
+            const rawVoidTraders = Array.isArray(j.voidTraders)
+                ? j.voidTraders
+                : (j.voidTrader ? [j.voidTrader] : []);
+            const normalizedVoidTraders = rawVoidTraders.map((trader: any) => normalizeVoidTrader(trader, fetchedAt));
             const resolvePrimeResurgenceRelicDisplay =
                 j.vaultTrader?.inventory?.length
                     ? (await import("../domain/catalog/primeResurgence")).resolvePrimeResurgenceRelicDisplay
                     : null;
 
             const data: WorldStateData = {
+                apiTimestamp: typeof j.timestamp === "string" && Number.isFinite(Date.parse(j.timestamp)) ? j.timestamp : "",
+                buildLabel: typeof j.buildLabel === "string" ? j.buildLabel : "",
+                alerts: Array.isArray(j.alerts) ? j.alerts.filter((alert: unknown) => !!alert && typeof alert === "object").map((alert: any): WorldStateAlert => ({
+                    id: alert.id ?? "",
+                    description: alert.mission?.description ?? alert.description ?? "",
+                    activation: alert.activation ?? "",
+                    expiry: alert.expiry ?? "",
+                    node: alert.mission?.node ?? alert.node ?? "",
+                    missionType: alert.mission?.type ?? alert.missionType ?? "",
+                    faction: alert.mission?.faction ?? alert.faction ?? "",
+                    minEnemyLevel: typeof alert.mission?.minEnemyLevel === "number" ? alert.mission.minEnemyLevel : undefined,
+                    maxEnemyLevel: typeof alert.mission?.maxEnemyLevel === "number" ? alert.mission.maxEnemyLevel : undefined,
+                    reward: (() => {
+                        const rawReward = alert.mission?.reward ?? alert.reward ?? {};
+                        if (rawReward.asString) return String(rawReward.asString);
+                        const items = [
+                            ...(Array.isArray(rawReward.items) ? rawReward.items.filter(Boolean) : []),
+                            ...(Array.isArray(rawReward.countedItems) ? rawReward.countedItems.map((item: any) => `${item.count > 1 ? `${item.count}× ` : ""}${item.type ?? item.key ?? ""}`).filter(Boolean) : []),
+                        ];
+                        if (Number(rawReward.credits) > 0) items.push(`${Number(rawReward.credits).toLocaleString()} Credits`);
+                        return items.join(", ");
+                    })(),
+                    credits: Number((alert.mission?.reward ?? alert.reward)?.credits) || 0,
+                    items: (() => {
+                        const rawReward = alert.mission?.reward ?? alert.reward ?? {};
+                        return [
+                            ...(Array.isArray(rawReward.items) ? rawReward.items.filter(Boolean) : []),
+                            ...(Array.isArray(rawReward.countedItems) ? rawReward.countedItems.map((item: any) => `${item.count > 1 ? `${item.count}× ` : ""}${item.type ?? item.key ?? ""}`).filter(Boolean) : []),
+                        ];
+                    })(),
+                })) : [],
                 cetusCycle:   j.cetusCycle   ?? null,
                 vallisCycle:  j.vallisCycle  ?? j.valesCycle ?? null,
                 cambionCycle: j.cambionCycle ?? null,
@@ -641,7 +888,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                 archonHunt: j.archonHunt ?? null,
 
                 fissures: Array.isArray(j.fissures)
-                    ? (j.fissures as any[]).map((f): Fissure => ({
+                    ? (j.fissures as any[]).filter((f) => f && typeof f === "object").map((f): Fissure => ({
                         id:             f.id             ?? "",
                         node:           f.node           ?? "",
                         nodeKey:        f.nodeKey        ?? "",
@@ -677,43 +924,22 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                             tag:               j.nightwave.tag     ?? "",
                             phase:             j.nightwave.phase   ?? 0,
                             activeChallenges:  Array.isArray(j.nightwave.activeChallenges)
-                                ? j.nightwave.activeChallenges.map(mapAct)
+                                ? j.nightwave.activeChallenges.filter((challenge: unknown) => !!challenge && typeof challenge === "object").map(mapAct)
                                 : [],
                             possibleChallenges: Array.isArray(j.nightwave.possibleChallenges)
-                                ? j.nightwave.possibleChallenges.map(mapAct)
+                                ? j.nightwave.possibleChallenges.filter((challenge: unknown) => !!challenge && typeof challenge === "object").map(mapAct)
                                 : [],
                             expiry:            j.nightwave.expiry  ?? "",
                         };
                     })()
                     : null,
-                voidTrader: j.voidTrader
-                    ? {
-                        active:     !!j.voidTrader.active || (
-                            !!j.voidTrader.activation && !!j.voidTrader.expiry &&
-                            Date.now() >= new Date(j.voidTrader.activation).getTime() &&
-                            Date.now() <  new Date(j.voidTrader.expiry).getTime()
-                        ),
-                        character:  j.voidTrader.character  ?? "",
-                        location:   j.voidTrader.location   ?? "",
-                        inventory:  Array.isArray(j.voidTrader.inventory) ? j.voidTrader.inventory : [],
-                        activation: j.voidTrader.activation ?? "",
-                        expiry:     j.voidTrader.expiry     ?? "",
-                        completed:  !!j.voidTrader.completed,
-                        schedule:   Array.isArray(j.voidTrader.schedule)
-                            ? (j.voidTrader.schedule as any[]).map((s): VoidTraderScheduleItem => ({
-                                expiry: s.expiry ?? "",
-                                item:   s.item   ?? "",
-                            }))
-                            : [],
-                    }
-                    : null,
+                voidTrader: normalizedVoidTraders.find((trader: VoidTrader) => trader.active)
+                    ?? normalizedVoidTraders[0]
+                    ?? (j.voidTrader ? normalizeVoidTrader(j.voidTrader, fetchedAt) : null),
+                voidTraders: normalizedVoidTraders,
                 vaultTrader: j.vaultTrader
                     ? {
-                        active:     !!j.vaultTrader.active || (
-                            !!j.vaultTrader.activation && !!j.vaultTrader.expiry &&
-                            Date.now() >= new Date(j.vaultTrader.activation).getTime() &&
-                            Date.now() <  new Date(j.vaultTrader.expiry).getTime()
-                        ),
+                        active:     activeInWindow(j.vaultTrader, fetchedAt),
                         character:  j.vaultTrader.character  ?? "",
                         location:   j.vaultTrader.location   ?? "",
                         inventory:  Array.isArray(j.vaultTrader.inventory)
@@ -738,7 +964,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : null,
 
                 events: Array.isArray(j.events)
-                    ? (j.events as any[]).filter((e) => e.active !== false).map((e): WsEvent => {
+                    ? (j.events as any[]).filter((e) => e && typeof e === "object").map((e): WsEvent => {
                         function buildEvReward(r: any): WsEventReward {
                             if (!r) return { asString: "", items: [], countedItems: [], credits: 0 };
                             const items: string[] = Array.isArray(r.items) ? r.items.filter(Boolean) : [];
@@ -776,6 +1002,9 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                             maximumScore: typeof e.maximumScore === "number" ? e.maximumScore : undefined,
                             scoreLocTag: e.scoreLocTag ?? undefined,
                             tag: e.tag ?? undefined,
+                            isPersonal: typeof e.isPersonal === "boolean" ? e.isPersonal : undefined,
+                            isCommunity: typeof e.isCommunity === "boolean" ? e.isCommunity : undefined,
+                            activation: e.activation ?? "",
                             rewards,
                             interimSteps,
                         };
@@ -783,7 +1012,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : [],
 
                 invasions: Array.isArray(j.invasions)
-                    ? (j.invasions as any[]).map((inv): Invasion => {
+                    ? (j.invasions as any[]).filter((inv) => inv && typeof inv === "object").map((inv): Invasion => {
                         const attackerData = inv.attacker ?? {};
                         const defenderData = inv.defender ?? {};
 
@@ -847,7 +1076,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : null,
 
                 dailyDeals: Array.isArray(j.dailyDeals)
-                    ? (j.dailyDeals as any[]).map((d): DailyDeal => ({
+                    ? (j.dailyDeals as any[]).filter((d) => activeInWindow(d, fetchedAt)).map((d): DailyDeal => ({
                         item:          d.item          ?? "",
                         uniqueName:    d.uniqueName    ?? "",
                         discount:      d.discount      ?? 0,
@@ -861,7 +1090,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : [],
 
                 syndicateMissions: Array.isArray(j.syndicateMissions)
-                    ? (j.syndicateMissions as any[]).map((m): SyndicateMissionBoard => ({
+                    ? (j.syndicateMissions as any[]).filter((m) => activeInWindow(m, fetchedAt)).map((m): SyndicateMissionBoard => ({
                         id: m.id ?? "",
                         activation: m.activation ?? "",
                         expiry: m.expiry ?? "",
@@ -884,7 +1113,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
 
                 sentientOutposts: j.sentientOutposts
                     ? {
-                        active:      !!j.sentientOutposts.active,
+                        active:      activeInWindow(j.sentientOutposts, fetchedAt),
                         activation:  j.sentientOutposts.activation ?? undefined,
                         expiry:      j.sentientOutposts.expiry     ?? undefined,
                         missionType: j.sentientOutposts.missionType ?? undefined,
@@ -899,7 +1128,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : null,
 
                 archimedeas: Array.isArray(j.archimedeas)
-                    ? (j.archimedeas as any[]).map((a): Archimedea => {
+                    ? (j.archimedeas as any[]).filter((a) => a && typeof a === "object").map((a): Archimedea => {
                         const mapModifier = (m: any): ArchimedeaModifier =>
                             typeof m === "string"
                                 ? { tag: normalizeWorldStateLabel(m) }
@@ -947,7 +1176,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                 calendar: j.calendar
                     ? {
                         days: Array.isArray(j.calendar.days)
-                            ? j.calendar.days.map((d: any) => {
+                            ? j.calendar.days.filter((d: unknown) => !!d && typeof d === "object").map((d: any) => {
                                 const date: string = d.date ?? d.day ?? String(d.dayNumber ?? "");
                                 let events = _normCalEvents(d);
                                 // If the API returned no events, check if this is a known birthday date
@@ -986,7 +1215,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
 
                 // ── New fields ─────────────────────────────────────────────
                 globalUpgrades: Array.isArray(j.globalUpgrades)
-                    ? (j.globalUpgrades as any[]).filter((g) => !g.expired).map((g): GlobalUpgrade => ({
+                    ? (j.globalUpgrades as any[]).filter((g) => activeInWindow(g, fetchedAt)).map((g): GlobalUpgrade => ({
                         upgrade:               g.upgrade               ?? "",
                         operation:             g.operation             ?? "",
                         operationSymbol:       g.operationSymbol       ?? "",
@@ -1000,21 +1229,27 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : [],
 
                 news: Array.isArray(j.news)
-                    ? (j.news as any[]).filter((n) => !n.mobileOnly).map((n): NewsItem => ({
+                    ? (j.news as any[]).filter((n) => {
+                        if (!n || typeof n !== "object") return false;
+                        const published = Date.parse(n.date ?? "");
+                        return !n.mobileOnly && !!String(n.message ?? "").trim()
+                            && Number.isFinite(published)
+                            && Math.abs(fetchedAt - published) <= 30 * 24 * 60 * 60 * 1000;
+                    }).map((n): NewsItem => ({
                         id:          n.id          ?? "",
                         message:     n.message     ?? "",
-                        link:        n.link        ?? "",
-                        imageLink:   n.imageLink   ?? "",
+                        link:        sanitizeExternalUrl(n.link),
+                        imageLink:   sanitizeExternalUrl(n.imageLink),
                         priority:    !!n.priority,
                         date:        n.date        ?? "",
                         update:      !!n.update,
                         primeAccess: !!n.primeAccess,
                         stream:      !!n.stream,
                         mobileOnly:  !!n.mobileOnly,
-                    }))
+                    })).sort((a, b) => Number(b.priority) - Number(a.priority) || Date.parse(b.date) - Date.parse(a.date))
                     : [],
 
-                arbitration: j.arbitration && !j.arbitration.expired
+                arbitration: j.arbitration && activeInWindow(j.arbitration, fetchedAt)
                     ? {
                         node:    j.arbitration.node    ?? j.arbitration.location ?? "",
                         type:    j.arbitration.type    ?? j.arbitration.missionType ?? "",
@@ -1026,7 +1261,7 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : null,
 
                 kuva: Array.isArray(j.kuva)
-                    ? (j.kuva as any[]).map((k): KuvaMission => ({
+                    ? (j.kuva as any[]).filter((k) => activeInWindow(k, fetchedAt)).map((k): KuvaMission => ({
                         node:    k.node    ?? k.location ?? "",
                         type:    k.type    ?? k.missionType ?? "",
                         tier:    k.tier    ?? undefined,
@@ -1048,16 +1283,62 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                         isDiscovered:      !!e.isDiscovered,
                     }))
                     : [],
+                darkSectors: Array.isArray(j.darkSectors)
+                    ? j.darkSectors.filter((record: unknown): record is WorldStateRecord => !!record && typeof record === "object" && !Array.isArray(record))
+                    : [],
+                flashSales: Array.isArray(j.flashSales)
+                    ? j.flashSales.filter((sale: any) => {
+                        const activation = Date.parse(sale.activation ?? "");
+                        return activeInWindow(sale, fetchedAt)
+                            && Number.isFinite(activation)
+                            && fetchedAt - activation <= 45 * 24 * 60 * 60 * 1000;
+                    }).sort((a: any, b: any) => Date.parse(b.activation) - Date.parse(a.activation))
+                    : [],
+                conclaveChallenges: Array.isArray(j.conclaveChallenges)
+                    ? [...new Map<string, WorldStateRecord>(j.conclaveChallenges
+                        .filter((challenge: any) => activeInWindow(challenge, fetchedAt))
+                        .map((challenge: any) => [String(challenge.id ?? `${challenge.title}:${challenge.expiry}`), challenge as WorldStateRecord] as [string, WorldStateRecord])).values()]
+                    : [],
+                descendia: j.descendia && activeInWindow(j.descendia, fetchedAt) ? j.descendia : null,
+                clanWeeklyInitiative: j.clanWeeklyInitiative && activeInWindow(j.clanWeeklyInitiative, fetchedAt)
+                    ? j.clanWeeklyInitiative
+                    : null,
+                faceoffBonus: j.faceoffBonus && (
+                    activeInWindow(j.faceoffBonus, fetchedAt)
+                    || (Number.isFinite(Date.parse(j.faceoffBonus.next ?? "")) && Date.parse(j.faceoffBonus.next) > fetchedAt)
+                ) ? j.faceoffBonus : null,
+                kinepage: j.kinepage && (() => {
+                    const date = Date.parse(j.kinepage.timestamp ?? j.kinepage.date ?? "");
+                    const age = fetchedAt - date;
+                    return Number.isFinite(date) && age >= -24 * 60 * 60 * 1000 && age <= 7 * 24 * 60 * 60 * 1000 ? j.kinepage : null;
+                })(),
             };
 
-            _cache = { data, fetchedAt: Date.now() };
+            if (requestId === _requestId && !controller.signal.aborted) {
+                _cache = { data, fetchedAt };
+                publishSnapshot({ data, fetchedAt, isLoading: false, isRefreshing: false, error: null });
+            }
+            succeeded = true;
             return data;
+        } catch (error) {
+            if (requestId === _requestId && !controller.signal.aborted) {
+                publishSnapshot({
+                    data: _cache?.data ?? null,
+                    fetchedAt: _cache?.fetchedAt ?? null,
+                    isLoading: false,
+                    isRefreshing: false,
+                    error: error instanceof Error ? error.message : "Failed to load World State.",
+                });
+            }
+            throw error;
         } finally {
-            _inflight = null;
+            if (_inflight?.id === requestId) _inflight = null;
+            if (requestId === _requestId) scheduleRefresh(succeeded ? undefined : CACHE_TTL);
         }
     })();
 
-    return _inflight;
+    _inflight = { id: requestId, controller, promise };
+    return promise;
 }
 
 export function getCachedWorldState(): WorldStateData | null {
@@ -1154,4 +1435,22 @@ export function processInvasions(invasions: Invasion[]): ProcessedInvasion[] {
         if (planet !== 0) return planet;
         return a.nodeName.localeCompare(b.nodeName, undefined, { sensitivity: "base" });
     });
+}
+
+export type CurrentWorldActivitySummary = {
+    alerts: WorldStateAlert[];
+    events: WsEvent[];
+    invasions: ProcessedInvasion[];
+    nightwave: NightwaveAct[];
+    total: number;
+};
+
+/** One expiry-aware activity view shared by the page, Dashboard, and notification bell. */
+export function getCurrentWorldActivitySummary(data: WorldStateData | null, now = Date.now()): CurrentWorldActivitySummary {
+    if (!data) return { alerts: [], events: [], invasions: [], nightwave: [], total: 0 };
+    const alerts = getCurrentWorldAlerts(data.alerts, now);
+    const events = getCurrentWorldEvents(data.events, now);
+    const invasions = processInvasions(data.invasions);
+    const nightwave = getCurrentNightwaveChallenges(data.nightwave, now);
+    return { alerts, events, invasions, nightwave, total: alerts.length + events.length + invasions.length + nightwave.length };
 }

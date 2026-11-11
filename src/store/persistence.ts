@@ -4,7 +4,7 @@ import { migrateToUserStateV2 } from "./migrations";
 
 export const PERSIST_KEY = "wf_tracker_state_v3";
 /** Bump this when the Zustand persist schema changes (store.ts version). */
-export const PERSIST_VERSION = 8;
+export const PERSIST_VERSION = 9;
 
 /** @deprecated Use PERSIST_KEY instead. */
 export const STORAGE_KEY = PERSIST_KEY;

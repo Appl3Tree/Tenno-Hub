@@ -111,7 +111,12 @@ export const ProgressPackSchemaV2 = z
         missions: z.any().optional(),
         challenges: z.any().optional(),
         intrinsics: z.any().optional(),
-        worldState: z.any().optional(),
+        worldState: z.object({
+            doneInvasions: z.array(z.string()).default([]),
+            doneNightwaveChallenges: z.array(z.string()).optional(),
+            doneEvents: z.array(z.string()).optional(),
+            doneEventInstances: z.array(z.string()).optional(),
+        }).passthrough().optional(),
         modBuilder: z.any().optional()
     })
     .passthrough();
