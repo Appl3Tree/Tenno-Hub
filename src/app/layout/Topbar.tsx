@@ -6,7 +6,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTrackerStore } from "../../store/store";
-import { alertCompletionKey, eventCompletionKey, getCurrentWorldActivitySummary, isWorldStateEntryActive } from "../../lib/worldStateCache";
+import {
+    alertCompletionKey,
+    eventCompletionKey,
+    getCurrentWorldActivitySummary,
+    getInvasionCompletionPercent,
+    isWorldStateEntryActive,
+} from "../../lib/worldStateCache";
 import { useWorldStateNow, useWorldStateSnapshot } from "../../lib/useWorldStateData";
 import CatalogSearchPalette from "../../components/search/CatalogSearchPalette";
 import PageJumpPalette from "../../components/search/PageJumpPalette";
@@ -239,11 +245,6 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
     const currentAlerts = activitySummary.alerts;
     const currentNightwave = activitySummary.nightwave;
     const currentInvasions = activitySummary.invasions;
-    const sortedAlerts = currentAlerts.slice().sort((a, b) => {
-        const aKey = alertCompletionKey(a);
-        const bKey = alertCompletionKey(b);
-        return Number(!!aKey && doneActivityInstances.includes(aKey)) - Number(!!bKey && doneActivityInstances.includes(bKey));
-    });
     const isInvasionDone = (id: string) => doneInvasions.includes(id);
     const isNightwaveChallengeDone = (id: string) => doneNightwaveChallenges.includes(id);
     const isWorldStateCategoryHidden = (category: string) => hiddenWorldStateCategories.includes(category as any);
@@ -342,6 +343,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                         <div className="min-w-0">
                             <span className="text-xs font-semibold text-slate-200">World Events</span>
                             {fetchedAt && <div className="mt-0.5 text-[9px] text-slate-500">Fetched {new Date(fetchedAt).toLocaleTimeString()}</div>}
+                            {data?.alertsApiTimestamp && <div className="text-[9px] text-slate-500">Alerts API {new Date(data.alertsApiTimestamp).toLocaleString()}</div>}
                         </div>
                         {loading && (
                             <svg className="w-3 h-3 animate-spin text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -360,7 +362,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                             <div className="rounded-lg px-3 py-2 bg-slate-900/60">
                                 <div className="text-[10px] font-semibold text-slate-400 mb-1 uppercase tracking-wide">Alerts ({pendingAlerts} pending)</div>
                                 <div className="space-y-1.5">
-                                    {sortedAlerts.slice(0, 5).map((alert) => {
+                                    {currentAlerts.slice(0, 5).map((alert) => {
                                         const completionKey = alertCompletionKey(alert);
                                         const done = completionKey != null && doneActivityInstances.includes(completionKey);
                                         return <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0">
@@ -548,9 +550,10 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                         {/* Invasions — show all with rewards */}
                         {data && currentInvasions.length > 0 && !isWorldStateCategoryHidden("invasions") && (() => {
                             const sorted = currentInvasions.slice().sort((a, b) => {
+                                const completion = getInvasionCompletionPercent(b) - getInvasionCompletionPercent(a);
                                 const aDone = isInvasionDone(a.id) ? 1 : 0;
                                 const bDone = isInvasionDone(b.id) ? 1 : 0;
-                                return aDone - bDone;
+                                return completion || aDone - bDone;
                             });
                             return (
                                 <div className="rounded-lg px-3 py-2 bg-slate-900/60">
