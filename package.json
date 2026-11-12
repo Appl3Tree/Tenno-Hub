@@ -26,7 +26,10 @@
     "generate:data": "npm run generate:warframe-items-all && tsx scripts/generate/generateLeanItems.ts && tsx scripts/generate/generatePublicExportIdentityCatalog.ts && tsx scripts/generate/generateLegacyUpgradeCatalog.ts && tsx scripts/generate/generateLeanWarframeAll.ts && tsx scripts/generate/generateLeanMods.ts && tsx scripts/generate/generateLeanRelicCatalog.ts && tsx scripts/generate/generateWfcdItems.ts && tsx scripts/generate/generateWfcdRequirements.ts && tsx scripts/generate/generateRelicMissionIndex.ts && tsx scripts/generate/generateWfcdAcquisition.ts && tsx scripts/generate/generateSourceLabelMap.ts && tsx scripts/generate/generateUnifiedItemAcquisition.ts && tsx scripts/generate/generateRelicGoalIndex.ts && tsx scripts/generate/generatePrimeAvailabilityIndex.ts",
     "refresh:data": "npm run update:data && npm run generate:data",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "benchmark:build-planner": "tsx scripts/benchmarkBuildOptimizer.ts",
+    "benchmark:planner-comparison": "tsx scripts/comparePlannerBuilds.ts",
+    "benchmark:torid-comparison": "tsx scripts/compareToridUnderframe.ts"
   },
   "x-script-docs": {
     "_note": "See DATA_WORKFLOW.md for the full raw-data, generated-data, and wiki-blueprint workflow.",
@@ -50,7 +53,10 @@
     "generate:data": "Regenerate all primary _generated data artifacts from external sources, including current and legacy identity supplements, the unified acquisition index, and lean All.json/relic runtime subsets.",
     "refresh:data": "Run the raw-data updater and then regenerate all derived _generated artifacts.",
     "test": "Run the Vitest suite once.",
-    "test:watch": "Run Vitest in watch mode."
+    "test:watch": "Run Vitest in watch mode.",
+    "benchmark:build-planner": "Measure optimizer latency, build legality, Forma use, score consistency, and deterministic build selection across a representative weapon corpus; the --verify-arcane-selection flag checks arcane rank optimality for each returned fixed mod set.",
+    "benchmark:planner-comparison": "Re-score the captured Braton Prime Tenno-Hub and Underframe builds with identical target pools and the same finite expected encounter model.",
+    "benchmark:torid-comparison": "Compare the saved Underframe Torid QA build with Tenno-Hub's Scaling optimizer on the captured Corpus target."
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",

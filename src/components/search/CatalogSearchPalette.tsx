@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-    buildSearchDetailHash,
-    searchCatalogEntities,
-    type SearchEntityResult,
-} from "../../domain/search/globalSearch";
+import { useEffect, useRef, useState } from "react";
+import { buildSearchDetailHash } from "../../domain/search/searchDetailHash";
+import type { SearchEntityResult } from "../../domain/search/globalSearch";
 import { isCatalogSearchShortcut } from "./keyboardShortcuts";
 
 function SearchIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -19,11 +16,39 @@ export default function CatalogSearchPalette() {
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(0);
+    const [results, setResults] = useState<SearchEntityResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const inputRef = useRef<HTMLInputElement | null>(null);
 
-    const results = useMemo(() => searchCatalogEntities(query, 12), [query]);
     const selectedResult = results[highlightedIndex] ?? results[0] ?? null;
+
+    useEffect(() => {
+        const normalizedQuery = query.trim();
+        if (!normalizedQuery) {
+            setResults([]);
+            setIsSearching(false);
+            return;
+        }
+
+        let cancelled = false;
+        setResults([]);
+        setIsSearching(true);
+        void import("../../domain/search/globalSearch")
+            .then(({ searchCatalogEntities }) => {
+                if (!cancelled) setResults(searchCatalogEntities(normalizedQuery, 12));
+            })
+            .catch(() => {
+                if (!cancelled) setResults([]);
+            })
+            .finally(() => {
+                if (!cancelled) setIsSearching(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [query]);
 
     useEffect(() => {
         if (!open) return;
@@ -86,6 +111,7 @@ export default function CatalogSearchPalette() {
                     aria-expanded={open}
                     aria-controls="wf-catalog-search-options"
                     aria-activedescendant={selectedResult ? `wf-catalog-${selectedResult.kind}-${selectedResult.id}` : undefined}
+                    aria-busy={isSearching}
                     autoComplete="off"
                     className="w-full bg-transparent text-sm text-[color:var(--wf-text-strong)] placeholder:text-[color:var(--wf-text-dim)] focus:outline-none"
                     onFocus={() => {
@@ -138,6 +164,10 @@ export default function CatalogSearchPalette() {
                         {!query.trim() ? (
                             <div role="status" className="px-3 py-8 text-center text-sm text-[color:var(--wf-text-muted)]">
                                 Start typing to search the catalog without mixing in page navigation.
+                            </div>
+                        ) : isSearching ? (
+                            <div role="status" className="px-3 py-8 text-center text-sm text-[color:var(--wf-text-muted)]">
+                                Loading catalog…
                             </div>
                         ) : results.length === 0 ? (
                             <div role="status" className="px-3 py-8 text-center text-sm text-[color:var(--wf-text-muted)]">

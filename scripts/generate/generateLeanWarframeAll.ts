@@ -75,6 +75,7 @@ function pruneAttack(attack: unknown): Record<string, unknown> | null {
     "status_chance",
     "speed",
     "charge_time",
+    "shot_type",
   ]) {
     if (key in source) out[key] = source[key];
   }

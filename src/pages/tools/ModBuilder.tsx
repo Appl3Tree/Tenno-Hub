@@ -5,33 +5,43 @@
 //   beam-search optimizer · owned/excluded/faction/capacity toggles
 //   build save+compare · build reasoning · status effect tooltips
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     getWeaponCatalog,
+    clampMeleeComboMultiplier,
+    getMeleeComboRules,
     isGroundMeleeCategory,
-    selectedAttackUsesIncarnonForm,
     supportsStanceLikeMods,
     usesMeleeDamageModel,
+    withSelectedAttack,
     type WeaponCategory,
     type WeaponEntry,
 } from "../../domain/catalog/weaponCatalog";
 import {
+    buildIncarnonCandidateConfigs,
     getIncarnonRecordForWeapon,
     resolveIncarnonState,
+    selectIncarnonSearchShortlist,
+    type IncarnonCandidateConfig,
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
-import { getModsForWeapon, getStancesForWeapon, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
+import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
-import { calculateBuild, estimateConditionalStackFactor, estimateConditionalUptime } from "../../domain/logic/damageCalc";
-import { optimizeBuild, explainBuild, debugScoreBuild, getFactionFocusOptions, minimizePolaritiesByCapacity, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal } from "../../domain/logic/buildOptimizer";
+import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
+import { avgCritMultiplier, calculateBuild, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { optimizeBuild, explainBuild, debugScoreBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
+import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
+import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
+import { calculateDirectDamageToInitialPools, simulateDirectAttackSequence, simulateExpectedWeaponEncounter, type DirectTargetDamageInput } from "../../domain/logic/targetDamage";
 import { buildCustomRivenEntry, customRivenSupportsWeapon, type CustomRivenRecord } from "../../domain/rivens";
 import {
-    computeCapacity, effectiveDrain,
+    computeCapacity, countPolarityChanges, effectiveDrain,
     maxWeaponRank, type CapacityConfig,
 } from "../../domain/logic/capacityCalc";
 import { useTrackerStore } from "../../store/store";
 import { getHighestOwnedArcaneRankWithFallback, hasOwnedArcane } from "../../domain/logic/arcaneInventory";
-import type { SavedBuild } from "../../domain/models/userState";
+import type { SavedBuild, SavedBuildPlannerConfig, SavedBuildTargetConfig } from "../../domain/models/userState";
 import { WorkspacePanel, WorkspaceSegmented, WorkspaceSegmentedButton } from "../../components/workspace/WorkspaceChrome";
 
 // ── Polarity icons ────────────────────────────────────────────────────────────
@@ -79,6 +89,29 @@ const COMBINED_ELEMENT_PARENTS: Record<string, [string, string]> = {
     viral:     ["cold", "toxin"],
     corrosive: ["electricity", "toxin"],
 };
+
+function effectiveBurstTiming(weapon: WeaponEntry | null | undefined, effectiveFireRate: number) {
+    const burstCount = weapon?.burstCount;
+    const burstCycleRate = weapon?.burstCycleRate;
+    const burstDelay = weapon?.burstDelay;
+    if (
+        weapon?.trigger.toLowerCase() !== "burst" ||
+        !Number.isFinite(burstCount) || !Number.isFinite(burstCycleRate) ||
+        !Number.isFinite(burstDelay) || (burstCount ?? 0) <= 1 ||
+        (burstCycleRate ?? 0) <= 0 || (burstDelay ?? 0) < 0 || effectiveFireRate <= 0
+    ) return {};
+
+    const count = burstCount as number;
+    const cycleRate = burstCycleRate as number;
+    const delay = burstDelay as number;
+    const baseEffectiveRate = count / (1 / cycleRate + (count - 1) * delay);
+    const rateScale = effectiveFireRate / baseEffectiveRate;
+    return {
+        burstCount: count,
+        burstCycleRate: cycleRate * rateScale,
+        burstDelaySeconds: delay / rateScale,
+    };
+}
 const POL_IMG: Record<string, string> = {};
 const POL_SVG_RAW: Record<string, string> = {};
 for (const [p, url] of Object.entries(_polImgs)) {
@@ -109,6 +142,7 @@ const INCARNON_TIER_LABELS: Record<IncarnonTier, string> = {
     4: "IV",
     5: "V",
 };
+const INCARNON_PATH_REFINEMENT_LIMIT = 2;
 const WEAPON_FILTER_OPTIONS: Array<{ value: WeaponCategory | "All"; label: string; compactLabel?: string }> = [
     { value: "All", label: "All Weapons", compactLabel: "All" },
     { value: "Primary", label: "Primary" },
@@ -121,26 +155,27 @@ const WEAPON_FILTER_OPTIONS: Array<{ value: WeaponCategory | "All"; label: strin
 const GOAL_OPTIONS: { key: OptimizeGoal; label: string; desc: string }[] = [
     {
         key: "burst",
-        label: "Burst",
-        desc: "Best for front-loaded damage and lower time-to-kill targets. Prioritizes immediate shot value, crit pressure, and fast kills.",
+        label: "Burst DPS",
+        desc: "Ranks builds by immediate damage output for the selected attack and target assumptions.",
     },
     {
         key: "scaling",
-        label: "Scaling",
-        desc: "Best for tougher enemies and longer fights. Prioritizes status throughput, target-state buildup, and damage that improves as enemies survive longer.",
-    },
-    {
-        key: "crit",
-        label: "Crit",
-        desc: "Prioritizes direct-hit and critical damage. Best for weapons that kill through front-loaded shots rather than status ramp.",
-    },
-    {
-        key: "status",
-        label: "Status",
-        desc: "Prioritizes proc rate, status scaling, and damage-over-time effects. Best for weapons that gain value from Viral, Heat, Corrosive, and other status effects.",
+        label: "Sustained DPS",
+        desc: "Ranks builds by damage across repeated attacks and reload cycles for the selected target assumptions.",
     },
 ];
 const FACTIONS = getFactionFocusOptions();
+const ENEMY_SCALING_FACTIONS: Array<{ label: string; value: EnemyScalingFaction }> = [
+    { label: "Grineer", value: "grineer" },
+    { label: "Corpus", value: "corpus" },
+    { label: "Infested", value: "infested" },
+    { label: "Corrupted / Orokin", value: "corrupted" },
+    { label: "Murmur", value: "murmur" },
+    { label: "Sentient", value: "sentient" },
+    { label: "Anarchs", value: "anarchs" },
+    { label: "Unaffiliated", value: "unaffiliated" },
+    { label: "Techrot", value: "techrot" },
+];
 const VALENCE_ELEMENTS = [
     { key: "impact", label: "Impact" },
     { key: "heat", label: "Heat" },
@@ -190,7 +225,7 @@ const BASIC_STAT_TOOLTIPS: Record<string, string> = {
     criticalChance: "Chance that an attack becomes a critical hit. At 50%, about half of hits crit. At 100%, every hit is at least a yellow crit. Above 100%, the extra amount becomes a chance for a stronger crit tier: 125% means every hit is yellow and 25% become orange; 250% means every hit is orange and 50% become red.",
     criticalDamage: "Damage multiplier used when a hit crits. A yellow crit uses the listed multiplier, so 2.0x means double damage and 3.0x means triple. Orange and red crits are stronger tiers: orange uses 1 + 2 × (crit multiplier - 1), and red uses 1 + 3 × (crit multiplier - 1).",
     statusChance: "The probability that each hit inflicts a status effect. Values over 100% can apply multiple status effects in one hit.",
-    totalDamage: "Arsenal total damage for this attack after damage construction and quantization, before crit weighting.",
+    totalDamage: "Unquantized Arsenal Total Damage after damage construction and multishot, before crit weighting. Modeled unique damage bonuses on generated projectiles are included; quantized per-projectile direct damage is shown separately.",
 };
 
 function describeMultishot(multishot: number) {
@@ -294,11 +329,6 @@ function getBuilderDisplayModName(entry: ModEntry): string {
     return getBuilderModVariantTier(entry) === "flawed" ? `${entry.name} (Flawed)` : entry.name;
 }
 
-function shouldHideBuilderExpertMod(entry: ModEntry, pool: ModEntry[]): boolean {
-    if (!isBuilderExpertPath(entry.path)) return false;
-    return pool.some((candidate) => candidate.name === entry.name && !isBuilderExpertPath(candidate.path));
-}
-
 function normalizeArcaneDisplayText(value: string | null | undefined) {
     if (!value) return value ?? "";
     const parts = value
@@ -364,6 +394,52 @@ interface BuildMathBreakdown {
     sections: BuildMathSection[];
 }
 
+interface MeleeDpsInputState {
+    averageComboDamageMultiplier: number | null;
+    baseComboLengthSeconds: number | null;
+}
+
+function parsePositivePlannerInput(value: string, max: number): number | null {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.min(max, parsed);
+}
+
+function readPositivePlannerInput(value: number | undefined, max: number): number | null {
+    if (!Number.isFinite(value) || (value ?? 0) <= 0) return null;
+    return Math.min(max, value ?? max);
+}
+
+function readWarframeArmor(value: number | undefined): number | undefined {
+    if (!Number.isFinite(value) || (value ?? -1) < 0) return undefined;
+    return Math.floor(Math.min(10_000, value ?? 0));
+}
+
+function parseWarframeArmorInput(value: string): number | undefined {
+    if (!value.trim()) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0
+        ? Math.floor(Math.min(10_000, parsed))
+        : undefined;
+}
+
+function parseWarframeMaxEnergyInput(value: string): number | undefined {
+    if (!value.trim()) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0
+        ? Math.floor(Math.min(10_000, parsed))
+        : undefined;
+}
+
+function parseWarframeEnergyPercentInput(value: string): number | undefined {
+    if (!value.trim()) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0
+        ? Math.min(100, parsed)
+        : undefined;
+}
+
 interface BuildExportPayload {
     exportedAt: string;
     source: string;
@@ -376,6 +452,7 @@ interface BuildExportPayload {
     assumptions: {
         goal: LegacyOptimizeGoal;
         targetFaction: string | null;
+        targetProfileOverride?: TargetProfileOverride;
         weaponRank: number;
         masteryRank: number;
         hasCatalyst: boolean;
@@ -387,7 +464,12 @@ interface BuildExportPayload {
         incarnonSelectedOptionsByTier?: Partial<Record<IncarnonTier, string>>;
         optimizeIncarnonSelections?: boolean;
         includeArcaneStats: boolean;
+        warframeArmor?: number;
+        warframeMaxEnergy?: number;
+        warframeEnergyPercent?: number;
         selectedAttackIdx: number;
+        meleeAverageComboDamageMultiplier?: number | null;
+        meleeBaseComboLengthSeconds?: number | null;
     };
     optimizer: {
         mode: OptimizeMode;
@@ -401,6 +483,7 @@ interface BuildExportPayload {
             maxFormaAllowed: number;
             optimizeExilus: boolean;
             optimizeArcane: boolean;
+            conditionalState?: ConditionalState;
         };
         pools: {
             compatibleMods: number;
@@ -453,7 +536,9 @@ interface BuildExportPayload {
             statsLabel: string | null;
         };
     };
-    calculated: ReturnType<typeof calculateBuild> | null;
+    calculated: (ReturnType<typeof calculateBuild> & {
+        meleeAverageDps?: (MeleeAverageDpsParameters & { averageHit: number; averageDps: number }) | null;
+    }) | null;
     math: BuildMathBreakdown | null;
 }
 
@@ -491,7 +576,7 @@ function wrapSvgText(value: string, maxChars: number) {
 }
 
 function goalLabelForShare(goal: LegacyOptimizeGoal) {
-    return GOAL_OPTIONS.find((option) => option.key === goal)?.label ?? goal;
+    return GOAL_OPTIONS.find((option) => option.key === normalizeOptimizeGoal(goal))?.label ?? goal;
 }
 
 function renderSvgParagraph(lines: string[], x: number, y: number, lineHeight: number, className: string) {
@@ -517,7 +602,8 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
         ["Burst DPS", fmt(burstDps)],
         ["Sustain DPS", fmt(sustainedDps)],
         [avgDamageStatLabel, fmt(stats?.averageShotDamage ?? 0)],
-        ["Direct Damage", fmt(stats?.totalDamage ?? 0)],
+        ["Quantized Direct", fmt(stats?.totalDamage ?? 0)],
+        ["Arsenal Total", fmt(stats?.arsenalDamage ?? 0)],
         ["Crit Chance", `${fmt((stats?.critChance ?? 0) * 100, 1)}%`],
         ["Crit Mult", `${fmt(stats?.critMultiplier ?? 0, 2)}x`],
         ["Status", `${fmt((stats?.statusChance ?? 0) * 100, 1)}%`],
@@ -526,6 +612,9 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
         ["Magazine", stats ? (stats.shotsPerMag > 9999 ? "∞" : fmt(stats.magazineSize, 0)) : "0"],
         ["Reload", `${fmt(stats?.reloadTime ?? 0, 2)}s`],
         ["DoT DPS", fmt(stats?.dotDps ?? 0)],
+        ...(payload.calculated?.meleeAverageDps
+            ? [["Stance Avg DPS", fmt(payload.calculated.meleeAverageDps.averageDps)]]
+            : []),
     ];
     const damageRows = stats
         ? Object.entries(stats.rawDamageBreakdown)
@@ -830,19 +919,7 @@ function makeSelectedAttackWeapon(
     weapon: WeaponEntry,
     selectedAttackIdx: number,
 ): WeaponEntry {
-    const selectedAttack = weapon.attacks[selectedAttackIdx] ?? null;
-    if (!selectedAttack) return weapon;
-    return {
-        ...weapon,
-        damage: selectedAttack.damage,
-        critChance: selectedAttack.critChance,
-        critMultiplier: selectedAttack.critMultiplier,
-        statusChance: selectedAttack.statusChance,
-        fireRate: selectedAttack.speed || weapon.fireRate,
-        chargeTime: selectedAttack.chargeTime ?? null,
-        selectedAttackName: selectedAttack.name,
-        selectedAttackIsIncarnon: selectedAttackUsesIncarnonForm(weapon, selectedAttackIdx),
-    };
+    return withSelectedAttack(weapon, selectedAttackIdx);
 }
 
 function applyWeaponConfig(
@@ -878,6 +955,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
     return effects.reduce((acc, effect) => {
         if (!effect) return acc;
         acc.damageBonus += effect.damageBonus ?? 0;
+        acc.conditionOverloadDamagePerStatusBonus += effect.conditionOverloadDamagePerStatusBonus ?? 0;
         acc.impactBonus += effect.impactBonus ?? 0;
         acc.punctureBonus += effect.punctureBonus ?? 0;
         acc.slashBonus += effect.slashBonus ?? 0;
@@ -895,12 +973,15 @@ function sumEffects(effects: (ModEffect | null)[]) {
         acc.tauBonus += effect.tauBonus ?? 0;
         acc.trueBonus += effect.trueBonus ?? 0;
         acc.critChanceBonus += effect.critChanceBonus ?? 0;
+        acc.comboCritChanceBonus += effect.comboCritChanceBonus ?? 0;
         acc.finalCritChanceBonus += effect.finalCritChanceBonus ?? 0;
         acc.critMultBonus += effect.critMultBonus ?? 0;
         acc.finalCritMultiplierBonus += effect.finalCritMultiplierBonus ?? 0;
         acc.statusChanceBonus += effect.statusChanceBonus ?? 0;
+        acc.comboStatusChanceBonus += effect.comboStatusChanceBonus ?? 0;
         acc.finalStatusChanceBonus += effect.finalStatusChanceBonus ?? 0;
         acc.multishotBonus += effect.multishotBonus ?? 0;
+        acc.multishotDamageBonus += effect.multishotDamageBonus ?? 0;
         acc.fireRateBonus += effect.fireRateBonus ?? 0;
         acc.attackSpeedBonus += effect.attackSpeedBonus ?? 0;
         acc.magazineBonus += effect.magazineBonus ?? 0;
@@ -911,6 +992,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         return acc;
     }, {
         damageBonus: 0,
+        conditionOverloadDamagePerStatusBonus: 0,
         impactBonus: 0,
         punctureBonus: 0,
         slashBonus: 0,
@@ -928,12 +1010,15 @@ function sumEffects(effects: (ModEffect | null)[]) {
         tauBonus: 0,
         trueBonus: 0,
         critChanceBonus: 0,
+        comboCritChanceBonus: 0,
         finalCritChanceBonus: 0,
         critMultBonus: 0,
         finalCritMultiplierBonus: 0,
         statusChanceBonus: 0,
+        comboStatusChanceBonus: 0,
         finalStatusChanceBonus: 0,
         multishotBonus: 0,
+        multishotDamageBonus: 0,
         fireRateBonus: 0,
         attackSpeedBonus: 0,
         magazineBonus: 0,
@@ -1146,26 +1231,52 @@ function buildMathBreakdown(
     weapon: WeaponEntry,
     effects: (ModEffect | null)[],
     targetFaction = "",
+    conditionalState: ConditionalState = DEFAULT_CONDITIONAL_STATE,
+    targetProfileOverride?: TargetProfileOverride,
+    meleeDpsInputs?: MeleeDpsInputState,
 ): BuildMathBreakdown {
     const totals = sumEffects(effects);
-    const result = calculateBuild(weapon, effects, targetFaction);
+    const result = calculateBuild(weapon, effects, targetFaction, {
+        conditionalState,
+        statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+        statusStackCaps: targetProfileOverride?.statusStackCaps,
+    });
     const stats = result.modded;
+    const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
+        meleeDpsInputs?.averageComboDamageMultiplier != null &&
+        meleeDpsInputs.baseComboLengthSeconds != null
+        ? calculateBuild(weapon, effects, targetFaction, {
+            conditionalState: { mode: "initial" },
+            statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+            statusStackCaps: targetProfileOverride?.statusStackCaps,
+            targetStatusState: "initial",
+        }).modded
+        : null;
+    const meleeAverageDps = meleeDpsBaseline && meleeDpsInputs?.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+        ? calculateMeleeAverageDps(meleeDpsBaseline, {
+            averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+            baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
+        })
+        : null;
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const baseDamage = weapon.damage.total;
     const baseDamageMultiplier = 1 + totals.damageBonus;
-    const moddedBaseDamage = baseDamage * baseDamageMultiplier;
+    const conditionOverloadDamageBracket = 1 + totals.damageBonus +
+        (stats.conditionOverloadApplies
+            ? stats.conditionOverloadDamagePerStatusBonus * stats.conditionOverloadStatusTypes
+            : 0);
+    const moddedBaseDamageBeforeConditionOverload = baseDamage * baseDamageMultiplier;
+    const moddedBaseDamage = moddedBaseDamageBeforeConditionOverload * stats.conditionOverloadDamageMultiplier;
     const quantScale = (moddedBaseDamage / 32) * (stats.directDamagePerStatusMultiplier || 1);
     const fireRateBonus = usesMeleeDamageModel(weapon.category) ? totals.attackSpeedBonus : totals.fireRateBonus;
-    const moddedReload = ignoresReloadAndMagazine
-        ? weapon.reloadTime
-        : weapon.reloadTime / Math.max(0.0001, (1 + totals.reloadSpeedBonus));
-    const avgCritMultiplier = baseDamage > 0 ? stats.averageShotDamage / Math.max(0.0001, stats.arsenalDamage) : 1;
+    const quantizedShotDamage = stats.totalDamage * stats.damageWeightedMultishot;
+    const avgCritMultiplier = quantizedShotDamage > 0 ? stats.averageShotDamage / quantizedShotDamage : 1;
     const hasConditionalBonuses = effects.some(effect => (effect?.conditionalEffects?.length ?? 0) > 0);
     const damageUnit = actionUnitLabel(weapon.category);
     const avgDamageLabel = averageDamageLabel(weapon.category);
     const rateLabel = actionRateLabel(weapon.category);
     const conditionalEntries = effects.flatMap((effect) => effect?.conditionalEffects ?? []);
-    const baselineRateForConditionals = weapon.fireRate;
+    const baselineRateForConditionals = calculateBuild(weapon, [], targetFaction, { conditionalState }).modded.fireRate;
     const baseMagazineForConditionals = Math.max(1, Math.round(weapon.magazineSize || 1));
     const rawBreakdown = buildCombinedRawBreakdown(weapon, effects);
     const nonZeroRawEntries = Object.entries(stats.rawDamageBreakdown).filter(([, value]) => value > 0);
@@ -1185,17 +1296,48 @@ function buildMathBreakdown(
     const dotTypeLines = Object.entries(stats.dotDamagePerShotByType)
         .filter(([, value]) => (value ?? 0) > 0)
         .map(([type, value]) => `${type}: DoT per ${damageUnit} ${fmt(value ?? 0, 5)} | DoT DPS ${fmt(stats.dotDpsByType[type as keyof typeof stats.dotDpsByType] ?? 0, 5)}`);
+    const damageRampLines = weapon.selectedAttackDamageRamp ? [
+        `Verified attack ramp: ${fmt(weapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 1)}% → 100% over ${fmt(weapon.selectedAttackDamageRamp.rampToFullSeconds, 3)}s; decay begins after ${fmt(weapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 3)}s idle and reaches minimum over ${fmt(weapon.selectedAttackDamageRamp.decayToMinimumSeconds, 3)}s.`,
+        `Fresh-magazine average ramp multiplier = ${fmt(stats.freshMagazineDamageMultiplier, 6)}; steady repeating-cycle multiplier = ${fmt(stats.sustainedDamageMultiplier, 6)}. Ramp scales direct damage. Per-attack DoT/Blast seed scaling is a model assumption because the Wiki does not specify seed inheritance separately; status chance and proc weights stay unchanged.`,
+    ] : [];
     const conditionalLines = conditionalEntries.map((conditional, index) => {
-        const uptime = estimateConditionalUptime(conditional, baselineRateForConditionals, baseMagazineForConditionals);
-        const stackFactor = estimateConditionalStackFactor(conditional, baselineRateForConditionals, baseMagazineForConditionals);
+        const uptime = estimateConditionalUptime(conditional, baselineRateForConditionals, baseMagazineForConditionals, conditionalState);
+        const stackFactor = estimateConditionalStackFactor(conditional, baselineRateForConditionals, baseMagazineForConditionals, conditionalState);
         const combinedFactor = uptime * stackFactor;
         const statsApplied = Object.entries(conditional.stats)
             .filter(([, value]) => typeof value === "number" && value !== 0)
             .map(([key, value]) => `${key} ${fmt((value as number) * 100, 2)}%`)
             .join(", ");
-        return `Conditional ${index + 1}: trigger ${conditional.trigger}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]`;
+        const triggerLabel = conditional.trigger.replace(/([A-Z])/g, " $1").toLowerCase();
+        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]`;
     });
+    const customTargetLines = targetProfileOverride ? [
+        `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,
+        ...(targetProfileOverride.description ? [targetProfileOverride.description] : []),
+        `Additional same-profile enemies inside active Electric/Gas status radii = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyEnemyCount ?? 0)))}`,
+        `Additional same-profile enemies inside Blast's 5m radial = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyBlastEnemyCount ?? 0)))}`,
+        "Optimizer scoring multiplies Electric/Gas status damage by their configured count and estimates Blast cap-radial damage from Poisson proc arrivals during the scaled fuse. It assumes same-profile defenses and exposure; direct attacks, on-kill radial chains, neighbor statuses, and changing neighbor pools remain outside the score.",
+        `Toxin bypasses Shields = ${targetProfileOverride.toxinBypassesShields === false ? "no" : "yes"}`,
+        `Enemy Shield Gate hit mode = ${targetProfileOverride.enemyShieldGateHitMode ?? "body"}`,
+        `Target status immunities = ${[...(targetProfileOverride.statusImmuneTypes ?? [])].join(", ") || "none"}`,
+        `Target status stack caps = ${Object.entries(targetProfileOverride.statusStackCaps ?? {}).map(([type, cap]) => `${type} ${cap}`).join(", ") || "standard"}`,
+        "The optimizer uses a fast expected pool-progress score, not the finite encounter. Blast cap-radial collateral uses a Poisson stack-arrival estimate; on-kill detonations, neighbor status histories, pool depletion, gates, boss attenuation, and random outcomes are not simulated in its score.",
+    ] : [];
     const fireRateExplanation = (() => {
+        if (weapon.weaponType.trim().toLowerCase() === "bow") {
+            const baseChargeTime = weapon.trigger === "Charge" ? Math.max(0, weapon.chargeTime ?? 0) : 0;
+            const moddedChargeTime = baseChargeTime / Math.max(0.1, 1 + fireRateBonus);
+            return [
+                `Modded bow charge time = ${fmt(baseChargeTime, 5)} ÷ (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(moddedChargeTime, 5)}s`,
+                ignoresReloadAndMagazine
+                    ? `Effective bow rate = 1 ÷ modded charge time (reload ignored) = ${fmt(stats.fireRate, 5)}/s`
+                    : `Effective bow rate = 1 ÷ (modded charge time ${fmt(moddedChargeTime, 5)}s + modded reload ${fmt(stats.reloadTime, 5)}s) = ${fmt(stats.fireRate, 5)}/s`,
+                baseChargeTime > 0
+                    ? `Fresh bow shot rate excludes post-shot reload = 1 ÷ modded charge time = ${fmt(stats.burstFireRate, 5)}/s`
+                    : `Fresh uncharged bow shot rate uses reload delay = ${fmt(stats.burstFireRate, 5)}/s`,
+                "Bow repeating rate already includes post-shot reload, so magazine duty cycle stays at 1 and does not count that delay twice.",
+            ];
+        }
         if (weapon.trigger === "Charge" && weapon.chargeTime) {
             return [
                 `Modded charge time = ${fmt(weapon.chargeTime, 5)} ÷ (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(weapon.chargeTime / Math.max(0.0001, 1 + fireRateBonus), 5)}`,
@@ -1212,7 +1354,21 @@ function buildMathBreakdown(
                 `Base damage split = impact ${fmt(weapon.damage.impact, 5)}, puncture ${fmt(weapon.damage.puncture, 5)}, slash ${fmt(weapon.damage.slash, 5)}, heat ${fmt(weapon.damage.heat, 5)}, cold ${fmt(weapon.damage.cold, 5)}, electricity ${fmt(weapon.damage.electricity, 5)}, toxin ${fmt(weapon.damage.toxin, 5)}, blast ${fmt(weapon.damage.blast, 5)}, radiation ${fmt(weapon.damage.radiation, 5)}, gas ${fmt(weapon.damage.gas, 5)}, magnetic ${fmt(weapon.damage.magnetic, 5)}, viral ${fmt(weapon.damage.viral, 5)}, corrosive ${fmt(weapon.damage.corrosive, 5)}, void ${fmt(weapon.damage.void, 5)}, tau ${fmt(weapon.damage.tau, 5)}, true ${fmt(weapon.damage.true, 5)}`,
                 `Base crit chance = ${fmt(weapon.critChance * 100, 5)}% | base crit multiplier = ${fmt(weapon.critMultiplier, 5)} | base status chance = ${fmt(weapon.statusChance * 100, 5)}%`,
                 `${rateLabel} base = ${fmt(weapon.fireRate, 5)} | magazine base = ${displayMagazineValue(weapon, weapon.magazineSize)} | reload base = ${fmt(weapon.reloadTime, 5)}s | multishot base = ${fmt(weapon.multishot, 5)}`,
-                targetFaction ? `Target faction flag passed to the calculator = ${targetFaction}` : "No target faction flag passed to the calculator",
+                `Conditional effects scenario = ${conditionalState.mode}${conditionalState.mode === "custom" ? ` (${conditionalState.externalStacks ?? 0} maintained stacks per effect)` : ""}`,
+                targetFaction ? `Target faction used for damage modifiers = ${targetFaction}` : "No target faction damage modifier selected",
+                ...(usesMeleeDamageModel(weapon.category)
+                    ? [
+                        "Melee combo multiplier = " + fmt(stats.meleeComboMultiplier, 0) + "x (explicit scenario input)",
+                        ...(weapon.selectedAttackUsesMeleeComboMultiplier
+                            ? [
+                                "Selected heavy-attack combo damage multiplier = ×" + fmt(stats.meleeAttackComboDamageMultiplier, 0) + " (assumed active for each scored hit)",
+                                "Estimated combo before this heavy attack = " + fmt(stats.meleeComboPointsBeforeHeavyAttack, 1) + " points; capped Heavy Attack Efficiency = " + fmt(stats.heavyAttackEfficiency * 100, 1) + "%.",
+                                "After one heavy attack, estimated retained combo = " + fmt(stats.meleeComboPointsAfterHeavyAttack, 1) + " points (" + fmt(stats.meleeComboMultiplierAfterHeavyAttack, 0) + "× tier). The direct-hit TTK steps repeated Heavy Attacks and restores Initial Combo at 40 points/s; it excludes attack-generated combo. DPS, finite status encounter, and optimizer scoring still hold the starting tier.",
+                            ]
+                            : []),
+                    ]
+                    : []),
+                ...customTargetLines,
             ],
         },
         {
@@ -1220,10 +1376,13 @@ function buildMathBreakdown(
             lines: [
                 `Base damage multiplier bracket = 1 + additive damage bonuses = 1 + ${fmt(totals.damageBonus, 5)} = ${fmt(baseDamageMultiplier, 5)}`,
                 `Crit chance = base ${fmt(weapon.critChance, 5)} × (1 + additive crit ${fmt(totals.critChanceBonus, 5)}) + final crit ${fmt(totals.finalCritChanceBonus, 5)} = ${fmt(stats.critChance, 5)} (${fmt(stats.critChance * 100, 3)}%)`,
-                `Crit multiplier = base ${fmt(weapon.critMultiplier, 5)} × (1 + additive crit mult ${fmt(totals.critMultBonus, 5)}) + final crit mult ${fmt(totals.finalCritMultiplierBonus, 5)} = ${fmt(stats.critMultiplier, 5)}`,
+                `Crit multiplier = quantized base ${fmt(stats.quantizedBaseCritMultiplier, 7)} × (1 + additive crit mult ${fmt(totals.critMultBonus, 5)}) + final crit mult ${fmt(totals.finalCritMultiplierBonus, 5)} = ${fmt(stats.critMultiplier, 7)}`,
                 `Status chance = base ${fmt(weapon.statusChance, 5)} × (1 + additive status ${fmt(totals.statusChanceBonus, 5)}) + final status ${fmt(totals.finalStatusChanceBonus, 5)} = ${fmt(stats.statusChance, 5)} (${fmt(stats.statusChance * 100, 3)}%)`,
                 `Multishot = base ${fmt(weapon.multishot, 5)} × (1 + additive multishot ${fmt(totals.multishotBonus, 5)}) = ${fmt(stats.multishot, 5)}`,
-                ...(hasConditionalBonuses ? ["Conditional/ramping effects are included in the final calculated stats below according to the current calculator assumptions."] : []),
+                ...(usesMeleeDamageModel(weapon.category)
+                    ? ["Combo-scaled bonuses = " + fmt(totals.comboCritChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 3) + "% crit chance; " + fmt(totals.comboStatusChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 3) + "% status chance"]
+                    : []),
+                ...(hasConditionalBonuses ? ["Conditional/ramping effects use the selected state and documented realistic trigger estimates where applicable."] : []),
             ],
         },
         {
@@ -1232,18 +1391,24 @@ function buildMathBreakdown(
                 `Damage bonus = ${fmt(totals.damageBonus * 100, 3)}% | impact bonus = ${fmt(totals.impactBonus * 100, 3)}% | puncture bonus = ${fmt(totals.punctureBonus * 100, 3)}% | slash bonus = ${fmt(totals.slashBonus * 100, 3)}%`,
                 `Primary element bonuses = heat ${fmt(totals.heatBonus * 100, 3)}%, cold ${fmt(totals.coldBonus * 100, 3)}%, electricity ${fmt(totals.electricityBonus * 100, 3)}%, toxin ${fmt(totals.toxinBonus * 100, 3)}%`,
                 `Advanced element bonuses = magnetic ${fmt(totals.magneticBonus * 100, 3)}%, radiation ${fmt(totals.radiationBonus * 100, 3)}%, viral ${fmt(totals.viralBonus * 100, 3)}%, corrosive ${fmt(totals.corrosiveBonus * 100, 3)}%, void ${fmt(totals.voidBonus * 100, 3)}%, tau ${fmt(totals.tauBonus * 100, 3)}%, true ${fmt(totals.trueBonus * 100, 3)}%`,
-                `Status damage bonus = ${fmt(totals.statusDamageBonus * 100, 3)}% | status duration bonus = ${fmt(totals.statusDurationBonus * 100, 3)}% | faction damage bonus tracked here = ${fmt(totals.factionDamageBonus * 100, 3)}% | direct damage per status = ${fmt(stats.directDamagePerStatusBonus * 100, 3)}%`,
+                `Status damage bonus = ${fmt(totals.statusDamageBonus * 100, 3)}% | status duration bonus = ${fmt(totals.statusDurationBonus * 100, 3)}% | faction damage bonus tracked here = ${fmt(totals.factionDamageBonus * 100, 3)}% | mod direct damage per status = ${fmt(stats.directDamagePerStatusBonus * 100, 3)}% | intrinsic direct damage per status = ${fmt(stats.intrinsicDamagePerStatusBonus * 100, 3)}% (${stats.intrinsicDamagePerStatusMode})`,
+                `Condition Overload = ${fmt(stats.conditionOverloadDamagePerStatusBonus * 100, 3)}% additive base damage per active type × ${fmt(stats.conditionOverloadStatusTypes, 3)} expected types (including ${conditionalState.externalStatusTypeCount ?? 0} externally maintained); multiplier ${fmt(stats.conditionOverloadDamageMultiplier, 5)}.`,
             ],
         },
         {
             title: "Damage Construction",
             lines: [
-                `Modded base damage = base total ${fmt(baseDamage, 5)} × damage bracket ${fmt(baseDamageMultiplier, 5)} = ${fmt(moddedBaseDamage, 5)}`,
+                `Modded base damage = base total ${fmt(baseDamage, 5)} × damage bracket ${fmt(baseDamageMultiplier, 5)} = ${fmt(moddedBaseDamageBeforeConditionOverload, 5)}; Condition Overload adds ${fmt(moddedBaseDamage - moddedBaseDamageBeforeConditionOverload, 5)} = ${fmt(moddedBaseDamage, 5)}`,
+                ...(totals.conditionOverloadDamagePerStatusBonus > 0 && !stats.conditionOverloadApplies
+                    ? ["Condition Overload is disabled for this selected source-marked area, slam, or glaive heavy-throw attack."]
+                    : []),
                 `Physical raw values before quantization = impact ${fmt(rawBreakdown.physicalRaw.impact, 5)}, puncture ${fmt(rawBreakdown.physicalRaw.puncture, 5)}, slash ${fmt(rawBreakdown.physicalRaw.slash, 5)}`,
                 `Element queue before combination = ${rawBreakdown.orderedElementQueue.map((entry) => `${entry.type} ${fmt(entry.value, 5)} (order ${entry.order})`).join(" | ") || "none"}`,
-                `Combined raw damage breakdown = ${nonZeroRawEntries.map(([type, value]) => `${type} ${fmt(value, 5)}`).join(", ") || "none"}`,
+                `Combined base damage breakdown before Condition Overload and direct-only per-status bonuses = ${nonZeroRawEntries.map(([type, value]) => `${type} ${fmt(value, 5)}`).join(", ") || "none"}`,
                 stats.directDamagePerStatusMultiplier !== 1
-                    ? `Direct-damage-only per-status multiplier = (damage bracket ${fmt(1 + stats.totalDamageBonus, 5)} + (${fmt(stats.directDamagePerStatusBonus, 5)} × ${stats.directDamageStatusTypes} status types)) ÷ damage bracket = ${fmt(stats.directDamagePerStatusMultiplier, 5)}`
+                    ? stats.intrinsicDamagePerStatusMode === "multiplicativeBase"
+                        ? `Direct-hit-only per-status multiplier = (Condition Overload bracket ${fmt(conditionOverloadDamageBracket, 5)} × (1 + intrinsic ${fmt(stats.intrinsicDamagePerStatusBonus, 5)} × ${fmt(stats.directDamageStatusTypes, 3)} types) + mod per-status ${fmt(stats.directDamagePerStatusBonus, 5)} × ${fmt(stats.directDamageStatusTypes, 3)}) ÷ Condition Overload bracket = ${fmt(stats.directDamagePerStatusMultiplier, 5)}`
+                        : `Direct-hit-only per-status multiplier = (Condition Overload bracket ${fmt(conditionOverloadDamageBracket, 5)} + ((mod ${fmt(stats.directDamagePerStatusBonus, 5)} + intrinsic ${fmt(stats.intrinsicDamagePerStatusBonus, 5)}) × ${fmt(stats.directDamageStatusTypes, 3)} types)) ÷ Condition Overload bracket = ${fmt(stats.directDamagePerStatusMultiplier, 5)}`
                     : "No direct-damage per-status multiplier applied",
             ],
         },
@@ -1261,25 +1426,46 @@ function buildMathBreakdown(
         {
             title: "Crit and DPS",
             lines: [
-                `Arsenal damage = quantized direct damage ${fmt(stats.totalDamage, 5)} × multishot ${fmt(stats.multishot, 5)} = ${fmt(stats.arsenalDamage, 5)}`,
-                `Average crit multiplier = average ${damageUnit} ÷ arsenal damage = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(stats.arsenalDamage, 5)} = ${fmt(avgCritMultiplier, 6)}`,
+                `Arsenal Total Damage = unquantized damage construction × damage-weighted multishot = ${fmt(stats.arsenalDamage, 5)}`,
+                `Expected projectile count = ${fmt(stats.multishot, 5)} per ${damageUnit}; damage-weighted multiplier = ${fmt(stats.damageWeightedMultishot, 5)} (unique extra-projectile damage bonus ${fmt(stats.multishotDamageBonus * 100, 3)}%)`,
+                `Quantized direct damage per ${damageUnit} = ${fmt(stats.totalDamage, 5)} × damage-weighted multiplier ${fmt(stats.damageWeightedMultishot, 5)} = ${fmt(quantizedShotDamage, 5)}`,
+                `Average crit multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgCritMultiplier, 6)}`,
                 `Average crit multiplier cross-check = 1 + crit chance × (crit multiplier - 1) = 1 + ${fmt(stats.critChance, 5)} × (${fmt(stats.critMultiplier, 5)} - 1) = ${fmt(1 + stats.critChance * (stats.critMultiplier - 1), 6)}`,
-                `Average ${damageUnit} = arsenal damage ${fmt(stats.arsenalDamage, 5)} × average crit multiplier ${fmt(avgCritMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
+                `Average direct damage per ${damageUnit} = quantized damage ${fmt(quantizedShotDamage, 5)} × average crit multiplier ${fmt(avgCritMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
                 ...fireRateExplanation,
-                `Burst DPS = ${avgDamageLabel} ${fmt(stats.averageShotDamage, 5)} × ${rateLabel} ${fmt(stats.fireRate, 5)} = ${fmt(result.burstDPS, 5)}`,
+                `Burst DPS = ${avgDamageLabel} ${fmt(stats.averageShotDamage, 5)} × fresh-mag attack rate ${fmt(stats.burstFireRate, 5)} × fresh-mag ramp ${fmt(stats.freshMagazineDamageMultiplier, 6)} = ${fmt(result.burstDPS, 5)}`,
                 ignoresReloadAndMagazine
-                    ? `Sustained DPS = burst DPS because reload/magazine are ignored for exalted or Incarnon-form attacks = ${fmt(result.sustainedDPS, 5)}`
-                    : `Sustained DPS = burst DPS × ((shotsPerMag ÷ fireRate) ÷ ((shotsPerMag ÷ fireRate) + reload)) = ${fmt(result.burstDPS, 5)} × ((${fmt(stats.shotsPerMag, 5)} ÷ ${fmt(stats.fireRate, 5)}) ÷ ((${fmt(stats.shotsPerMag, 5)} ÷ ${fmt(stats.fireRate, 5)}) + ${fmt(moddedReload, 5)})) = ${fmt(result.sustainedDPS, 5)}`,
+                    ? `Sustained DPS = average damage ${fmt(stats.averageShotDamage, 5)} × fire rate ${fmt(stats.fireRate, 5)} × sustained ramp ${fmt(stats.sustainedDamageMultiplier, 6)} because reload/magazine are ignored = ${fmt(result.sustainedDPS, 5)}`
+                    : `Sustained DPS = average damage ${fmt(stats.averageShotDamage, 5)} × fire rate ${fmt(stats.fireRate, 5)} × magazine duty cycle ${fmt(stats.magazineDutyCycle, 6)} × sustained ramp ${fmt(stats.sustainedDamageMultiplier, 6)} = ${fmt(result.sustainedDPS, 5)}`,
+                ...damageRampLines,
+                ...(usesMeleeDamageModel(weapon.category)
+                    ? meleeAverageDps && meleeDpsInputs?.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+                        ? [
+                            `Stance average hit = average combo damage multiplier ${fmt(meleeDpsInputs.averageComboDamageMultiplier, 5)} × initial-state quantized damage ${fmt(meleeDpsBaseline?.totalDamage ?? 0, 5)} × expected crit multiplier ${fmt(meleeAverageDps.expectedCritMultiplier, 6)} = ${fmt(meleeAverageDps.averageHit, 5)}`,
+                            `Stance average DPS = average hit ${fmt(meleeAverageDps.averageHit, 5)} × modded attack speed ${fmt(meleeDpsBaseline?.fireRate ?? 0, 5)} ÷ base combo length ${fmt(meleeDpsInputs.baseComboLengthSeconds, 5)}s = ${fmt(meleeAverageDps.averageDps, 5)}`,
+                            "Stance DPS inputs are user-entered from the stance reference table. The estimate excludes status effects, target defenses, and follow-through.",
+                        ]
+                        : ["Stance average DPS is unavailable until average combo damage multiplier and base combo length are entered from the selected stance's reference data."]
+                    : []),
+                ...(!usesMeleeDamageModel(weapon.category) && !weapon.isExalted ? [
+                    `Ammo efficiency = ${fmt(stats.ammoEfficiencyBonus * 100, 3)}% after additive bonuses and the 75% cap${weapon.selectedAttackIsIncarnon ? " (ignored in transformed Incarnon form)" : ""}`,
+                    ...(weapon.selectedAttackChargeAmmoPerSecond && weapon.selectedAttackChargeDamageBaseAmmoCost ? [
+                        `Charged attack damage = Wiki row damage × (${fmt(stats.ammoCostPerShot, 5)} ammo ÷ ${fmt(weapon.selectedAttackChargeDamageBaseAmmoCost, 5)}-ammo baseline) = ${fmt(stats.totalDamage, 5)}; charge time = ${fmt(stats.ammoCostPerShot, 5)} ÷ ${fmt(weapon.selectedAttackChargeAmmoPerSecond, 5)} ammo/s = ${fmt(stats.chargeTimeSeconds ?? 0, 5)}s.`,
+                    ] : []),
+                    stats.ammoEfficiencyBonus > 0
+                        ? `Shots per magazine = ceil(${fmt(stats.magazineSize, 5)} ÷ (${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)}))) = ${fmt(stats.shotsPerMag, 5)}; ammo-efficiency fractional remainder is carried into the next shot.`
+                        : `Shots per magazine = ${fmt(stats.magazineSize, 5)} ÷ (${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)})) = ${fmt(stats.shotsPerMag, 5)}`,
+                ] : []),
             ],
         },
         {
             title: "Status and DoT",
             lines: [
-                `Average procs per ${damageUnit} = multishot ${fmt(stats.multishot, 5)} × status chance ${fmt(stats.statusChance, 5)} + extra procs = ${fmt(stats.averageProcsPerShot, 5)}`,
+                `Average procs per ${damageUnit} = ordinary rolls (multishot ${fmt(stats.multishot, 5)} × status chance ${fmt(stats.statusChance, 5)}, with Tau's ${fmt(stats.tauStatusVulnerability * 100, 3)}% vulnerability applied to non-Tau effects) + forced/status-triggered extra procs = ${fmt(stats.averageProcsPerShot, 5)}`,
                 ...procLines,
                 `Expected stacks by type = ${Object.entries(stats.expectedStacksByType).filter(([, value]) => (value ?? 0) > 0).map(([type, value]) => `${type} ${fmt(value ?? 0, 5)}`).join(", ") || "none"}`,
                 `DoT per ${damageUnit} total = ${fmt(stats.dotDamagePerShot, 5)}`,
-                `DoT DPS total = ${fmt(stats.dotDps, 5)}`,
+                `Steady-state DoT DPS estimate = expected status seed damage per second plus grouped-tick accumulator contribution = ${fmt(stats.dotDps, 5)}`,
                 ...dotTypeLines,
                 `Derived status effects = Viral health bonus ${fmt(stats.viralHealthDamageBonus * 100, 5)}%, Heat armor strip ${fmt(stats.heatArmorStrip * 100, 5)}%, Corrosive armor strip ${fmt(stats.corrosiveArmorStrip * 100, 5)}%, Magnetic shield bonus ${fmt(stats.magneticShieldDamageBonus * 100, 5)}%, Radiation ally damage bonus ${fmt(stats.radiationAllyDamageBonus * 100, 5)}%, Cold slow ${fmt(stats.coldSlow * 100, 5)}%, Cold crit bonus ${fmt(stats.coldCritDamageBonus, 5)}, Puncture enemy damage reduction ${fmt(stats.punctureEnemyDamageReduction * 100, 5)}%, Puncture crit chance bonus ${fmt(stats.punctureCritChanceBonus * 100, 5)}%, Impact mercy threshold bonus ${fmt(stats.impactMercyThresholdBonus * 100, 5)}%, Tau status vulnerability ${fmt(stats.tauStatusVulnerability * 100, 5)}%`,
             ],
@@ -1296,8 +1482,11 @@ function buildMathBreakdown(
 function buildExportPayload(args: {
     weapon: WeaponEntry | null;
     selectedAttackIdx: number;
+    meleeDpsInputs: MeleeDpsInputState;
     goal: OptimizeGoal;
+    conditionalState: ConditionalState;
     targetFaction: string | null;
+    targetProfileOverride?: TargetProfileOverride;
     buildCfg: BuildCfg;
     includeArcaneStats: boolean;
     slots: (ModEntry | null)[];
@@ -1313,6 +1502,9 @@ function buildExportPayload(args: {
     exilusPol: string;
     arcane: ArcaneEntry | null;
     arcaneRank: number;
+    warframeArmor?: number;
+    warframeMaxEnergy?: number;
+    warframeEnergyPercent?: number;
     optimizeMode: OptimizeMode;
     respectCap: boolean;
     allowNonMax: boolean;
@@ -1332,8 +1524,9 @@ function buildExportPayload(args: {
     excluded: Set<string>;
 }): BuildExportPayload | null {
     const {
-        weapon, selectedAttackIdx, goal, targetFaction, buildCfg, includeArcaneStats,
+        weapon, selectedAttackIdx, goal, conditionalState, targetFaction, targetProfileOverride, meleeDpsInputs, buildCfg, includeArcaneStats,
         slots, ranks, slotPols, stanceMod, stanceRank, stancePol, formaCount, exilusEnabled, exilusMod, exilusRank, exilusPol, arcane, arcaneRank,
+        warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
         optimizeMode, respectCap, allowNonMax, onlyOwned, factionOn, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane,
         compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
     } = args;
@@ -1357,16 +1550,47 @@ function buildExportPayload(args: {
         effects.push(exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect);
     }
     if (includeArcaneStats && arcane) {
-        const ae = arcane.permanentEffectByRank[arcaneRank];
-        effects.push({
+        const ae = getArcaneEffectAtRank(arcane, arcaneRank, warframeArmor, false, { warframeMaxEnergy, warframeEnergyPercent });
+        if (ae) effects.push({
             ...emptyEffect(),
-            ...(ae ?? {}),
-            conditionalEffects: [...(ae?.conditionalEffects ?? [])],
+            ...ae,
+            conditionalEffects: [...(ae.conditionalEffects ?? [])],
         });
     }
 
-    const calculated = calculateBuild(calcWeapon, effects, targetFaction ?? "");
-    const math = buildMathBreakdown(calcWeapon, effects, targetFaction ?? "");
+    const calculated = calculateBuild(calcWeapon, effects, targetFaction ?? "", {
+        conditionalState,
+        statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+        statusStackCaps: targetProfileOverride?.statusStackCaps,
+    });
+    const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
+        meleeDpsInputs.averageComboDamageMultiplier != null &&
+        meleeDpsInputs.baseComboLengthSeconds != null
+        ? calculateBuild(calcWeapon, effects, targetFaction ?? "", {
+            conditionalState: { mode: "initial" },
+            statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+            statusStackCaps: targetProfileOverride?.statusStackCaps,
+            targetStatusState: "initial",
+        }).modded
+        : null;
+    const meleeAverageDps = meleeDpsBaseline && meleeDpsInputs.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+        ? calculateMeleeAverageDps(meleeDpsBaseline, {
+            averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+            baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
+        })
+        : null;
+    const calculatedWithMeleeDps = {
+        ...calculated,
+        meleeAverageDps: meleeAverageDps && meleeDpsInputs.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+            ? {
+                averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+                baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
+                averageHit: meleeAverageDps.averageHit,
+                averageDps: meleeAverageDps.averageDps,
+            }
+            : null,
+    };
+    const math = buildMathBreakdown(calcWeapon, effects, targetFaction ?? "", conditionalState, targetProfileOverride ?? undefined, meleeDpsInputs);
     const ownedModsForExport = onlyOwned
         ? compatMods
             .filter((mod) => ownedSet.has(mod.uniqueName))
@@ -1409,6 +1633,7 @@ function buildExportPayload(args: {
         assumptions: {
             goal,
             targetFaction,
+            targetProfileOverride,
             weaponRank: buildCfg.weaponRank,
             masteryRank: buildCfg.masteryRank,
             hasCatalyst: buildCfg.hasCatalyst,
@@ -1420,7 +1645,16 @@ function buildExportPayload(args: {
             incarnonSelectedOptionsByTier: weaponState.incarnonRecord ? buildCfg.incarnonSelectedOptionsByTier : undefined,
             optimizeIncarnonSelections: weaponState.incarnonRecord ? buildCfg.optimizeIncarnonSelections : undefined,
             includeArcaneStats,
+            warframeArmor,
+            warframeMaxEnergy,
+            warframeEnergyPercent,
             selectedAttackIdx,
+            meleeAverageComboDamageMultiplier: usesMeleeDamageModel(weapon.category)
+                ? meleeDpsInputs.averageComboDamageMultiplier
+                : undefined,
+            meleeBaseComboLengthSeconds: usesMeleeDamageModel(weapon.category)
+                ? meleeDpsInputs.baseComboLengthSeconds
+                : undefined,
         },
         optimizer: {
             mode: optimizeMode,
@@ -1434,6 +1668,7 @@ function buildExportPayload(args: {
                 maxFormaAllowed,
                 optimizeExilus: optExilus,
                 optimizeArcane: optArcane,
+                conditionalState,
             },
             pools: {
                 compatibleMods: compatMods.length,
@@ -1475,7 +1710,7 @@ function buildExportPayload(args: {
                 statsLabel: arcane ? (arcane.statsByRank[arcaneRank] ?? arcane.statsLabel) : null,
             },
         },
-        calculated,
+        calculated: calculatedWithMeleeDps,
         math,
     };
 }
@@ -1730,6 +1965,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                     <div className="wf-popover pointer-events-none absolute left-0 top-full z-[70] mt-2 w-64 rounded-lg border px-3 py-2">
                                         <div className="text-xs font-semibold leading-tight text-slate-100">{getBuilderDisplayModName(mod)}</div>
                                         <div className="mt-1 text-[11px] leading-relaxed text-slate-300">{currentStatsLabel}</div>
+                                        {!mod.hasDamageEffect && !mod.isBuiltIn && <div className="mt-1 text-[10px] leading-relaxed text-amber-300">Effect not modeled; automatic optimization excludes this mod.</div>}
                                     </div>
                                 )}
                             </div>
@@ -1860,6 +2096,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                     <div className="text-[10px] text-slate-500 mt-0.5 pl-5">
                                         {m.statsLabel || "—"}
                                         <span className="text-slate-700 ml-1">{m.rarity}</span>
+                                        {!m.hasDamageEffect && !m.isBuiltIn && <span className="ml-1 text-amber-500">Effect not modeled</span>}
                                     </div>
                                 </button>
                             );
@@ -2227,7 +2464,8 @@ function ExclusionList({ allMods, excluded, onToggle }: {
 // ── Saved Builds ──────────────────────────────────────────────────────────────
 
 function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, currentPolarities, currentCfg,
-    stanceMod, stanceRank, stancePol, exilusMod, exilusPol, arcane1, arcane1Rank, hasExilus, onLoad }: {
+    stanceMod, stanceRank, stancePol, exilusMod, exilusPol, arcane1, arcane1Rank, hasExilus,
+    targetFaction, conditionalState, targetProfileOverride, plannerConfig, onLoad }: {
     weapon: WeaponEntry | null;
     availableMods: ModEntry[];
     currentSlots: (ModEntry | null)[]; currentRanks: number[]; currentPolarities: string[];
@@ -2236,6 +2474,10 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
     exilusMod: ModEntry | null; exilusPol: string;
     arcane1: ArcaneEntry | null; arcane1Rank: number;
     hasExilus: boolean;
+    targetFaction: string;
+    conditionalState: ConditionalState;
+    targetProfileOverride?: TargetProfileOverride;
+    plannerConfig: SavedBuildPlannerConfig;
     onLoad: (b: SavedBuild) => void;
 }) {
     const savedBuilds  = useTrackerStore(s => s.state.modBuilder?.savedBuilds ?? EMPTY_SAVED_BUILDS);
@@ -2269,6 +2511,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
             exilusModUniqueName: exilusMod?.uniqueName,
             exilusPol,
             arcane1UniqueName: arcane1?.uniqueName, arcane1Rank,
+            plannerConfig,
             createdAt: new Date().toISOString(),
         });
         setSaveName(""); setSaving(false);
@@ -2315,11 +2558,14 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
             const arcane = panelArcanes.find(a => a.uniqueName === build.arcane1UniqueName) ?? null;
             if (arcane) {
                 const rank = build.arcane1Rank ?? arcane.maxRank;
-                const ae = arcane.permanentEffectByRank[rank];
-                effects.push({
+                const ae = getArcaneEffectAtRank(arcane, rank, build.plannerConfig?.warframeArmor, false, {
+                    warframeMaxEnergy: build.plannerConfig?.warframeMaxEnergy,
+                    warframeEnergyPercent: build.plannerConfig?.warframeEnergyPercent,
+                });
+                if (ae) effects.push({
                     ...emptyEffect(),
-                    ...(ae ?? {}),
-                    conditionalEffects: [...(ae?.conditionalEffects ?? [])],
+                    ...ae,
+                    conditionalEffects: [...(ae.conditionalEffects ?? [])],
                 });
             }
         }
@@ -2349,7 +2595,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
             ["Burst DPS", fmt(stats.burstDPS)],
             ["Sustained DPS", fmt(stats.sustainedDPS)],
             [avgDamageLabel, fmt(stats.modded.averageShotDamage)],
-            ["Arsenal Dmg", fmt(stats.modded.arsenalDamage)],
+            ["Arsenal Total", fmt(stats.modded.arsenalDamage)],
             ["Crit Chance", `${fmt(stats.modded.critChance * 100, 1)}%`],
             ["Crit Mult", `${fmt(stats.modded.critMultiplier, 2)}x`],
             ["Crit Tier", `${fmt(stats.modded.averageCritTier, 2)}x`],
@@ -2387,7 +2633,12 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
                         {comparedBuilds.map(b => {
                             const buildCfg = buildCfgFromSavedBuild(b);
                             const weaponState = applyWeaponConfig(weapon, 0, buildCfg);
-                            const stats = calculateBuild(weaponState.selectedWeapon, [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)]);
+                            const stats = calculateBuild(
+                                weaponState.selectedWeapon,
+                                [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)],
+                                targetFaction,
+                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps },
+                            );
                             return (
                                 <div key={b.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-2">
                                     <div className="text-xs font-semibold text-slate-100">{b.name}</div>
@@ -2413,7 +2664,12 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
                         const stats = weapon ? (() => {
                             const buildCfg = buildCfgFromSavedBuild(b);
                             const weaponState = applyWeaponConfig(weapon, 0, buildCfg);
-                            return calculateBuild(weaponState.selectedWeapon, [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)]);
+                            return calculateBuild(
+                                weaponState.selectedWeapon,
+                                [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)],
+                                targetFaction,
+                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps },
+                            );
                         })() : null;
                         return (
                             <div key={b.id} className={["rounded-lg border px-3 py-2",
@@ -2653,6 +2909,13 @@ export default function ModBuilder() {
     const [arcane1, setArcane1]        = useState<ArcaneEntry | null>(null);
     const [arcane1Rank, setArcane1Rank]= useState(0);
     const [includeArcaneStats, setIncludeArcaneStats] = useState(true);
+    const [warframeArmorInput, setWarframeArmorInput] = useState("");
+    const warframeArmor = parseWarframeArmorInput(warframeArmorInput);
+    const [warframeMaxEnergyInput, setWarframeMaxEnergyInput] = useState("");
+    const [warframeEnergyPercentInput, setWarframeEnergyPercentInput] = useState("");
+    const warframeMaxEnergy = parseWarframeMaxEnergyInput(warframeMaxEnergyInput);
+    const warframeEnergyPercent = parseWarframeEnergyPercentInput(warframeEnergyPercentInput);
+    const arcaneEnergyContext = useMemo(() => ({ warframeMaxEnergy, warframeEnergyPercent }), [warframeMaxEnergy, warframeEnergyPercent]);
     // Attack mode selection
     const [selectedAttackIdx, setSelectedAttackIdx] = useState(0);
     // Excluded
@@ -2671,11 +2934,124 @@ export default function ModBuilder() {
     });
     // Optimizer
     const [goal, setGoal]              = useState<OptimizeGoal>("burst");
-    const [respectCap, setRespectCap]    = useState(false);
+    const [conditionalMode, setConditionalMode] = useState<ConditionalState["mode"]>("realistic");
+    const [externalConditionalStacks, setExternalConditionalStacks] = useState(1);
+    const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
+    const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
+    const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
+    const [meleeDpsInputs, setMeleeDpsInputs] = useState<MeleeDpsInputState>({
+        averageComboDamageMultiplier: null,
+        baseComboLengthSeconds: null,
+    });
+    const meleeDpsModelNote = weapon && usesMeleeDamageModel(weapon.category)
+        ? "Default burst and sustained DPS remain attack-rate estimates. The combo scenario scales Blood Rush, Weeping Wounds, and selected heavy-attack damage. The stats panel projects one-hit Heavy Attack Efficiency retention. Direct-hit TTK steps repeated Heavy Attacks and restores Initial Combo at 40 points/s; it still excludes attack-generated combo, Tennokai, stance sequences, and heavy-attack wind-up. DPS, finite status encounter, and optimizer scoring hold the entered tier across each scored hit. Optional stance-average DPS uses user-entered average combo damage and base combo length; it excludes status effects, target defenses, and follow-through."
+        : "";
+    const maxMeleeComboMultiplier = weapon ? getMeleeComboRules(weapon).maxMultiplier : 12;
+    useEffect(() => {
+        if (weapon) setMeleeComboMultiplier((current) => clampMeleeComboMultiplier(weapon, current));
+    }, [weapon]);
+    const conditionalState = useMemo<ConditionalState>(() => ({
+        mode: conditionalMode,
+        externalStacks: conditionalMode === "custom" ? externalConditionalStacks : undefined,
+        externalStatusTypeCount,
+        meleeComboMultiplier,
+        phantasmaChargeAmmo,
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, meleeComboMultiplier, phantasmaChargeAmmo]);
+    const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
     const [factionOn, setFactionOn]      = useState(false);
     const [faction, setFaction]          = useState("Grineer");
+    const [selectedEnemyProfileId, setSelectedEnemyProfileId] = useState("");
+    const [useCustomTargetStats, setUseCustomTargetStats] = useState(false);
+    const [nearbyEnemyCount, setNearbyEnemyCount] = useState(0);
+    const [nearbyBlastEnemyCount, setNearbyBlastEnemyCount] = useState(0);
+    const [isEximus, setIsEximus] = useState(false);
+    const [bossBlastStackCap, setBossBlastStackCap] = useState(false);
+    const [isSteelPath, setIsSteelPath] = useState(false);
+    const [customTargetStats, setCustomTargetStats] = useState({ armor: 2700, health: 25000, shields: 0, overguard: 0 });
+    const [scaleCustomTargetByLevel, setScaleCustomTargetByLevel] = useState(false);
+    const [enemyScalingFaction, setEnemyScalingFaction] = useState<EnemyScalingFaction>("grineer");
+    const [enemyBaseLevel, setEnemyBaseLevel] = useState(1);
+    const [enemyCurrentLevel, setEnemyCurrentLevel] = useState(30);
+    const [customToxinBypassesShields, setCustomToxinBypassesShields] = useState(true);
+    const [enemyShieldGateHitMode, setEnemyShieldGateHitMode] = useState<"body" | "weakspot" | "blockedArea">("body");
+    const [targetStatusImmunities, setTargetStatusImmunities] = useState<StatusDamageType[]>([]);
+    const selectEnemyProfile = useCallback((profileId: string) => {
+        const profile = getEnemyProfile(profileId);
+        setSelectedEnemyProfileId(profile?.id ?? "");
+        setIsEximus(false);
+        setBossBlastStackCap(false);
+        if (!profile) {
+            setUseCustomTargetStats(false);
+            return;
+        }
+        setFactionOn(true);
+        setFaction(profile.faction);
+        setUseCustomTargetStats(true);
+        setCustomTargetStats({
+            health: profile.health,
+            shields: profile.shields,
+            armor: profile.armor,
+            overguard: profile.overguard,
+        });
+        setScaleCustomTargetByLevel(true);
+        setEnemyScalingFaction(profile.scalingFaction);
+        setEnemyBaseLevel(profile.baseLevel);
+        setEnemyCurrentLevel(Math.max(30, profile.baseLevel));
+        setCustomToxinBypassesShields(profile.toxinBypassesShields);
+        setEnemyShieldGateHitMode("body");
+        setTargetStatusImmunities([]);
+    }, []);
+    const resolvedCustomTargetStats = useMemo(() => {
+        const effectiveLevel = getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath);
+        if (!scaleCustomTargetByLevel) {
+            return {
+                ...customTargetStats,
+                overguard: isEximus
+                    ? scaleEnemyOverguard(EXIMUS_BASE_OVERGUARD, effectiveLevel)
+                    : customTargetStats.overguard,
+            };
+        }
+        const baseHealth = isEximus
+            ? applyEximusHealthBaseAdjustment(
+                customTargetStats.health,
+                effectiveLevel,
+                customTargetStats.shields > 0 || customTargetStats.armor > 0,
+            )
+            : customTargetStats.health;
+        const baseShields = isEximus
+            ? applyEximusShieldBaseAdjustment(customTargetStats.shields, effectiveLevel)
+            : customTargetStats.shields;
+        const health = scaleEnemyStat("health", baseHealth, enemyScalingFaction, enemyBaseLevel, effectiveLevel);
+        const shields = scaleEnemyStat("shield", baseShields, enemyScalingFaction, enemyBaseLevel, effectiveLevel);
+        return {
+            health: applySteelPathStatMultiplier("health", health, isSteelPath),
+            shields: applySteelPathStatMultiplier("shield", shields, isSteelPath),
+            armor: scaleEnemyStat("armor", customTargetStats.armor, enemyScalingFaction, enemyBaseLevel, effectiveLevel),
+            overguard: scaleEnemyOverguard(isEximus ? EXIMUS_BASE_OVERGUARD : customTargetStats.overguard, effectiveLevel),
+        };
+    }, [customTargetStats, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, enemyCurrentLevel, isEximus, isSteelPath]);
+    const targetProfileOverride = useMemo<TargetProfileOverride | undefined>(() => {
+        if (!useCustomTargetStats) return undefined;
+        const hasActiveOverguard = resolvedCustomTargetStats.overguard > 0;
+        return {
+            ...resolvedCustomTargetStats,
+            description: isSteelPath
+                ? `Steel Path: mission level ${enemyCurrentLevel} becomes ${getSteelPathEnemyLevel(enemyCurrentLevel, true)}; Health and Shields ×2.5, with no separate Armor multiplier.`
+                : undefined,
+            hasOverguard: hasActiveOverguard,
+            crowdControlImmune: hasActiveOverguard,
+            toxinBypassesShields: customToxinBypassesShields,
+            enemyShieldGateHitMode,
+            nearbyEnemyCount,
+            nearbyBlastEnemyCount,
+            // Radiation immunity and the four-stack Cold cap are conditional on
+            // Overguard remaining; the encounter simulator applies them per event.
+            statusImmuneTypes: targetStatusImmunities,
+            statusStackCaps: bossBlastStackCap ? { blast: 4 } : undefined,
+        };
+    }, [useCustomTargetStats, resolvedCustomTargetStats, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, isSteelPath, enemyCurrentLevel]);
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
     const [maxFormaAllowed, setMaxFormaAllowed] = useState(9);
@@ -2686,9 +3062,39 @@ export default function ModBuilder() {
     const [infoTab, setInfoTab]        = useState<"stats"|"why">("stats");
     const [reasoning, setReasoning]    = useState<BuildReasoning | null>(null);
     const [reasoningMath, setReasoningMath] = useState<BuildMathBreakdown | null>(null);
+    const [reasoningContextAtOptimization, setReasoningContextAtOptimization] = useState<string | null>(null);
+    const currentReasoningContextKey = useMemo(() => JSON.stringify({
+        goal,
+        conditionalState,
+        selectedAttackIdx,
+        targetFaction: factionOn ? faction : "",
+        targetProfileOverride,
+    }), [goal, conditionalState, selectedAttackIdx, factionOn, faction, targetProfileOverride]);
+    const displayedReasoning = reasoningContextAtOptimization === currentReasoningContextKey ? reasoning : null;
+    useEffect(() => {
+        setReasoningMath(null);
+    }, [meleeDpsInputs]);
     const [showMathWindow, setShowMathWindow] = useState(false);
     const [tab, setTab]                = useState<"build"|"saves"|"owned"|"ownedArcanes"|"exclude">("build");
     const [optimizing, setOptimizing]  = useState(false);
+    const [optimizerProgress, setOptimizerProgress] = useState<string | null>(null);
+    const [optimizerNotice, setOptimizerNotice] = useState<string | null>(null);
+    const optimizerWorkerRef = useRef<Worker | null>(null);
+    const pendingWorkerRejectRef = useRef<((reason?: unknown) => void) | null>(null);
+    const optimizerRequestIdRef = useRef(0);
+    const optimizerCancelledRef = useRef(false);
+    const optimizerApplyingRef = useRef(false);
+    const cancelOptimization = useCallback(() => {
+        if (optimizerApplyingRef.current || (!optimizerWorkerRef.current && !optimizing)) return;
+        optimizerCancelledRef.current = true;
+        optimizerWorkerRef.current?.terminate();
+        optimizerWorkerRef.current = null;
+        pendingWorkerRejectRef.current?.(new Error("Optimization cancelled."));
+        pendingWorkerRejectRef.current = null;
+        setOptimizerProgress(null);
+        setOptimizerNotice("Optimization cancelled.");
+        setOptimizing(false);
+    }, [optimizing]);
     const [copiedExport, setCopiedExport] = useState(false);
     const [sharingBuildImage, setSharingBuildImage] = useState(false);
     const [sharedBuildImage, setSharedBuildImage] = useState(false);
@@ -2698,6 +3104,98 @@ export default function ModBuilder() {
     const [incarnonPickerTier, setIncarnonPickerTier] = useState<IncarnonTier | null>(null);
     const incarnonDialogRef = useRef<HTMLDivElement | null>(null);
     const mathDialogRef = useRef<HTMLDivElement | null>(null);
+    const savedPlannerConfig = useMemo<SavedBuildPlannerConfig>(() => {
+        const target: SavedBuildTargetConfig = {
+            enabled: factionOn,
+            faction,
+            enemyProfileId: selectedEnemyProfileId || undefined,
+            isEximus,
+            bossBlastStackCap,
+            isSteelPath,
+            useCustomStats: useCustomTargetStats,
+            baseStats: { ...customTargetStats },
+            scaleByLevel: scaleCustomTargetByLevel,
+            scalingFaction: enemyScalingFaction,
+            baseLevel: enemyBaseLevel,
+            currentLevel: enemyCurrentLevel,
+            toxinBypassesShields: customToxinBypassesShields,
+            enemyShieldGateHitMode,
+            nearbyEnemyCount,
+            nearbyBlastEnemyCount,
+            statusImmunities: [...targetStatusImmunities],
+        };
+        return {
+            goal,
+            conditionalMode,
+            externalConditionalStacks,
+            externalStatusTypeCount,
+            meleeComboMultiplier,
+            phantasmaChargeAmmo,
+            meleeAverageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier ?? undefined,
+            meleeBaseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds ?? undefined,
+            warframeArmor,
+            warframeMaxEnergy,
+            warframeEnergyPercent,
+            attackIndex: selectedAttackIdx,
+            attackName: weapon?.attacks[selectedAttackIdx]?.name,
+            target,
+            optimizerOptions: {
+                allowNonMax,
+                onlyOwned,
+                allowCatalyst,
+                allowForma,
+                maxFormaAllowed,
+                optimizeExilus: optExilus,
+                optimizeArcane: optArcane,
+                excludedModUniqueNames: [...excluded],
+            },
+        };
+    }, [
+        allowCatalyst,
+        allowForma,
+        allowNonMax,
+        conditionalMode,
+        customTargetStats,
+        customToxinBypassesShields,
+        enemyShieldGateHitMode,
+        nearbyEnemyCount,
+        nearbyBlastEnemyCount,
+        enemyBaseLevel,
+        enemyCurrentLevel,
+        enemyScalingFaction,
+        isEximus,
+        bossBlastStackCap,
+        isSteelPath,
+        excluded,
+        externalConditionalStacks,
+        externalStatusTypeCount,
+        meleeComboMultiplier,
+        phantasmaChargeAmmo,
+        meleeDpsInputs,
+        warframeArmor,
+        warframeMaxEnergy,
+        warframeEnergyPercent,
+        faction,
+        factionOn,
+        goal,
+        maxFormaAllowed,
+        optArcane,
+        optExilus,
+        onlyOwned,
+        scaleCustomTargetByLevel,
+        selectedAttackIdx,
+        selectedEnemyProfileId,
+        targetStatusImmunities,
+        useCustomTargetStats,
+        weapon,
+    ]);
+
+    useEffect(() => () => {
+        optimizerCancelledRef.current = true;
+        optimizerWorkerRef.current?.terminate();
+        optimizerWorkerRef.current = null;
+        pendingWorkerRejectRef.current?.(new Error("Build optimizer was closed."));
+    }, []);
 
     useEffect(() => {
         setBuildCfg((prev) => {
@@ -2757,6 +3255,8 @@ export default function ModBuilder() {
         setExilusMod(null); setExilusRank(0); setExilusPol(""); setHasExilus(false);
         setArcane1(null); setArcane1Rank(0);
         setSelectedAttackIdx(0);
+        setPhantasmaChargeAmmo(2);
+        setMeleeDpsInputs({ averageComboDamageMultiplier: null, baseComboLengthSeconds: null });
         setIncarnonPickerTier(null);
         setShowMathWindow(false);
         if (opts?.resetConfig) {
@@ -2789,18 +3289,66 @@ export default function ModBuilder() {
             .filter((riven: CustomRivenRecord) => !riven.importStatus || riven.importStatus === "ready")
             .filter((riven: CustomRivenRecord) => customRivenSupportsWeapon(riven, weapon))
             .map((riven: CustomRivenRecord) => buildCustomRivenEntry(riven, weapon));
-        return [...baseMods.filter((mod) => !shouldHideBuilderExpertMod(mod, baseMods)), ...customRivens];
+        return [...filterBuilderExpertVariants(baseMods), ...customRivens];
     }, [weapon, inventoryCustomRivens]);
     const stanceMods   = useMemo(() => {
         if (!weapon) return [];
         const mods = getStancesForWeapon(weapon);
-        return mods.filter((mod) => !shouldHideBuilderExpertMod(mod, mods));
+        return filterBuilderExpertVariants(mods);
     }, [weapon]);
     const fixedStanceMod = useMemo(() => {
         if (!weapon) return null;
         return stanceMods.find((mod) => mod.isBuiltIn) ?? null;
     }, [weapon, stanceMods]);
     const weaponArcanes = useMemo(() => weapon ? getArcanesForWeapon(weapon) : [], [weapon]);
+    const hasEnergyScaledArcanes = weaponArcanes.some((entry) => !!entry.energyScaledMultishot);
+    const selectedArcaneEnergyEffect = arcane1?.energyScaledMultishot
+        ? getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext)
+        : null;
+    const warframeEnergyArcanePanel = hasEnergyScaledArcanes ? (
+        <div className="mt-2 space-y-1.5 rounded-lg border border-violet-900/50 bg-violet-950/15 p-2">
+            <div className="text-[10px] font-semibold text-slate-300">Warframe Energy · Primary Overcharge</div>
+            <div className="grid grid-cols-2 gap-2">
+                <label className="block text-[9px] text-slate-400">
+                    Max Energy
+                    <input
+                        id="warframe-max-energy-input"
+                        aria-label="Warframe Maximum Energy for Primary Overcharge"
+                        type="number"
+                        min={0}
+                        max={10000}
+                        step={1}
+                        value={warframeMaxEnergyInput}
+                        onChange={(event) => setWarframeMaxEnergyInput(event.target.value)}
+                        placeholder="Max energy"
+                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600"
+                    />
+                </label>
+                <label className="block text-[9px] text-slate-400">
+                    Current Energy (%)
+                    <input
+                        id="warframe-energy-percent-input"
+                        aria-label="Current Warframe Energy percent for Primary Overcharge"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={warframeEnergyPercentInput}
+                        onChange={(event) => setWarframeEnergyPercentInput(event.target.value)}
+                        placeholder="0–100"
+                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600"
+                    />
+                </label>
+            </div>
+            <p className="text-[9px] leading-relaxed text-slate-500">At 90% current Energy, Primary Overcharge adds 35% of Max Energy as Multishot, up to its rank cap. This is a static scenario; energy use and regeneration during an encounter are not simulated. Both values are saved with this planner build.</p>
+            {(arcane1?.energyScaledMultishot || optArcane) && (warframeMaxEnergy === undefined || warframeEnergyPercent === undefined) && (
+                <p role="status" className="text-[9px] leading-relaxed text-amber-300">Energy-dependent Arcane bonuses are not calculated or considered by Auto Optimize until both values are entered.</p>
+            )}
+            {selectedArcaneEnergyEffect && (
+                <p className="text-[9px] text-violet-300">Selected rank bonus: +{(((selectedArcaneEnergyEffect.multishotBonus ?? 0) * 100).toFixed(1))}% Multishot.</p>
+            )}
+        </div>
+    ) : null;
     const incarnonRecord = useMemo(() => getIncarnonRecordForWeapon(weapon), [weapon]);
     const selectedIncarnonTierCount = useMemo(
         () => getSelectedIncarnonTierCount(buildCfg.incarnonSelectedOptionsByTier),
@@ -2928,35 +3476,78 @@ export default function ModBuilder() {
         return s;
     }, [slots, stanceMod, exilusMod]);
     const maxOptimizerForma = useMemo(() => maxOptimizerFormaForWeapon(weapon), [weapon]);
+    const optimizerInputSignature = useMemo(() => JSON.stringify({
+        weapon: weapon?.uniqueName,
+        attack: selectedAttackIdx,
+        goal,
+        conditionalState,
+        factionOn,
+        faction,
+        buildCfg,
+        slots: slots.map((mod) => mod?.uniqueName ?? null),
+        ranks,
+        slotPols,
+        stance: [stanceMod?.uniqueName, stanceRank, stancePol],
+        exilus: [hasExilus, exilusMod?.uniqueName, exilusRank, exilusPol],
+        arcane: [arcane1?.uniqueName, arcane1Rank, includeArcaneStats],
+        warframeArmor,
+        warframeMaxEnergy,
+        warframeEnergyPercent,
+        mode: optimizeMode,
+        options: [allowNonMax, onlyOwned, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane],
+        targetProfileOverride,
+        owned: onlyOwned ? [...ownedSet].sort() : [],
+        ownedRanks: onlyOwned ? ownedModMaxRankByUniqueName : {},
+        ownedArcanes: onlyOwned ? [...ownedArcaneUniqueNames].sort() : [],
+        ownedArcaneRanks: onlyOwned ? ownedArcaneMaxRankByUniqueName : {},
+        excluded: [...excluded].sort(),
+        candidates: compatMods.map((mod) => [mod.uniqueName, mod.effect]),
+    }), [
+        weapon, selectedAttackIdx, goal, conditionalState, factionOn, faction, targetProfileOverride, buildCfg,
+        slots, ranks, slotPols, stanceMod, stanceRank, stancePol, hasExilus, exilusMod, exilusRank, exilusPol,
+        arcane1, arcane1Rank, includeArcaneStats, optimizeMode, allowNonMax, onlyOwned, allowCatalyst,
+        warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
+        allowForma, maxFormaAllowed, optExilus, optArcane, ownedSet, ownedModMaxRankByUniqueName,
+        ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded, compatMods,
+    ]);
+    const optimizerInputSignatureRef = useRef(optimizerInputSignature);
+    useEffect(() => {
+        if (
+            optimizing &&
+            !optimizerApplyingRef.current &&
+            optimizerInputSignatureRef.current !== optimizerInputSignature
+        ) cancelOptimization();
+        optimizerInputSignatureRef.current = optimizerInputSignature;
+    }, [optimizerInputSignature, optimizing, cancelOptimization]);
 
     // Forma count: count slots whose current polarity differs from weapon default
     const formaCount = useMemo(() => {
         if (!weapon) return 0;
-        const defaultCounts = new Map<string, number>();
-        const currentCounts = new Map<string, number>();
-        const addCount = (map: Map<string, number>, polarity: string) => {
-            if (!polarity) return;
-            map.set(polarity, (map.get(polarity) ?? 0) + 1);
-        };
-        for (const polarity of weapon.polarities) addCount(defaultCounts, polarity);
-        addCount(defaultCounts, weapon.stancePolarity ?? "");
-        for (const polarity of slotPols) addCount(currentCounts, polarity);
-        addCount(currentCounts, stancePol);
-        addCount(currentCounts, exilusPol);
-        let changes = 0;
-        const allKeys = new Set([...defaultCounts.keys(), ...currentCounts.keys()]);
-        for (const key of allKeys) {
-            const extra = (currentCounts.get(key) ?? 0) - (defaultCounts.get(key) ?? 0);
-            if (extra > 0) changes += extra;
-        }
-        return changes;
-    }, [weapon, slotPols, stancePol, exilusPol]);
+        const defaultMainPolarities = [...weapon.polarities];
+        while (defaultMainPolarities.length < SLOT_COUNT) defaultMainPolarities.push("");
+        const includesStance = supportsStanceLikeMods(weapon);
+        const includesExilus = hasExilus || !!exilusMod;
+        const defaults = [
+            ...defaultMainPolarities,
+            ...(includesStance ? [weapon.stancePolarity ?? ""] : []),
+            ...(includesExilus ? [""] : []),
+        ];
+        const current = [
+            ...slotPols,
+            ...(includesStance ? [stancePol] : []),
+            ...(includesExilus ? [exilusPol] : []),
+        ];
+        return countPolarityChanges(defaults, current);
+    }, [weapon, slotPols, stancePol, exilusPol, hasExilus, exilusMod]);
 
     const currentBuildExport = useMemo(() => buildExportPayload({
         weapon,
         selectedAttackIdx,
+        meleeDpsInputs,
         goal,
+        conditionalState,
         targetFaction: factionOn ? faction : null,
+        targetProfileOverride,
         buildCfg,
         includeArcaneStats,
         slots,
@@ -2972,6 +3563,9 @@ export default function ModBuilder() {
         exilusPol,
         arcane: arcane1,
         arcaneRank: arcane1Rank,
+        warframeArmor,
+        warframeMaxEnergy,
+        warframeEnergyPercent,
         optimizeMode,
         respectCap,
         allowNonMax,
@@ -2990,7 +3584,7 @@ export default function ModBuilder() {
         ownedArcaneMaxRankByUniqueName,
         excluded,
     }), [
-        weapon, selectedAttackIdx, goal, factionOn, faction, buildCfg, includeArcaneStats,
+        weapon, selectedAttackIdx, goal, conditionalState, factionOn, faction, targetProfileOverride, meleeDpsInputs, buildCfg, includeArcaneStats, warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
         slots, ranks, slotPols, stanceMod, stanceRank, stancePol, formaCount, hasExilus, exilusMod, exilusRank, exilusPol, arcane1, arcane1Rank,
         optimizeMode, respectCap, allowNonMax, onlyOwned, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane,
         compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
@@ -3001,7 +3595,18 @@ export default function ModBuilder() {
         return applyWeaponConfig(weapon, selectedAttackIdx, buildCfg);
     }, [weapon, selectedAttackIdx, buildCfg]);
     const activeCalcWeapon = activeWeaponState?.selectedWeapon ?? null;
-    const displayedMath = reasoningMath ?? currentBuildExport?.math ?? null;
+    const phantasmaAltFireModelNote = activeCalcWeapon &&
+        (activeCalcWeapon.name === "Phantasma" || activeCalcWeapon.name === "Phantasma Prime") &&
+        /^(plasma bomb|cluster bombs)/i.test(activeCalcWeapon.selectedAttackName ?? "")
+        ? "The selected row scales linearly from its Wiki baseline at 2 ammo using the chosen charge amount; the charge rate is fixed at 11 ammo/sec and is unaffected by fire-rate mods. Each row represents one part of the attack. Magazine-depletion charge-cost changes and the incremental-charge damage bug are not simulated, and the bomb plus five bomblets, projectile travel, and falloff are not combined. Treat these as single-row proxies."
+        : "";
+    const activeIncarnonUnsupportedLines = useMemo(
+        () => activeWeaponState?.appliedIncarnonOptions.flatMap((option) =>
+            option.model.unsupportedLines.map((line) => `${option.name}: ${line}`),
+        ) ?? [],
+        [activeWeaponState],
+    );
+    const displayedMath = (reasoningContextAtOptimization === currentReasoningContextKey ? reasoningMath : null) ?? currentBuildExport?.math ?? null;
     async function handleCopyBuildExport() {
         if (!currentBuildExport) return;
         const json = JSON.stringify(currentBuildExport, null, 2);
@@ -3207,15 +3812,15 @@ export default function ModBuilder() {
             }),
         ];
         if (includeArcaneStats && arcane1) {
-            const ae = arcane1.permanentEffectByRank[arcane1Rank];
-            effects.push({
+            const ae = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext);
+            if (ae) effects.push({
                 ...emptyEffect(),
-                ...(ae ?? {}),
-                conditionalEffects: [...(ae?.conditionalEffects ?? [])],
+                ...ae,
+                conditionalEffects: [...(ae.conditionalEffects ?? [])],
             });
         }
         return effects;
-    }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank]);
+    }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
     const activeBuildEffectSourceLabels = useMemo(() => {
         const labels = [
             ...(activeWeaponState?.activeIncarnonEffects ?? []).map((_, index) => `selected Incarnon evolution ${index + 1}`),
@@ -3228,10 +3833,200 @@ export default function ModBuilder() {
         if (includeArcaneStats && arcane1) labels.push(`${arcane1.name} (arcane)`);
         return labels;
     }, [activeWeaponState, allSlotsForCap, includeArcaneStats, arcane1]);
-    const activeMetrics = useMemo(
-        () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "") : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction],
+    const activeTargetAssumptions = useMemo(
+        () => getTargetProfileAssumptions(factionOn ? faction : "", targetProfileOverride),
+        [factionOn, faction, targetProfileOverride],
     );
+    const activeMetrics = useMemo(
+        () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
+            conditionalState,
+            statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
+            statusStackCaps: activeTargetAssumptions.statusStackCaps,
+        }) : null,
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions],
+    );
+    const phantasmaBeamDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
+        ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
+        : "";
+    const initialTargetMetrics = useMemo(
+        () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
+            conditionalState: { mode: "initial" },
+            statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
+            statusStackCaps: activeTargetAssumptions.statusStackCaps,
+            targetStatusState: "initial",
+        }) : null,
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, activeTargetAssumptions],
+    );
+    const meleeAverageDps = useMemo(() => {
+        if (
+            !weapon || !usesMeleeDamageModel(weapon.category) || !initialTargetMetrics ||
+            meleeDpsInputs.averageComboDamageMultiplier == null || meleeDpsInputs.baseComboLengthSeconds == null
+        ) return null;
+        return calculateMeleeAverageDps(initialTargetMetrics.modded, {
+            averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+            baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
+        });
+    }, [weapon, initialTargetMetrics, meleeDpsInputs]);
+    const encounterTargetMetrics = useMemo(
+        () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
+            conditionalState,
+            statusImmuneTypes: targetStatusImmunities,
+            statusStackCaps: targetProfileOverride?.statusStackCaps,
+            targetStatusState: "initial",
+        }) : null,
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, targetStatusImmunities, targetProfileOverride],
+    );
+    const activeProcMixLabel = activeMetrics
+        ? Object.entries(activeMetrics.modded.procChanceByType)
+            .filter(([, chance]) => (chance ?? 0) > 0)
+            .map(([type, chance]) => `${type[0].toUpperCase()}${type.slice(1)} ${fmt((chance ?? 0) * 100, 1)}%`)
+            .join(" · ") || "No eligible status procs"
+        : "—";
+    const selectedEnemyProfile = useMemo(
+        () => getEnemyProfile(selectedEnemyProfileId),
+        [selectedEnemyProfileId],
+    );
+    const activeTargetAttackInput = useMemo<DirectTargetDamageInput | null>(() => {
+        if (!activeMetrics) return null;
+        const stats = activeMetrics.modded;
+        const factionDamageBonus = factionOn
+            ? activeBuildEffects.reduce((sum, effect) =>
+                sum + (effect?.targetFaction?.toLowerCase() === faction.toLowerCase()
+                    ? effect.factionDamageBonus ?? 0
+                    : 0), 0)
+            : 0;
+        const combinedArmorStrip = 1 - ((1 - stats.heatArmorStrip) * (1 - stats.corrosiveArmorStrip));
+        return {
+            damageByType: stats.damageBreakdownBeforePerStatus,
+            health: activeTargetAssumptions.health,
+            shields: activeTargetAssumptions.shields,
+            overguard: activeTargetAssumptions.overguard,
+            armor: activeTargetAssumptions.armor * Math.max(0, 1 - combinedArmorStrip),
+            faction: factionOn ? faction : "",
+            factionDamageBonus,
+            viralHealthDamageBonus: stats.viralHealthDamageBonus,
+            magneticDefenseDamageBonus: stats.magneticShieldDamageBonus,
+            toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
+            damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
+            expectedCritMultiplier: avgCritMultiplier(
+                stats.critChance + stats.punctureCritChanceBonus,
+                stats.critMultiplier + stats.coldCritDamageBonus,
+            ),
+            expectedProjectiles: stats.multishot,
+            expectedDamageMultiplier: stats.damageWeightedMultishot,
+        };
+    }, [activeMetrics, activeBuildEffects, activeTargetAssumptions, activeCalcWeapon, factionOn, faction]);
+    const activeTargetAttackDamage = useMemo(
+        () => activeTargetAttackInput ? calculateDirectDamageToInitialPools(activeTargetAttackInput) : null,
+        [activeTargetAttackInput],
+    );
+    const activeTargetAttackSequence = useMemo(() => {
+        if (!activeTargetAttackInput || !activeMetrics) return null;
+        const stats = activeMetrics.modded;
+        return simulateDirectAttackSequence({
+            ...activeTargetAttackInput,
+            enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
+            attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+            shotsPerMagazine: stats.shotsPerMag,
+            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+            critChance: stats.critChance + stats.punctureCritChanceBonus,
+            critMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
+            ...(activeCalcWeapon?.selectedAttackUsesMeleeComboMultiplier && activeCalcWeapon
+                ? {
+                    heavyAttackCombo: {
+                        startingPoints: stats.meleeComboPointsBeforeHeavyAttack,
+                        startingMultiplier: stats.meleeComboMultiplier,
+                        pointsPerTier: getMeleeComboRules(activeCalcWeapon).pointsPerTier,
+                        maxMultiplier: getMeleeComboRules(activeCalcWeapon).maxMultiplier,
+                        heavyAttackEfficiency: stats.heavyAttackEfficiency,
+                        initialComboPoints: stats.meleeInitialComboPoints,
+                        startingCritChance: stats.critChance + stats.punctureCritChanceBonus,
+                        critChancePerTier: stats.comboCritChancePerTier,
+                        critDamageMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
+                    },
+                }
+                : {}),
+            ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
+        });
+    }, [activeTargetAttackInput, activeMetrics, activeCalcWeapon, targetProfileOverride]);
+    const activeTargetEncounter = useMemo(() => {
+        if (!encounterTargetMetrics) return null;
+        const stats = encounterTargetMetrics.modded;
+        const factionDamageBonus = factionOn
+            ? activeBuildEffects.reduce((sum, effect) =>
+                sum + (effect?.targetFaction?.toLowerCase() === faction.toLowerCase()
+                    ? effect.factionDamageBonus ?? 0
+                    : 0), 0)
+            : 0;
+        return simulateExpectedWeaponEncounter({
+            damageByType: stats.damageBreakdownBeforePerStatus,
+            rawDamageByType: stats.rawDamageBreakdownBeforePerStatus,
+            baseDamageTotal: stats.baseDamageTotal,
+            health: activeTargetAssumptions.health,
+            shields: activeTargetAssumptions.shields,
+            overguard: activeTargetAssumptions.overguard,
+            maxShields: activeTargetAssumptions.shields,
+            maxOverguard: activeTargetAssumptions.overguard,
+            armor: activeTargetAssumptions.armor,
+            faction: factionOn ? faction : "",
+            factionDamageBonus,
+            toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
+            enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
+            damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
+            critChance: stats.critChance,
+            critMultiplier: stats.critMultiplier,
+            expectedProjectiles: stats.multishot,
+            expectedDamageMultiplier: stats.damageWeightedMultishot,
+            attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+            shotsPerMagazine: stats.shotsPerMag,
+            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+            ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
+            statusDurationMultiplier: stats.statusDurationMultiplier,
+            dotDamagePerAttackByType: stats.dotDamagePerShotByType,
+            dotDamagePerApplicationByType: Object.fromEntries(
+                Object.entries(stats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
+                    const type = rawType as StatusDamageType;
+                    const applications = stats.averageProcsPerShot * (stats.procChanceByType[type] ?? 0);
+                    return applications > 0 ? [[type, damagePerAttack / applications]] : [];
+                }),
+            ) as Partial<Record<StatusDamageType, number>>,
+            heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
+            heatDotAccumulatorDamagePerTick: stats.dotTickAccumulatorDamageByType.heat,
+            dotSeedDamagePerApplicationByType: stats.dotDamagePerApplicationSeedByType,
+            dotAccumulatorDamagePerApplicationByType: stats.dotDamagePerApplicationAccumulatorByType,
+            statusProcWeightsByType: stats.damageBreakdownBeforePerStatus,
+            statusRollsPerAttack: stats.multishot * stats.statusChance,
+            forcedStatusApplicationsPerAttackByType: stats.unfilteredExtraProcsPerShot as Partial<Record<StatusDamageType, number>>,
+            statusImmuneTypes: targetStatusImmunities,
+            statusStackCaps: targetProfileOverride?.statusStackCaps,
+            blastStackHitDamagePerProc: stats.blastStackHitDamagePerProcBeforeConditionOverload,
+            nearbyBlastEnemyCount: targetProfileOverride?.nearbyBlastEnemyCount,
+            nearbyElectricGasEnemyCount: targetProfileOverride?.nearbyEnemyCount,
+            magneticBreakElectricSourceMultiplier: stats.magneticBreakElectricSourceMultiplier,
+            directDamagePerStatusBonus: stats.directDamagePerStatusBonus,
+            conditionOverloadDamagePerStatusBonus: stats.conditionOverloadApplies
+                ? stats.conditionOverloadDamagePerStatusBonus
+                : 0,
+            externalConditionOverloadStatusTypeCount: externalStatusTypeCount,
+            uniqueStatusProcsPerAttack: activeCalcWeapon?.uniqueStatusProcs,
+            intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
+            intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
+            totalDamageBonus: stats.totalDamageBonus,
+        });
+    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount]);
+    const activeEncounterStatusSummary = activeTargetEncounter
+        ? Object.entries(activeTargetEncounter.statusApplicationsByType)
+            .filter(([, count]) => (count ?? 0) >= 0.01)
+            .map(([type, count]) => `${type[0].toUpperCase()}${type.slice(1)} ${fmt(count ?? 0, 1)}`)
+            .join(" · ") || "None"
+        : "—";
+    const activeTargetSummary = selectedEnemyProfile
+        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        : targetProfileOverride
+        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        : factionOn
+            ? `${faction} synthetic faction estimate`
+            : "Balanced synthetic target estimate";
     const activeDamageTypeSources = useMemo(
         () => activeCalcWeapon ? buildDamageTypeSourceDescriptions(activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels) : {},
         [activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels],
@@ -3253,23 +4048,70 @@ export default function ModBuilder() {
     async function handleOptimize() {
         if (!weapon) return;
         if (onlyOwned && ownedSet.size === 0) return;
+        if (useCustomTargetStats && customTargetStats.health + customTargetStats.shields + customTargetStats.overguard <= 0) {
+            setOptimizerNotice("Enter a positive Health, Shields, or Overguard value for the custom target.");
+            return;
+        }
+        optimizerCancelledRef.current = false;
+        optimizerApplyingRef.current = false;
+        optimizerInputSignatureRef.current = optimizerInputSignature;
+        setOptimizerNotice(null);
+        setOptimizerProgress("Preparing optimizer…");
         setOptimizing(true);
         await new Promise(r => setTimeout(r, 10));
         try {
+            if (optimizerCancelledRef.current) return;
+            const worker = new Worker(new URL("../../workers/buildOptimizer.worker.ts", import.meta.url), { type: "module" });
+            optimizerWorkerRef.current = worker;
+            const optimizeInWorker = (
+                candidateWeapon: WeaponEntry,
+                candidateMods: ModEntry[],
+                candidateGoal: OptimizeGoal,
+                slotCount: number,
+                options: Parameters<typeof optimizeBuild>[4],
+            ) => new Promise<ReturnType<typeof optimizeBuild>>((resolve, reject) => {
+                const id = ++optimizerRequestIdRef.current;
+                pendingWorkerRejectRef.current = reject;
+                worker.onmessage = (event: MessageEvent<{ id: number; result?: ReturnType<typeof optimizeBuild>; error?: string }>) => {
+                    if (event.data.id !== id) return;
+                    pendingWorkerRejectRef.current = null;
+                    if (event.data.error) reject(new Error(event.data.error));
+                    else if (event.data.result) resolve(event.data.result);
+                    else reject(new Error("The optimizer worker returned no result."));
+                };
+                worker.onerror = (event) => {
+                    pendingWorkerRejectRef.current = null;
+                    reject(new Error(event.message || "The optimizer worker failed."));
+                };
+                worker.postMessage({
+                    id,
+                    weapon: candidateWeapon,
+                    availableMods: candidateMods,
+                    goal: candidateGoal,
+                    slotCount,
+                    options,
+                });
+            });
             const fillMode = optimizeMode === "fill";
+            const optimizeArcaneForRun = optArcane && (!fillMode || !arcane1);
             const lockedMainSlots = fillMode ? [...slots] : Array(SLOT_COUNT).fill(null);
             const lockedMainRanks = fillMode ? [...ranks] : Array(SLOT_COUNT).fill(undefined);
             const lockedSlotMask = fillMode ? slots.map((mod) => !!mod) : Array(SLOT_COUNT).fill(false);
             const lockedExternalEffects: ModEffect[] = [];
+            let lockedArcaneEffect: ModEffect | null = null;
             if (fillMode && hasExilus && exilusMod) {
                 lockedExternalEffects.push(exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect);
             }
-            if (fillMode && includeArcaneStats && arcane1) {
-                lockedExternalEffects.push({
-                    ...emptyEffect(),
-                    ...(arcane1.permanentEffectByRank[arcane1Rank] ?? {}),
-                    conditionalEffects: [...(arcane1.permanentEffectByRank[arcane1Rank]?.conditionalEffects ?? [])],
-                });
+            if (includeArcaneStats && arcane1 && !optimizeArcaneForRun) {
+                const resolved = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext);
+                if (resolved) {
+                    lockedArcaneEffect = {
+                        ...emptyEffect(),
+                        ...resolved,
+                        conditionalEffects: [...(resolved.conditionalEffects ?? [])],
+                    };
+                    lockedExternalEffects.push(lockedArcaneEffect);
+                }
             }
             const lockedIncompatibilityGroups = fillMode
                 ? new Set(slots.filter((mod): mod is ModEntry => !!mod).map((mod) => mod.incompatibilityGroup))
@@ -3277,7 +4119,7 @@ export default function ModBuilder() {
             const lockedUniqueNames = fillMode
                 ? new Set(slots.filter((mod): mod is ModEntry => !!mod).map((mod) => mod.uniqueName))
                 : undefined;
-            const availableFormaBudget = fillMode && allowForma
+            const availableFormaBudget = allowForma
                 ? Math.max(0, maxFormaAllowed - formaCount)
                 : maxFormaAllowed;
             let optimizerStanceMod = stanceMod;
@@ -3298,8 +4140,6 @@ export default function ModBuilder() {
                     optimizerStanceRank = bestStance
                         ? Math.min(bestStance.fusionLimit, ownedModMaxRankByUniqueName[bestStance.uniqueName] ?? bestStance.fusionLimit)
                         : 0;
-                    setStanceMod(bestStance);
-                    setStanceRank(optimizerStanceRank);
                 }
             }
 
@@ -3322,69 +4162,14 @@ export default function ModBuilder() {
                     effects.push(candidateResult.exilusMod.effectsByRank[candidateResult.exilusRank] ?? candidateResult.exilusMod.effect);
                 }
                 const arcaneEffect = candidateResult.arcane
-                    ? (candidateResult.arcane.optimizerEffectByRank[candidateResult.arcaneRank] ?? candidateResult.arcane.permanentEffectByRank[candidateResult.arcaneRank] ?? null)
+                    ? getArcaneEffectAtRank(candidateResult.arcane, candidateResult.arcaneRank, warframeArmor, true, arcaneEnergyContext)
                     : null;
-                return debugScoreBuild(scoringWeapon, effects, goal, factionOn ? faction : "", arcaneEffect);
+                return debugScoreBuild(scoringWeapon, effects, goal, factionOn ? faction : "", arcaneEffect, targetProfileOverride, conditionalState);
             };
 
-            const buildIncarnonCandidateConfigs = (): Array<{
-                unlockedTier: number;
-                selectedOptionsByTier: Partial<Record<IncarnonTier, string>>;
-            }> => {
-                if (!incarnonRecord) {
-                    return [{
-                        unlockedTier: getHighestSelectedIncarnonTier(buildCfg.incarnonSelectedOptionsByTier),
-                        selectedOptionsByTier: buildCfg.incarnonSelectedOptionsByTier,
-                    }];
-                }
-                if (!buildCfg.optimizeIncarnonSelections) {
-                    return [{
-                        unlockedTier: getHighestSelectedIncarnonTier(buildCfg.incarnonSelectedOptionsByTier),
-                        selectedOptionsByTier: buildCfg.incarnonSelectedOptionsByTier,
-                    }];
-                }
-                const tiers = selectedIncarnonTierCount > 0
-                    ? incarnonRecord.tiers.filter((tier) => Boolean(buildCfg.incarnonSelectedOptionsByTier[tier.tier]))
-                    : incarnonRecord.tiers;
-                if (!tiers.length) {
-                    return [{
-                        unlockedTier: getHighestSelectedIncarnonTier(buildCfg.incarnonSelectedOptionsByTier),
-                        selectedOptionsByTier: buildCfg.incarnonSelectedOptionsByTier,
-                    }];
-                }
-                const out: Array<{
-                    unlockedTier: number;
-                    selectedOptionsByTier: Partial<Record<IncarnonTier, string>>;
-                }> = [];
-                const walk = (index: number, selected: Partial<Record<IncarnonTier, string>>) => {
-                    if (index >= tiers.length) {
-                        out.push({
-                            unlockedTier: getHighestSelectedIncarnonTier(selected),
-                            selectedOptionsByTier: { ...selected },
-                        });
-                        return;
-                    }
-                    const tier = tiers[index];
-                    const options = tier.options.length > 0 ? tier.options : [];
-                    if (!options.length) {
-                        walk(index + 1, selected);
-                        return;
-                    }
-                    for (const option of options) {
-                        selected[tier.tier] = option.id;
-                        walk(index + 1, selected);
-                    }
-                };
-                walk(0, { ...buildCfg.incarnonSelectedOptionsByTier });
-                return out;
-            };
-
-            const runOptimizeForConfig = (
+            const runOptimizeForConfig = async (
                 valenceElement: ValenceElement,
-                incarnonCandidate: {
-                    unlockedTier: number;
-                    selectedOptionsByTier: Partial<Record<IncarnonTier, string>>;
-                },
+                incarnonCandidate: IncarnonCandidateConfig,
             ) => {
                 const candidateCfg: BuildCfg = {
                     ...buildCfg,
@@ -3397,13 +4182,9 @@ export default function ModBuilder() {
                 const atk = weaponForOpt.attacks.length > 1 ? weaponForOpt.attacks[selectedAttackIdx] : null;
 
                 // If allowCatalyst, override capacityCfg to hasCatalyst:true
-                const capForOpt = respectCap ? (
-                    allowCatalyst && !buildCfg.hasCatalyst
-                        ? { ...capacityCfg, hasCatalyst: true }
-                        : capacityCfg
-                ) : undefined;
+                const capForOpt = capacityCfg;
 
-                const result = optimizeBuild(weaponForOpt, compatMods, goal, SLOT_COUNT, {
+                const result = await optimizeInWorker(weaponForOpt, compatMods, goal, SLOT_COUNT, {
                     ownedModUniqueNames:    onlyOwned ? ownedSet : undefined,
                     ownedModMaxRankByUniqueName: onlyOwned ? ownedModMaxRankByUniqueName : undefined,
                     ownedArcaneUniqueNames: onlyOwned ? ownedArcaneUniqueNames : undefined,
@@ -3411,16 +4192,22 @@ export default function ModBuilder() {
                     excludedModUniqueNames: excluded.size > 0 ? excluded : undefined,
                     allowNonMaxRank:  allowNonMax,
                     targetFaction:    factionOn ? faction : "",
+                    targetProfileOverride,
                     capacityConfig:   capForOpt,
                     slotPolarities:   slotPols,
-                    defaultSlotPolarities: fillMode ? slotPols : weapon.polarities,
+                    defaultSlotPolarities: slotPols,
                     allowCatalyst,
                     allowForma,
                     maxFormaCount: allowForma ? availableFormaBudget : undefined,
                     optimizeExilus:   fillMode ? (optExilus && hasExilus && !exilusMod ? true : optExilus && !hasExilus) : optExilus,
                     exilusPolarity:   exilusPol,
-                    optimizeArcane:   optArcane,
+                    optimizeArcane:   optimizeArcaneForRun,
+                    arcaneCandidates: optimizeArcaneForRun ? getArcanesForWeapon(weaponForOpt) : [],
+                    warframeArmor,
+                    warframeMaxEnergy,
+                    warframeEnergyPercent,
                     buildForAttack:   atk,
+                    conditionalState,
                     extraCapacitySlots: supportsStanceLikeMods(weapon) && optimizerStanceMod
                         ? [{ mod: optimizerStanceMod, rank: optimizerStanceRank, polarity: stancePol }]
                         : undefined,
@@ -3432,95 +4219,11 @@ export default function ModBuilder() {
                     lockedUniqueNames,
                 });
 
-                let appliedResult = result;
-                let appliedCatalyst = buildCfg.hasCatalyst;
+                const appliedResult = result;
+                const appliedCatalyst = buildCfg.hasCatalyst || result.needsCatalyst;
                 const baseExtraCapacitySlots = supportsStanceLikeMods(weapon) && optimizerStanceMod
                     ? [{ mod: optimizerStanceMod, rank: optimizerStanceRank, polarity: stancePol }]
                     : undefined;
-
-                if (!respectCap) {
-                    const resultSlotsForCap = [...result.slots, ...(optExilus ? [result.exilusMod] : [])];
-                    const resultRanksForCap = [...result.slotRanks, ...(optExilus ? [result.exilusMod ? result.exilusRank : 0] : [])];
-                    const resultPolsForCap = [...result.slotPolarities, ...(optExilus ? [result.exilusPolarity] : [])];
-                    const resultExtraCfgs = (baseExtraCapacitySlots ?? []).map(slot => ({ polarity: slot.polarity }));
-                    const resultExtraMods = (baseExtraCapacitySlots ?? []).map(slot => slot.mod);
-                    const resultExtraRanks = (baseExtraCapacitySlots ?? []).map(slot => slot.rank);
-                    const uncatalyzedFit = computeCapacity(
-                        capacityCfg,
-                        [...resultExtraCfgs, ...resultPolsForCap.map(polarity => ({ polarity }))],
-                        [...resultExtraMods, ...resultSlotsForCap],
-                        [...resultExtraRanks, ...resultRanksForCap],
-                    );
-
-                    if (uncatalyzedFit.overCapacity) {
-                        if (allowCatalyst) {
-                            appliedCatalyst = true;
-                            const catalyzedCfg = { ...capacityCfg, hasCatalyst: true };
-                            const catalyzedFit = computeCapacity(
-                                catalyzedCfg,
-                                [...resultExtraCfgs, ...resultPolsForCap.map(polarity => ({ polarity }))],
-                                [...resultExtraMods, ...resultSlotsForCap],
-                                [...resultExtraRanks, ...resultRanksForCap],
-                            );
-
-                            if (catalyzedFit.overCapacity && allowForma) {
-                                appliedResult = optimizeBuild(weaponForOpt, compatMods, goal, SLOT_COUNT, {
-                                    ownedModUniqueNames:    onlyOwned ? ownedSet : undefined,
-                                    ownedModMaxRankByUniqueName: onlyOwned ? ownedModMaxRankByUniqueName : undefined,
-                                    ownedArcaneUniqueNames: onlyOwned ? ownedArcaneUniqueNames : undefined,
-                                    ownedArcaneMaxRankByUniqueName: onlyOwned ? ownedArcaneMaxRankByUniqueName : undefined,
-                                    excludedModUniqueNames: excluded.size > 0 ? excluded : undefined,
-                                    allowNonMaxRank:  allowNonMax,
-                                    targetFaction:    factionOn ? faction : "",
-                                    capacityConfig:   catalyzedCfg,
-                                    slotPolarities:   slotPols,
-                                    defaultSlotPolarities: fillMode ? slotPols : weapon.polarities,
-                                    allowCatalyst:    false,
-                                    allowForma:       true,
-                                    maxFormaCount:    availableFormaBudget,
-                                    optimizeExilus:   fillMode ? (optExilus && hasExilus && !exilusMod ? true : optExilus && !hasExilus) : optExilus,
-                                    exilusPolarity:   exilusPol,
-                                    optimizeArcane:   optArcane,
-                                    buildForAttack:   atk,
-                                    extraCapacitySlots: baseExtraCapacitySlots,
-                                    preEquippedEffects: [...weaponState.activeIncarnonEffects, ...lockedExternalEffects],
-                                    lockedSlots: fillMode ? lockedMainSlots : undefined,
-                                    lockedSlotRanks: fillMode ? lockedMainRanks : undefined,
-                                    lockedSlotMask: fillMode ? lockedSlotMask : undefined,
-                                    lockedIncompatibilityGroups,
-                                    lockedUniqueNames,
-                                });
-                            }
-                        } else if (allowForma) {
-                            appliedResult = optimizeBuild(weaponForOpt, compatMods, goal, SLOT_COUNT, {
-                                ownedModUniqueNames:    onlyOwned ? ownedSet : undefined,
-                                ownedModMaxRankByUniqueName: onlyOwned ? ownedModMaxRankByUniqueName : undefined,
-                                ownedArcaneUniqueNames: onlyOwned ? ownedArcaneUniqueNames : undefined,
-                                ownedArcaneMaxRankByUniqueName: onlyOwned ? ownedArcaneMaxRankByUniqueName : undefined,
-                                excludedModUniqueNames: excluded.size > 0 ? excluded : undefined,
-                                allowNonMaxRank:  allowNonMax,
-                                targetFaction:    factionOn ? faction : "",
-                                capacityConfig:   capacityCfg,
-                                slotPolarities:   slotPols,
-                                defaultSlotPolarities: fillMode ? slotPols : weapon.polarities,
-                                allowCatalyst:    false,
-                                allowForma:       true,
-                                maxFormaCount:    availableFormaBudget,
-                                optimizeExilus:   fillMode ? (optExilus && hasExilus && !exilusMod ? true : optExilus && !hasExilus) : optExilus,
-                                exilusPolarity:   exilusPol,
-                                optimizeArcane:   optArcane,
-                                buildForAttack:   atk,
-                                extraCapacitySlots: baseExtraCapacitySlots,
-                                preEquippedEffects: [...weaponState.activeIncarnonEffects, ...lockedExternalEffects],
-                                lockedSlots: fillMode ? lockedMainSlots : undefined,
-                                lockedSlotRanks: fillMode ? lockedMainRanks : undefined,
-                                lockedSlotMask: fillMode ? lockedSlotMask : undefined,
-                                lockedIncompatibilityGroups,
-                                lockedUniqueNames,
-                            });
-                        }
-                    }
-                }
 
                 return {
                     weaponForOpt,
@@ -3528,7 +4231,10 @@ export default function ModBuilder() {
                     appliedResult,
                     appliedCatalyst,
                     baseExtraCapacitySlots,
-                    score: scoreOptimizerResult(weaponForOpt, selectedAttackIdx, appliedResult, weaponState.activeIncarnonEffects),
+                    score: scoreOptimizerResult(weaponForOpt, selectedAttackIdx, appliedResult, [
+                        ...weaponState.activeIncarnonEffects,
+                        ...lockedExternalEffects,
+                    ]),
                     valenceElement,
                     incarnonSelectedOptionsByTier: incarnonCandidate.selectedOptionsByTier,
                 };
@@ -3537,23 +4243,113 @@ export default function ModBuilder() {
             const valenceElementsToTry = weapon.isProgenitorWeapon && buildCfg.valenceBonusPct > 0 && buildCfg.optimizeValenceElement && buildCfg.weaponRank >= 40
                 ? VALENCE_ELEMENTS.map((entry) => entry.key)
                 : [buildCfg.valenceElement];
-            const incarnonCandidates = buildIncarnonCandidateConfigs();
-            let bestRun: ReturnType<typeof runOptimizeForConfig> | null = null;
+            const incarnonCandidates = buildIncarnonCandidateConfigs(
+                incarnonRecord,
+                buildCfg.incarnonSelectedOptionsByTier,
+                buildCfg.optimizeIncarnonSelections,
+            );
+            const currentIncarnonCandidate: IncarnonCandidateConfig = {
+                unlockedTier: getHighestSelectedIncarnonTier(buildCfg.incarnonSelectedOptionsByTier),
+                selectedOptionsByTier: { ...buildCfg.incarnonSelectedOptionsByTier },
+            };
+            const configSignature = (valenceElement: ValenceElement, candidate: IncarnonCandidateConfig) =>
+                `${valenceElement}|${Object.entries(candidate.selectedOptionsByTier)
+                    .sort(([left], [right]) => Number(left) - Number(right))
+                    .map(([tier, option]) => `${tier}:${option}`)
+                    .join("|")}`;
+            const baselineRuns: Array<Awaited<ReturnType<typeof runOptimizeForConfig>>> = [];
             let evaluatedConfigs = 0;
             for (const candidateElement of valenceElementsToTry) {
-                for (const incarnonCandidate of incarnonCandidates) {
-                    const run = runOptimizeForConfig(candidateElement, incarnonCandidate);
-                    if (!bestRun || run.score > bestRun.score) {
-                        bestRun = run;
-                    }
-                    evaluatedConfigs += 1;
-                    if (evaluatedConfigs % 2 === 0) {
-                        await new Promise((resolve) => setTimeout(resolve, 0));
+                if (optimizerCancelledRef.current) return;
+                setOptimizerProgress(`Evaluating baseline configuration ${evaluatedConfigs + 1} of ${valenceElementsToTry.length}…`);
+                baselineRuns.push(await runOptimizeForConfig(candidateElement, currentIncarnonCandidate));
+                evaluatedConfigs += 1;
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
+            let bestRun = baselineRuns.reduce<Awaited<ReturnType<typeof runOptimizeForConfig>> | null>(
+                (best, run) => !best || run.score > best.score ? run : best,
+                null,
+            );
+            if (!bestRun) {
+                setOptimizerNotice("No legal build fits the current capacity and locked-slot settings.");
+                setOptimizerProgress(null);
+                return;
+            }
+
+            if (buildCfg.optimizeIncarnonSelections && incarnonCandidates.length > 0) {
+                setOptimizerProgress(`Screening ${incarnonCandidates.length * baselineRuns.length} Incarnon paths against the baseline builds…`);
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                const screenedCandidates: Array<{
+                    signature: string;
+                    valenceElement: ValenceElement;
+                    incarnonCandidate: IncarnonCandidateConfig;
+                    score: number;
+                }> = [];
+
+                for (const baselineRun of baselineRuns) {
+                    for (const incarnonCandidate of incarnonCandidates) {
+                        if (optimizerCancelledRef.current) return;
+                        if (configSignature(baselineRun.valenceElement, incarnonCandidate) === configSignature(
+                            baselineRun.valenceElement,
+                            { unlockedTier: getHighestSelectedIncarnonTier(baselineRun.incarnonSelectedOptionsByTier), selectedOptionsByTier: baselineRun.incarnonSelectedOptionsByTier },
+                        )) continue;
+
+                        const candidateCfg: BuildCfg = {
+                            ...buildCfg,
+                            valenceElement: baselineRun.valenceElement,
+                            incarnonUnlockedTier: incarnonCandidate.unlockedTier,
+                            incarnonSelectedOptionsByTier: incarnonCandidate.selectedOptionsByTier,
+                        };
+                        const candidateWeaponState = applyWeaponConfig(weapon, selectedAttackIdx, candidateCfg);
+                        screenedCandidates.push({
+                            signature: configSignature(baselineRun.valenceElement, incarnonCandidate),
+                            valenceElement: baselineRun.valenceElement,
+                            incarnonCandidate,
+                            score: scoreOptimizerResult(
+                                candidateWeaponState.weaponWithIntrinsicOptions,
+                                selectedAttackIdx,
+                                baselineRun.appliedResult,
+                                [...candidateWeaponState.activeIncarnonEffects, ...lockedExternalEffects],
+                            ),
+                        });
                     }
                 }
+
+                const baselineSignatures = baselineRuns.map((run) => configSignature(
+                    run.valenceElement,
+                    {
+                        unlockedTier: getHighestSelectedIncarnonTier(run.incarnonSelectedOptionsByTier),
+                        selectedOptionsByTier: run.incarnonSelectedOptionsByTier,
+                    },
+                ));
+                const selectedForRefinement = selectIncarnonSearchShortlist(
+                    screenedCandidates,
+                    baselineSignatures,
+                    INCARNON_PATH_REFINEMENT_LIMIT,
+                );
+
+                for (const candidate of selectedForRefinement) {
+                    if (optimizerCancelledRef.current) return;
+                    setOptimizerProgress(`Refining evolution path ${evaluatedConfigs + 1} of ${baselineRuns.length + selectedForRefinement.length}…`);
+                    const run = await runOptimizeForConfig(candidate.valenceElement, candidate.incarnonCandidate);
+                    if (run.score > bestRun.score) bestRun = run;
+                    evaluatedConfigs += 1;
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                }
             }
-            if (!bestRun) return;
+            if (optimizerCancelledRef.current) return;
+            if (!bestRun || !bestRun.appliedResult.capacityValid) {
+                setOptimizerNotice("No legal build fits the current capacity and locked-slot settings.");
+                setOptimizerProgress(null);
+                return;
+            }
+            optimizerApplyingRef.current = true;
             const { weaponForOpt, atk, appliedResult, appliedCatalyst, baseExtraCapacitySlots, valenceElement, incarnonSelectedOptionsByTier } = bestRun;
+            if (baseExtraCapacitySlots?.[0]) {
+                setStanceMod(baseExtraCapacitySlots[0].mod);
+                setStanceRank(baseExtraCapacitySlots[0].rank);
+            }
             if (weapon.isProgenitorWeapon && valenceElement !== buildCfg.valenceElement) {
                 setBuildCfg(p => ({ ...p, valenceElement }));
             }
@@ -3585,68 +4381,12 @@ export default function ModBuilder() {
                 setBuildCfg(p => ({ ...p, hasCatalyst: true }));
             }
 
-            const defaultMainPols = [...weapon.polarities];
-            while (defaultMainPols.length < SLOT_COUNT) defaultMainPols.push("");
-            const catalystAwareCfg = { ...capacityCfg, hasCatalyst: appliedCatalyst || buildCfg.hasCatalyst || appliedResult.needsCatalyst };
-            const defaultExtraCfgs = (baseExtraCapacitySlots ?? []).map(slot => ({ polarity: slot.polarity }));
-            const defaultExtraMods = (baseExtraCapacitySlots ?? []).map(slot => slot.mod);
-            const defaultExtraRanks = (baseExtraCapacitySlots ?? []).map(slot => slot.rank);
-            const defaultFit = computeCapacity(
-                catalystAwareCfg,
-                [...defaultExtraCfgs, ...defaultMainPols.map(polarity => ({ polarity }))],
-                [...defaultExtraMods, ...appliedResult.slots],
-                [...defaultExtraRanks, ...appliedResult.slotRanks],
-            );
-            let slotPolsToApply = allowForma && !defaultFit.overCapacity
-                ? defaultMainPols
-                : appliedResult.slotPolarities;
-            let stancePolToApply = stancePol;
-            let exilusPolToApply = appliedResult.exilusMod ? appliedResult.exilusPolarity : "";
-
-            if (allowForma) {
-                const minimizedAppliedPols = minimizePolaritiesByCapacity(
-                    defaultMainPols,
-                    appliedResult.slots,
-                    appliedResult.slotRanks,
-                    catalystAwareCfg,
-                    baseExtraCapacitySlots ?? [],
-                    appliedResult.exilusMod
-                        ? { mod: appliedResult.exilusMod, rank: appliedResult.exilusRank, basePolarity: "" }
-                        : undefined,
-                    maxFormaAllowed,
-                );
-                slotPolsToApply = minimizedAppliedPols.mainPolarities;
-                exilusPolToApply = appliedResult.exilusMod ? minimizedAppliedPols.exilusPolarity : "";
-            }
-
-            if (allowForma) {
-                const fullDefaultPols = [
-                    ...(supportsStanceLikeMods(weapon) ? [stancePolToApply] : []),
-                    ...defaultMainPols,
-                    ...(optExilus ? [exilusPolToApply] : []),
-                ];
-                const fullDefaultSlots = [
-                    ...(supportsStanceLikeMods(weapon) && optimizerStanceMod ? [optimizerStanceMod] : []),
-                    ...appliedResult.slots,
-                    ...(optExilus ? [appliedResult.exilusMod] : []),
-                ];
-                const fullDefaultRanks = [
-                    ...(supportsStanceLikeMods(weapon) && optimizerStanceMod ? [optimizerStanceRank] : []),
-                    ...appliedResult.slotRanks,
-                    ...(optExilus ? [appliedResult.exilusMod ? appliedResult.exilusRank : 0] : []),
-                ];
-                const fullDefaultFit = computeCapacity(
-                    catalystAwareCfg,
-                    fullDefaultPols.map(polarity => ({ polarity })),
-                    fullDefaultSlots,
-                    fullDefaultRanks,
-                );
-                if (!fullDefaultFit.overCapacity) {
-                slotPolsToApply = fillMode ? slotPols : defaultMainPols;
-                stancePolToApply = weapon.stancePolarity ?? "";
-                exilusPolToApply = "";
-            }
-            }
+            // The optimizer starts from the polarities already installed on this
+            // build. Apply its result directly so a re-optimization never erases
+            // existing Forma or silently spends beyond the remaining budget.
+            const slotPolsToApply = [...appliedResult.slotPolarities];
+            const stancePolToApply = stancePol;
+            const exilusPolToApply = appliedResult.exilusMod ? appliedResult.exilusPolarity : exilusPol;
 
             // Apply mod slots. In fill mode, occupied user slots stay authoritative.
             const nextSlots = (fillMode
@@ -3666,12 +4406,11 @@ export default function ModBuilder() {
             }
 
             // Apply arcane if optimized
-            if (optArcane && appliedResult.arcane && (!fillMode || !arcane1)) {
+            if (optimizeArcaneForRun && appliedResult.arcane) {
                 setArcane1(appliedResult.arcane);
                 setArcane1Rank(appliedResult.arcaneRank);
             }
 
-            setReasoning(explainBuild(weaponForOpt, appliedResult.mods, appliedResult.ranks, goal, factionOn ? faction : "", atk));
             const optimizedWeaponState = applyWeaponConfig(weapon, selectedAttackIdx, {
                 ...buildCfg,
                 valenceElement,
@@ -3689,16 +4428,57 @@ export default function ModBuilder() {
                 mathEffects.push(appliedResult.exilusMod.effectsByRank[appliedResult.exilusRank] ?? appliedResult.exilusMod.effect);
             }
             if (includeArcaneStats && optArcane && appliedResult.arcane) {
-                const ae = appliedResult.arcane.permanentEffectByRank[appliedResult.arcaneRank];
-                mathEffects.push({
+                const ae = getArcaneEffectAtRank(appliedResult.arcane, appliedResult.arcaneRank, warframeArmor, false, arcaneEnergyContext);
+                if (ae) mathEffects.push({
                     ...emptyEffect(),
-                    ...(ae ?? {}),
-                    conditionalEffects: [...(ae?.conditionalEffects ?? [])],
+                    ...ae,
+                    conditionalEffects: [...(ae.conditionalEffects ?? [])],
                 });
             }
+            const explanationBaseEffects: (ModEffect | null)[] = [
+                ...optimizedWeaponState.activeIncarnonEffects,
+                ...lockedExternalEffects.filter((effect) => effect !== lockedArcaneEffect),
+            ];
+            if (optExilus && appliedResult.exilusMod) {
+                explanationBaseEffects.push(appliedResult.exilusMod.effectsByRank[appliedResult.exilusRank] ?? appliedResult.exilusMod.effect);
+            }
+            const explanationArcaneEntry = optimizeArcaneForRun ? appliedResult.arcane : includeArcaneStats ? arcane1 : null;
+            const explanationArcaneRank = optimizeArcaneForRun ? appliedResult.arcaneRank : arcane1Rank;
+            const explanationArcane = explanationArcaneEntry
+                ? getArcaneEffectAtRank(explanationArcaneEntry, explanationArcaneRank, warframeArmor, optimizeArcaneForRun, arcaneEnergyContext)
+                : null;
+            setReasoning(explainBuild(
+                weaponForOpt,
+                appliedResult.mods,
+                appliedResult.ranks,
+                goal,
+                factionOn ? faction : "",
+                atk,
+                conditionalState,
+                targetProfileOverride,
+                {
+                    baseEffects: explanationBaseEffects,
+                    arcaneEffect: explanationArcane,
+                    arcaneName: explanationArcaneEntry?.name,
+                    arcaneRank: explanationArcaneEntry ? explanationArcaneRank : undefined,
+                },
+            ));
+            setReasoningContextAtOptimization(currentReasoningContextKey);
             const mathWeapon = makeSelectedAttackWeapon(weaponForOpt, selectedAttackIdx);
-            setReasoningMath(buildMathBreakdown(mathWeapon, mathEffects, factionOn ? faction : ""));
-        } finally { setOptimizing(false); }
+            setReasoningMath(buildMathBreakdown(mathWeapon, mathEffects, factionOn ? faction : "", conditionalState, targetProfileOverride, meleeDpsInputs));
+            setOptimizerProgress(null);
+        } catch (error) {
+            if (!optimizerCancelledRef.current) {
+                setOptimizerNotice(error instanceof Error ? error.message : String(error));
+                setOptimizerProgress(null);
+            }
+        } finally {
+            optimizerApplyingRef.current = false;
+            optimizerWorkerRef.current?.terminate();
+            optimizerWorkerRef.current = null;
+            pendingWorkerRejectRef.current = null;
+            setOptimizing(false);
+        }
     }
 
     function handleLoadBuild(build: SavedBuild) {
@@ -3740,6 +4520,115 @@ export default function ModBuilder() {
             const a = weaponArcanes.find(a => a.uniqueName === build.arcane1UniqueName) ?? null;
             setArcane1(a); setArcane1Rank(build.arcane1Rank ?? 0);
         }
+        const plannerConfig = build.plannerConfig;
+        // Older or imported builds without planner settings must not inherit a
+        // stale external status assumption from the previously loaded build.
+        setExternalStatusTypeCount(0);
+        setWarframeArmorInput(readWarframeArmor(build.plannerConfig?.warframeArmor)?.toString() ?? "");
+        setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
+        setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
+        if (plannerConfig) {
+            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling") setGoal(plannerConfig.goal);
+            const conditionalModes: ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
+            if (plannerConfig.conditionalMode && conditionalModes.includes(plannerConfig.conditionalMode)) {
+                setConditionalMode(plannerConfig.conditionalMode);
+            }
+            if (Number.isFinite(plannerConfig.externalConditionalStacks)) {
+                setExternalConditionalStacks(Math.max(0, Math.min(20, plannerConfig.externalConditionalStacks ?? 1)));
+            }
+            setExternalStatusTypeCount(Number.isFinite(plannerConfig.externalStatusTypeCount)
+                ? Math.max(0, Math.min(16, Math.floor(plannerConfig.externalStatusTypeCount ?? 0)))
+                : 0);
+            setMeleeComboMultiplier(Number.isFinite(plannerConfig.meleeComboMultiplier)
+                ? clampMeleeComboMultiplier(weapon, plannerConfig.meleeComboMultiplier ?? 1)
+                : 1);
+            setPhantasmaChargeAmmo(Number.isFinite(plannerConfig.phantasmaChargeAmmo)
+                ? Math.max(2, Math.min(50, Math.round(plannerConfig.phantasmaChargeAmmo ?? 2)))
+                : 2);
+            setMeleeDpsInputs({
+                averageComboDamageMultiplier: readPositivePlannerInput(plannerConfig.meleeAverageComboDamageMultiplier, 50),
+                baseComboLengthSeconds: readPositivePlannerInput(plannerConfig.meleeBaseComboLengthSeconds, 60),
+            });
+            const attackIndexByName = plannerConfig.attackName
+                ? weapon.attacks.findIndex((attack) => attack.name === plannerConfig.attackName)
+                : -1;
+            const storedAttackIndex = plannerConfig.attackIndex;
+            setSelectedAttackIdx(attackIndexByName >= 0
+                ? attackIndexByName
+                : Number.isInteger(storedAttackIndex) && (storedAttackIndex ?? -1) >= 0 && (storedAttackIndex ?? 0) < weapon.attacks.length
+                    ? storedAttackIndex ?? 0
+                    : 0);
+
+            const target = plannerConfig.target;
+            setFactionOn(target?.enabled ?? false);
+            setFaction(target?.faction || "Grineer");
+            setSelectedEnemyProfileId(target?.enemyProfileId && getEnemyProfile(target.enemyProfileId)
+                ? target.enemyProfileId
+                : "");
+            setUseCustomTargetStats(target?.useCustomStats ?? false);
+            setIsEximus(target?.isEximus ?? false);
+            setBossBlastStackCap(target?.bossBlastStackCap ?? false);
+            setIsSteelPath(target?.isSteelPath ?? false);
+            if (target?.baseStats) {
+                const safeStat = (value: number, fallback: number) =>
+                    Number.isFinite(value) ? Math.max(0, Math.min(1_000_000_000, value)) : fallback;
+                setCustomTargetStats({
+                    health: safeStat(target.baseStats.health, 25000),
+                    shields: safeStat(target.baseStats.shields, 0),
+                    overguard: safeStat(target.baseStats.overguard, 0),
+                    armor: safeStat(target.baseStats.armor, 2700),
+                });
+            }
+            setScaleCustomTargetByLevel(target?.scaleByLevel ?? false);
+            const scalingFactions: EnemyScalingFaction[] = [
+                "grineer", "corpus", "infested", "corrupted", "murmur", "sentient", "anarchs", "unaffiliated", "techrot",
+            ];
+            setEnemyScalingFaction(scalingFactions.includes(target?.scalingFaction as EnemyScalingFaction)
+                ? target!.scalingFaction as EnemyScalingFaction
+                : "grineer");
+            const safeLevel = (value: number, fallback: number) =>
+                Number.isFinite(value) ? Math.max(1, Math.min(9999, Math.floor(value))) : fallback;
+            setEnemyBaseLevel(safeLevel(target?.baseLevel ?? 1, 1));
+            setEnemyCurrentLevel(safeLevel(target?.currentLevel ?? 30, 30));
+            setCustomToxinBypassesShields(target?.toxinBypassesShields ?? true);
+            setEnemyShieldGateHitMode(target?.enemyShieldGateHitMode === "weakspot" || target?.enemyShieldGateHitMode === "blockedArea"
+                ? target.enemyShieldGateHitMode
+                : "body");
+            setNearbyEnemyCount(Number.isFinite(target?.nearbyEnemyCount)
+                ? Math.max(0, Math.min(20, Math.floor(target?.nearbyEnemyCount ?? 0)))
+                : 0);
+            setNearbyBlastEnemyCount(Number.isFinite(target?.nearbyBlastEnemyCount)
+                ? Math.max(0, Math.min(20, Math.floor(target?.nearbyBlastEnemyCount ?? 0)))
+                : 0);
+            setTargetStatusImmunities((target?.statusImmunities ?? [])
+                .filter((type): type is StatusDamageType =>
+                    (STATUS_DAMAGE_TYPES as readonly string[]).includes(type)));
+
+            const options = plannerConfig.optimizerOptions;
+            if (options) {
+                setAllowNonMax(options.allowNonMax ?? false);
+                setOnlyOwned(options.onlyOwned ?? false);
+                setAllowCatalyst(options.allowCatalyst ?? false);
+                setAllowForma(options.allowForma ?? false);
+                setMaxFormaAllowed(Number.isInteger(options.maxFormaAllowed)
+                    ? Math.max(1, Math.min(maxOptimizerFormaForWeapon(weapon), options.maxFormaAllowed ?? 1))
+                    : maxOptimizerFormaForWeapon(weapon));
+                setOptExilus(options.optimizeExilus ?? false);
+                setOptArcane(options.optimizeArcane ?? false);
+                setExcluded(new Set((options.excludedModUniqueNames ?? []).filter((name) => typeof name === "string")));
+            }
+        } else {
+            // Old saved builds have no target snapshot. Do not accidentally apply
+            // whichever experimental target happened to be selected at load time.
+            setFactionOn(false);
+            setSelectedEnemyProfileId("");
+            setUseCustomTargetStats(false);
+            setIsEximus(false);
+            setBossBlastStackCap(false);
+            setNearbyEnemyCount(0);
+            setNearbyBlastEnemyCount(0);
+            setTargetStatusImmunities([]);
+        }
         setTab("build");
     }
 
@@ -3766,6 +4655,8 @@ export default function ModBuilder() {
                 stanceMod={stanceMod} stanceRank={stanceRank} stancePol={stancePol}
                 exilusMod={exilusMod} exilusPol={exilusPol}
                 arcane1={arcane1} arcane1Rank={arcane1Rank}
+                targetFaction={factionOn ? faction : ""} conditionalState={conditionalState} targetProfileOverride={targetProfileOverride}
+                plannerConfig={savedPlannerConfig}
                 hasExilus={hasExilus} onLoad={handleLoadBuild} />}
             {weapon && tab === "exclude" && <ExclusionList allMods={compatMods} excluded={excluded} onToggle={toggleExclude} />}
 
@@ -3821,14 +4712,18 @@ export default function ModBuilder() {
                                                 Options {showOptimizeOptions ? "▴" : "▾"}
                                             </button>
                                             <div className="flex items-stretch overflow-hidden rounded-xl border border-amber-600/60 bg-amber-950/30">
-                                                <button onClick={handleOptimize} disabled={optimizing || !weapon}
-                                                    className="px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/40 disabled:opacity-50 transition-colors font-semibold">
-                                                    {optimizing ? "Optimizing…" : optimizeMode === "fill" ? "Fill & Optimize" : "Optimize Build"}
+                                                <button onClick={optimizing ? cancelOptimization : handleOptimize} disabled={!optimizing && !weapon}
+                                                    className={[
+                                                        "px-4 py-2 text-sm transition-colors font-semibold disabled:opacity-50",
+                                                        optimizing ? "text-rose-300 hover:bg-rose-950/50" : "text-amber-300 hover:bg-amber-900/40",
+                                                    ].join(" ")}>
+                                                    {optimizing ? "Cancel Optimization" : optimizeMode === "fill" ? "Fill & Optimize" : "Optimize Build"}
                                                 </button>
                                                 <div className="relative w-10 border-l border-amber-600/40">
                                                     <select
                                                         value={optimizeMode}
                                                         onChange={(e) => setOptimizeMode(e.target.value as OptimizeMode)}
+                                                        disabled={optimizing}
                                                         className="h-full w-full appearance-none bg-transparent text-transparent outline-none"
                                                         aria-label="Optimization mode"
                                                     >
@@ -3866,14 +4761,88 @@ export default function ModBuilder() {
                                             </button>
                                         </div>
                                     </div>
+                                    {(optimizerProgress || optimizerNotice) && (
+                                        <div className="mt-2 text-right text-[11px]" role={optimizerNotice ? "alert" : "status"}>
+                                            {optimizerNotice
+                                                ? <span className="text-amber-300">{optimizerNotice}</span>
+                                                : <span className="text-slate-400">{optimizerProgress}</span>}
+                                        </div>
+                                    )}
                                     {showOptimizeOptions && (
                                         <div className="mt-3 rounded-2xl border border-slate-800/80 bg-slate-950/30 p-3">
+                                            <p className="mb-2 text-[11px] text-slate-400">Capacity is enforced for every optimized build. Catalyst and Forma are included only when their options are enabled.</p>
+                                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                                <label htmlFor="conditional-state" className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Conditional effects</label>
+                                                <select
+                                                    id="conditional-state"
+                                                    value={conditionalMode}
+                                                    onChange={(event) => setConditionalMode(event.target.value as ConditionalState["mode"])}
+                                                    className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                >
+                                                    <option value="initial">Initial state</option>
+                                                    <option value="realistic">Realistic ramp-up estimate</option>
+                                                    <option value="fullyStacked">Fully stacked scenario</option>
+                                                    <option value="custom">External stacks</option>
+                                                </select>
+                                                {conditionalMode === "custom" && (
+                                                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                        <span>Maintained stacks per effect</span>
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            max={10}
+                                                            step={1}
+                                                            value={externalConditionalStacks}
+                                                            onChange={(event) => setExternalConditionalStacks(Math.max(0, Math.min(10, Math.floor(Number(event.target.value) || 0))))}
+                                                            className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                        />
+                                                    </label>
+                                                )}
+                                                <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                    <span title="Count additional distinct statuses already maintained on the target by allies, abilities, hidden effects, or other sources. Includes Tau; capped at 16 total with weapon-generated types.">External Condition Overload types</span>
+                                                    <input
+                                                        aria-label="Externally maintained status types for Condition Overload"
+                                                        type="number"
+                                                        min={0}
+                                                        max={16}
+                                                        step={1}
+                                                        value={externalStatusTypeCount}
+                                                        onChange={(event) => setExternalStatusTypeCount(Math.max(0, Math.min(16, Math.floor(Number(event.target.value) || 0))))}
+                                                        className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                    />
+                                                </label>
+                                                {weapon && usesMeleeDamageModel(weapon.category) && (
+                                                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                        <span>Melee combo tier</span>
+                                                        <input
+                                                            type="number"
+                                                            min={1}
+                                                            max={maxMeleeComboMultiplier}
+                                                            step={1}
+                                                            value={meleeComboMultiplier}
+                                                            onChange={(event) => setMeleeComboMultiplier(clampMeleeComboMultiplier(weapon, Number(event.target.value) || 1))}
+                                                            className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none"
+                                                        />
+                                                    </label>
+                                                )}
+                                                <span className="text-[10px] text-slate-500">
+                                                    {conditionalMode === "realistic"
+                                                        ? "Realistic uses modeled trigger assumptions; ability casts, airborne states, aim-gliding, and invisibility default to zero uptime. Fully stacked or external-stack scenarios can activate them."
+                                                        : conditionalMode === "initial"
+                                                            ? "No conditional trigger effects are active."
+                                                            : conditionalMode === "fullyStacked"
+                                                                ? "Assumes every modeled trigger is active at its maximum stacks."
+                                                                : "Applies this maintained stack count to each conditional effect."}
+                                                </span>
+                                            </div>
+                                            {weapon && usesMeleeDamageModel(weapon.category) && (
+                                                <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses Initial Combo mods and supported weapon passives, and ignores this field. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). Direct-hit TTK then steps combo after each heavy hit and rebuilds Initial Combo at 40 points/s. It does not model combo generated by hits, Tennokai, stance sequences, heavy-attack wind-up, or enemies hit per swing. DPS, the finite status encounter, and optimizer scores hold the starting tier.</p>
+                                            )}
                                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                                                 {([
-                                                    { label: "Respect Capacity", active: respectCap, set: setRespectCap, desc: "Only use mods that fit within the weapon mod capacity." },
                                                     { label: "Allow Non-Maxed", active: allowNonMax, set: setAllowNonMax, desc: "Try lower-ranked mods so more fit within capacity." },
                                                     { label: "Owned Only", active: onlyOwned, set: setOnlyOwned, desc: "Only use mods you have marked as owned." },
-                                                    { label: "Faction Focus", active: factionOn, set: setFactionOn, desc: "Target the selected faction specifically. When off, a balanced target (median armor, mixed health/shields) is used instead." },
+                                                    { label: "Faction Focus", active: factionOn, set: (active: boolean) => { setFactionOn(active); if (!active) { setUseCustomTargetStats(false); setSelectedEnemyProfileId(""); setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyBlastEnemyCount(0); } }, desc: "Apply the selected faction's damage-type modifiers. Choose a sourced enemy profile or enter custom target stats; faction-only pool mixes remain estimates." },
                                                     { label: "Allow Catalyst", active: allowCatalyst, set: setAllowCatalyst, desc: "Assume Orokin Catalyst installed if needed." },
                                                     { label: "Allow Forma", active: allowForma, set: setAllowForma, desc: "Reassign slot polarities to reduce drain." },
                                                     { label: "Optimize Exilus", active: optExilus, set: setOptExilus, desc: "Include the exilus slot in optimization." },
@@ -4008,7 +4977,7 @@ export default function ModBuilder() {
                                                                     <div>
                                                                         <div className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--wf-accent-text)]">Incarnon Evolution Path</div>
                                                                         <div className="mt-1 text-xs text-slate-400">
-                                                                            Click any evolution to review its effects and choose what this build should use.
+                                                                            Choose a path; only modeled effects change stats or optimizer scores. Unmodeled lines are marked in each perk.
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
@@ -4052,9 +5021,9 @@ export default function ModBuilder() {
                                                                         })}
                                                                         <div className="ml-1 rounded-full border border-[color:var(--wf-border-accent)] bg-[color:var(--wf-surface-soft)] px-3 py-1 text-[11px] text-[color:var(--wf-accent-text)]">
                                                                             {selectedIncarnonTierCount > 0
-                                                                                ? `${selectedIncarnonTierCount} evolution${selectedIncarnonTierCount === 1 ? "" : "s"} active`
+                                                                                ? `${selectedIncarnonTierCount} evolution${selectedIncarnonTierCount === 1 ? "" : "s"} active · refine up to 2 paths`
                                                                                 : buildCfg.optimizeIncarnonSelections
-                                                                                    ? "Optimizer will search all tiers"
+                                                                                    ? "Search all tiers · refine up to 2 paths"
                                                                                 : "No evolutions selected"}
                                                                         </div>
                                                                         <button
@@ -4067,8 +5036,8 @@ export default function ModBuilder() {
                                                                                     : "border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] text-[color:var(--wf-text-muted)] hover:border-[color:var(--wf-border-accent)] hover:text-[color:var(--wf-info)]",
                                                                             ].join(" ")}
                                                                             title={selectedIncarnonTierCount > 0
-                                                                                ? "Allow the optimizer to test the selected Incarnon tiers and keep the best-scoring evolution path."
-                                                                                : "Allow the optimizer to search all available Incarnon tiers and choose the best-scoring path."}
+                                                                                ? "Score combinations for the selected Incarnon tiers against the current optimized build, then fully optimize up to two promising alternate paths. This shortlist is heuristic, not an exhaustive joint mod-and-evolution search."
+                                                                                : "Score all available Incarnon paths against the current optimized build, then fully optimize up to two promising alternate paths. This shortlist is heuristic, not an exhaustive joint mod-and-evolution search."}
                                                                         >
                                                                             Optimize Incarnon Path
                                                                         </button>
@@ -4080,14 +5049,249 @@ export default function ModBuilder() {
                                                 </div>
                                                 <div className="min-h-[34px] flex items-center justify-start lg:justify-end">
                                                     {factionOn && (
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {FACTIONS.map(f => (
-                                                                <button key={f.value} onClick={() => setFaction(f.value)}
-                                                                    className={["rounded-full px-2.5 py-1 text-[10px] border transition-colors",
-                                                                        faction === f.value ? "bg-[color:var(--wf-warning-soft)] border-[color:var(--wf-warning)] text-[color:var(--wf-warning)]" : "border-slate-700 text-slate-400 hover:border-slate-600"].join(" ")}>
-                                                                    {f.label}
-                                                                </button>
-                                                            ))}
+                                                        <div className="w-full space-y-2">
+                                                            <label className="block space-y-1 text-[10px] text-slate-400">
+                                                                <span className="block">Named enemy target</span>
+                                                                <select
+                                                                    aria-label="Named enemy target"
+                                                                    value={selectedEnemyProfileId}
+                                                                    onChange={(event) => selectEnemyProfile(event.target.value)}
+                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+                                                                >
+                                                                    <option value="">Use faction estimate or custom stats</option>
+                                                                    {ENEMY_PROFILES.map((profile) => (
+                                                                        <option key={profile.id} value={profile.id}>
+                                                                            {profile.name} · {profile.faction} · base level {profile.baseLevel}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </label>
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {FACTIONS.map(f => (
+                                                                    <button key={f.value} onClick={() => { setFaction(f.value); setSelectedEnemyProfileId(""); }}
+                                                                        className={["rounded-full px-2.5 py-1 text-[10px] border transition-colors",
+                                                                            faction === f.value ? "bg-[color:var(--wf-warning-soft)] border-[color:var(--wf-warning)] text-[color:var(--wf-warning)]" : "border-slate-700 text-slate-400 hover:border-slate-600"].join(" ")}>
+                                                                        {f.label}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                            <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
+                                                                <input type="checkbox" checked={useCustomTargetStats} onChange={(event) => { setUseCustomTargetStats(event.target.checked); setSelectedEnemyProfileId(""); if (!event.target.checked) { setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyBlastEnemyCount(0); } }} />
+                                                                Use custom target stats
+                                                            </label>
+                                                            {useCustomTargetStats && (
+                                                                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
+                                                                    {selectedEnemyProfile && (
+                                                                        <p className="text-[10px] leading-relaxed text-slate-400">
+                                                                            {selectedEnemyProfile.notes}{" "}
+                                                                            <a href={selectedEnemyProfile.sourceUrl} target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                        </p>
+                                                                    )}
+                                                                    <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                        The finite expected-value encounter tracks Heat's armor-strip timeline, duration-scaled Blast fuses/caps, and Viral, Corrosive, Magnetic, Cold, and Puncture effects between attacks. Direct hits apply the 0.1 s enemy Shield Gate using the selected hit mode; scheduled status ticks remain ungated. Blast radial and scheduled Electricity/Gas ticks to configured same-profile nearby targets are reported separately from primary TTK; Gas ticks continue after the host dies. Neighbor status histories, position changes, and chained deaths are not simulated; fractional proc rolls, shield regeneration, boss attenuation, and random outcomes remain approximations. The optimizer uses a separate fast scoring proxy.
+                                                                    </p>
+                                                                    <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
+                                                                        <label htmlFor="planner-nearby-enemies" className="text-[10px] text-slate-400">
+                                                                            Additional nearby enemies in Electric/Gas range
+                                                                        </label>
+                                                                        <input
+                                                                            id="planner-nearby-enemies"
+                                                                            aria-label="Additional nearby enemies in Electric/Gas range"
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={20}
+                                                                            step={1}
+                                                                            value={nearbyEnemyCount}
+                                                                            onChange={(event) => setNearbyEnemyCount(Math.max(0, Math.min(20, Math.floor(Number(event.target.value) || 0))))}
+                                                                            className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                        />
+                                                                    </div>
+                                                                    <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                        The optimizer scales Electric/Gas tick value by this count. The finite encounter also sends scheduled Electricity/Gas ticks through these same-profile neighbors' defenses and reports collateral separately from primary TTK. Enemies are assumed to remain in range; it does not add neighbor statuses, direct hits, chain geometry, or Gas radius growth. Set 0 for single-target scoring.
+                                                                    </p>
+                                                                    <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
+                                                                        <label htmlFor="planner-nearby-blast-enemies" className="text-[10px] text-slate-400">
+                                                                            Additional nearby enemies in Blast's 5 m radius
+                                                                        </label>
+                                                                        <input
+                                                                            id="planner-nearby-blast-enemies"
+                                                                            aria-label="Additional nearby enemies in Blast's 5 m radius"
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={20}
+                                                                            step={1}
+                                                                            value={nearbyBlastEnemyCount}
+                                                                            onChange={(event) => setNearbyBlastEnemyCount(Math.max(0, Math.min(20, Math.floor(Number(event.target.value) || 0))))}
+                                                                            className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                        />
+                                                                    </div>
+                                                                    <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                        Optimizer estimates Blast's cap-triggered radial value (10 stacks, or the configured four-stack boss cap) from Poisson proc arrivals during the fuse. The finite encounter reports cap and on-death radial hits to these same-profile targets separately; they do not change the primary target's TTK. Neighbor status histories and chained deaths are not simulated. Set 0 to ignore Blast collateral.
+                                                                    </p>
+                                                                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={bossBlastStackCap}
+                                                                            onChange={(event) => setBossBlastStackCap(event.target.checked)}
+                                                                        />
+                                                                        Apply boss Blast cap (4 stacks)
+                                                                    </label>
+                                                                    {bossBlastStackCap && (
+                                                                        <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                            Current Damage/Calculation rules use a four-stack Blast detonation threshold for bosses. This sets only that threshold; boss attenuation and other boss-specific defenses are not modeled. <a href="https://wiki.warframe.com/w/Damage/Calculation" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                        </p>
+                                                                    )}
+                                                                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isEximus}
+                                                                            onChange={(event) => {
+                                                                                setIsEximus(event.target.checked);
+                                                                                if (event.target.checked) setScaleCustomTargetByLevel(true);
+                                                                            }}
+                                                                        />
+                                                                        Model a standard Eximus target
+                                                                    </label>
+                                                                    {isEximus && (
+                                                                        <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                            Uses current Eximus Health/Shield adjustments, standard Armor scaling, and level-scaled base Overguard {EXIMUS_BASE_OVERGUARD}. Active Overguard blocks Radiation procs and caps Cold at four stacks; Blast keeps its normal ten-stack detonation threshold. Special Eximus, squad, and boss modifiers remain unsupported. <a href="https://wiki.warframe.com/w/Overguard" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                        </p>
+                                                                    )}
+                                                                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isSteelPath}
+                                                                            disabled={!scaleCustomTargetByLevel}
+                                                                            onChange={(event) => setIsSteelPath(event.target.checked)}
+                                                                        />
+                                                                        Apply Steel Path modifiers (+100 levels, 2.5× Health/Shields)
+                                                                    </label>
+                                                                    {isSteelPath && (
+                                                                        <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                            Uses the entered current mission level plus 100, then applies 2.5× Health and Shields. Armor uses the resulting level curve without a separate Steel Path multiplier. Archwing, Railjack, Duviri, squad scaling, and special-unit exceptions are not modeled. <a href="https://wiki.warframe.com/w/Steel_Path" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                        </p>
+                                                                    )}
+                                                                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={scaleCustomTargetByLevel}
+                                                                            disabled={isEximus}
+                                                                            onChange={(event) => { setScaleCustomTargetByLevel(event.target.checked); setSelectedEnemyProfileId(""); if (!event.target.checked) setIsSteelPath(false); }}
+                                                                        />
+                                                                        Scale entered base stats to an enemy level
+                                                                    </label>
+                                                                    {scaleCustomTargetByLevel && (
+                                                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                                                            <label className="space-y-1 text-[10px] text-slate-400">
+                                                                                <span className="block">Scaling family</span>
+                                                                                <select
+                                                                                    value={enemyScalingFaction}
+                                                                                    onChange={(event) => { setEnemyScalingFaction(event.target.value as EnemyScalingFaction); setSelectedEnemyProfileId(""); }}
+                                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+                                                                                >
+                                                                                    {ENEMY_SCALING_FACTIONS.map((entry) => (
+                                                                                        <option key={entry.value} value={entry.value}>{entry.label}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            </label>
+                                                                            {([
+                                                                                ["Base level", enemyBaseLevel, setEnemyBaseLevel],
+                                                                                ["Current level", enemyCurrentLevel, setEnemyCurrentLevel],
+                                                                            ] as const).map(([label, value, setter]) => (
+                                                                                <label key={label} className="space-y-1 text-[10px] text-slate-400">
+                                                                                    <span className="block">{label}</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min={1}
+                                                                                        max={9999}
+                                                                                        step={1}
+                                                                                        value={value}
+                                                                                        onChange={(event) => { setter(Math.max(1, Math.min(9999, Math.floor(Number(event.target.value) || 1)))); setSelectedEnemyProfileId(""); }}
+                                                                                        className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                                    />
+                                                                                </label>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                    <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                        {scaleCustomTargetByLevel
+                                                                            ? "Enter base Health, Shields, and Armor. Standard faction level curves and the separate Overguard curve produce current values. Eximus adjustments apply only when selected; Steel Path can be added above."
+                                                                            : "Enter current Health, Shields, Overguard, and Armor values."}
+                                                                    </p>
+                                                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                                                        {(["health", "shields", "overguard", "armor"] as const).map((key) => (
+                                                                            <label key={key} className="space-y-1 text-[10px] text-slate-400">
+                                                                                <span className="block">{scaleCustomTargetByLevel ? "Base " : "Current "}{key === "shields" ? "Shields" : key[0].toUpperCase() + key.slice(1)}</span>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min={0}
+                                                                                    max={1000000000}
+                                                                                    step={key === "armor" ? 1 : 100}
+                                                                                    value={isEximus && key === "overguard" ? EXIMUS_BASE_OVERGUARD : customTargetStats[key]}
+                                                                                    disabled={isEximus && key === "overguard"}
+                                                                                    onChange={(event) => {
+                                                                                        setCustomTargetStats((current) => ({
+                                                                                            ...current,
+                                                                                            [key]: Math.max(0, Math.min(1000000000, Number(event.target.value) || 0)),
+                                                                                        }));
+                                                                                        setSelectedEnemyProfileId("");
+                                                                                    }}
+                                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                                                />
+                                                                            </label>
+                                                                        ))}
+                                                                    </div>
+                                                                    {scaleCustomTargetByLevel && (
+                                                                        <div className="font-mono text-[10px] text-slate-500">
+                                                                            Scaled current values: Health {Math.round(resolvedCustomTargetStats.health)}, Shields {Math.round(resolvedCustomTargetStats.shields)}, Overguard {Math.round(resolvedCustomTargetStats.overguard)}, Armor {Math.round(resolvedCustomTargetStats.armor)}
+                                                                        </div>
+                                                                    )}
+                                                                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={customToxinBypassesShields}
+                                                                            onChange={(event) => { setCustomToxinBypassesShields(event.target.checked); setSelectedEnemyProfileId(""); }}
+                                                                        />
+                                                                        Toxin bypasses Shields (turn off for Hounds or Treasurers)
+                                                                    </label>
+                                                                    <label className="block space-y-1 text-[10px] text-slate-400">
+                                                                        <span>Hit behavior during enemy Shield Gate</span>
+                                                                        <select
+                                                                            aria-label="Hit behavior during enemy Shield Gate"
+                                                                            value={enemyShieldGateHitMode}
+                                                                            onChange={(event) => setEnemyShieldGateHitMode(event.target.value as typeof enemyShieldGateHitMode)}
+                                                                            className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+                                                                        >
+                                                                            <option value="body">Body hit: 5% direct Health damage</option>
+                                                                            <option value="weakspot">Weakspot: bypass gate</option>
+                                                                            <option value="blockedArea">Slam/AoE: direct hit blocked</option>
+                                                                        </select>
+                                                                        <span className="block leading-relaxed text-slate-500">
+                                                                            Enemy Gates last 0.1 s after Shields break. This selection applies to each direct attack in the finite encounter and direct-hit sequence; status ticks stay ungated. Shield regeneration and weapon-specific weakspot eligibility are not inferred. <a href="https://wiki.warframe.com/w/Shield#Shield_Gating" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                        </span>
+                                                                    </label>
+                                                                    <div>
+                                                                        <div className="mb-1 text-[10px] text-slate-500">Status immunities</div>
+                                                                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                                                            {STATUS_DAMAGE_TYPES.map((type) => (
+                                                                                <label key={type} className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={targetStatusImmunities.includes(type)}
+                                                                                        onChange={(event) => {
+                                                                                            setTargetStatusImmunities((current) => event.target.checked
+                                                                                                ? [...new Set([...current, type])]
+                                                                                                : current.filter((value) => value !== type));
+                                                                                            setSelectedEnemyProfileId("");
+                                                                                        }}
+                                                                                    />
+                                                                                    {type[0].toUpperCase() + type.slice(1)}
+                                                                                </label>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -4180,6 +5384,103 @@ export default function ModBuilder() {
 
                                                 {infoTab === "stats" && (
                                                     <>
+                                                        {phantasmaAltFireModelNote && (
+                                                            <div className="space-y-2 rounded-md border border-amber-700/50 bg-amber-950/20 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                                                                <div role="note">
+                                                                    <span className="font-semibold">Phantasma alt-fire estimate:</span> {phantasmaAltFireModelNote}
+                                                                </div>
+                                                                <label className="flex flex-wrap items-center gap-2">
+                                                                    <span className="font-semibold">Charge ammo per attack</span>
+                                                                    <input
+                                                                        aria-label="Phantasma charge ammo per attack"
+                                                                        type="number"
+                                                                        min={2}
+                                                                        max={Math.max(2, Math.floor(activeMetrics?.modded.magazineSize ?? activeCalcWeapon?.magazineSize ?? 2))}
+                                                                        step={1}
+                                                                        value={Math.min(phantasmaChargeAmmo, Math.max(2, Math.floor(activeMetrics?.modded.magazineSize ?? activeCalcWeapon?.magazineSize ?? 2)))}
+                                                                        onChange={(event) => {
+                                                                            const maxAmmo = Math.max(2, Math.floor(activeMetrics?.modded.magazineSize ?? activeCalcWeapon?.magazineSize ?? 2));
+                                                                            const nextAmmo = Number(event.target.value);
+                                                                            setPhantasmaChargeAmmo(Number.isFinite(nextAmmo)
+                                                                                ? Math.max(2, Math.min(maxAmmo, Math.round(nextAmmo)))
+                                                                                : 2);
+                                                                        }}
+                                                                        className="w-20 rounded border border-amber-800/70 bg-slate-950 px-2 py-1 text-xs text-amber-100"
+                                                                    />
+                                                                    <span>
+                                                                        {fmt(activeMetrics?.modded.chargeTimeSeconds ?? 0, 3)} s at 11 ammo/s · {fmt(activeMetrics?.modded.totalDamage ?? 0)} selected-row damage
+                                                                    </span>
+                                                                </label>
+                                                            </div>
+                                                        )}
+                                                        {phantasmaBeamDamageRampNote && (
+                                                            <div role="note" className="rounded-md border border-amber-700/50 bg-amber-950/20 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                                                                <span className="font-semibold">Phantasma Beam ramp:</span> {phantasmaBeamDamageRampNote}
+                                                            </div>
+                                                        )}
+                                                        {meleeDpsModelNote && (
+                                                            <div role="note" className="rounded-md border border-amber-700/50 bg-amber-950/20 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                                                                <span className="font-semibold">Melee DPS estimate:</span> {meleeDpsModelNote}
+                                                            </div>
+                                                        )}
+                                                {weapon && usesMeleeDamageModel(weapon.category) && (
+                                                    <div className="rounded-md border border-slate-700/70 bg-slate-900/40 px-3 py-3 space-y-2">
+                                                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">Stance-average DPS inputs</div>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <label className="space-y-1 text-[10px] text-slate-400">
+                                                                <span className="block">Average combo damage multiplier</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min={0.01}
+                                                                    max={50}
+                                                                    step={0.01}
+                                                                    inputMode="decimal"
+                                                                    aria-label="Average combo damage multiplier"
+                                                                    value={meleeDpsInputs.averageComboDamageMultiplier ?? ""}
+                                                                    onChange={(event) => setMeleeDpsInputs((previous) => ({
+                                                                        ...previous,
+                                                                        averageComboDamageMultiplier: parsePositivePlannerInput(event.target.value, 50),
+                                                                    }))}
+                                                                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                                />
+                                                            </label>
+                                                            <label className="space-y-1 text-[10px] text-slate-400">
+                                                                <span className="block">Base combo length (seconds)</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min={0.01}
+                                                                    max={60}
+                                                                    step={0.01}
+                                                                    inputMode="decimal"
+                                                                    aria-label="Base combo length in seconds"
+                                                                    value={meleeDpsInputs.baseComboLengthSeconds ?? ""}
+                                                                    onChange={(event) => setMeleeDpsInputs((previous) => ({
+                                                                        ...previous,
+                                                                        baseComboLengthSeconds: parsePositivePlannerInput(event.target.value, 60),
+                                                                    }))}
+                                                                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                        {meleeAverageDps ? (
+                                                            <p className="text-[11px] text-sky-200">
+                                                                {stanceMod?.name ?? "Selected stance"}: {fmt(meleeAverageDps.averageHit)} average combo hit · {fmt(meleeAverageDps.averageDps)} stance-average DPS
+                                                            </p>
+                                                        ) : (
+                                                            <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                Enter both values from the current stance reference table. No stance values are inferred or prefilled.
+                                                            </p>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setMeleeDpsInputs({ averageComboDamageMultiplier: null, baseComboLengthSeconds: null })}
+                                                            disabled={meleeDpsInputs.averageComboDamageMultiplier == null && meleeDpsInputs.baseComboLengthSeconds == null}
+                                                            className="text-[10px] text-slate-400 underline decoration-slate-600 underline-offset-2 hover:text-slate-200 disabled:opacity-40"
+                                                        >
+                                                            Clear stance inputs
+                                                        </button>
+                                                    </div>
+                                                )}
                                                         <div>
                                                             <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-yellow-300">Primary</div>
                                                             <div className="space-y-1.5 text-sm">
@@ -4207,12 +5508,12 @@ export default function ModBuilder() {
                                                                     {
                                                                         label: "Burst DPS",
                                                                         value: fmt(activeMetrics.burstDPS),
-                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.burstDps}\n\nAt the current values, burst DPS is ${fmt(activeMetrics.burstDPS)}.`,
+                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.burstDps}\n\nAt the current values, burst DPS is ${fmt(activeMetrics.burstDPS)}.${weapon.weaponType.trim().toLowerCase() === "bow" ? "\n\nCharged bow shots use charge cadence and exclude the post-shot reload; uncharged shots use the reload delay." : ""}${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${phantasmaBeamDamageRampNote ? `\n\n${phantasmaBeamDamageRampNote}` : ""}`,
                                                                     },
                                                                     {
                                                                         label: "Sustained DPS",
                                                                         value: fmt(activeMetrics.sustainedDPS),
-                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.sustainedDps}\n\nAt the current values, sustained DPS is ${fmt(activeMetrics.sustainedDPS)}.`,
+                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.sustainedDps}\n\nAt the current values, sustained DPS is ${fmt(activeMetrics.sustainedDPS)}.${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${phantasmaBeamDamageRampNote ? `\n\n${phantasmaBeamDamageRampNote}` : ""}`,
                                                                     },
                                                                 ].map((row) => (
                                                                     <InlineStatRow
@@ -4304,12 +5605,21 @@ export default function ModBuilder() {
                                                                     })}
                                                                 <div className="pt-1 text-base">
                                                                     <InlineStatRow
-                                                                        label="Total"
+                                                                        label="Arsenal Total"
                                                                         value={fmt(activeMetrics.modded.arsenalDamage, 1)}
                                                                         tooltip={BASIC_STAT_TOOLTIPS.totalDamage}
                                                                         labelClassName="text-sky-100"
                                                                     />
                                                                 </div>
+                                                                {activeCalcWeapon?.selectedAttackUsesMeleeComboMultiplier && (
+                                                                    <div role="note" className="mt-2 rounded-md border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-[11px] leading-relaxed text-slate-300">
+                                                                        <div className="font-semibold text-slate-200">After one Heavy Attack</div>
+                                                                        <div>
+                                                                            {fmt(activeMetrics.modded.meleeComboPointsBeforeHeavyAttack, 1)} combo points × {fmt(activeMetrics.modded.heavyAttackEfficiency * 100, 1)}% efficiency = {fmt(activeMetrics.modded.meleeComboPointsAfterHeavyAttack, 1)} retained points ({fmt(activeMetrics.modded.meleeComboMultiplierAfterHeavyAttack, 0)}× tier).
+                                                                        </div>
+                                                                        <div className="text-slate-500">Uses the minimum points for the entered tier unless Initial Combo supplies the active tier. The direct-hit TTK applies retention and 40 points/s Initial Combo recovery; it excludes combo gained by the attack. DPS, finite status encounter, and optimizer scoring still hold the starting tier.</div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </>
@@ -4317,24 +5627,126 @@ export default function ModBuilder() {
 
                                                 {infoTab === "why" && (
                                                     <div className="space-y-3">
-                                                        {reasoning ? (
+                                                        <div className="rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-3 space-y-2">
+                                                            <div className="text-[10px] uppercase tracking-wide text-slate-500">Score assumptions</div>
+                                                            <div className="grid gap-x-4 gap-y-1.5 text-[10px] text-slate-400 sm:grid-cols-2">
+                                                                <div><span className="text-slate-500">Objective:</span> {goal === "burst" ? "Burst DPS" : "Sustained DPS"}</div>
+                                                                <div><span className="text-slate-500">Target:</span> {activeTargetSummary}</div>
+                                                                <div><span className="text-slate-500">Attack:</span> {weapon.attacks[selectedAttackIdx]?.name ?? "Normal attack"}</div>
+                                                                {activeWeaponState?.appliedIncarnonOptions.length ? (
+                                                                    <div className="sm:col-span-2">
+                                                                        <span className="text-slate-500">Incarnon path:</span> {activeWeaponState.appliedIncarnonOptions.map((option) => option.name).join(" · ")} · modeled effects only
+                                                                    </div>
+                                                                ) : null}
+                                                                {activeIncarnonUnsupportedLines.length > 0 && (
+                                                                    <div className="sm:col-span-2 text-amber-200">
+                                                                        <span className="font-semibold">Incarnon effects excluded from this score:</span> {activeIncarnonUnsupportedLines.join(" · ")}
+                                                                    </div>
+                                                                )}
+                                                                <div><span className="text-slate-500">Conditional state:</span> {conditionalState.mode}</div>
+                                                                {externalStatusTypeCount > 0 && (
+                                                                    <div><span className="text-slate-500">Condition Overload status assumption:</span> {externalStatusTypeCount} additional distinct types maintained throughout the encounter (maximum 16 total)</div>
+                                                                )}
+                                                                {usesMeleeDamageModel(weapon.category) && (
+                                                                    <div><span className="text-slate-500">Melee combo:</span> {fmt(activeMetrics?.modded.meleeComboMultiplier ?? 1, 0)}× for combo-scaled mods</div>
+                                                                )}
+                                                                {activeMetrics && (
+                                                                    <>
+                                                                        <div><span className="text-slate-500">Selected-state fresh-target crit:</span> {fmt((activeMetrics?.modded.critChance ?? 0) * 100, 1)}% at {fmt(activeMetrics?.modded.critMultiplier ?? 1, 2)}× · expected tier {fmt(activeMetrics?.modded.averageCritTier ?? 0, 2)}</div>
+                                                                        <div><span className="text-slate-500">Selected-state direct/attack:</span> {fmt(activeMetrics?.modded.averageShotDamage ?? 0)} mean damage before target pools</div>
+                                                                        {activeTargetAttackDamage && (
+                                                                            <div className="sm:col-span-2">
+                                                                                <span className="text-slate-500">Selected-state damage to initial pools:</span>{" "}
+                                                                                {fmt(activeTargetAttackDamage.totalDamage)} capped mean damage/attack · {activeTargetAttackDamage.activePool}{" "}
+                                                                                (Overguard {fmt(activeTargetAttackDamage.damageByPool.overguard)}, Shields {fmt(activeTargetAttackDamage.damageByPool.shields)}, Health {fmt(activeTargetAttackDamage.damageByPool.health)})
+                                                                            </div>
+                                                                        )}
+                                                                        {activeTargetAttackSequence && (
+                                                                            <div className="sm:col-span-2">
+                                                                                <span className="text-slate-500">Selected-state direct-hit sequence:</span>{" "}
+                                                                                {activeTargetAttackSequence.attacksToKill === null
+                                                                                    ? "not killable with the current direct-hit damage"
+                                                                                    : `${fmt(activeTargetAttackSequence.attacksToKill, 0)} attacks · ${fmt(activeTargetAttackSequence.timeToKillSeconds ?? 0, 2)}s from first attack`}{" "}
+                                                                                {activeTargetAttackSequence.comboMultiplierAtStart !== undefined && activeTargetAttackSequence.comboMultiplierAtKill !== undefined
+                                                                                    ? `· heavy-attack combo ${fmt(activeTargetAttackSequence.comboMultiplierAtStart, 0)}× → ${fmt(activeTargetAttackSequence.comboMultiplierAtKill, 0)}× · `
+                                                                                    : ""}
+                                                                                (mean damage per attack, ordered pool depletion, static target defenses; applies the selected enemy Shield Gate mode after Shields break, but excludes status ticks and shield regeneration)
+                                                                            </div>
+                                                                        )}
+                                                                        {activeTargetEncounter && (
+                                                                            <div className="sm:col-span-2">
+                                                                                <span className="text-slate-500">Expected finite encounter:</span>{" "}
+                                                                                {activeTargetEncounter.timeToKillSeconds === null
+                                                                                    ? "not defeated within " + fmt(activeTargetEncounter.evaluatedDurationSeconds, 1) + "s / " + fmt(activeTargetEncounter.attacks, 0) + " attacks"
+                                                                                    : fmt(activeTargetEncounter.timeToKillSeconds, 2) + "s · " + fmt(activeTargetEncounter.attacks, 0) + " attacks"}{" "}
+                                                                                · {fmt(activeTargetEncounter.damagePerSecond)} damage/s · direct {fmt(activeTargetEncounter.directDamageByPool.health + activeTargetEncounter.directDamageByPool.shields + activeTargetEncounter.directDamageByPool.overguard)} + status {fmt(activeTargetEncounter.statusDamageByPool.health + activeTargetEncounter.statusDamageByPool.shields + activeTargetEncounter.statusDamageByPool.overguard)} damage
+                                                                            </div>
+                                                                        )}
+                                                                        {activeTargetEncounter && activeTargetEncounter.blastCollateralEnemyCount > 0 && (
+                                                                            <div className="sm:col-span-2">
+                                                                                <span className="text-slate-500">Blast radial collateral:</span>{" "}
+                                                                                {fmt(activeTargetEncounter.blastCollateralDamageByPool.health + activeTargetEncounter.blastCollateralDamageByPool.shields + activeTargetEncounter.blastCollateralDamageByPool.overguard)} aggregate damage across {activeTargetEncounter.blastCollateralEnemyCount} configured nearby target{activeTargetEncounter.blastCollateralEnemyCount === 1 ? "" : "s"}. This is reported separately and does not change the primary target's TTK.
+                                                                            </div>
+                                                                        )}
+                                                                        {activeTargetEncounter && activeTargetEncounter.electricGasCollateralEnemyCount > 0 && (
+                                                                            <div className="sm:col-span-2">
+                                                                                <span className="text-slate-500">Electricity/Gas collateral:</span>{" "}
+                                                                                {fmt(activeTargetEncounter.electricGasCollateralDamageByPool.health + activeTargetEncounter.electricGasCollateralDamageByPool.shields + activeTargetEncounter.electricGasCollateralDamageByPool.overguard)} aggregate scheduled tick damage across {activeTargetEncounter.electricGasCollateralEnemyCount} configured nearby target{activeTargetEncounter.electricGasCollateralEnemyCount === 1 ? "" : "s"}. Gas ticks continue after the primary target dies; collateral does not change its TTK.
+                                                                            </div>
+                                                                        )}
+                                                                        {activeTargetEncounter && (
+                                                                            <div className="sm:col-span-2"><span className="text-slate-500">Expected status applications in encounter:</span> {activeEncounterStatusSummary}</div>
+                                                                        )}
+                                                                        <div><span className="text-slate-500">Burst / sustained:</span> {fmt(activeMetrics.burstDPS)} / {fmt(activeMetrics.sustainedDPS)} DPS before target pools</div>
+                                                                        <div><span className="text-slate-500">DoT:</span> {fmt(activeMetrics.modded.dotDps)} DPS steady-state estimate</div>
+                                                                        <div className="sm:col-span-2"><span className="text-slate-500">Proc mix after immunity:</span> {activeProcMixLabel}</div>
+                                                                    </>
+                                                                )}
+                                                                <div className="sm:col-span-2"><span className="text-slate-500">Modeled pools:</span> Health {fmt(activeTargetAssumptions.health, 0)} ({fmt(activeTargetAssumptions.healthShare * 100, 1)}%) · Shields {fmt(activeTargetAssumptions.shields, 0)} ({fmt(activeTargetAssumptions.shieldShare * 100, 1)}%) · Overguard {fmt(activeTargetAssumptions.overguard, 0)} ({fmt(activeTargetAssumptions.overguardShare * 100, 1)}%) · Armor {fmt(activeTargetAssumptions.armor, 0)} · Total {fmt(activeTargetAssumptions.effectiveHealth, 0)}</div>
+                                                                <div className="sm:col-span-2"><span className="text-slate-500">Status immunities:</span> {activeTargetAssumptions.statusImmuneTypes.map((type) => `${type[0].toUpperCase()}${type.slice(1)}`).join(", ") || "None"} · Stack caps {Object.entries(activeTargetAssumptions.statusStackCaps).map(([type, cap]) => `${type} ${cap}`).join(", ") || "standard"} · Toxin shield bypass {activeTargetAssumptions.toxinBypassesShields ? "enabled" : "disabled"} · {activeTargetAssumptions.grouped ? "grouped target estimate" : "single target estimate"}{activeTargetAssumptions.crowdControlImmune ? " · CC immune" : ""}</div>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500">The selected-state one-hit estimate uses minimum attack-ramp damage when the selected weapon has a ramp. The direct-hit sequence starts cold and advances its ramp per attack; for selected heavy attacks it also applies combo consumption, supported Heavy Attack Efficiency, and 40 points/s Initial Combo recovery. It does not model attack-generated combo, Tennokai, stance sequences, or heavy-attack wind-up. The finite encounter keeps the starting combo tier and starts with no weapon-generated status stacks, then applies the selected conditional-state estimate and processes expected attacks and scheduled DoT ticks in event order. It updates Heat/Corrosive armor strip, Viral/Magnetic/Cold/Puncture/Tau state and proc eligibility as target pools deplete. Condition Overload uses weapon statuses active before each hit plus the user-entered external-status count. Fractional proc applications remain mean-field estimates; the selected 0.1 s enemy Shield Gate applies to direct hits while status ticks ignore it, and shield regeneration, attenuation, projectile travel, neighbor status histories, chain geometry, Gas radius growth, and melee stance hit timing remain unsupported.</p>
+                                                        </div>
+                                                        {displayedReasoning ? (
                                                             <>
-                                                                <p className="text-[11px] text-slate-400">{reasoning.summary}</p>
+                                                                <div className="rounded-lg border border-sky-900/50 bg-sky-950/20 px-3 py-2.5 space-y-1">
+                                                                    <div className="text-[10px] uppercase tracking-wide text-sky-300">Why this build won in the selected model</div>
+                                                                    <p className="text-[11px] text-slate-300">{displayedReasoning.summary}</p>
+                                                                    <p className="text-[10px] text-slate-400">{displayedReasoning.winningEdge}</p>
+                                                                    <p className="text-[10px] text-slate-500">{displayedReasoning.comparisonNote}</p>
+                                                                </div>
+                                                                {displayedReasoning.arcaneStep && (
+                                                                    <div className="rounded-lg bg-violet-950/20 border border-violet-900/40 px-3 py-2">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-xs font-semibold text-violet-200">Arcane · {displayedReasoning.arcaneStep.name}</span>
+                                                                            <span className={`text-[10px] font-mono shrink-0 ${displayedReasoning.arcaneStep.delta >= 0 ? "text-green-400" : "text-rose-400"}`}>
+                                                                                {displayedReasoning.arcaneStep.delta >= 0 ? "+" : ""}{displayedReasoning.arcaneStep.pctGain.toFixed(1)}%
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="mt-1 text-[10px] text-slate-500">{displayedReasoning.arcaneStep.why} This is a separate leave-one-out score change; it overlaps with mod synergies.</p>
+                                                                    </div>
+                                                                )}
                                                                 <div className="space-y-1.5">
-                                                                    {reasoning.steps.map((step, i) => (
+                                                                    {displayedReasoning.steps.map((step, i) => (
                                                                         <div key={i} className="rounded-lg bg-slate-900/50 border border-slate-800/50 px-3 py-2">
                                                                             <div className="flex items-center justify-between gap-2">
                                                                                 <span className="text-xs font-semibold text-slate-200">{step.modName}</span>
-                                                                                <span className="text-[10px] font-mono text-green-400 shrink-0">+{step.pctGain.toFixed(1)}%</span>
+                                                                                <span className={`text-[10px] font-mono shrink-0 ${step.delta >= 0 ? "text-green-400" : "text-rose-400"}`}>
+                                                                                    {step.delta >= 0 ? "+" : ""}{step.pctGain.toFixed(1)}%
+                                                                                </span>
                                                                             </div>
                                                                             <p className="mt-1 text-[10px] text-slate-500">{step.why}</p>
                                                                         </div>
                                                                     ))}
                                                                 </div>
                                                             </>
+                                                        ) : reasoning ? (
+                                                            <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 px-3 py-3 text-[11px] text-amber-200/80">
+                                                                Planner assumptions changed since this build was optimized. Run the optimizer again to refresh its score and explanation.
+                                                            </div>
                                                         ) : (
                                                             <div className="rounded-lg border border-slate-800/60 bg-slate-900/30 px-3 py-3 text-[11px] text-slate-500">
-                                                                Run the optimizer to generate build reasoning.
+                                                                Run the optimizer to generate or refresh build reasoning for the current settings.
                                                             </div>
                                                         )}
                                                     </div>
@@ -4463,6 +5875,31 @@ export default function ModBuilder() {
                                                         <ArcaneSlot label="Arcane Enhancement" arcane={arcane1} rank={arcane1Rank}
                                                             onChange={setArcane1} onRankChange={setArcane1Rank}
                                                             availableArcanes={weaponArcanes} />
+                                                        {weaponArcanes.some((arcane) => !!arcane.armorScaledWeaponDamage) && (
+                                                            <div className="mt-2 space-y-1.5 rounded-lg border border-violet-900/50 bg-violet-950/15 p-2">
+                                                                <label htmlFor="warframe-armor-input" className="block text-[10px] font-semibold text-slate-300">Warframe Armor · Primary Bulwark</label>
+                                                                <input
+                                                                    id="warframe-armor-input"
+                                                                    aria-label="Warframe Armor for Primary Bulwark"
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={10000}
+                                                                    step={1}
+                                                                    value={warframeArmorInput}
+                                                                    onChange={(event) => setWarframeArmorInput(event.target.value)}
+                                                                    placeholder="Enter armor to model Bulwark"
+                                                                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600"
+                                                                />
+                                                                <p className="text-[9px] leading-relaxed text-slate-500">Damage scales from armor above 1,000 and caps at 1,500. The value is saved with this planner build.</p>
+                                                                {(arcane1?.armorScaledWeaponDamage || optArcane) && warframeArmor === undefined && (
+                                                                    <p role="status" className="text-[9px] leading-relaxed text-amber-300">Primary Bulwark is not calculated or considered by Auto Optimize until Warframe Armor is entered.</p>
+                                                                )}
+                                                                {arcane1?.armorScaledWeaponDamage && warframeArmor !== undefined && (
+                                                                    <p className="text-[9px] text-violet-300">Selected rank bonus: +{(((getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor)?.damageBonus ?? 0) * 100).toFixed(1))}% base weapon damage.</p>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {warframeEnergyArcanePanel}
                                                     </div>
                                                 </div>
                                             ) : (
@@ -4508,6 +5945,31 @@ export default function ModBuilder() {
                                                             <ArcaneSlot label="Arcane Enhancement" arcane={arcane1} rank={arcane1Rank}
                                                                 onChange={setArcane1} onRankChange={setArcane1Rank}
                                                                 availableArcanes={weaponArcanes} />
+                                                            {weaponArcanes.some((arcane) => !!arcane.armorScaledWeaponDamage) && (
+                                                                <div className="mt-2 space-y-1.5 rounded-lg border border-violet-900/50 bg-violet-950/15 p-2">
+                                                                    <label htmlFor="warframe-armor-input" className="block text-[10px] font-semibold text-slate-300">Warframe Armor · Primary Bulwark</label>
+                                                                    <input
+                                                                        id="warframe-armor-input"
+                                                                        aria-label="Warframe Armor for Primary Bulwark"
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={10000}
+                                                                        step={1}
+                                                                        value={warframeArmorInput}
+                                                                        onChange={(event) => setWarframeArmorInput(event.target.value)}
+                                                                        placeholder="Enter armor to model Bulwark"
+                                                                        className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600"
+                                                                    />
+                                                                    <p className="text-[9px] leading-relaxed text-slate-500">Damage scales from armor above 1,000 and caps at 1,500. The value is saved with this planner build.</p>
+                                                                    {(arcane1?.armorScaledWeaponDamage || optArcane) && warframeArmor === undefined && (
+                                                                        <p role="status" className="text-[9px] leading-relaxed text-amber-300">Primary Bulwark is not calculated or considered by Auto Optimize until Warframe Armor is entered.</p>
+                                                                    )}
+                                                                    {arcane1?.armorScaledWeaponDamage && warframeArmor !== undefined && (
+                                                                        <p className="text-[9px] text-violet-300">Selected rank bonus: +{(((getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor)?.damageBonus ?? 0) * 100).toFixed(1))}% base weapon damage.</p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {warframeEnergyArcanePanel}
                                                         </div>
                                                         <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-2">
                                                             <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-500">
@@ -4576,29 +6038,23 @@ export default function ModBuilder() {
                                     return `${getBuilderDisplayModName(mod)} (exilus)`;
                                 });
                                 if (includeArcaneStats && arcane1) {
-                                    const ae = arcane1.permanentEffectByRank[arcane1Rank];
-                                    buildEffects.push({
+                                    const ae = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext);
+                                    if (ae) buildEffects.push({
                                         ...emptyEffect(),
-                                        ...(ae ?? {}),
-                                        conditionalEffects: [...(ae?.conditionalEffects ?? [])],
+                                        ...ae,
+                                        conditionalEffects: [...(ae.conditionalEffects ?? [])],
                                     });
                                     buildEffectSourceLabels.push(`${arcane1.name} (arcane)`);
                                 }
 
                                 // Helper: compute metrics for any attack (or base weapon)
                                 const calcForAttack = (atkIdx: number) => {
-                                    const atk = weapon.attacks[atkIdx];
-                                    if (!atk) return calculateBuild(weapon, buildEffects, factionOn ? faction : "");
-                                    const synth = {
-                                        ...weapon,
-                                        damage: atk.damage,
-                                        critChance: atk.critChance,
-                                        critMultiplier: atk.critMultiplier,
-                                        statusChance: atk.statusChance,
-                                        fireRate: atk.speed || weapon.fireRate,
-                                        chargeTime: atk.chargeTime ?? null,
-                                    };
-                                    return calculateBuild(synth, buildEffects, factionOn ? faction : "");
+                                    const attackWeapon = makeSelectedAttackWeapon(weapon, atkIdx);
+                                    return calculateBuild(attackWeapon, buildEffects, factionOn ? faction : "", {
+                                        conditionalState,
+                                        statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+                                        statusStackCaps: targetProfileOverride?.statusStackCaps,
+                                    });
                                 };
                                 // Damage type rows for a given damage object
                                 const dmgRows = (d: Record<string, number>) => [
@@ -4636,14 +6092,19 @@ export default function ModBuilder() {
                                     const dotShotRows = dmgRows(stats.dotDamagePerShotByType as Record<string, number>);
                                     const dotDpsRows = dmgRows(stats.dotDpsByType as Record<string, number>);
                                     const extraProcRows = dmgRows(stats.extraProcsPerShot as Record<string, number>);
+                                    const forcedProcRows = dmgRows(stats.forcedProcsPerShot as Record<string, number>);
+                                    const forcedProcCounts = new Map(forcedProcRows.map((row) => [row.k, row.v]));
+                                    const bonusProcRows = extraProcRows
+                                        .map((row) => ({ ...row, v: Math.max(0, row.v - (forcedProcCounts.get(row.k) ?? 0)) }))
+                                        .filter((row) => row.v > 0);
                                     const allMetricBadges = [
                                         { label: "Direct Damage", value: fmt(stats.totalDamage), sub: "post-quantization", tooltip: "Final direct damage after damage construction and Warframe's damage quantization step, before crit and multishot." },
-                                        { label: "Arsenal Damage", value: fmt(stats.arsenalDamage), sub: `per ${damageUnit}, no crit`, tooltip: `Direct damage for one ${damageUnit} after multishot is applied, but before crit weighting.` },
+                                        { label: "Arsenal Total", value: fmt(stats.arsenalDamage), sub: `per ${damageUnit}, no crit`, tooltip: `Unquantized Arsenal Total Damage after multishot for one ${damageUnit}, before crit weighting. Target modifiers and mission rounding are not included.` },
                                         { label: avgDamageLabel, value: fmt(stats.averageShotDamage), sub: "crit-weighted", tooltip: `Expected damage per ${damageUnit} after weighting in crit chance and crit multiplier.` },
-                                        { label: "Burst DPS", value: fmt(result.burstDPS), sub: "no reload", tooltip: "Damage per second assuming continuous attacking with no reload downtime." },
-                                        { label: "Sustained DPS", value: fmt(result.sustainedDPS), sub: "with reload", tooltip: "Damage per second including reload downtime when applicable." },
-                                        { label: `DoT / ${damageUnitLabel}`, value: fmt(stats.dotDamagePerShot), sub: "expected total", tooltip: `Expected status damage-over-time contributed by one ${damageUnit}.` },
-                                        { label: "DoT DPS", value: fmt(stats.dotDps), sub: "steady-state estimate", tooltip: "Estimated sustained damage per second coming from active status DoTs." },
+                                        { label: "Burst DPS", value: fmt(result.burstDPS), sub: "fresh magazine", tooltip: "Damage per second while attacking through a fresh magazine without reload downtime. Verified attack ramps are averaged across that magazine." },
+                                        { label: "Sustained DPS", value: fmt(result.sustainedDPS), sub: "with reload", tooltip: "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable." },
+                                        { label: `DoT / ${damageUnitLabel}`, value: fmt(stats.dotDamagePerShot), sub: "full-life estimate", tooltip: `Expected status damage-over-time contributed by one ${damageUnit} if the target survives for every proc's full duration. This is not damage delivered before a target dies.` },
+                                        { label: "DoT DPS", value: fmt(stats.dotDps), sub: "steady-state estimate", tooltip: "Estimated DoT damage per second against a target that survives long enough for status stacks to reach steady state. Ramp-enabled attacks assume fully warmed damage for this long-run estimate; the expected encounter scales each proc seed by its attack-time ramp." },
                                         {
                                             label: "Crit Chance",
                                             value: fmt(stats.critChance * 100, 1) + "%",
@@ -4671,18 +6132,38 @@ export default function ModBuilder() {
                                         {
                                             label: rateLabel,
                                             value: stats.fireRate.toFixed(3) + "/s",
-                                            tooltip: atk?.chargeTime != null
-                                                ? `Effective rate = 1 / (${atk.chargeTime.toFixed(2)}s charge + ${(1 / weapon.fireRate).toFixed(2)}s delay). Fire rate mods also speed up charge time.`
+                                            tooltip: stats.chargeTimeSeconds !== null
+                                                ? `Charge time = ${stats.ammoCostPerShot.toFixed(2)} ammo ÷ ${(weapon.selectedAttackChargeAmmoPerSecond ?? 0).toFixed(2)} ammo/s = ${stats.chargeTimeSeconds.toFixed(3)}s. Effective rate is capped by both this fixed charge time and the weapon's fire-rate cadence; fire-rate mods do not change the ammo charge rate.`
+                                                : weapon.weaponType.trim().toLowerCase() === "bow"
+                                                    ? "Bow repeating rate uses 1 ÷ (modded charge time + modded reload time); an uncharged shot uses zero charge time. Fire-rate mods speed the charge and reload-speed mods shorten the post-shot delay. Charged-shot Burst DPS excludes that post-shot reload."
+                                                    : atk?.chargeTime != null
+                                                    ? `Effective rate = 1 / (${atk.chargeTime.toFixed(2)}s charge + ${(1 / weapon.fireRate).toFixed(2)}s delay). Fire rate mods also speed up charge time.`
                                                 : usesHitTerminology(weapon.category) ? "Attacks per second." : "Shots per second.",
                                         },
                                         { label: "Magazine", value: displayMagazineValue(weapon, stats.magazineSize), tooltip: usesHitTerminology(weapon.category) ? "Melee weapons do not use magazines, so this stays at the weapon's effective default value." : "Rounds available before reloading." },
-                                        { label: "Shots / Mag", value: fmt(stats.shotsPerMag, 2), sub: "before reload", tooltip: usesHitTerminology(weapon.category) ? "Effective attack count before any reload-like interruption. For melee this is mostly a placeholder value." : "Number of trigger pulls available before reloading." },
+                                        ...(!usesHitTerminology(weapon.category) && !weapon.isExalted ? [{ label: "Ammo Efficiency", value: fmt(stats.ammoEfficiencyBonus * 100, 1) + "%", tooltip: "Additive ammo-efficiency bonuses, capped at 75%. Fractional ammo is accumulated between shots; transformed Incarnon attacks ignore ammo efficiency. Conditional bonuses follow the selected condition state." }] : []),
+                                        {
+                                            label: weapon.weaponType.trim().toLowerCase() === "bow" ? "Shots / Cycle" : "Shots / Mag",
+                                            value: fmt(stats.shotsPerMag, 2),
+                                            sub: weapon.weaponType.trim().toLowerCase() === "bow" ? "per arrow cycle" : "before reload",
+                                            tooltip: weapon.weaponType.trim().toLowerCase() === "bow"
+                                                ? "Bow attacks fire one arrow per charge/reload cycle. The repeating bow rate already includes this cycle, so it is not counted again as magazine downtime."
+                                                : usesHitTerminology(weapon.category)
+                                                    ? "Effective attack count before any reload-like interruption. For melee this is mostly a placeholder value."
+                                                    : "Number of trigger pulls available before reloading.",
+                                        },
                                         { label: "Reload", value: stats.reloadTime.toFixed(2) + "s", tooltip: usesHitTerminology(weapon.category) ? "Melee weapons do not reload, so this should normally remain at 0." : "Time needed to refill the magazine." },
                                         {
                                             label: `Avg Procs/${damageUnitLabel}`,
                                             value: fmt(stats.averageProcsPerShot, 2),
-                                            tooltip: `Average number of status procs per ${damageUnit} = Multishot × Status Chance.`,
+                                            tooltip: `Expected status applications per ${damageUnit}. Base ordinary rolls are Multishot × Status Chance; active Tau vulnerability increases other status effects, and forced/status-triggered applications are added separately.`,
                                         },
+                                        ...(atk?.uniqueStatusProcs?.length ? [{
+                                            label: "Unique Status",
+                                            value: atk.uniqueStatusProcs.join(", "),
+                                            sub: "Galvanized / CO count",
+                                            tooltip: "This guaranteed non-damage status adds one unique type for Galvanized direct-damage and Condition Overload effects. The finite encounter applies it after the first hit; special enemy immunity exceptions are not modeled.",
+                                        }] : []),
                                     ];
                                     const statusEffectBadges = [
                                         { label: "Viral Health", value: fmt(stats.viralHealthDamageBonus * 100, 0) + "%", sub: "health damage", tooltip: "Extra damage dealt to health from current Viral stacks." },
@@ -4693,11 +6174,11 @@ export default function ModBuilder() {
                                         { label: "Cold Slow", value: fmt(stats.coldSlow * 100, 0) + "%", sub: "move/attack slow", tooltip: "Movement and attack speed slow applied by Cold stacks." },
                                         { label: "Cold Crit Damage", value: fmt(stats.coldCritDamageBonus * 100, 0) + "%", sub: "crit damage bonus", tooltip: "Bonus crit damage applied from maxed Cold freeze effects." },
                                         { label: "Puncture Dmg Down", value: fmt(stats.punctureEnemyDamageReduction * 100, 0) + "%", sub: "enemy damage reduction", tooltip: "How much enemy outgoing damage is reduced by Puncture stacks." },
-                                        { label: "Puncture Crit", value: fmt(stats.punctureCritChanceBonus * 100, 0) + "%", sub: "crit chance bonus", tooltip: "Bonus crit chance threshold granted by Puncture stacks." },
+                                        { label: "Puncture Crit", value: fmt(stats.punctureCritChanceBonus * 100, 0) + "%", sub: "crit chance bonus", tooltip: "Flat +5% critical chance per Puncture stack (up to +25%) for subsequent weapon hits. The bonus is omitted for attacks explicitly marked as area damage; the current weapon source does not classify every attack." },
                                         { label: "Impact Mercy", value: fmt(stats.impactMercyThresholdBonus * 100, 0) + "%", sub: "mercy threshold", tooltip: "Mercy threshold increase contributed by Impact stacks." },
-                                        { label: `Blast / ${damageUnitLabel}`, value: fmt(stats.blastDetonationDamagePerShot), sub: "detonation damage", tooltip: `Expected Blast detonation damage contributed by one ${damageUnit}.` },
+                                        { label: `Blast / ${damageUnitLabel}`, value: fmt(stats.blastExpectedExpiryDamagePerShot), sub: "stack expiry damage", tooltip: `Expected damage from Blast stacks that expire naturally after one ${damageUnit}. Cap detonation is calculated in the finite encounter.` },
                                         { label: "Gas Radius", value: fmt(stats.gasCloudRadius, 2) + "m", sub: "cloud radius", tooltip: "Effective radius of the Gas cloud from current Gas stacks." },
-                                        { label: "Tau Vulnerability", value: fmt(stats.tauStatusVulnerability * 100, 0) + "%", sub: "status vulnerability", tooltip: "Extra status susceptibility applied by Tau effects." },
+                                        { label: "Tau Vulnerability", value: fmt(stats.tauStatusVulnerability * 100, 0) + "%", sub: "status vulnerability", tooltip: "+10% received Status Chance per Tau stack, up to +100%. The finite encounter applies active stacks to later ordinary status rolls; Tau and forced procs are not amplified." },
                                     ];
                                     const renderBadgeSection = (
                                         title: string,
@@ -4733,7 +6214,11 @@ export default function ModBuilder() {
                                             {label && (
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xs font-semibold text-slate-300">{label}</span>
-                                                    {atk?.chargeTime != null && (
+                                                {stats.chargeTimeSeconds !== null ? (
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded border border-blue-700/40 bg-blue-950/30 text-blue-400">
+                                                        {stats.chargeTimeSeconds.toFixed(2)}s charge
+                                                    </span>
+                                                ) : atk?.chargeTime != null && (
                                                         <span className="text-[9px] px-1.5 py-0.5 rounded border border-blue-700/40 bg-blue-950/30 text-blue-400">
                                                             {atk.chargeTime.toFixed(1)}s charge
                                                         </span>
@@ -4813,11 +6298,22 @@ export default function ModBuilder() {
                                             )}
 
                                             {renderBadgeSection(
-                                                "Extra Procs By Type",
-                                                extraProcRows.map((row) => ({
+                                                "Forced Procs By Type",
+                                                forcedProcRows.map((row) => ({
                                                     label: row.l,
                                                     value: fmt(row.v, 2),
-                                                    sub: `extra per ${damageUnit}`,
+                                                    sub: `forced per ${damageUnit}`,
+                                                    tooltip: `Expected forced ${row.l} proc count per attack after multishot. Forced rolls do not use status chance; some weapon rules select outcomes by modded damage weights while others use a uniform distribution.`,
+                                                    icon: DAMAGE_TYPE_ICON[row.k],
+                                                })),
+                                            )}
+
+                                            {renderBadgeSection(
+                                                "Additional Procs By Type",
+                                                bonusProcRows.map((row) => ({
+                                                    label: row.l,
+                                                    value: fmt(row.v, 2),
+                                                    sub: `additional per ${damageUnit}`,
                                                     tooltip: STATUS_TIPS[row.k],
                                                     icon: DAMAGE_TYPE_ICON[row.k],
                                                 })),
@@ -4950,6 +6446,16 @@ export default function ModBuilder() {
                                                             {option.notes.length > 0 && (
                                                                 <div className="mt-5 border-t border-[color:var(--wf-border-subtle)] pt-4 text-xs leading-5 text-[color:var(--wf-text-muted)]">
                                                                     {option.notes.join(" ")}
+                                                                </div>
+                                                            )}
+                                                            {option.model.unsupportedLines.length > 0 && (
+                                                                <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-950/20 px-3 py-2.5 text-xs leading-5 text-amber-100">
+                                                                    <div className="font-semibold">Not included in stats or optimizer scoring</div>
+                                                                    <ul className="mt-1 list-disc space-y-1 pl-4 text-amber-100/80">
+                                                                        {option.model.unsupportedLines.map((line, lineIndex) => (
+                                                                            <li key={`${option.id}-unsupported-${lineIndex}`}>{line}</li>
+                                                                        ))}
+                                                                    </ul>
                                                                 </div>
                                                             )}
                                                         </button>

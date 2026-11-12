@@ -181,6 +181,63 @@ export interface UserStateV2 {
     };
 }
 
+export interface SavedBuildTargetConfig {
+    enabled: boolean;
+    faction: string;
+    enemyProfileId?: string;
+    isEximus?: boolean;
+    /** Applies the current boss-specific four-stack Blast detonation threshold. */
+    bossBlastStackCap?: boolean;
+    isSteelPath?: boolean;
+    useCustomStats: boolean;
+    baseStats: { health: number; shields: number; overguard: number; armor: number };
+    scaleByLevel: boolean;
+    scalingFaction: string;
+    baseLevel: number;
+    currentLevel: number;
+    toxinBypassesShields: boolean;
+    /** Attack-hit behavior assumed during the enemy Shield Gate. */
+    enemyShieldGateHitMode?: "body" | "weakspot" | "blockedArea";
+    /** Same-profile enemies assumed to be inside an active Electric/Gas status radius. */
+    nearbyEnemyCount?: number;
+    /** Same-profile enemies assumed to be within Blast's 5m cap/death radial. */
+    nearbyBlastEnemyCount?: number;
+    statusImmunities: string[];
+}
+
+export interface SavedBuildPlannerConfig {
+    goal?: "burst" | "scaling";
+    conditionalMode?: "initial" | "realistic" | "fullyStacked" | "custom";
+    externalConditionalStacks?: number;
+    /** Distinct additional status types assumed active for Condition Overload (including Tau). */
+    externalStatusTypeCount?: number;
+    meleeComboMultiplier?: number;
+    /** User-entered ammo charge for Phantasma's alternate fire. */
+    phantasmaChargeAmmo?: number;
+    /** User-entered stance table values; absent values leave stance DPS blank. */
+    meleeAverageComboDamageMultiplier?: number;
+    meleeBaseComboLengthSeconds?: number;
+    /** Explicit Warframe armor used by armor-scaling weapon arcanes such as Primary Bulwark. */
+    warframeArmor?: number;
+    /** Explicit Warframe maximum Energy used by energy-scaling weapon arcanes such as Primary Overcharge. */
+    warframeMaxEnergy?: number;
+    /** Current Energy as a percentage of maximum for energy-gated weapon arcanes (0–100). */
+    warframeEnergyPercent?: number;
+    attackIndex?: number;
+    attackName?: string;
+    target?: SavedBuildTargetConfig;
+    optimizerOptions?: {
+        allowNonMax?: boolean;
+        onlyOwned?: boolean;
+        allowCatalyst?: boolean;
+        allowForma?: boolean;
+        maxFormaAllowed?: number;
+        optimizeExilus?: boolean;
+        optimizeArcane?: boolean;
+        excludedModUniqueNames?: string[];
+    };
+}
+
 export interface SavedBuild {
     id: string;
     name: string;
@@ -210,5 +267,7 @@ export interface SavedBuild {
     incarnonUnlockedTier?: number;
     incarnonSelectedOptionsByTier?: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
     optimizeIncarnonSelections?: boolean;
+    /** Optional planner inputs; absent on builds saved by older versions. */
+    plannerConfig?: SavedBuildPlannerConfig;
     createdAt: string;
 }

@@ -72,6 +72,13 @@ export interface IncarnonBuildConfig {
     selectedOptionsByTier: Partial<Record<IncarnonTier, string>>;
 }
 
+export type IncarnonCandidateConfig = IncarnonBuildConfig;
+
+export interface IncarnonScoredCandidate {
+    signature: string;
+    score: number;
+}
+
 export interface ResolvedIncarnonState {
     record: IncarnonWeaponRecord | null;
     appliedOptions: IncarnonOption[];
@@ -165,16 +172,28 @@ function maxStacksFromLine(line: string) {
     return match ? Number(match[1]) : 1;
 }
 
+type NumericModEffectKey = {
+    [Key in keyof ModEffect]: ModEffect[Key] extends number ? Key : never;
+}[keyof ModEffect];
+
+function addNumericEffectValue<Key extends NumericModEffectKey>(effect: ModEffect, key: Key, amount: number) {
+    effect[key] += amount;
+}
+
 function pushEffect(target: ScopedEffect[], scope: IncarnonAttackScope, patch: Partial<ModEffect>) {
     if (!Object.keys(patch).length) return;
     const existing = target.find((entry) => entry.scope === scope);
     if (existing) {
-        Object.assign(existing.effect, {
-            ...existing.effect,
-            ...Object.fromEntries(
-                Object.entries(patch).map(([key, value]) => [key, (existing.effect as any)[key] + (value ?? 0)]),
-            ),
-        });
+        for (const key of Object.keys(patch) as Array<keyof ModEffect>) {
+            const value = patch[key];
+            if (typeof value === "number") {
+                addNumericEffectValue(existing.effect, key as NumericModEffectKey, value);
+            } else if (key === "conditionalEffects" && Array.isArray(value)) {
+                existing.effect.conditionalEffects.push(...value);
+            } else if (key === "targetFaction" && typeof value === "string") {
+                existing.effect.targetFaction = value;
+            }
+        }
         return;
     }
     const effect = emptyEffect();
@@ -186,9 +205,11 @@ function pushAdjustment(target: ScopedWeaponAdjustment[], scope: IncarnonAttackS
     if (!Object.keys(patch).length) return;
     const existing = target.find((entry) => entry.scope === scope);
     if (existing) {
-        for (const [key, value] of Object.entries(patch)) {
-            (existing as any)[key] = ((existing as any)[key] ?? 0) + (value ?? 0);
-        }
+        existing.baseDamageFlat = (existing.baseDamageFlat ?? 0) + (patch.baseDamageFlat ?? 0);
+        existing.critChanceFlat = (existing.critChanceFlat ?? 0) + (patch.critChanceFlat ?? 0);
+        existing.critMultiplierFlat = (existing.critMultiplierFlat ?? 0) + (patch.critMultiplierFlat ?? 0);
+        existing.statusChanceFlat = (existing.statusChanceFlat ?? 0) + (patch.statusChanceFlat ?? 0);
+        existing.magazineSizeFlat = (existing.magazineSizeFlat ?? 0) + (patch.magazineSizeFlat ?? 0);
         return;
     }
     target.push({ scope, ...patch });
@@ -222,12 +243,35 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
 
     const allNotes = option.notes ?? [];
 
-    for (const rawLine of option.descriptionLines ?? []) {
+    const descriptionLines = (option.descriptionLines ?? []).flatMap((rawLine) => {
+        const line = rawLine.trim();
+        if (/^(?:on|with|while|when)\b/i.test(line)) return [line];
+        return line.split(/\.\s+(?=[A-Z+])/).map((part) => part.trim()).filter(Boolean);
+    });
+
+    for (const rawLine of descriptionLines) {
         const line = rawLine.trim();
         if (!line) continue;
 
-        const scope = scopeForLine(line, allNotes);
         const trigger = triggerFromLine(line);
+
+        // Condition clauses that do not map to a supported optimizer trigger
+        // must not leak their numeric bonus into the unconditional build.
+        if (/^(?:with|while|when)\b/i.test(line) || (/^on\b/i.test(line) && !trigger)) {
+            unsupportedLines.push(line);
+            continue;
+        }
+
+        const effectMentions = line.match(/\b(?:damage|critical chance|critical damage|fire rate|reload speed|ammo efficiency|multishot|status chance|accuracy|projectile speed|punch through|magazine capacity|combo count chance)\b/gi) ?? [];
+        if (trigger && effectMentions.length > 1) {
+            // This parser resolves one stat family per description clause. If a
+            // triggered line mixes effects, do not apply only the recognized
+            // fragment while silently dropping the rest.
+            unsupportedLines.push(line);
+            continue;
+        }
+
+        const scope = scopeForLine(line, allNotes);
         const statsLine = trigger ? line.replace(/^On [^:]+:\s*/i, "") : line;
         const additiveNoteText = normalize(`${statsLine} ${allNotes.join(" ")}`);
 
@@ -242,12 +286,27 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
             }
             addStaticEffect(conditionalPatch(trigger, durationFromLine(line), maxStacksFromLine(line), stats));
         };
+        const addTriggeredOrStaticEffect = (stats: ConditionalEffect["stats"]) => {
+            if (trigger) addConditionalEffect(stats);
+            else addStaticEffect(stats);
+        };
         const addAdjustment = (patch: Omit<ScopedWeaponAdjustment, "scope">) => {
+            if (trigger) {
+                // Flat weapon-stat adjustments are not represented as
+                // conditional effects, so never turn a triggered bonus into a
+                // permanent evolution adjustment.
+                unsupportedLines.push(line);
+                return;
+            }
             pushAdjustment(adjustments, scope, patch);
             modeledLineCount += 1;
         };
 
         let matched = true;
+        const multishotDamageMatch = statsLine.match(/multishot consumes ammo[^.]*?\+([\d.]+)%\s*damage/i);
+        if (multishotDamageMatch) {
+            addTriggeredOrStaticEffect({ multishotDamageBonus: parsePercent(multishotDamageMatch[1]) });
+        }
         if (/increase base damage by [+-]?\d+(?:\.\d+)?/i.test(statsLine) && !trigger && !/^with\b/i.test(statsLine)) {
             const match = statsLine.match(/increase base damage by ([+-]?\d+(?:\.\d+)?)/i);
             addAdjustment({ baseDamageFlat: Number(match?.[1] ?? 0) });
@@ -262,57 +321,55 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
             addAdjustment({ statusChanceFlat: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*fire rate/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*fire rate/i);
-            trigger ? addConditionalEffect({ fireRateBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ fireRateBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ fireRateBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*projectile speed/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*projectile speed/i);
-            trigger ? addConditionalEffect({ projectileSpeedBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ projectileSpeedBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ projectileSpeedBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*reload speed/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*reload speed/i);
-            trigger ? addConditionalEffect({ reloadSpeedBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ reloadSpeedBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ reloadSpeedBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*accuracy/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*accuracy/i);
-            trigger ? addConditionalEffect({ accuracyBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ accuracyBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ accuracyBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*multishot/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*multishot/i);
-            trigger ? addConditionalEffect({ multishotBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ multishotBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ multishotBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*ammo efficiency/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*ammo efficiency/i);
-            trigger ? addConditionalEffect({ ammoEfficiencyBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ ammoEfficiencyBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ ammoEfficiencyBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?\s*punch through/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)\s*punch through/i);
-            trigger ? addConditionalEffect({ punchThrough: Number(match?.[1] ?? 0) }) : addStaticEffect({ punchThrough: Number(match?.[1] ?? 0) });
+            addTriggeredOrStaticEffect({ punchThrough: Number(match?.[1] ?? 0) });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*magazine capacity/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*magazine capacity/i);
-            trigger ? addConditionalEffect({ magazineBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ magazineBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ magazineBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?\s*magazine capacity/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)\s*magazine capacity/i);
             addAdjustment({ magazineSizeFlat: Number(match?.[1] ?? 0) });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*headshot damage/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*headshot damage/i);
-            trigger ? addConditionalEffect({ headshotMultiplierBonus: parsePercent(match?.[1] ?? "0") }) : addStaticEffect({ headshotMultiplierBonus: parsePercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ headshotMultiplierBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*critical damage/i.test(statsLine) && /flat value|added after mods/i.test(additiveNoteText)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*critical damage/i);
-            trigger
-                ? addConditionalEffect({ finalCritMultiplierBonus: parseCritMultiplierPercent(match?.[1] ?? "0") })
-                : addStaticEffect({ finalCritMultiplierBonus: parseCritMultiplierPercent(match?.[1] ?? "0") });
+            addTriggeredOrStaticEffect({ finalCritMultiplierBonus: parseCritMultiplierPercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*critical chance/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*critical chance/i);
             const value = parsePercent(match?.[1] ?? "0");
             if (/flat value|added after mods/i.test(additiveNoteText)) {
-                trigger ? addConditionalEffect({ finalCritChanceBonus: value }) : addStaticEffect({ finalCritChanceBonus: value });
+                addTriggeredOrStaticEffect({ finalCritChanceBonus: value });
             } else {
-                trigger ? addConditionalEffect({ critChanceBonus: value }) : addStaticEffect({ critChanceBonus: value });
+                addTriggeredOrStaticEffect({ critChanceBonus: value });
             }
         } else if (/[+-]?\d+(?:\.\d+)?%\s*status chance/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*status chance/i);
             const value = parsePercent(match?.[1] ?? "0");
             if (/flat value|added after mods|added last/i.test(additiveNoteText)) {
-                trigger ? addConditionalEffect({ finalStatusChanceBonus: value }) : addStaticEffect({ finalStatusChanceBonus: value });
+                addTriggeredOrStaticEffect({ finalStatusChanceBonus: value });
             } else {
-                trigger ? addConditionalEffect({ statusChanceBonus: value }) : addStaticEffect({ statusChanceBonus: value });
+                addTriggeredOrStaticEffect({ statusChanceBonus: value });
             }
         } else {
-            matched = false;
+            matched = Boolean(multishotDamageMatch);
         }
 
         if (!matched) unsupportedLines.push(line);
@@ -362,6 +419,79 @@ export function getDefaultIncarnonSelections(record: IncarnonWeaponRecord | null
             .filter((tier) => tier.options.length > 0)
             .map((tier) => [tier.tier, tier.options[0].id]),
     ) as Partial<Record<IncarnonTier, string>>;
+}
+
+function highestSelectedIncarnonTier(selectedOptionsByTier: Partial<Record<IncarnonTier, string>>): number {
+    return ([1, 2, 3, 4, 5] as const).reduce(
+        (highest, tier) => selectedOptionsByTier[tier] ? tier : highest,
+        0,
+    );
+}
+
+/**
+ * Builds legal evolution-path candidates for the UI optimizer. When a user has
+ * selected any tiers, path search changes only those tiers; when none are
+ * selected, it searches every available tier. Non-searched selections persist.
+ */
+export function buildIncarnonCandidateConfigs(
+    record: IncarnonWeaponRecord | null,
+    selectedOptionsByTier: Partial<Record<IncarnonTier, string>>,
+    optimizeSelections: boolean,
+): IncarnonCandidateConfig[] {
+    const selected = { ...selectedOptionsByTier };
+    const current = {
+        unlockedTier: highestSelectedIncarnonTier(selected),
+        selectedOptionsByTier: selected,
+    };
+    if (!record || !optimizeSelections) return [current];
+
+    const selectedTiers = record.tiers.filter((tier) => Boolean(selected[tier.tier]));
+    const tiersToOptimize = selectedTiers.length > 0 ? selectedTiers : record.tiers;
+    const optionTiers = tiersToOptimize.filter((tier) => tier.options.length > 0);
+    if (optionTiers.length === 0) return [current];
+
+    const candidates: IncarnonCandidateConfig[] = [];
+    const walk = (index: number, path: Partial<Record<IncarnonTier, string>>) => {
+        if (index >= optionTiers.length) {
+            candidates.push({
+                unlockedTier: highestSelectedIncarnonTier(path),
+                selectedOptionsByTier: { ...path },
+            });
+            return;
+        }
+
+        const tier = optionTiers[index];
+        for (const option of tier.options) {
+            path[tier.tier] = option.id;
+            walk(index + 1, path);
+        }
+    };
+    walk(0, selected);
+    return candidates;
+}
+
+/** Selects a small stable shortlist for full optimizer refinement. */
+export function selectIncarnonSearchShortlist<T extends IncarnonScoredCandidate>(
+    candidates: readonly T[],
+    baselineSignatures: readonly string[],
+    limit: number,
+): T[] {
+    const maximum = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+    if (maximum === 0) return [];
+
+    const excluded = new Set(baselineSignatures);
+    const seen = new Set<string>();
+    const shortlist: T[] = [];
+    const ranked = [...candidates]
+        .filter((candidate) => Number.isFinite(candidate.score))
+        .sort((left, right) => right.score - left.score);
+    for (const candidate of ranked) {
+        if (excluded.has(candidate.signature) || seen.has(candidate.signature)) continue;
+        seen.add(candidate.signature);
+        shortlist.push(candidate);
+        if (shortlist.length >= maximum) break;
+    }
+    return shortlist;
 }
 
 function applyScopedAdjustmentToAttack(attack: WeaponAttack, adjustment: ScopedWeaponAdjustment) {
