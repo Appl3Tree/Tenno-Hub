@@ -365,19 +365,36 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                                     {currentAlerts.slice(0, 5).map((alert) => {
                                         const completionKey = alertCompletionKey(alert);
                                         const done = completionKey != null && doneActivityInstances.includes(completionKey);
+                                        const label = alert.description || alert.missionType || "Alert";
+                                        if (done) {
+                                            return (
+                                                <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0 flex items-center gap-1.5">
+                                                    <span className="text-green-500 text-xs shrink-0" aria-hidden="true">✓</span>
+                                                    <span className="text-[10px] text-slate-500 truncate flex-1 line-through">{label} · {alert.node || "Unknown node"}</span>
+                                                    {alert.expiry && <span className="shrink-0 font-mono text-[9px] text-slate-700">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
+                                                    {completionKey && <button
+                                                        type="button"
+                                                        onClick={() => setWorldStateActivityInstanceDone(completionKey, false)}
+                                                        aria-label={`Mark as not done: ${label}`}
+                                                        title="Mark as not done"
+                                                        className="shrink-0 text-[9px] text-slate-700 hover:text-slate-400 transition-colors"
+                                                    >✕</button>}
+                                                </div>
+                                            );
+                                        }
                                         return <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className={["text-[10px] truncate", done ? "text-slate-500 line-through" : "text-slate-200"].join(" ")}>{alert.description || alert.missionType || "Alert"} · {alert.node || "Unknown node"}</span>
+                                                <span className="text-[10px] text-slate-200 truncate">{label} · {alert.node || "Unknown node"}</span>
                                                 <div className="flex items-center gap-1 shrink-0">
                                                     {alert.expiry && <span className="font-mono text-[9px] text-slate-500">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
                                                     {completionKey && <button
                                                         type="button"
-                                                        onClick={() => setWorldStateActivityInstanceDone(completionKey, !done)}
-                                                        aria-pressed={done}
-                                                        aria-label={`${done ? "Mark incomplete" : "Mark complete"}: ${alert.description || alert.missionType || "Alert"}`}
-                                                        title={done ? "Mark as not done" : "Mark as done"}
-                                                        className={["rounded border px-1 py-0.5 text-[9px] transition-colors", done ? "border-emerald-800/60 text-emerald-300 hover:text-slate-300" : "border-slate-700 text-slate-500 hover:border-emerald-700/60 hover:text-emerald-300"].join(" ")}
-                                                    >{done ? "Undo" : "Done"}</button>}
+                                                        onClick={() => setWorldStateActivityInstanceDone(completionKey, true)}
+                                                        aria-pressed={false}
+                                                        aria-label={`Mark as done: ${label}`}
+                                                        title="Mark as done"
+                                                        className="rounded border border-transparent px-1 py-0.5 text-[9px] text-slate-600 transition-colors hover:border-emerald-700/60 hover:text-green-400"
+                                                    >✓</button>}
                                                 </div>
                                             </div>
                                             <div className="text-[9px] text-slate-500">{alert.faction}{alert.minEnemyLevel != null ? ` · ${alert.minEnemyLevel}–${alert.maxEnemyLevel ?? alert.minEnemyLevel}` : ""}{alert.reward ? ` · ${alert.reward}` : ""}</div>

@@ -53,7 +53,7 @@ function WorldStateCompletionButton({ done, label, onToggle, compact = false }: 
     onToggle: () => void;
     compact?: boolean;
 }) {
-    const action = done ? "Mark incomplete" : "Mark complete";
+    const action = done ? "Mark as not done" : "Mark as done";
     return (
         <button
             type="button"
@@ -62,15 +62,41 @@ function WorldStateCompletionButton({ done, label, onToggle, compact = false }: 
             aria-label={`${action}: ${label}`}
             title={`${action}: ${label}`}
             className={[
-                "shrink-0 rounded-md border transition-colors",
-                compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[10px]",
+                "shrink-0 rounded border transition-colors",
+                compact ? "px-1 py-0.5 text-[10px]" : "px-1.5 py-1 text-xs",
                 done
-                    ? "border-emerald-800/60 bg-emerald-950/30 text-emerald-300 hover:text-slate-300"
-                    : "border-slate-700 bg-slate-900/50 text-slate-400 hover:border-emerald-700/60 hover:text-emerald-300",
+                    ? "border-slate-800/60 text-slate-600 hover:border-slate-700 hover:text-slate-300"
+                    : "border-transparent text-slate-600 hover:border-emerald-800/50 hover:text-green-400",
             ].join(" ")}
         >
-            {compact ? (done ? "Undo" : "Done") : (done ? "✓ Completed" : "Mark complete")}
+            {done ? "✕" : "✓"}
         </button>
+    );
+}
+
+function CompletedActivitySummary({
+    label,
+    expiry,
+    expiryLabel = "Ends",
+    now,
+    onUndo,
+    trailing,
+}: {
+    label: string;
+    expiry?: string;
+    expiryLabel?: string;
+    now: number;
+    onUndo: () => void;
+    trailing?: React.ReactNode;
+}) {
+    return (
+        <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/10 px-3 py-2 flex items-center gap-2">
+            <span className="text-green-500 text-sm shrink-0" aria-hidden="true">✓</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-slate-500 line-through">{label}</span>
+            {trailing && <div className="shrink-0 flex items-center gap-1.5">{trailing}</div>}
+            {expiry && <span className="shrink-0 text-[10px] text-slate-600">{expiryLabel && `${expiryLabel} `}<Countdown expiry={expiry} now={now} className="font-mono" /></span>}
+            <WorldStateCompletionButton done label={label} onToggle={onUndo} compact />
+        </div>
     );
 }
 
@@ -476,6 +502,8 @@ function OverviewTab({ data }: { data: WorldStateData }) {
     const setWorldStateActivityInstanceDone = useTrackerStore((s) => s.setWorldStateActivityInstanceDone);
     const sortieKey = data.sortie ? sortieCompletionKey(data.sortie) : null;
     const archonHuntKey = data.archonHunt ? archonHuntCompletionKey(data.archonHunt) : null;
+    const sortieDone = !!sortieKey && doneActivityInstances.includes(sortieKey);
+    const archonHuntDone = !!archonHuntKey && doneActivityInstances.includes(archonHuntKey);
 
     const cycles: Array<{ name: string; cycle: WsCycle; nextLabel: string }> = [
         data.cetusCycle   && { name: "Plains of Eidolon", cycle: data.cetusCycle,   nextLabel: data.cetusCycle.state   === "day"  ? "Night" : "Day"  },
@@ -646,13 +674,21 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
 
                     {data.sortie && isWorldStateEntryActive(data.sortie, now) && (
-                        <div className={["rounded-xl border px-3 py-2.5", sortieKey && doneActivityInstances.includes(sortieKey) ? "border-emerald-900/40 bg-emerald-950/10" : "border-slate-800 bg-slate-900/40"].join(" ")}>
+                        sortieDone ? (
+                            <CompletedActivitySummary
+                                label="Daily Sortie"
+                                expiry={data.sortie.expiry}
+                                expiryLabel="Resets"
+                                now={now}
+                                onUndo={() => sortieKey && setWorldStateActivityInstanceDone(sortieKey, false)}
+                            />
+                        ) : <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
                             <div className="flex items-center justify-between gap-2 mb-0.5">
                                 <div className="text-[11px] text-slate-500">Daily Sortie</div>
                                 {sortieKey && <WorldStateCompletionButton
-                                    done={doneActivityInstances.includes(sortieKey)}
+                                    done={false}
                                     label="Daily Sortie"
-                                    onToggle={() => setWorldStateActivityInstanceDone(sortieKey, !doneActivityInstances.includes(sortieKey))}
+                                    onToggle={() => setWorldStateActivityInstanceDone(sortieKey, true)}
                                     compact
                                 />}
                             </div>
@@ -672,13 +708,21 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                     )}
 
                     {data.archonHunt && isWorldStateEntryActive(data.archonHunt, now) && (
-                        <div className={["rounded-xl border px-3 py-2.5", archonHuntKey && doneActivityInstances.includes(archonHuntKey) ? "border-emerald-900/40 bg-emerald-950/10" : "border-slate-800 bg-slate-900/40"].join(" ")}>
+                        archonHuntDone ? (
+                            <CompletedActivitySummary
+                                label="Weekly Archon Hunt"
+                                expiry={data.archonHunt.expiry}
+                                expiryLabel="Resets"
+                                now={now}
+                                onUndo={() => archonHuntKey && setWorldStateActivityInstanceDone(archonHuntKey, false)}
+                            />
+                        ) : <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
                             <div className="flex items-center justify-between gap-2 mb-0.5">
                                 <div className="text-[11px] text-slate-500">Weekly Archon Hunt</div>
                                 {archonHuntKey && <WorldStateCompletionButton
-                                    done={doneActivityInstances.includes(archonHuntKey)}
+                                    done={false}
                                     label="Weekly Archon Hunt"
-                                    onToggle={() => setWorldStateActivityInstanceDone(archonHuntKey, !doneActivityInstances.includes(archonHuntKey))}
+                                    onToggle={() => setWorldStateActivityInstanceDone(archonHuntKey, true)}
                                     compact
                                 />}
                             </div>
@@ -1081,11 +1125,23 @@ function MissionsTab({ data }: { data: WorldStateData }) {
     const sortieKey = data.sortie ? sortieCompletionKey(data.sortie) : null;
     const archonHuntKey = data.archonHunt ? archonHuntCompletionKey(data.archonHunt) : null;
     const arbitrationKey = data.arbitration ? arbitrationCompletionKey(data.arbitration) : null;
+    const sortieDone = !!sortieKey && doneActivityInstances.includes(sortieKey);
+    const archonHuntDone = !!archonHuntKey && doneActivityInstances.includes(archonHuntKey);
+    const arbitrationDone = !!arbitrationKey && doneActivityInstances.includes(arbitrationKey);
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Sortie */}
             {data.sortie && isWorldStateEntryActive(data.sortie, now) && (
+                sortieDone ? (
+                    <CompletedActivitySummary
+                        label="Daily Sortie"
+                        expiry={data.sortie.expiry}
+                        expiryLabel="Resets"
+                        now={now}
+                        onUndo={() => { if (sortieKey) setWorldStateActivityInstanceDone(sortieKey, false); }}
+                    />
+                ) : (
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Daily Sortie</div>
@@ -1094,9 +1150,9 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                                 Resets <Countdown expiry={data.sortie.expiry} now={now} className="font-mono text-slate-400" />
                             </div>
                             {sortieKey && <WorldStateCompletionButton
-                                done={doneActivityInstances.includes(sortieKey)}
+                                done={false}
                                 label="Daily Sortie"
-                                onToggle={() => setWorldStateActivityInstanceDone(sortieKey, !doneActivityInstances.includes(sortieKey))}
+                                onToggle={() => setWorldStateActivityInstanceDone(sortieKey, true)}
                                 compact
                             />}
                         </div>
@@ -1138,10 +1194,20 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                         </div>
                     </div>
                 </div>
+                )
             )}
 
             {/* Archon Hunt */}
             {data.archonHunt && isWorldStateEntryActive(data.archonHunt, now) && (
+                archonHuntDone ? (
+                    <CompletedActivitySummary
+                        label="Weekly Archon Hunt"
+                        expiry={data.archonHunt.expiry}
+                        expiryLabel="Resets"
+                        now={now}
+                        onUndo={() => { if (archonHuntKey) setWorldStateActivityInstanceDone(archonHuntKey, false); }}
+                    />
+                ) : (
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Weekly Archon Hunt</div>
@@ -1150,9 +1216,9 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                                 Resets <Countdown expiry={data.archonHunt.expiry} now={now} className="font-mono text-slate-400" />
                             </div>
                             {archonHuntKey && <WorldStateCompletionButton
-                                done={doneActivityInstances.includes(archonHuntKey)}
+                                done={false}
                                 label="Weekly Archon Hunt"
-                                onToggle={() => setWorldStateActivityInstanceDone(archonHuntKey, !doneActivityInstances.includes(archonHuntKey))}
+                                onToggle={() => setWorldStateActivityInstanceDone(archonHuntKey, true)}
                                 compact
                             />}
                         </div>
@@ -1180,6 +1246,7 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                         </div>
                     </div>
                 </div>
+                )
             )}
 
             {/* Nightwave challenges */}
@@ -1190,6 +1257,15 @@ function MissionsTab({ data }: { data: WorldStateData }) {
 
             {/* Arbitration */}
             {data.arbitration && isWorldStateEntryActive(data.arbitration, now) && (
+                arbitrationDone ? (
+                    <CompletedActivitySummary
+                        label="Arbitration"
+                        expiry={data.arbitration.expiry}
+                        expiryLabel="Rotates"
+                        now={now}
+                        onUndo={() => { if (arbitrationKey) setWorldStateActivityInstanceDone(arbitrationKey, false); }}
+                    />
+                ) : (
                 <div className="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/40">
                         <div className="text-xs font-semibold text-slate-200 uppercase tracking-wide">Arbitration</div>
@@ -1198,9 +1274,9 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                                 Rotates <Countdown expiry={data.arbitration.expiry} now={now} className="font-mono text-slate-400" />
                             </div>
                             {arbitrationKey && <WorldStateCompletionButton
-                                done={doneActivityInstances.includes(arbitrationKey)}
+                                done={false}
                                 label="Arbitration"
-                                onToggle={() => setWorldStateActivityInstanceDone(arbitrationKey, !doneActivityInstances.includes(arbitrationKey))}
+                                onToggle={() => setWorldStateActivityInstanceDone(arbitrationKey, true)}
                                 compact
                             />}
                         </div>
@@ -1218,6 +1294,7 @@ function MissionsTab({ data }: { data: WorldStateData }) {
                         )}
                     </div>
                 </div>
+                )
             )}
 
             {/* Kuva Siphons & Floods */}
@@ -1408,6 +1485,24 @@ function NightwaveSection({ nightwave }: { nightwave: Nightwave }) {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                 {sorted.map((act) => {
                                     const done = isNightwaveChallengeDone(act.id);
+                                    const typeBadge = act.isElite
+                                        ? <span className="rounded border border-amber-700/50 bg-amber-950/30 px-1 py-px text-[9px] font-bold text-amber-300">ELITE</span>
+                                        : act.isPermanent
+                                            ? <span className="rounded border border-teal-700/50 bg-teal-950/30 px-1 py-px text-[9px] font-bold text-teal-300">STANDING</span>
+                                            : act.isDaily
+                                                ? <span className="rounded border border-sky-700/50 bg-sky-950/30 px-1 py-px text-[9px] font-bold text-sky-300">DAILY</span>
+                                                : <span className="rounded border border-slate-700 bg-slate-800/60 px-1 py-px text-[9px] font-bold text-slate-400">WEEKLY</span>;
+                                    if (done) {
+                                        return <CompletedActivitySummary
+                                            key={act.id}
+                                            label={act.title}
+                                            expiry={!act.isPermanent ? act.expiry : undefined}
+                                            expiryLabel=""
+                                            now={now}
+                                            trailing={<>{typeBadge}<span className="text-[10px] text-slate-600">{act.reputation.toLocaleString()} rep</span></>}
+                                            onUndo={() => toggleNightwaveChallengeDone(act.id)}
+                                        />;
+                                    }
                                     return (
                                         <div key={act.id} className={["rounded-lg border px-2.5 py-2 transition-colors", done ? "border-emerald-900/40 bg-emerald-950/10 opacity-60" : "border-slate-800 bg-slate-900/40"].join(" ")}>
                                             <div className="flex items-start justify-between gap-2">
@@ -1485,19 +1580,29 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
                         {currentAlerts.map((alert) => {
                             const completionKey = alertCompletionKey(alert);
                             const done = completionKey != null && doneActivityInstances.includes(completionKey);
-                            return <article key={alert.id} className={["rounded-xl border px-3 py-2.5 transition-colors", done ? "border-emerald-900/40 bg-emerald-950/10 opacity-60" : "border-slate-800 bg-slate-900/40"].join(" ")}>
+                            const label = alert.description || alert.missionType || "Alert mission";
+                            if (done) {
+                                return <CompletedActivitySummary
+                                    key={alert.id}
+                                    label={label}
+                                    expiry={alert.expiry}
+                                    now={now}
+                                    onUndo={() => { if (completionKey) setWorldStateActivityInstanceDone(completionKey, false); }}
+                                />;
+                            }
+                            return <article key={alert.id} className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                        <div className={["text-xs font-medium", done ? "line-through text-slate-500" : "text-slate-200"].join(" ")}>{alert.description || alert.missionType || "Alert mission"}</div>
+                                        <div className="text-xs font-medium text-slate-200">{label}</div>
                                         <div className="mt-0.5 text-[10px] text-slate-400">{alert.missionType}{alert.node ? ` · ${alert.node}` : ""}{alert.faction ? ` · ${alert.faction}` : ""}</div>
                                         {alert.minEnemyLevel != null && <div className="text-[10px] text-slate-500">Enemy level {alert.minEnemyLevel}–{alert.maxEnemyLevel ?? alert.minEnemyLevel}</div>}
                                     </div>
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         {alert.expiry && <Countdown expiry={alert.expiry} now={now} className="font-mono text-[10px] text-slate-400" />}
                                         {completionKey && <WorldStateCompletionButton
-                                            done={done}
-                                            label={alert.description || alert.missionType || "Alert mission"}
-                                            onToggle={() => setWorldStateActivityInstanceDone(completionKey, !done)}
+                                            done={false}
+                                            label={label}
+                                            onToggle={() => setWorldStateActivityInstanceDone(completionKey, true)}
                                             compact
                                         />}
                                     </div>
@@ -1534,6 +1639,15 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
                             const location = ev.node || ev.victimNode;
                             const hasProgress = ev.currentScore != null && ev.maximumScore != null && ev.maximumScore > 0;
                             const pct = hasProgress ? Math.min(100, (ev.currentScore! / ev.maximumScore!) * 100) : null;
+                            if (completionKey && done) {
+                                return <CompletedActivitySummary
+                                    key={ev.id}
+                                    label={title}
+                                    expiry={ev.expiry}
+                                    now={now}
+                                    onUndo={() => toggleEventInstanceDone(completionKey)}
+                                />;
+                            }
                             return (
                                 <div key={ev.id} className={["rounded-xl border px-3 py-2.5 transition-colors", done ? "border-emerald-900/40 bg-emerald-950/10 opacity-60" : "border-slate-800 bg-slate-900/40"].join(" ")}>
                                     {/* Header: title + countdown + done toggle */}
