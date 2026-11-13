@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTrackerStore } from "../../store/store";
 import {
+    alertCompletionKey,
     eventCompletionKey,
     getCurrentWorldActivitySummary,
     getInvasionCompletionPercent,
@@ -236,6 +237,8 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
     const doneNightwaveChallenges = useTrackerStore((s) => s.state.worldState?.doneNightwaveChallenges ?? EMPTY_WORLD_STATE_IDS);
     const toggleEventInstanceDone = useTrackerStore((s) => s.toggleEventInstanceDone);
     const doneEventInstances = useTrackerStore((s) => s.state.worldState?.doneEventInstances ?? EMPTY_WORLD_STATE_IDS);
+    const doneActivityInstances = useTrackerStore((s) => s.state.worldState?.doneWorldStateActivityInstances ?? EMPTY_WORLD_STATE_IDS);
+    const setWorldStateActivityInstanceDone = useTrackerStore((s) => s.setWorldStateActivityInstanceDone);
     const hiddenWorldStateCategories = useTrackerStore((s) => s.state.ui.hiddenWorldStateCategories ?? EMPTY_WORLD_STATE_IDS);
     const activitySummary = getCurrentWorldActivitySummary(data, now);
     const currentEvents = activitySummary.events;
@@ -269,7 +272,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
     }, [open]);
 
     // The bell indicates actionable current content; personal completion clears
-    // invasions, Nightwave acts, and event occurrences from the badge.
+    // alerts, invasions, Nightwave acts, and event occurrences from the badge.
     const baroActive     = data?.voidTrader ? isWorldStateEntryActive(data.voidTrader, now) : false;
     const varziaActive   = data?.vaultTrader ? isWorldStateEntryActive(data.vaultTrader, now) : false;
     const sentientActive = data?.sentientOutposts ? isWorldStateEntryActive(data.sentientOutposts, now) : false;
@@ -277,13 +280,17 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
         const key = eventCompletionKey(ev);
         return !key || !doneEventInstances.includes(key);
     }).length;
+    const pendingAlerts = currentAlerts.filter((alert) => {
+        const key = alertCompletionKey(alert);
+        return !key || !doneActivityInstances.includes(key);
+    }).length;
     const pendingInvasions = currentInvasions.filter((inv) => !doneInvasions.includes(inv.id)).length;
     const pendingNightwave = currentNightwave.filter((act) => !doneNightwaveChallenges.includes(act.id)).length;
     const showBadge = !!(
         (baroActive && !isWorldStateCategoryHidden("baro"))
         || (varziaActive && !isWorldStateCategoryHidden("varzia"))
         || (sentientActive && !isWorldStateCategoryHidden("sentient"))
-        || (currentAlerts.length && !isWorldStateCategoryHidden("alerts"))
+        || (pendingAlerts && !isWorldStateCategoryHidden("alerts"))
         || (pendingEvents && !isWorldStateCategoryHidden("events"))
         || (pendingInvasions && !isWorldStateCategoryHidden("invasions"))
         || (pendingNightwave && !isWorldStateCategoryHidden("nightwave"))
@@ -351,20 +358,48 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                             <div className="px-2 py-3 text-xs text-slate-500 text-center">No data available.</div>
                         )}
 
-                        {/* Current alerts are globally available; their checkbox is not a player completion claim. */}
                         {!!currentAlerts.length && !isWorldStateCategoryHidden("alerts") && (
                             <div className="rounded-lg px-3 py-2 bg-slate-900/60">
-                                <div className="text-[10px] font-semibold text-slate-400 mb-1 uppercase tracking-wide">Alerts ({currentAlerts.length})</div>
+                                <div className="text-[10px] font-semibold text-slate-400 mb-1 uppercase tracking-wide">Alerts ({pendingAlerts} pending)</div>
                                 <div className="space-y-1.5">
-                                    {currentAlerts.slice(0, 5).map((alert) => (
-                                        <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0">
+                                    {currentAlerts.slice(0, 5).map((alert) => {
+                                        const completionKey = alertCompletionKey(alert);
+                                        const done = completionKey != null && doneActivityInstances.includes(completionKey);
+                                        const label = alert.description || alert.missionType || "Alert";
+                                        if (done) {
+                                            return (
+                                                <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0 flex items-center gap-1.5">
+                                                    <span className="text-green-500 text-xs shrink-0" aria-hidden="true">✓</span>
+                                                    <span className="text-[10px] text-slate-500 truncate flex-1 line-through">{label} · {alert.node || "Unknown node"}</span>
+                                                    {alert.expiry && <span className="shrink-0 font-mono text-[9px] text-slate-700">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
+                                                    {completionKey && <button
+                                                        type="button"
+                                                        onClick={() => setWorldStateActivityInstanceDone(completionKey, false)}
+                                                        aria-label={`Mark as not done: ${label}`}
+                                                        title="Mark as not done"
+                                                        className="shrink-0 text-[9px] text-slate-700 hover:text-slate-400 transition-colors"
+                                                    >✕</button>}
+                                                </div>
+                                            );
+                                        }
+                                        return <div key={alert.id} className="border-t border-slate-800/60 pt-1 first:border-0 first:pt-0">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className="text-[10px] text-slate-200 truncate">{alert.description || alert.missionType || "Alert"} · {alert.node || "Unknown node"}</span>
-                                                {alert.expiry && <span className="shrink-0 font-mono text-[9px] text-slate-500">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
+                                                <span className="text-[10px] text-slate-200 truncate">{label} · {alert.node || "Unknown node"}</span>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {alert.expiry && <span className="font-mono text-[9px] text-slate-500">{msToHms(new Date(alert.expiry).getTime() - now)}</span>}
+                                                    {completionKey && <button
+                                                        type="button"
+                                                        onClick={() => setWorldStateActivityInstanceDone(completionKey, true)}
+                                                        aria-pressed={false}
+                                                        aria-label={`Mark as done: ${label}`}
+                                                        title="Mark as done"
+                                                        className="rounded border border-transparent px-1 py-0.5 text-[9px] text-slate-600 transition-colors hover:border-emerald-700/60 hover:text-green-400"
+                                                    >✓</button>}
+                                                </div>
                                             </div>
                                             <div className="text-[9px] text-slate-500">{alert.faction}{alert.minEnemyLevel != null ? ` · ${alert.minEnemyLevel}–${alert.maxEnemyLevel ?? alert.minEnemyLevel}` : ""}{alert.reward ? ` · ${alert.reward}` : ""}</div>
-                                        </div>
-                                    ))}
+                                        </div>;
+                                    })}
                                 </div>
                             </div>
                         )}

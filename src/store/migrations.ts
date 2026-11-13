@@ -498,4 +498,5 @@ export function normalizeWorldStateProgress(state: UserStateV2): void {
     // Legacy IDs remain available for export/recovery but do not identify a specific event rotation.
     state.worldState.doneEvents = uniqueStrings(state.worldState.doneEvents);
     state.worldState.doneEventInstances = uniqueStrings(state.worldState.doneEventInstances);
+    state.worldState.doneWorldStateActivityInstances = uniqueStrings(state.worldState.doneWorldStateActivityInstances);
 }

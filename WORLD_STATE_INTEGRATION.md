@@ -38,9 +38,11 @@ Invasion state from the API describes the global invasion. It does not prove tha
 
 World Events in the page and bell now select the same persisted completion arrays, so updates rerender both without remounting. Event completion uses `event:<encoded ID>:<encoded activation-or-expiry>`, which scopes a manual completion to one event occurrence. Events without an ID and activation/expiry timestamp remain visible but do not expose a manual completion toggle. The older `doneEvents` IDs are deduplicated and retained for recovery/export, but are not applied to the current event because they do not identify a rotation. The UI labels event-side progress as personal/community API progress and never infers the player's completion from those scores.
 
+Current alerts, the daily Sortie, the weekly Archon Hunt, and the live Arbitration can also be marked complete manually. Their completion keys use the activity kind, encoded identity, and rotation expiry, so a new occurrence starts unchecked. Alert checks are available in Activities and the notification bell; Sortie, Archon Hunt, and Arbitration checks appear on the World State page. Sortie and Archon Hunt use the same profile-backed state as the Dashboard Reset Tracker, while Arbitration shares state with its Live Rotations task. Existing local Reset Tracker checks for these activities migrate to the current World State occurrence when its live record is available. These marks are personal checklist state; the World State API does not report whether the player completed them.
+
 The page, Dashboard preview, and notification bell share one expiry-aware activity selector. It uses the same alert/event/Nightwave windows and the same deduplicated, open-invasion list, so activity totals no longer disagree when records expire or the API briefly contains transition duplicates. The reset tracker chooses Baro's current or next visit from the shared `voidTraders` timestamps; it uses the legacy 14-day anchor only when the API provides no usable visit window and labels that display as a prediction.
 
-Persistence is version 9. The migration normalizes existing invasion, Nightwave, legacy event and event-instance arrays while leaving unrelated state intact. Progress Pack validation keeps the old completion fields and accepts the new optional `doneEventInstances` field; older packs without it still load.
+Persistence is version 9. The migration normalizes existing invasion, Nightwave, legacy event and event-instance arrays, plus the occurrence-scoped World State activity completion list, while leaving unrelated state intact. Progress Pack validation accepts the optional `doneEventInstances` and `doneWorldStateActivityInstances` fields; older packs without them still load.
 
 ## Live API field matrix
 
@@ -48,10 +50,10 @@ The matrix covers every top-level property in the inspected 38-key PC response. 
 
 | API field | Use in Tenno-Hub | When content is filtered or omitted |
 | --- | --- | --- |
-| `alerts` | Mission description, node, type, faction, levels, reward and expiry appear in Activities and the bell. | Current availability is derived from activation/expiry; no personal completion claim is added. |
-| `arbitration` | Current arbitration is included in Missions. | Expired or invalid windows are omitted even when the source's `expired` flag is stale. |
+| `alerts` | Mission description, node, type, faction, levels, reward and expiry appear in Activities and the bell. | Current availability is derived from activation/expiry; manual completion is kept separately from the API feed. |
+| `arbitration` | Current arbitration is included in Missions and can be marked complete in Missions or the Reset Tracker's Live Rotations bucket. | Expired or invalid windows are omitted even when the source's `expired` flag is stale. |
 | `archimedeas` | Mission variants, modifiers, deviations, risks and end time appear in Missions. | Only the current rotation is shown. |
-| `archonHunt` | Hunt boss, faction, missions and expiry appear in Overview and Missions. | The timestamp window is checked at render time. |
+| `archonHunt` | Hunt boss, faction, missions and expiry appear in Overview and Missions, with a completion check shared with the Reset Tracker. | The timestamp window is checked at render time. |
 | `buildLabel` | Warframe version appears in the World State status hint. | Retained as metadata; not treated as a user-facing activity. |
 | `calendar` | 1999 calendar remains available from Overview and the reset tracker. | Only calendar events and known birthdays are presented; unrecognized nested fields are not guessed. |
 | `cambionCycle` | Cambion Drift state and expiry in cycle cards. | Missing or invalid cycle objects are omitted. |
@@ -77,7 +79,7 @@ The matrix covers every top-level property in the inspected 38-key PC response. 
 | `persistentEnemies` | Current Acolytes/persistent enemies remain in Activities. | Empty collections create no panel. |
 | `sentientOutposts` | Current mission/location appears in Overview and the bell. | Availability uses timestamps rather than trusting stale `active:true`; the live sample's 2021 window is suppressed. |
 | `simaris` | Current synthesis target remains in Overview. | No card when no target is provided. |
-| `sortie` | Boss, faction, reward pool, variants and reset remain in Overview and Missions. | Expired or invalid windows are suppressed. |
+| `sortie` | Boss, faction, reward pool, variants and reset remain in Overview and Missions, with a completion check shared with the Reset Tracker. | Expired or invalid windows are suppressed. |
 | `steelPath` | Current Steel Path offering/rotation remains in Overview. | Missing current reward/rotation is handled without placeholders. |
 | `syndicateMissions` | Active syndicate boards and job requirements remain in the reset tracker. | Expired boards are removed; no mission is inferred from profile progression. |
 | `timestamp` | API-generation time is shown separately from local fetch time. | Invalid timestamps are cleared rather than displayed as “Invalid Date.” |
@@ -95,4 +97,4 @@ The two parser-documented optional fields missing from the live response (`quest
 
 Coverage includes normalization, active windows, news sanitization, deduplication, optional/malformed data, shared request coalescing, TTL, late-response races, stale-data retention on failure, event occurrence identity, live Baro schedule selection, shared activity totals, store notifications/undo, and Progress Pack migration/import compatibility. The final automated run passed 346 tests across 41 files; the production build and source validator passed.
 
-Browser verification used current live data and confirmed that event, Nightwave, and invasion completion each update in both directions between the page and bell, then undo cleanly. A manual refresh from the page updated the bell to the same fetched-at time. Dashboard and World State both displayed 23 active items from the shared selector. Checks at 390×844, 768×1024, and 1280×720 found no horizontal overflow; the mobile Activities view remained visible, and the browser console had no errors. The Dashboard reset tracker showed Baro's API-reported Friday 14:00 UTC arrival.
+Browser verification for the preceding World State integration used current live data and confirmed that event, Nightwave, and invasion completion each update in both directions between the page and bell, then undo cleanly. A manual refresh from the page updated the bell to the same fetched-at time. Dashboard and World State both displayed 23 active items from the shared selector. Checks at 390×844, 768×1024, and 1280×720 found no horizontal overflow; the mobile Activities view remained visible, and the browser console had no errors. The Dashboard reset tracker showed Baro's API-reported Friday 14:00 UTC arrival. The activity-completion follow-up is implemented in source, but its automated and browser checks have not been rerun.

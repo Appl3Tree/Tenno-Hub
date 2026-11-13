@@ -16,6 +16,7 @@ describe("progress pack inventory serialization", () => {
             doneNightwaveChallenges: ["nightwave-18-week-2"],
             doneEvents: ["legacy-event-id"],
             doneEventInstances: ["event%3Athermia%3A2026-11-03T00%3A00%3A00.000Z"],
+            doneWorldStateActivityInstances: [],
         };
 
         const parsed = ProgressPackSchemaV2.parse(source);
@@ -50,6 +51,7 @@ describe("progress pack inventory serialization", () => {
             doneNightwaveChallenges: ["nightwave-1"],
             doneEvents: ["legacy-event"],
             doneEventInstances: ["rotation-event"],
+            doneWorldStateActivityInstances: [],
         });
     });
 
