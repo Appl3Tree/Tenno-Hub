@@ -5,7 +5,7 @@ import { useTrackerStore } from "../store/store";
 import { isHiddenModPath } from "../domain/catalog/modCatalog";
 import { getWeaponCatalog } from "../domain/catalog/weaponCatalog";
 import { FULL_CATALOG } from "../domain/catalog/loadFullCatalog";
-import { CUSTOM_RIVEN_STAT_DEFS, formatRivenStatValue, generateCustomRivenName, getCustomRivenStatDef, getCustomRivenStatDefsForWeapon, normalizeRivenWeaponFamilyKey, type CustomRivenRecord as CustomRivenInventoryRecord, type CustomRivenStatValue } from "../domain/rivens";
+import { CURRENT_RIVEN_STAT_MULTIPLIER, CUSTOM_RIVEN_STAT_DEFS, formatRivenStatValue, generateCustomRivenName, getCustomRivenStatDef, getCustomRivenStatDefsForWeapon, normalizeCustomRivenStats, normalizeRivenWeaponFamilyKey, type CustomRivenRecord as CustomRivenInventoryRecord, type CustomRivenStatValue } from "../domain/rivens";
 import { withManualReleaseDateFallback } from "../catalog/items/manualReleaseDates";
 import MODS_RAW from "../data/_generated/mods-lean.auto.json";
 import ALL_RAW from "../data/_generated/warframe-items-all-lean.auto.json";
@@ -1433,18 +1433,18 @@ function CustomRivenModal({
       setPolarity(initial.polarity);
       setStats(
         initial.stats.length > 0
-          ? initial.stats.map((stat) => ({ ...stat, stat: getCustomRivenStatDef(stat.stat)?.key ?? stat.stat }))
+          ? normalizeCustomRivenStats(initial).map((stat) => ({ ...stat, stat: getCustomRivenStatDef(stat.stat)?.key ?? stat.stat }))
           : [{ stat: "damage", value: 0 }, { stat: "criticalChance", value: 0 }],
       );
       setStatQueries(
         initial.stats.length > 0
-          ? initial.stats.map((stat) => getCustomRivenStatDef(stat.stat)?.label ?? stat.stat)
+          ? normalizeCustomRivenStats(initial).map((stat) => getCustomRivenStatDef(stat.stat)?.label ?? stat.stat)
           : ["Damage", "Critical Chance"],
       );
       setOpenStatPickerIndex(null);
       setStatSigns(
         (initial.stats.length > 0
-          ? initial.stats.map((stat) => (stat.value < 0 ? -1 : 1))
+          ? normalizeCustomRivenStats(initial).map((stat) => (stat.value < 0 ? -1 : 1))
           : [1, 1]) as Array<1 | -1>,
       );
       return;
@@ -1571,7 +1571,7 @@ function CustomRivenModal({
       name: name.trim(),
       sourceWeaponUniqueName: selectedWeapon.uniqueName,
       sourceWeaponName: selectedWeapon.name,
-      sourceWeaponDisposition: selectedWeapon.disposition,
+      sourceWeaponDisposition: CURRENT_RIVEN_STAT_MULTIPLIER,
       familyKey: normalizeRivenWeaponFamilyKey(selectedWeapon.name),
       polarity,
       drain: Math.max(0, Math.min(18, Math.floor(drain))),
@@ -1638,7 +1638,7 @@ function CustomRivenModal({
                           ].join(" ")}
                         >
                           <span className="truncate">{weapon.name}</span>
-                          <span className="shrink-0 text-[11px] text-slate-500">{weapon.disposition.toFixed(2)}</span>
+                          <span className="shrink-0 text-[11px] text-slate-500">Riven</span>
                         </button>
                       ))
                     ) : (
@@ -1649,7 +1649,7 @@ function CustomRivenModal({
               </div>
               {selectedWeapon && (
                 <div className="mt-1 text-[11px] text-slate-500">
-                  Applies to weapon variants that share the {selectedWeapon.name} family. Base disposition: {selectedWeapon.disposition.toFixed(2)}
+                  Applies to weapon variants in the {selectedWeapon.name} family. Current Riven stat rolls use the shared {CURRENT_RIVEN_STAT_MULTIPLIER.toFixed(2)}× factor; older saved Rivens are normalized from their recorded legacy factor.
                 </div>
               )}
             </div>
@@ -2860,7 +2860,9 @@ function ModsPage() {
                               <span className="shrink-0 text-[11px] font-medium text-amber-300">Riven</span>
                             </div>
                             <div className="mt-1 text-[11px] text-slate-500">
-                              {riven.sourceWeaponName} · {riven.sourceWeaponDisposition > 0 ? "Disposition " + riven.sourceWeaponDisposition.toFixed(2) : "Disposition unknown"} · Drain {riven.drain}
+                              {riven.sourceWeaponName} · {riven.sourceWeaponDisposition > 0 && Math.abs(riven.sourceWeaponDisposition - CURRENT_RIVEN_STAT_MULTIPLIER) > 1e-6
+                                ? `Legacy ${riven.sourceWeaponDisposition.toFixed(2)}× → current ${CURRENT_RIVEN_STAT_MULTIPLIER.toFixed(2)}×`
+                                : `Current shared ${CURRENT_RIVEN_STAT_MULTIPLIER.toFixed(2)}× factor`} · Drain {riven.drain}
                             </div>
                             <div className="mt-1 text-[11px] leading-relaxed text-slate-300">
                               {riven.stats.length > 0

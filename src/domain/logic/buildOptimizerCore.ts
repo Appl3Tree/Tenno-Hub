@@ -29,9 +29,13 @@ import {
     type DamageType,
     type StatusDamageType,
 } from "./damageRuleset";
-import { effectiveDamageProgressMultiplier } from "./targetDamage";
+import {
+    effectiveDamageProgressMultiplier,
+    simulateExpectedWeaponEncounter,
+    type ExpectedWeaponEncounterResult,
+} from "./targetDamage";
 
-export type OptimizeGoal = "burst" | "scaling";
+export type OptimizeGoal = "burst" | "scaling" | "timeToKill";
 export type LegacyOptimizeGoal = OptimizeGoal | "damage" | "crit" | "status";
 
 export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefined): OptimizeGoal {
@@ -42,6 +46,8 @@ export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefine
         case "status":
             return "burst";
         case "scaling":
+            return goal;
+        case "timeToKill":
             return goal;
         default:
             return "burst";
@@ -140,6 +146,14 @@ export interface OptimizeResult {
     /** Arcane selected (if optimizeArcane was true). */
     arcane: ArcaneEntry | null;
     arcaneRank: number;
+    /** Finite expected-encounter DPS used by the Expected TTK objective. */
+    encounterScore?: number;
+    /** Encounter time to kill, or null when the simulation cap is reached first. */
+    encounterTimeToKillSeconds?: number | null;
+    /** True when the finite-encounter pass improved the proxy-screened build. */
+    encounterRefined?: boolean;
+    /** Number of local replacement candidates evaluated by the finite encounter. */
+    encounterCandidatesEvaluated?: number;
 }
 
 function resultUsesAnyNonMaxed(result: OptimizeResult): boolean {
@@ -787,9 +801,9 @@ function scoreEffects(
     // Ramp-adjusted Burst and Sustained DPS have different damage multipliers;
     // use the independent magazine duty cycle instead of dividing those values.
     const sustainedDutyCycle = modded.fireRate > 0 ? modded.magazineDutyCycle : 0;
-    const damageRampMultiplier = goal === "burst"
+    const damageRampMultiplier = (goal === "burst"
         ? modded.freshMagazineDamageMultiplier
-        : modded.sustainedDamageMultiplier;
+        : modded.sustainedDamageMultiplier) * modded.magazineAverageDamageMultiplier;
     const attackRate = goal === "burst" ? burstAttackRate : burstAttackRate * sustainedDutyCycle;
     const dotDutyCycle = goal === "burst"
         ? (modded.fireRate > 0 ? modded.burstFireRate / modded.fireRate : 0)
@@ -832,7 +846,7 @@ function scoreEffects(
     // natural expiry. The 3×H cap blast affects nearby enemies and is excluded
     // from this single-target objective score.
     let blastDamageRate = modded.blastExpectedExpiryDamagePerShot * objectiveAttackRate;
-    if (goal === "scaling") blastDamageRate *= sustainedDutyCycle;
+    if (goal !== "burst") blastDamageRate *= sustainedDutyCycle;
     blastDamageRate *= damageRampMultiplier;
     if (blastDamageRate > 0) score += blastDamageRate * getPoolProgress("blast", false, false);
 
@@ -887,6 +901,55 @@ export function debugScoreBuild(
     conditionalState?: ConditionalState,
 ): number {
     return scoreEffects(weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState);
+}
+
+export function debugScoreExpectedEncounter(
+    weapon: WeaponEntry,
+    effects: (ModEffect | null)[],
+    targetFaction = "",
+    targetProfileOverride?: TargetProfileOverride,
+    conditionalState?: ConditionalState,
+    arcaneEffect?: Partial<ModEffect> | null,
+): { damagePerSecond: number; timeToKillSeconds: number | null } {
+    const result = debugEvaluateExpectedEncounter(
+        weapon,
+        effects,
+        targetFaction,
+        targetProfileOverride,
+        conditionalState,
+        arcaneEffect,
+    );
+    return { damagePerSecond: result.damagePerSecond, timeToKillSeconds: result.timeToKillSeconds };
+}
+
+/** Full finite-encounter output from the same path used by Expected TTK optimization. */
+export function debugEvaluateExpectedEncounter(
+    weapon: WeaponEntry,
+    effects: (ModEffect | null)[],
+    targetFaction = "",
+    targetProfileOverride?: TargetProfileOverride,
+    conditionalState?: ConditionalState,
+    arcaneEffect?: Partial<ModEffect> | null,
+): {
+    damagePerSecond: number;
+    timeToKillSeconds: number | null;
+    encounter: ExpectedWeaponEncounterResult | null;
+} {
+    const encounterEffects = arcaneEffect
+        ? [...effects, normalizeArcaneEffect(arcaneEffect)]
+        : effects;
+    const result = expectedEncounterScoreForEffects(
+        weapon,
+        encounterEffects,
+        targetFaction,
+        targetProfileOverride,
+        conditionalState,
+    );
+    return {
+        damagePerSecond: result.score,
+        timeToKillSeconds: result.timeToKillSeconds,
+        encounter: result.encounter,
+    };
 }
 
 // ── Capacity ──────────────────────────────────────────────────────────────────
@@ -1496,7 +1559,7 @@ function beamSearch(
     goal: OptimizeGoal,
     slotCount: number,
     opts: OptimizerOptions,
-): { mods: ModEntry[]; ranks: number[] } {
+): { mods: ModEntry[]; ranks: number[]; expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> } {
     const {
         capacityConfig,
         targetFaction = "",
@@ -1742,7 +1805,38 @@ function beamSearch(
         const m = best.mods[i];
         if (m) { resultMods.push(m); resultRanks.push(best.ranks[i] ?? m.fusionLimit); }
     }
-    return { mods: resultMods, ranks: resultRanks };
+    const expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [];
+    if (goal === "timeToKill" && !lockedSlots.some(Boolean) && beam.length > 1) {
+        const maxFilledCount = Math.max(...beam.map((state) => state.filledCount));
+        const finalists = beam.filter((state) => state.filledCount === maxFilledCount);
+        const seenBuilds = new Set<string>();
+        const seenThemes = new Set<string>();
+        const takeFinalist = (state: BeamState) => {
+            const mods = state.mods.flatMap((mod) => mod ? [mod] : []);
+            const ranks = state.mods.flatMap((mod, index) => mod ? [state.ranks[index] ?? mod.fusionLimit] : []);
+            const signature = getBeamStateSignature(mods, ranks, true);
+            if (seenBuilds.has(signature)) return;
+            seenBuilds.add(signature);
+            expectedEncounterSeeds.push({ mods, ranks });
+        };
+        // The beam already keeps high-scoring states from distinct effect themes.
+        // Preserve that diversity for the exact encounter pass before filling any
+        // remaining seed slots with the best unique proxy states.
+        for (const state of finalists) {
+            const theme = beamThemeSignature(state);
+            if (seenThemes.has(theme)) continue;
+            seenThemes.add(theme);
+            takeFinalist(state);
+            if (expectedEncounterSeeds.length >= 12) break;
+        }
+        if (expectedEncounterSeeds.length < 12) {
+            for (const state of finalists) {
+                takeFinalist(state);
+                if (expectedEncounterSeeds.length >= 12) break;
+            }
+        }
+    }
+    return { mods: resultMods, ranks: resultRanks, expectedEncounterSeeds };
 }
 
 function refineBuildSet(
@@ -1917,6 +2011,504 @@ function fillEmptySlots(
     }
 
     return { mods, ranks };
+}
+
+const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 24;
+const ENCOUNTER_REFINE_PROXY_SHORTLIST = 12;
+const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 12;
+const ENCOUNTER_REFINE_PASSES = 2;
+
+const ENCOUNTER_PRIMARY_ELEMENT_COMBINATIONS: Record<string, string> = {
+    "cold+electricity": "magnetic",
+    "electricity+cold": "magnetic",
+    "heat+cold": "blast",
+    "cold+heat": "blast",
+    "heat+electricity": "radiation",
+    "electricity+heat": "radiation",
+    "heat+toxin": "gas",
+    "toxin+heat": "gas",
+    "cold+toxin": "viral",
+    "toxin+cold": "viral",
+    "electricity+toxin": "corrosive",
+    "toxin+electricity": "corrosive",
+};
+
+/**
+ * Coarse output-family key for refinement diversity. The score still comes from
+ * calculateBuild/finite encounter; this key only keeps distinct elemental paths
+ * from being discarded by the sustained-damage proxy shortlist.
+ */
+function expectedEncounterElementTheme(
+    weapon: WeaponEntry,
+    slots: (ModEntry | null)[],
+    ranks: number[],
+): string {
+    const primaryElements: string[] = [];
+    const directCombinedElements = new Set<string>();
+    const addPrimary = (type: string) => {
+        if (!primaryElements.includes(type)) primaryElements.push(type);
+    };
+    const addEffectElements = (effect: Partial<ModEffect>) => {
+        if ((effect.heatBonus ?? 0) > 0) addPrimary("heat");
+        if ((effect.coldBonus ?? 0) > 0) addPrimary("cold");
+        if ((effect.electricityBonus ?? 0) > 0) addPrimary("electricity");
+        if ((effect.toxinBonus ?? 0) > 0) addPrimary("toxin");
+        if ((effect.blastBonus ?? 0) > 0) directCombinedElements.add("blast");
+        if ((effect.gasBonus ?? 0) > 0) directCombinedElements.add("gas");
+        if ((effect.magneticBonus ?? 0) > 0) directCombinedElements.add("magnetic");
+        if ((effect.viralBonus ?? 0) > 0) directCombinedElements.add("viral");
+        if ((effect.corrosiveBonus ?? 0) > 0) directCombinedElements.add("corrosive");
+        if ((effect.radiationBonus ?? 0) > 0) directCombinedElements.add("radiation");
+    };
+
+    for (let index = 0; index < slots.length; index++) {
+        const mod = slots[index];
+        if (!mod) continue;
+        const rank = ranks[index] ?? mod.fusionLimit;
+        const effect = mod.effectsByRank[rank] ?? mod.effect;
+        addEffectElements(effect);
+        for (const conditional of effect.conditionalEffects ?? []) addEffectElements(conditional.stats);
+    }
+    // Damage Calculation appends innate primary elements after slotted elements.
+    if (weapon.damage.heat > 0) addPrimary("heat");
+    if (weapon.damage.cold > 0) addPrimary("cold");
+    if (weapon.damage.electricity > 0) addPrimary("electricity");
+    if (weapon.damage.toxin > 0) addPrimary("toxin");
+
+    const combined = new Set<string>(directCombinedElements);
+    for (let index = 0; index < primaryElements.length;) {
+        const current = primaryElements[index];
+        const next = primaryElements[index + 1];
+        const result = next
+            ? ENCOUNTER_PRIMARY_ELEMENT_COMBINATIONS[`${current}+${next}`]
+            : undefined;
+        if (result) {
+            combined.add(result);
+            index += 2;
+        } else {
+            combined.add(current);
+            index++;
+        }
+    }
+    return [...combined].sort().join("+");
+}
+
+function expectedEncounterElementTransition(
+    incoming: ModEntry,
+    incomingRank: number,
+    outgoing: ModEntry | null,
+    outgoingRank: number | undefined,
+): string {
+    if (!outgoing) return "";
+    const getSinglePrimaryType = (mod: ModEntry, rank: number | undefined): string => {
+        const effect = mod.effectsByRank[rank ?? mod.fusionLimit] ?? mod.effect;
+        const types = ["heat", "cold", "electricity", "toxin"].filter((type) =>
+            (effect[`${type}Bonus` as keyof ModEffect] as number | undefined ?? 0) > 0,
+        );
+        return types.length === 1 ? types[0] : "";
+    };
+    const incomingType = getSinglePrimaryType(incoming, incomingRank);
+    const outgoingType = getSinglePrimaryType(outgoing, outgoingRank);
+    return incomingType && outgoingType ? `${incomingType}>${outgoingType}` : "";
+}
+
+function expectedEncounterScoreForEffects(
+    weapon: WeaponEntry,
+    effects: (ModEffect | null)[],
+    targetFaction: string,
+    targetProfileOverride: TargetProfileOverride | undefined,
+    conditionalState: ConditionalState | undefined,
+): { score: number; timeToKillSeconds: number | null; encounter: ExpectedWeaponEncounterResult | null } {
+    const target = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
+    if (target.poolTotal <= 0) return { score: 0, timeToKillSeconds: null, encounter: null };
+
+    const stats = calculateBuild(weapon, effects, targetFaction, {
+        statusImmuneTypes: target.statusImmuneTypes,
+        statusStackCaps: target.statusStackCaps,
+        conditionalState,
+        targetStatusState: "initial",
+    }).modded;
+    const factionDamageBonus = effects.reduce((sum, effect) =>
+        effect?.targetFaction?.toLowerCase() === targetFaction.toLowerCase()
+            ? sum + (effect.factionDamageBonus ?? 0)
+            : sum,
+    0);
+    const dotDamagePerApplicationByType = Object.fromEntries(
+        Object.entries(stats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
+            const type = rawType as StatusDamageType;
+            const applications = stats.averageProcsPerShot * (stats.procChanceByType[type] ?? 0);
+            return applications > 0 ? [[type, damagePerAttack / applications]] : [];
+        }),
+    ) as Partial<Record<StatusDamageType, number>>;
+
+    const encounter = simulateExpectedWeaponEncounter({
+        damageByType: stats.damageBreakdownBeforePerStatus,
+        rawDamageByType: stats.rawDamageBreakdownBeforePerStatus,
+        baseDamageTotal: stats.baseDamageTotal,
+        health: target.pools.health,
+        shields: target.pools.shields,
+        overguard: target.pools.overguard,
+        maxShields: target.pools.shields,
+        maxOverguard: target.pools.overguard,
+        armor: target.pools.armor,
+        faction: targetFaction,
+        factionDamageBonus,
+        toxinBypassesShields: target.pools.toxinBypassesShields,
+        enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
+        damageRampRule: weapon.selectedAttackDamageRamp,
+        critChance: stats.critChance,
+        critMultiplier: stats.critMultiplier,
+        expectedProjectiles: stats.multishot,
+        expectedDamageMultiplier: stats.damageWeightedMultishot,
+        attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+        shotsPerMagazine: stats.shotsPerMag,
+        firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
+        reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+        ...getEncounterBurstTiming(weapon, stats.fireRate),
+        statusDurationMultiplier: stats.statusDurationMultiplier,
+        dotDamagePerAttackByType: stats.dotDamagePerShotByType,
+        dotDamagePerApplicationByType,
+        heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
+        heatDotAccumulatorDamagePerTick: stats.dotTickAccumulatorDamageByType.heat,
+        dotSeedDamagePerApplicationByType: stats.dotDamagePerApplicationSeedByType,
+        dotAccumulatorDamagePerApplicationByType: stats.dotDamagePerApplicationAccumulatorByType,
+        statusProcWeightsByType: stats.damageBreakdownBeforePerStatus,
+        statusRollsPerAttack: stats.multishot * stats.statusChance,
+        forcedStatusApplicationsPerAttackByType: stats.unfilteredExtraProcsPerShot as Partial<Record<StatusDamageType, number>>,
+        statusImmuneTypes: target.statusImmuneTypes,
+        statusStackCaps: target.statusStackCaps,
+        blastStackHitDamagePerProc: stats.blastStackHitDamagePerProcBeforeConditionOverload,
+        nearbyBlastEnemyCount: targetProfileOverride?.nearbyBlastEnemyCount,
+        nearbyElectricGasEnemyCount: targetProfileOverride?.nearbyEnemyCount,
+        magneticBreakElectricSourceMultiplier: stats.magneticBreakElectricSourceMultiplier,
+        directDamagePerStatusBonus: stats.directDamagePerStatusBonus,
+        conditionOverloadDamagePerStatusBonus: stats.conditionOverloadApplies
+            ? stats.conditionOverloadDamagePerStatusBonus
+            : 0,
+        externalConditionOverloadStatusTypeCount: conditionalState?.externalStatusTypeCount,
+        uniqueStatusProcsPerAttack: weapon.uniqueStatusProcs,
+        intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
+        intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
+        totalDamageBonus: stats.totalDamageBonus,
+    });
+
+    return {
+        // Expected TTK minimizes this finite encounter's DPS denominator when a
+        // kill occurs. If the 600s / 20,000-attack safety bound is reached first,
+        // expected damage per second remains a useful, explicit fallback.
+        score: Number.isFinite(encounter.damagePerSecond) ? encounter.damagePerSecond : 0,
+        timeToKillSeconds: encounter.timeToKillSeconds,
+        encounter,
+    };
+}
+
+function isExpectedEncounterBetter(
+    candidate: { score: number; timeToKillSeconds: number | null },
+    incumbent: { score: number; timeToKillSeconds: number | null },
+): boolean {
+    if (candidate.timeToKillSeconds !== null) {
+        if (incumbent.timeToKillSeconds === null) return true;
+        return candidate.timeToKillSeconds < incumbent.timeToKillSeconds - 1e-9;
+    }
+    if (incumbent.timeToKillSeconds !== null) return false;
+    return candidate.score > incumbent.score + Math.max(1e-9, Math.abs(incumbent.score) * 1e-12);
+}
+
+/** Monotonic scalar used only when the UI compares alternate weapon configurations. */
+export function rankExpectedEncounter(
+    timeToKillSeconds: number | null | undefined,
+    damagePerSecond: number,
+): number {
+    if (timeToKillSeconds !== null && timeToKillSeconds !== undefined && Number.isFinite(timeToKillSeconds)) {
+        // A kill inside the finite simulation window outranks an encounter that
+        // reaches the safety cap. Among kills, shorter TTK always ranks higher.
+        return 2 + 1 / (1 + Math.max(0, timeToKillSeconds));
+    }
+    const nonNegativeDps = Math.max(0, Number.isFinite(damagePerSecond) ? damagePerSecond : 0);
+    return nonNegativeDps / (1 + nonNegativeDps);
+}
+
+function getEncounterBurstTiming(weapon: WeaponEntry, effectiveFireRate: number): {
+    burstCount?: number;
+    burstCycleRate?: number;
+    burstDelaySeconds?: number;
+} {
+    const burstCount = weapon.burstCount;
+    const burstCycleRate = weapon.burstCycleRate;
+    const burstDelay = weapon.burstDelay;
+    if (
+        weapon.trigger.toLowerCase() !== "burst" ||
+        !Number.isFinite(burstCount) || !Number.isFinite(burstCycleRate) ||
+        !Number.isFinite(burstDelay) || (burstCount ?? 0) <= 1 ||
+        (burstCycleRate ?? 0) <= 0 || (burstDelay ?? 0) < 0 || effectiveFireRate <= 0
+    ) return {};
+
+    const count = burstCount as number;
+    const cycleRate = burstCycleRate as number;
+    const delay = burstDelay as number;
+    const baseEffectiveRate = count / (1 / cycleRate + (count - 1) * delay);
+    const rateScale = effectiveFireRate / baseEffectiveRate;
+    return {
+        burstCount: count,
+        burstCycleRate: cycleRate * rateScale,
+        burstDelaySeconds: delay / rateScale,
+    };
+}
+
+function refineBuildByExpectedEncounter(
+    weapon: WeaponEntry,
+    initialSlots: (ModEntry | null)[],
+    initialRanks: number[],
+    initialPolarities: string[],
+    candidates: Candidate[],
+    goal: OptimizeGoal,
+    opts: OptimizerOptions,
+    extraEffects: (ModEffect | null)[],
+    arcaneEffect: Partial<ModEffect> | null,
+    capacitySlots: Array<{ mod: ModEntry; rank: number; polarity: string }>,
+    expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [],
+): {
+    slots: (ModEntry | null)[];
+    ranks: number[];
+    polarities: string[];
+    score: number;
+    timeToKillSeconds: number | null;
+    candidatesEvaluated: number;
+    refined: boolean;
+} {
+    const {
+        targetFaction = "",
+        preEquippedEffects = [],
+        slotPolarities = [],
+        defaultSlotPolarities = slotPolarities,
+        allowForma = false,
+        capacityConfig,
+        lockedSlots = [],
+    } = opts;
+    let slots = [...initialSlots];
+    let ranks = [...initialRanks];
+    let polarities = [...initialPolarities];
+    const assignmentPolarities = allowForma ? [...defaultSlotPolarities] : [...slotPolarities];
+    while (assignmentPolarities.length < slots.length) assignmentPolarities.push("");
+    const defaultPolarities = [...defaultSlotPolarities];
+    while (defaultPolarities.length < slots.length) defaultPolarities.push("");
+
+    const makeEffects = (mods: (ModEntry | null)[], modRanks: number[]) => [
+        ...preEquippedEffects,
+        ...mods.map((mod, index) => mod
+            ? mod.effectsByRank[modRanks[index] ?? mod.fusionLimit] ?? mod.effect
+            : null),
+        ...extraEffects,
+        ...(arcaneEffect ? [normalizeArcaneEffect(arcaneEffect)] : []),
+    ];
+    const exactCache = new Map<string, { score: number; timeToKillSeconds: number | null }>();
+    const exactScore = (mods: (ModEntry | null)[], modRanks: number[]) => {
+        const key = getBeamStateSignature(mods.filter((mod): mod is ModEntry => !!mod), mods.flatMap((mod, index) => mod ? [modRanks[index]] : []), true);
+        const cached = exactCache.get(key);
+        if (cached) return cached;
+        const evaluated = expectedEncounterScoreForEffects(
+            weapon,
+            makeEffects(mods, modRanks),
+            targetFaction,
+            opts.targetProfileOverride,
+            opts.conditionalState,
+        );
+        exactCache.set(key, evaluated);
+        return evaluated;
+    };
+
+    let current = exactScore(slots, ranks);
+    let candidatesEvaluated = 1;
+    let refined = false;
+    if (lockedSlots.some(Boolean)) {
+        return { slots, ranks, polarities, ...current, candidatesEvaluated, refined };
+    }
+    // TTK is the sole objective comparator, with no secondary DPS tie-break
+    // between builds that kill at the same instant. A time-zero kill is the
+    // lower bound, so no replacement can improve it.
+    if (current.timeToKillSeconds !== null && current.timeToKillSeconds <= 1e-9) {
+        return { slots, ranks, polarities, ...current, candidatesEvaluated, refined };
+    }
+
+    const seedAssignments = new Set<string>();
+    for (const seed of expectedEncounterSeeds) {
+        const assigned = assignModsToSlots(
+            seed.mods,
+            seed.ranks,
+            assignmentPolarities,
+            slots.length,
+            allowForma,
+            opts.maxFormaCount,
+        );
+        const seedPolarities = allowForma
+            ? minimizePolaritiesByCapacity(
+                defaultPolarities,
+                assigned.slotMods,
+                assigned.slotRanks,
+                capacityConfig,
+                capacitySlots,
+                undefined,
+                opts.maxFormaCount,
+                opts.lockedSlotMask ?? [],
+            ).mainPolarities
+            : assigned.resultPolarities;
+        if (capacityConfig && !fitsCapacity(
+            assigned.slotMods,
+            assigned.slotRanks,
+            capacityConfig,
+            seedPolarities,
+            capacitySlots,
+        )) continue;
+        const signature = getBeamStateSignature(
+            assigned.slotMods.filter((mod): mod is ModEntry => !!mod),
+            assigned.slotMods.flatMap((mod, index) => mod ? [assigned.slotRanks[index]] : []),
+            true,
+        );
+        if (seedAssignments.has(signature)) continue;
+        seedAssignments.add(signature);
+        const evaluated = exactScore(assigned.slotMods, assigned.slotRanks);
+        candidatesEvaluated++;
+        if (isExpectedEncounterBetter(evaluated, current)) {
+            slots = [...assigned.slotMods];
+            ranks = [...assigned.slotRanks];
+            polarities = seedPolarities;
+            current = evaluated;
+            refined = true;
+        }
+    }
+
+    for (let pass = 0; pass < ENCOUNTER_REFINE_PASSES; pass++) {
+        const proposals = new Map<string, {
+            slots: (ModEntry | null)[];
+            ranks: number[];
+            polarities: string[];
+            proxyScore: number;
+            elementTheme: string;
+            elementTransition: string;
+        }>();
+        const existing = slots.flatMap((mod, index) => mod ? [{ mod, rank: ranks[index] ?? mod.fusionLimit, index }] : []);
+
+        for (const candidate of candidates) {
+            for (let replacedIndex = -1; replacedIndex < existing.length; replacedIndex++) {
+                const replaced = replacedIndex >= 0 ? existing[replacedIndex] : null;
+                const baseMods = existing.filter((entry) => entry !== replaced).map((entry) => entry.mod);
+                const baseRanks = existing.filter((entry) => entry !== replaced).map((entry) => entry.rank);
+                if (baseMods.some((mod) => mod.uniqueName === candidate.mod.uniqueName ||
+                    mod.incompatibilityGroup === candidate.mod.incompatibilityGroup)) continue;
+                if (replaced && replaced.mod.uniqueName === candidate.mod.uniqueName && replaced.rank === candidate.rank) continue;
+
+                // A replacement occupies the removed mod's source slot. Appending
+                // it would reorder primary-element contributions and can make the
+                // encounter scorer evaluate a different combination than the UI's
+                // slot order. New mods still append to the current ordered build.
+                const trialMods = replaced
+                    ? existing.map((entry) => entry === replaced ? candidate.mod : entry.mod)
+                    : [...baseMods, candidate.mod];
+                const trialRanks = replaced
+                    ? existing.map((entry) => entry === replaced ? candidate.rank : entry.rank)
+                    : [...baseRanks, candidate.rank];
+                const assigned = assignModsToSlots(
+                    trialMods,
+                    trialRanks,
+                    assignmentPolarities,
+                    slots.length,
+                    allowForma,
+                    opts.maxFormaCount,
+                );
+                const trialPolarities = allowForma
+                    ? minimizePolaritiesByCapacity(
+                        defaultPolarities,
+                        assigned.slotMods,
+                        assigned.slotRanks,
+                        capacityConfig,
+                        capacitySlots,
+                        undefined,
+                        opts.maxFormaCount,
+                        opts.lockedSlotMask ?? [],
+                    ).mainPolarities
+                    : assigned.resultPolarities;
+                if (capacityConfig && !fitsCapacity(
+                    assigned.slotMods,
+                    assigned.slotRanks,
+                    capacityConfig,
+                    trialPolarities,
+                    capacitySlots,
+                )) continue;
+
+                const signature = getBeamStateSignature(assigned.slotMods.filter((mod): mod is ModEntry => !!mod), assigned.slotMods.flatMap((mod, index) => mod ? [assigned.slotRanks[index]] : []), true);
+                if (proposals.has(signature)) continue;
+                proposals.set(signature, {
+                    slots: assigned.slotMods,
+                    ranks: assigned.slotRanks,
+                    polarities: trialPolarities,
+                    proxyScore: scoreSlots(
+                        weapon,
+                        assigned.slotMods,
+                        assigned.slotRanks,
+                        goal === "timeToKill" ? "scaling" : goal,
+                        targetFaction,
+                        arcaneEffect,
+                        [...preEquippedEffects, ...extraEffects],
+                        opts.conditionalState,
+                        opts.targetProfileOverride,
+                    ),
+                    elementTheme: expectedEncounterElementTheme(weapon, assigned.slotMods, assigned.slotRanks),
+                    elementTransition: expectedEncounterElementTransition(
+                        candidate.mod,
+                        candidate.rank,
+                        replaced?.mod ?? null,
+                        replaced?.rank,
+                    ),
+                });
+            }
+        }
+
+        const sortedProposals = [...proposals.values()]
+            .sort((left, right) => right.proxyScore - left.proxyScore);
+        const shortlist = sortedProposals.slice(0, ENCOUNTER_REFINE_PROXY_SHORTLIST);
+        const shortlistedSignatures = new Set(shortlist.map((proposal) => proposal.elementTheme));
+        const shortlistedTransitions = new Set<string>();
+        for (const proposal of sortedProposals) {
+            if (shortlist.length >= ENCOUNTER_REFINE_PROXY_SHORTLIST + ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT) break;
+            if (!proposal.elementTransition || shortlistedTransitions.has(proposal.elementTransition)) continue;
+            shortlistedTransitions.add(proposal.elementTransition);
+            shortlist.push(proposal);
+        }
+        for (const proposal of sortedProposals) {
+            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+            if (!proposal.elementTheme || shortlistedSignatures.has(proposal.elementTheme)) continue;
+            shortlistedSignatures.add(proposal.elementTheme);
+            shortlist.push(proposal);
+        }
+        if (shortlist.length < ENCOUNTER_REFINE_CANDIDATE_LIMIT) {
+            const shortlistedProposals = new Set(shortlist);
+            for (const proposal of sortedProposals) {
+                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+                if (shortlistedProposals.has(proposal)) continue;
+                shortlist.push(proposal);
+            }
+        }
+        if (!shortlist.length) break;
+
+        let best = current;
+        let bestProposal: typeof shortlist[number] | null = null;
+        for (const proposal of shortlist) {
+            const evaluated = exactScore(proposal.slots, proposal.ranks);
+            candidatesEvaluated++;
+            if (isExpectedEncounterBetter(evaluated, best)) {
+                best = evaluated;
+                bestProposal = proposal;
+            }
+        }
+        if (!bestProposal) break;
+        slots = [...bestProposal.slots];
+        ranks = [...bestProposal.ranks];
+        polarities = [...bestProposal.polarities];
+        current = best;
+        refined = true;
+    }
+
+    return { slots, ranks, polarities, ...current, candidatesEvaluated, refined };
 }
 
 function chooseIndexCombos(length: number, pick: number): number[][] {
@@ -2186,12 +2778,51 @@ function optimizeArcaneSlot(
     );
     if (!arcanes.length) return { arcane: null, rank: 0 };
 
-    const baseScore = scoreEffects(weapon, mainBuildEffects, goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState);
+    let bestEncounter = goal === "timeToKill"
+        ? expectedEncounterScoreForEffects(
+            weapon,
+            mainBuildEffects,
+            targetFaction,
+            opts.targetProfileOverride,
+            opts.conditionalState,
+        )
+        : null;
+    if (bestEncounter?.timeToKillSeconds !== null && bestEncounter?.timeToKillSeconds !== undefined &&
+        bestEncounter.timeToKillSeconds <= 1e-9) {
+        return { arcane: null, rank: 0 };
+    }
+    const baseScore = goal === "timeToKill"
+        ? 0
+        : scoreEffects(weapon, mainBuildEffects, goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState);
     let bestArcane: ArcaneEntry | null = null;
     let bestRank = 0;
     let bestScore = baseScore;
 
+    const ttkCandidates: Array<{ arcane: ArcaneEntry; rank: number; effect: Partial<ModEffect> }> = [];
+    if (goal === "timeToKill") {
+        // Without an inventory restriction, evaluate every candidate rank:
+        // parsed rank tables may not scale uniformly. When the caller requires
+        // an owned Arcane, inventory records only the highest owned rank, so
+        // keep the selected rank fixed to that known equipable copy.
+        for (const arc of arcanes) {
+            const ownedMaxRank = opts.ownedArcaneMaxRankByUniqueName?.[arc.uniqueName];
+            const rankCap = ownedMaxRank == null ? arc.maxRank : Math.min(arc.maxRank, ownedMaxRank);
+            const ranks = opts.ownedArcaneUniqueNames
+                ? [rankCap]
+                : Array.from({ length: rankCap + 1 }, (_, index) => rankCap - index);
+            for (const rank of ranks) {
+                const effect = getArcaneEffectAtRank(arc, rank, opts.warframeArmor, true, {
+                    warframeMaxEnergy: opts.warframeMaxEnergy,
+                    warframeEnergyPercent: opts.warframeEnergyPercent,
+                });
+                if (!effect || !Object.keys(effect).length) continue;
+                ttkCandidates.push({ arcane: arc, rank, effect });
+            }
+        }
+    }
+
     for (const arc of arcanes) {
+        if (goal === "timeToKill") continue;
         const ownedMaxRank = opts.ownedArcaneMaxRankByUniqueName?.[arc.uniqueName];
         const rankCap = ownedMaxRank == null ? arc.maxRank : Math.min(arc.maxRank, ownedMaxRank);
         for (let rank = rankCap; rank >= 0; rank--) {
@@ -2206,6 +2837,20 @@ function optimizeArcaneSlot(
             // equality used to select the last zero-value candidate at rank 0.
             const scoreTolerance = Math.max(1e-9, Math.abs(bestScore) * 1e-12);
             if (s > bestScore + scoreTolerance) { bestScore = s; bestArcane = arc; bestRank = rank; }
+        }
+    }
+    for (const candidate of ttkCandidates) {
+        const evaluated = expectedEncounterScoreForEffects(
+            weapon,
+            [...mainBuildEffects, normalizeArcaneEffect(candidate.effect)],
+            targetFaction,
+            opts.targetProfileOverride,
+            opts.conditionalState,
+        );
+        if (bestEncounter && isExpectedEncounterBetter(evaluated, bestEncounter)) {
+            bestEncounter = evaluated;
+            bestArcane = candidate.arcane;
+            bestRank = candidate.rank;
         }
     }
     return { arcane: bestArcane, rank: bestRank };
@@ -2256,7 +2901,7 @@ function optimizeBuildInternal(
     const initial = beamSearch(scoringWeapon, candidates, goal, slotCount, effectiveOpts);
     let mods = initial.mods;
     let ranks = initial.ranks;
-    if (!hasLockedMainSlots) {
+    if (!hasLockedMainSlots && goal !== "timeToKill") {
         ({ mods, ranks } = refineBuildSet(
             scoringWeapon,
             initial.mods,
@@ -2349,7 +2994,7 @@ function optimizeBuildInternal(
     // Phase 5: Arcane optimization
     let arcane: ArcaneEntry | null = null;
     let arcaneRank = 0;
-    if (optimizeArcane) {
+    if (optimizeArcane && goal !== "timeToKill") {
         const allEffects = exilusMod
             ? [...preEquippedEffects, ...mainEffects, exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect]
             : [...preEquippedEffects, ...mainEffects];
@@ -2357,10 +3002,13 @@ function optimizeBuildInternal(
         arcane = arc.arcane;
         arcaneRank = arc.rank;
     }
+    // Expected TTK needs the exact finite encounter to rank Arcanes. Defer
+    // that expensive sweep until after mod refinement so it runs on the final
+    // candidate list instead of repeating it on proxy-stage builds.
 
     const contextualExtraEffects: (ModEffect | null)[] = [];
     if (exilusMod) contextualExtraEffects.push(exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect);
-    const contextualArcaneEffect = arcane
+    let contextualArcaneEffect = arcane
         ? getArcaneEffectAtRank(arcane, arcaneRank, effectiveOpts.warframeArmor, true, {
             warframeMaxEnergy: effectiveOpts.warframeMaxEnergy,
             warframeEnergyPercent: effectiveOpts.warframeEnergyPercent,
@@ -2368,39 +3016,41 @@ function optimizeBuildInternal(
         : null;
 
     if (!hasLockedMainSlots) {
-        const refinedWithContext = refineBuildSet(
-            scoringWeapon,
-            slotMods.filter((m): m is ModEntry => !!m),
-            slotMods.flatMap((m, i) => (m ? [slotRanks[i]] : [])),
-            candidates,
-            goal,
-            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
-            contextualExtraEffects,
-            contextualArcaneEffect,
-        );
-        const filledWithContext = fillEmptySlots(
-            scoringWeapon,
-            refinedWithContext.mods,
-            refinedWithContext.ranks,
-            candidates,
-            goal,
-            slotCount,
-            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
-            contextualExtraEffects,
-            contextualArcaneEffect,
-        );
-        const comboRefinedWithContext = comboRefineBuildSet(
-            scoringWeapon,
-            filledWithContext.mods,
-            filledWithContext.ranks,
-            candidates,
-            goal,
-            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
-            contextualExtraEffects,
-            contextualArcaneEffect,
-        );
-        mods = comboRefinedWithContext.mods;
-        ranks = comboRefinedWithContext.ranks;
+        if (goal !== "timeToKill") {
+            const refinedWithContext = refineBuildSet(
+                scoringWeapon,
+                slotMods.filter((m): m is ModEntry => !!m),
+                slotMods.flatMap((m, i) => (m ? [slotRanks[i]] : [])),
+                candidates,
+                goal,
+                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualExtraEffects,
+                contextualArcaneEffect,
+            );
+            const filledWithContext = fillEmptySlots(
+                scoringWeapon,
+                refinedWithContext.mods,
+                refinedWithContext.ranks,
+                candidates,
+                goal,
+                slotCount,
+                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualExtraEffects,
+                contextualArcaneEffect,
+            );
+            const comboRefinedWithContext = comboRefineBuildSet(
+                scoringWeapon,
+                filledWithContext.mods,
+                filledWithContext.ranks,
+                candidates,
+                goal,
+                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualExtraEffects,
+                contextualArcaneEffect,
+            );
+            mods = comboRefinedWithContext.mods;
+            ranks = comboRefinedWithContext.ranks;
+        }
     } else {
         mods = slotMods.filter((m, i): m is ModEntry => !!m && !lockedSlots[i]);
         ranks = slotMods.flatMap((m, i) => (m && !lockedSlots[i] ? [slotRanks[i]] : []));
@@ -2450,7 +3100,7 @@ function optimizeBuildInternal(
             effectiveOpts.targetProfileOverride,
         );
 
-    let greedyImproved = true;
+    let greedyImproved = goal !== "timeToKill";
     while (greedyImproved && slotMods.some((mod) => !mod)) {
         greedyImproved = false;
         const baseScore = scoreFinalMainSlots(slotMods, slotRanks);
@@ -2528,6 +3178,127 @@ function optimizeBuildInternal(
         }
     }
 
+    let encounterScore: number | undefined;
+    let encounterTimeToKillSeconds: number | null | undefined;
+    let encounterRefined: boolean | undefined;
+    let encounterCandidatesEvaluated: number | undefined;
+    if (goal === "timeToKill") {
+        const encounterRefinement = refineBuildByExpectedEncounter(
+            scoringWeapon,
+            slotMods,
+            slotRanks,
+            finalPolarities,
+            candidates,
+            goal,
+            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualExtraEffects,
+            contextualArcaneEffect,
+            contextualCapacitySlots,
+            initial.expectedEncounterSeeds,
+        );
+        for (let index = 0; index < slotCount; index++) {
+            slotMods[index] = encounterRefinement.slots[index] ?? null;
+            slotRanks[index] = slotMods[index] ? encounterRefinement.ranks[index] ?? slotMods[index]!.fusionLimit : 0;
+        }
+        finalPolarities = encounterRefinement.polarities;
+        encounterScore = encounterRefinement.score;
+        encounterTimeToKillSeconds = encounterRefinement.timeToKillSeconds;
+        encounterRefined = encounterRefinement.refined;
+        encounterCandidatesEvaluated = encounterRefinement.candidatesEvaluated;
+    }
+
+    // Select the Arcane against the final mod list, then give it one legal
+    // finite-encounter mod-refinement pass before reporting the final objective.
+    if (goal === "timeToKill" && optimizeArcane && !hasLockedMainSlots) {
+        const effectsForArcane = [
+            ...preEquippedEffects,
+            ...slotMods.map((mod, index) => mod
+                ? mod.effectsByRank[slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+                : null),
+            ...contextualExtraEffects,
+        ];
+        const finalArcane = optimizeArcaneSlot(
+            scoringWeapon,
+            effectsForArcane,
+            goal,
+            targetFaction,
+            effectiveOpts,
+        );
+        const arcaneChanged = finalArcane.arcane?.uniqueName !== arcane?.uniqueName ||
+            finalArcane.rank !== arcaneRank;
+        if (arcaneChanged) {
+            arcane = finalArcane.arcane;
+            arcaneRank = finalArcane.rank;
+            contextualArcaneEffect = arcane
+                ? getArcaneEffectAtRank(arcane, arcaneRank, effectiveOpts.warframeArmor, true, {
+                    warframeMaxEnergy: effectiveOpts.warframeMaxEnergy,
+                    warframeEnergyPercent: effectiveOpts.warframeEnergyPercent,
+                })
+                : null;
+
+            const encounterRefinement = refineBuildByExpectedEncounter(
+                scoringWeapon,
+                slotMods,
+                slotRanks,
+                finalPolarities,
+                candidates,
+                goal,
+                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualExtraEffects,
+                contextualArcaneEffect,
+                contextualCapacitySlots,
+                initial.expectedEncounterSeeds,
+            );
+            for (let index = 0; index < slotCount; index++) {
+                slotMods[index] = encounterRefinement.slots[index] ?? null;
+                slotRanks[index] = slotMods[index]
+                    ? encounterRefinement.ranks[index] ?? slotMods[index]!.fusionLimit
+                    : 0;
+            }
+            finalPolarities = encounterRefinement.polarities;
+            encounterScore = encounterRefinement.score;
+            encounterTimeToKillSeconds = encounterRefinement.timeToKillSeconds;
+            encounterRefined = encounterRefined || encounterRefinement.refined;
+            encounterCandidatesEvaluated = (encounterCandidatesEvaluated ?? 0) + encounterRefinement.candidatesEvaluated;
+
+            const finalEffects = [
+                ...preEquippedEffects,
+                ...slotMods.map((mod, index) => mod
+                    ? mod.effectsByRank[slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+                    : null),
+                ...contextualExtraEffects,
+            ];
+            const reassessedArcane = optimizeArcaneSlot(
+                scoringWeapon,
+                finalEffects,
+                goal,
+                targetFaction,
+                effectiveOpts,
+            );
+            arcane = reassessedArcane.arcane;
+            arcaneRank = reassessedArcane.rank;
+            contextualArcaneEffect = arcane
+                ? getArcaneEffectAtRank(arcane, arcaneRank, effectiveOpts.warframeArmor, true, {
+                    warframeMaxEnergy: effectiveOpts.warframeMaxEnergy,
+                    warframeEnergyPercent: effectiveOpts.warframeEnergyPercent,
+                })
+                : null;
+            const finalEncounterEffects = contextualArcaneEffect
+                ? [...finalEffects, normalizeArcaneEffect(contextualArcaneEffect)]
+                : finalEffects;
+            const finalEncounter = expectedEncounterScoreForEffects(
+                scoringWeapon,
+                finalEncounterEffects,
+                targetFaction,
+                effectiveOpts.targetProfileOverride,
+                effectiveOpts.conditionalState,
+            );
+            encounterScore = finalEncounter.score;
+            encounterTimeToKillSeconds = finalEncounter.timeToKillSeconds;
+            encounterCandidatesEvaluated = (encounterCandidatesEvaluated ?? 0) + 1;
+        }
+    }
+
     const originalCapCfg = opts.capacityConfig;
     const finalCapacitySlots = exilusMod
         ? [
@@ -2559,6 +3330,14 @@ function optimizeBuildInternal(
         exilusPolarity: exilusMod ? finalExilusPolarity : "",
         arcane,
         arcaneRank,
+        ...(goal === "timeToKill"
+            ? {
+                encounterScore,
+                encounterTimeToKillSeconds,
+                encounterRefined,
+                encounterCandidatesEvaluated,
+            }
+            : {}),
     };
 }
 
@@ -2587,6 +3366,18 @@ export function optimizeBuildCore(
         opts.warframeMaxEnergy,
         opts.warframeEnergyPercent,
     ] as const;
+    if (goal === "timeToKill" && maxOnlyResult.encounterScore !== undefined && nonMaxResult.encounterScore !== undefined) {
+        return isExpectedEncounterBetter(
+            {
+                score: nonMaxResult.encounterScore,
+                timeToKillSeconds: nonMaxResult.encounterTimeToKillSeconds ?? null,
+            },
+            {
+                score: maxOnlyResult.encounterScore,
+                timeToKillSeconds: maxOnlyResult.encounterTimeToKillSeconds ?? null,
+            },
+        ) ? nonMaxResult : maxOnlyResult;
+    }
     const baseScore = scoreOptimizeResult(weapon, maxOnlyResult, goal, ...scoreOptions);
     const nonMaxScore = scoreOptimizeResult(weapon, nonMaxResult, goal, ...scoreOptions);
     return nonMaxScore > baseScore ? nonMaxResult : maxOnlyResult;
@@ -2630,12 +3421,19 @@ export interface BuildExplanationOptions {
     arcaneEffect?: Partial<ModEffect> | null;
     arcaneName?: string;
     arcaneRank?: number;
+    objectiveEncounter?: {
+        damagePerSecond: number;
+        timeToKillSeconds: number | null;
+        refined: boolean;
+        candidatesEvaluated: number;
+    };
 }
 
 function goalLabel(goal: OptimizeGoal): string {
     switch (goal) {
         case "burst": return "Burst DPS";
         case "scaling": return "Sustained DPS";
+        case "timeToKill": return "Expected TTK";
     }
 }
 
@@ -2744,7 +3542,18 @@ export function explainBuild(
     const targetDetail = targetProfileOverride
         ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} for Electric/Gas status damage` : ""}`
         : "";
-    const summary    = `${goalLabel(goal)} ${targetLabel}${targetDetail}. Selected build score: ${fullScore.toFixed(1)}${baseScore > 0 ? ` (${totalMultiplier.toFixed(1)}x unmodded; ${totalGain >= 0 ? "+" : ""}${totalGain.toFixed(1)}%)` : ""}.`;
+    const scoreLabel = goal === "timeToKill" ? "Screening proxy score" : "Selected build score";
+    const encounterSummary = goal === "timeToKill" && explanationOptions.objectiveEncounter
+        ? explanationOptions.objectiveEncounter.timeToKillSeconds === null
+            ? ` Finite expected encounter reached its safety cap; fallback damage rate ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)}/s.`
+            : ` Finite expected encounter TTK ${explanationOptions.objectiveEncounter.timeToKillSeconds.toFixed(2)}s at ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)} damage/s.`
+        : "";
+    const summary    = `${goalLabel(goal)} ${targetLabel}${targetDetail}. ${scoreLabel}: ${fullScore.toFixed(1)}${baseScore > 0 ? ` (${totalMultiplier.toFixed(1)}x unmodded; ${totalGain >= 0 ? "+" : ""}${totalGain.toFixed(1)}%)` : ""}.${encounterSummary}`;
+    const encounterSearchNote = !explanationOptions.objectiveEncounter || explanationOptions.objectiveEncounter.candidatesEvaluated <= 1
+        ? " Locked slots kept the returned build fixed, so no replacement search was run."
+        : explanationOptions.objectiveEncounter.refined
+            ? " Finite-encounter refinement improved the screening build."
+            : " No finite-encounter candidate improved the screening build.";
 
     return {
         goal,
@@ -2753,6 +3562,8 @@ export function explainBuild(
         arcaneStep,
         summary,
         winningEdge,
-        comparisonNote: "Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model and do not prove a global optimum.",
+        comparisonNote: goal === "timeToKill"
+            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to two passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders and uses the remaining places for distinct single-element substitutions and elemental output families before filling by proxy score. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
+            : "Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model and do not prove a global optimum.",
     };
 }

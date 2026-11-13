@@ -4,7 +4,7 @@ import { filterBuilderExpertVariants, getModsForWeapon } from "../src/domain/cat
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../src/domain/catalog/weaponCatalog";
 import { countPolarityChanges, effectiveDrain, totalModCapacity } from "../src/domain/logic/capacityCalc";
 import { optimizeBuild, type OptimizeGoal, type OptimizeResult } from "../src/domain/logic/buildOptimizer";
-import { debugScoreBuild, type ConditionalState } from "../src/domain/logic/buildOptimizerCore";
+import { debugScoreBuild, debugScoreExpectedEncounter, type ConditionalState } from "../src/domain/logic/buildOptimizerCore";
 import { getArcaneEffectAtRank } from "../src/domain/logic/arcaneEffects";
 import type { ModEffect } from "../src/domain/catalog/modCatalog";
 
@@ -21,6 +21,9 @@ interface BenchmarkCase {
 interface BenchmarkRun {
     elapsedMs: number;
     score: number;
+    encounterDamagePerSecond: number | null;
+    encounterTimeToKillSeconds: number | null;
+    encounterCandidatesEvaluated: number | null;
     legal: boolean;
     capacityValid: boolean;
     capacityUsed: number;
@@ -30,6 +33,10 @@ interface BenchmarkRun {
     selectedArcaneRank: number;
     arcaneBestOnFinalMods: boolean | null;
     arcaneGapPctOnFinalMods: number | null;
+    arcaneSelectedTtkSeconds: number | null;
+    arcaneBestTtkSeconds: number | null;
+    arcaneSelectedDps: number | null;
+    arcaneBestDps: number | null;
     slotPolarities: string[];
     uniqueNamesValid: boolean;
     incompatibilityGroupsValid: boolean;
@@ -66,6 +73,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Verglas Prime", category: "companion weapon", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Phantasma Prime", attackName: "Beam", category: "shotgun continuous beam", goal: "scaling", targetFaction: "Grineer" },
     { weaponName: "Rubico Prime", category: "sniper rifle", goal: "burst", targetFaction: "Grineer" },
+    { weaponName: "Perigale Prime", category: "burst sniper rifle", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Epitaph", attackName: "Charged Shot", category: "secondary charged projectile", goal: "burst", targetFaction: "Corpus" },
     { weaponName: "Acrid", category: "forced-proc toxin secondary", goal: "scaling", targetFaction: "Corpus" },
     { weaponName: "Hystrix Prime", attackName: "Fire Quill", category: "forced-proc selectable-element secondary", goal: "scaling", targetFaction: "Grineer" },
@@ -73,12 +81,27 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Nataruk", attackName: "Perfect Shot", category: "precision bow", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Gram Prime", attackName: "Heavy Slam Attack", category: "melee heavy-attack proxy", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Braton Prime", category: "energy-gated Primary Overcharge", goal: "burst", targetFaction: "Grineer", warframeMaxEnergy: 1000, warframeEnergyPercent: 100 },
+    { weaponName: "Braton Prime", category: "Expected TTK finite-encounter objective", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Cedo", attackName: "Glaive Radial Attack", category: "Expected TTK glaive radial", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Phantasma Prime", attackName: "Plasma Bomb Explosion", category: "Expected TTK charged alternate fire", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Laetum", category: "Expected TTK secondary", goal: "timeToKill", targetFaction: "Corpus" },
+    { weaponName: "Cinta", category: "Expected TTK bow", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Kuva Hek", category: "Expected TTK progenitor shotgun", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Torid", category: "Expected TTK Incarnon base mode", goal: "timeToKill", targetFaction: "Corpus" },
+    { weaponName: "Broken War", category: "Expected TTK melee attack-rate proxy", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Corvas Prime", category: "Expected TTK archgun", goal: "timeToKill", targetFaction: "Corpus" },
+    { weaponName: "Verglas Prime", category: "Expected TTK companion weapon", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Epitaph", attackName: "Charged Shot", category: "Expected TTK charged secondary", goal: "timeToKill", targetFaction: "Corpus" },
+    { weaponName: "Nataruk", attackName: "Perfect Shot", category: "Expected TTK precision bow", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Gram Prime", attackName: "Heavy Slam Attack", category: "Expected TTK melee heavy-attack proxy", goal: "timeToKill", targetFaction: "Grineer" },
 ];
 const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9).trim().toLowerCase();
 const requestedAttack = process.argv.find((arg) => arg.startsWith("--attack="))?.slice(9).trim().toLowerCase();
+const requestedGoal = process.argv.find((arg) => arg.startsWith("--goal="))?.slice(7).trim().toLowerCase();
 const cases = allCases.filter((benchmarkCase) =>
     (!requestedWeapon || benchmarkCase.weaponName.toLowerCase() === requestedWeapon)
-    && (!requestedAttack || (benchmarkCase.attackName ?? "").toLowerCase() === requestedAttack),
+    && (!requestedAttack || (benchmarkCase.attackName ?? "").toLowerCase() === requestedAttack)
+    && (!requestedGoal || benchmarkCase.goal.toLowerCase() === requestedGoal),
 );
 
 if (cases.length === 0) {
@@ -146,7 +169,78 @@ function auditArcaneSelectionOnFinalMods(
     arcaneCandidates: ArcaneEntry[],
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
-): { isBest: boolean; gapPct: number } {
+): {
+    isBest: boolean;
+    gapPct: number;
+    selectedTtkSeconds: number | null;
+    bestTtkSeconds: number | null;
+    selectedDps: number | null;
+    bestDps: number | null;
+} {
+    if (goal === "timeToKill") {
+        const effects: (ModEffect | null)[] = result.slots.map((mod, index) => {
+            if (!mod) return null;
+            const rank = result.slotRanks[index] ?? mod.fusionLimit;
+            return mod.effectsByRank[rank] ?? mod.effect;
+        });
+        if (result.exilusMod) {
+            effects.push(result.exilusMod.effectsByRank[result.exilusRank] ?? result.exilusMod.effect);
+        }
+        const scoringWeapon = withSelectedAttack(weapon, selectedAttackIdx);
+        const evaluate = (arcane: ArcaneEntry | null, rank: number) => {
+            const effect = arcane
+                ? getArcaneEffectAtRank(arcane, rank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent })
+                : null;
+            return debugScoreExpectedEncounter(
+                scoringWeapon,
+                effects,
+                targetFaction,
+                undefined,
+                conditionalState,
+                effect,
+            );
+        };
+        const isBetter = (
+            candidate: ReturnType<typeof evaluate>,
+            incumbent: ReturnType<typeof evaluate>,
+        ) => {
+            if (candidate.timeToKillSeconds !== null) {
+                if (incumbent.timeToKillSeconds === null) return true;
+                return candidate.timeToKillSeconds < incumbent.timeToKillSeconds - 1e-9;
+            }
+            if (incumbent.timeToKillSeconds !== null) return false;
+            return candidate.damagePerSecond > incumbent.damagePerSecond + 1e-8;
+        };
+        const selected = evaluate(result.arcane, result.arcaneRank);
+        let best = evaluate(null, 0);
+        for (const arcane of arcaneCandidates) {
+            for (let rank = 0; rank <= arcane.maxRank; rank++) {
+                if (!getArcaneEffectAtRank(arcane, rank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent })) continue;
+                const candidate = evaluate(arcane, rank);
+                if (isBetter(candidate, best)) best = candidate;
+            }
+        }
+        const sameOutcome = selected.timeToKillSeconds !== null && best.timeToKillSeconds !== null
+            ? Math.abs(selected.timeToKillSeconds - best.timeToKillSeconds) <= 1e-9
+            : selected.timeToKillSeconds === null && best.timeToKillSeconds === null
+                && Math.abs(selected.damagePerSecond - best.damagePerSecond) <= 1e-8;
+        const gapPct = best.timeToKillSeconds !== null
+            ? selected.timeToKillSeconds === null
+                ? 100
+                : Math.max(0, (selected.timeToKillSeconds - best.timeToKillSeconds) / Math.max(best.timeToKillSeconds, 1e-9) * 100)
+            : best.damagePerSecond > 0
+                ? Math.max(0, (best.damagePerSecond - selected.damagePerSecond) / best.damagePerSecond * 100)
+                : 0;
+        return {
+            isBest: sameOutcome,
+            gapPct,
+            selectedTtkSeconds: selected.timeToKillSeconds,
+            bestTtkSeconds: best.timeToKillSeconds,
+            selectedDps: selected.damagePerSecond,
+            bestDps: best.damagePerSecond,
+        };
+    }
+
     const selectedScore = calculateResultScore(weapon, selectedAttackIdx, result, goal, targetFaction, warframeMaxEnergy, warframeEnergyPercent);
     let bestScore = calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, null, 0, warframeMaxEnergy, warframeEnergyPercent);
     for (const arcane of arcaneCandidates) {
@@ -163,6 +257,10 @@ function auditArcaneSelectionOnFinalMods(
     return {
         isBest: gap <= Math.max(1e-8, Math.abs(bestScore) * 1e-10),
         gapPct: bestScore > 0 ? (gap / bestScore) * 100 : 0,
+        selectedTtkSeconds: null,
+        bestTtkSeconds: null,
+        selectedDps: null,
+        bestDps: null,
     };
 }
 
@@ -256,6 +354,9 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
                 benchmarkCase.warframeMaxEnergy,
                 benchmarkCase.warframeEnergyPercent,
             ),
+            encounterDamagePerSecond: result.encounterScore ?? null,
+            encounterTimeToKillSeconds: result.encounterTimeToKillSeconds ?? null,
+            encounterCandidatesEvaluated: result.encounterCandidatesEvaluated ?? null,
             legal: result.capacityValid
                 && countFormaChanges(weapon, result) <= 3
                 && new Set(result.slots.flatMap((mod) => mod ? [mod.uniqueName] : [])).size
@@ -272,6 +373,10 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
             selectedArcaneRank: result.arcaneRank,
             arcaneBestOnFinalMods: arcaneAudit?.isBest ?? null,
             arcaneGapPctOnFinalMods: arcaneAudit?.gapPct ?? null,
+            arcaneSelectedTtkSeconds: arcaneAudit?.selectedTtkSeconds ?? null,
+            arcaneBestTtkSeconds: arcaneAudit?.bestTtkSeconds ?? null,
+            arcaneSelectedDps: arcaneAudit?.selectedDps ?? null,
+            arcaneBestDps: arcaneAudit?.bestDps ?? null,
             slotPolarities: [...result.slotPolarities],
             uniqueNamesValid: new Set(result.slots.flatMap((mod) => mod ? [mod.uniqueName] : [])).size
                 === result.slots.filter(Boolean).length,
@@ -307,13 +412,41 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
         allLegal: runs.every((run) => run.legal),
         formaCount: runs[0]?.formaCount ?? 0,
         scoreRange: [Math.min(...runs.map((run) => run.score)), Math.max(...runs.map((run) => run.score))],
+        encounterDamagePerSecondRange: runs.some((run) => run.encounterDamagePerSecond !== null)
+            ? [
+                Math.min(...runs.flatMap((run) => run.encounterDamagePerSecond === null ? [] : [run.encounterDamagePerSecond])),
+                Math.max(...runs.flatMap((run) => run.encounterDamagePerSecond === null ? [] : [run.encounterDamagePerSecond])),
+            ]
+            : undefined,
+        encounterTimeToKillRange: runs.some((run) => run.encounterTimeToKillSeconds !== null)
+            ? [
+                Math.min(...runs.flatMap((run) => run.encounterTimeToKillSeconds === null ? [] : [run.encounterTimeToKillSeconds])),
+                Math.max(...runs.flatMap((run) => run.encounterTimeToKillSeconds === null ? [] : [run.encounterTimeToKillSeconds])),
+            ]
+            : undefined,
+        encounterCandidatesEvaluated: runs.map((run) => run.encounterCandidatesEvaluated),
         stableBuild: runs.every((run) => run.selectedMods.join("|") === runs[0]?.selectedMods.join("|")),
         stableArcaneSelection: runs.every((run) =>
             run.selectedArcane === runs[0]?.selectedArcane && run.selectedArcaneRank === runs[0]?.selectedArcaneRank
         ),
         finalBuildArcaneAudit: verifyArcaneSelection && optimizeArcane ? {
+            objective: benchmarkCase.goal === "timeToKill"
+                ? "finite Expected TTK; finite DPS only when no candidate kills"
+                : "optimizer screening score",
             allRunsChooseBestArcaneForReturnedMods: runs.every((run) => run.arcaneBestOnFinalMods === true),
             worstGapPct: Math.max(0, ...runs.map((run) => run.arcaneGapPctOnFinalMods ?? 0)),
+            selectedTimeToKillSeconds: benchmarkCase.goal === "timeToKill"
+                ? runs.map((run) => run.arcaneSelectedTtkSeconds)
+                : undefined,
+            bestTimeToKillSeconds: benchmarkCase.goal === "timeToKill"
+                ? runs.map((run) => run.arcaneBestTtkSeconds)
+                : undefined,
+            selectedDps: benchmarkCase.goal === "timeToKill"
+                ? runs.map((run) => run.arcaneSelectedDps)
+                : undefined,
+            bestDps: benchmarkCase.goal === "timeToKill"
+                ? runs.map((run) => run.arcaneBestDps)
+                : undefined,
         } : undefined,
         selectedArcane: runs[0]?.selectedArcane ?? null,
         selectedArcaneRank: runs[0]?.selectedArcaneRank ?? 0,
@@ -339,7 +472,7 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
         } : undefined,
     });
     process.stderr.write(
-        `  median ${percentile(elapsed, 0.5).toFixed(1)} ms, p95 ${percentile(elapsed, 0.95).toFixed(1)} ms, ${runs[0]?.formaCount ?? 0} Forma, legal=${runs.every((run) => run.legal)}\n`,
+        `  median ${percentile(elapsed, 0.5).toFixed(1)} ms, p95 ${percentile(elapsed, 0.95).toFixed(1)} ms, ${runs[0]?.formaCount ?? 0} Forma, legal=${runs.every((run) => run.legal)}${benchmarkCase.goal === "timeToKill" ? `, expected TTK=${runs[0]?.encounterTimeToKillSeconds ?? "capped"}s` : ""}\n`,
     );
 }
 

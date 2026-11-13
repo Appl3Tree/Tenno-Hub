@@ -12,6 +12,13 @@ export type WeaponCategory = "Primary" | "Secondary" | "Melee" | "Arch-Gun" | "A
 export type ModCompatName = "Rifle" | "Sniper" | "Shotgun" | "Pistol" | "Bow" | "Melee" | "Archgun" | "Archmelee";
 export type IntrinsicDamagePerStatusMode = "additiveBase" | "multiplicativeBase";
 
+// WFCD's weapon feed currently labels both Perigale variants as "Rifle", but
+// they are sniper rifles and accept the sniper-specific mod family.
+const PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES = new Set([
+    "/Lotus/Weapons/Tenno/LongGuns/TnQuadSniper/TnQuadSniper",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
+]);
+
 export interface WeaponDamageRampRule {
     /** Minimum damage factor before the weapon has ramped up. */
     minimumDamageMultiplier: number;
@@ -109,8 +116,9 @@ export interface WeaponEntry {
     canOverLevel: boolean;
     baseSlotCount: number;
     /**
-     * Riven disposition (omegaAttenuation in WFCD). Range 0.5–1.55.
-     * Used to calculate max possible riven stat values.
+     * Legacy upstream Riven factor (`omegaAttenuation`). Since Hotfix 44.1.3
+     * the current roll formula uses one shared 1.20 factor; retain this field
+     * only for catalog compatibility and Riven eligibility metadata.
      */
     disposition: number;
     /** All named attacks from the WFCD data */
@@ -459,6 +467,9 @@ function resolveWeaponFamily(category: WeaponCategory, item: Record<string, unkn
     if (category === "Arch-Melee") return { weaponType: weaponType || "Arch-Melee", modCompat: "Archmelee" };
     if (category === "Secondary") return { weaponType: weaponType || "Pistol", modCompat: "Pistol" };
     if (category === "Melee") return { weaponType: weaponType || "Melee", modCompat: "Melee" };
+    if (category === "Primary" && PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES.has(String(item.uniqueName ?? ""))) {
+        return { weaponType: "Sniper", modCompat: "Sniper" };
+    }
     const t = (weaponType ?? "").toLowerCase();
     if (t === "shotgun") return { weaponType: "Shotgun", modCompat: "Shotgun" };
     if (t === "bow") return { weaponType: "Bow", modCompat: "Bow" };

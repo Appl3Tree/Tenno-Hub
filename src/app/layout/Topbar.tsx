@@ -6,7 +6,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTrackerStore } from "../../store/store";
-import { eventCompletionKey, getCurrentWorldActivitySummary, isWorldStateEntryActive } from "../../lib/worldStateCache";
+import {
+    eventCompletionKey,
+    getCurrentWorldActivitySummary,
+    getInvasionCompletionPercent,
+    isWorldStateEntryActive,
+} from "../../lib/worldStateCache";
 import { useWorldStateNow, useWorldStateSnapshot } from "../../lib/useWorldStateData";
 import CatalogSearchPalette from "../../components/search/CatalogSearchPalette";
 import PageJumpPalette from "../../components/search/PageJumpPalette";
@@ -331,6 +336,7 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                         <div className="min-w-0">
                             <span className="text-xs font-semibold text-slate-200">World Events</span>
                             {fetchedAt && <div className="mt-0.5 text-[9px] text-slate-500">Fetched {new Date(fetchedAt).toLocaleTimeString()}</div>}
+                            {data?.alertsApiTimestamp && <div className="text-[9px] text-slate-500">Alerts API {new Date(data.alertsApiTimestamp).toLocaleString()}</div>}
                         </div>
                         {loading && (
                             <svg className="w-3 h-3 animate-spin text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -526,9 +532,10 @@ function NotificationBell({ onNavigateWorldState }: { onNavigateWorldState: () =
                         {/* Invasions — show all with rewards */}
                         {data && currentInvasions.length > 0 && !isWorldStateCategoryHidden("invasions") && (() => {
                             const sorted = currentInvasions.slice().sort((a, b) => {
+                                const completion = getInvasionCompletionPercent(b) - getInvasionCompletionPercent(a);
                                 const aDone = isInvasionDone(a.id) ? 1 : 0;
                                 const bDone = isInvasionDone(b.id) ? 1 : 0;
-                                return aDone - bDone;
+                                return completion || aDone - bDone;
                             });
                             return (
                                 <div className="rounded-lg px-3 py-2 bg-slate-900/60">
@@ -1274,14 +1281,6 @@ export default function Topbar({ onMenuToggle, mobileNavOpen }: { onMenuToggle: 
                                     from the <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">gid</code> row.
                                     Its HttpOnly flag means Tenno Hub cannot read it automatically; DevTools can display it. Copy only{" "}
                                     <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">gid</code>, not the other cookies.
-                                </div>
-                                <div>
-                                    <span className="text-slate-300 font-medium">PC alternative: </span>
-                                    Open{" "}
-                                    <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">
-                                        %localappdata%\Warframe\EE.log
-                                    </code>{" "}
-                                    and search for <span className="font-mono text-slate-300">"Logged in"</span> — your account ID is in the parentheses next to it.
                                 </div>
                                 <div>
                                     <span className="text-slate-300 font-medium">Console / manual: </span>

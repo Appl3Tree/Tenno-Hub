@@ -131,6 +131,11 @@ export interface ModdedWeaponStats {
      */
     totalDamageBonus: number;
     averageShotDamage: number;
+    /** Additive multiplicative bonus for the first ammo-consuming shot after each magazine reload. */
+    firstShotMagazineDamageBonus: number;
+    firstShotMagazineDamageMultiplier: number;
+    /** Average direct damage multiplier over a magazine after first-shot-only bonuses. */
+    magazineAverageDamageMultiplier: number;
     quantizedBaseCritMultiplier: number;
     critChance: number;
     critMultiplier: number;
@@ -524,6 +529,7 @@ export function calculateBuild(
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
     let damageBonus = 0;
+    let firstShotMagazineDamageBonus = 0;
     let impactBonus = 0;
     let punctureBonus = 0;
     let slashBonus = 0;
@@ -573,6 +579,7 @@ export function calculateBuild(
         const e = mods[index];
         if (!e) continue;
         damageBonus += e.damageBonus ?? 0;
+        firstShotMagazineDamageBonus += e.firstShotMagazineDamageBonus ?? 0;
         impactBonus += e.impactBonus ?? 0;
         punctureBonus += e.punctureBonus ?? 0;
         slashBonus += e.slashBonus ?? 0;
@@ -876,6 +883,13 @@ export function calculateBuild(
     const shotsPerMag = ammoEfficiencyBonus > 0
         ? Math.max(1, Math.ceil(unroundedShotsPerMag - 1e-9))
         : unroundedShotsPerMag;
+    const activeFirstShotMagazineDamageBonus = ignoresReloadAndMagazine
+        ? 0
+        : Math.max(0, firstShotMagazineDamageBonus);
+    const firstShotMagazineDamageMultiplier = 1 + activeFirstShotMagazineDamageBonus;
+    const magazineAverageDamageMultiplier = shotsPerMag > 0
+        ? 1 + activeFirstShotMagazineDamageBonus / shotsPerMag
+        : 1;
     const damageRampMultipliers = calculateDamageRampMultipliers(
         weapon.selectedAttackDamageRamp,
         shotsPerMag,
@@ -935,7 +949,11 @@ export function calculateBuild(
         }
         addExtraProc(type, countPerShot);
     };
-    for (const distribution of weapon.forcedProcDistributions ?? []) {
+    const comboTriggeredProcDistributions = weapon.selectedAttackUsesMeleeComboMultiplier
+        ? mods.flatMap((effect) => (effect?.meleeComboTriggeredProcDistributions ?? [])
+            .filter((distribution) => meleeComboMultiplier >= distribution.minimumComboMultiplier))
+        : [];
+    for (const distribution of [...(weapon.forcedProcDistributions ?? []), ...comboTriggeredProcDistributions]) {
         const countPerShot = Math.max(0, moddedMultishot) * Math.max(0, distribution.count);
         if (!Number.isFinite(countPerShot) || countPerShot <= 0) continue;
         if (distribution.mode === "damageWeighted") {
@@ -1209,8 +1227,11 @@ export function calculateBuild(
                 remainingMultiplier,
                 probabilityOfActiveTickGroup,
             );
-        dotDpsByType[key] = steadyStateTickDamage;
-        dotDps += steadyStateTickDamage;
+        // Chamber bonuses increase the status seed from the first ammo-consuming
+        // hit in each magazine too, so steady-state DoT must use the same
+        // magazine-average multiplier as direct damage.
+        dotDpsByType[key] = steadyStateTickDamage * magazineAverageDamageMultiplier;
+        dotDps += dotDpsByType[key] ?? 0;
     }
 
     // Status presence is a Poisson mean-field, avoiding a hard threshold on fractional stacks.
@@ -1305,6 +1326,9 @@ export function calculateBuild(
         arsenalDamage,
         totalDamageBonus: damageBonus,
         averageShotDamage,
+        firstShotMagazineDamageBonus: activeFirstShotMagazineDamageBonus,
+        firstShotMagazineDamageMultiplier,
+        magazineAverageDamageMultiplier,
         quantizedBaseCritMultiplier,
         critChance,
         critMultiplier,
@@ -1385,8 +1409,8 @@ export function calculateBuild(
         damageBreakdownBeforePerStatus,
     };
 
-    const burstDPS = averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage;
-    const sustainedDPS = averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage;
+    const burstDPS = averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier;
+    const sustainedDPS = averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier;
 
     return { modded, burstDPS, sustainedDPS };
 }

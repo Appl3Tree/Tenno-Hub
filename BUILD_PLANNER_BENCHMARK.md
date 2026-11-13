@@ -4,6 +4,38 @@ Run date: 2026-11-11; current full-width refresh: 2026-11-12
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Expected TTK objective, targeted Braton Prime run (2026-11-12)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --weapon=Braton Prime --runs=5 --goal=timeToKill`
+
+The Expected TTK objective screens builds with the fast sustained proxy, then applies up to two bounded passes of finite-encounter one-mod replacement ranking. The isolated five-run Braton refresh returned the same legal 60/60 build, three Forma, Primary Merciless R5, and 1.5932 s expected TTK at 15,691.38 expected encounter damage/s. It evaluated 61 encounter candidates on each run. The proxy score (39,301.33) remains separately reported and is not used as the final finite-kill ranking. Optimizer time was 3.006 s median and 3.219 s max-of-five p95; observations ranged from 2.883 to 3.219 s.
+
+The target uses the Grineer faction preset, MR 30, max-rank mods, Catalyst, Exilus and Arcane optimization, Initial conditional state, and a three-Forma cap. Port-80 QA saved a named temporary Expected TTK build, reloaded the page, loaded the save, and verified that its objective and target explanation restored; the temporary save was then removed and the planner returned to its empty state. A separate uncatalyzed MR 0 Braton run on the Balanced synthetic target completed five port-80 dev-Worker clicks in 497–622 ms (504 ms median; 622 ms max-of-five p95), with the same legal 30/30 four-mod build and 4.21 s finite TTK. This is one desktop Node scenario plus a warmed dev-server browser scenario; neither establishes global optimality or broad objective parity with Underframe. It also does not measure production-packaged Worker, cold-start, or mobile latency. Use `--weapon=Braton Prime --goal=timeToKill` to isolate the Node case and `--runs=N` to change repetitions.
+
+## Expected TTK 13-case weapon/attack refresh (2026-11-12)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5 --goal=timeToKill`
+
+All cases used MR 30, max-rank mods, Catalyst, Exilus and Arcane optimization, Initial conditional state, and up to three Forma. Targets used the script's Grineer or Corpus faction presets, without a custom target profile. Each row returned the same build in all five runs, and every build passed capacity, incompatibility, unique-mod, and Forma-limit checks. Timings are optimizer-core Node measurements; they do not represent a browser Worker or device-independent performance.
+
+| Weapon / selected attack | Median | Max-of-five p95 | Expected TTK | Forma | Legal |
+|---|---:|---:|---:|---:|---|
+| Braton Prime | 3.254 s | 3.580 s | 1.593 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | 2.921 s | 3.104 s | 6.842 s | 2 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | 2.772 s | 2.857 s | 2.490 s | 3 | Yes |
+| Laetum | 3.357 s | 3.515 s | 0.160 s | 2 | Yes |
+| Cinta | 2.766 s | 2.884 s | 1.059 s | 3 | Yes |
+| Kuva Hek | 2.358 s | 2.489 s | 0.288 s | 1 | Yes |
+| Torid | 3.664 s | 3.786 s | 1.000 s | 3 | Yes |
+| Broken War | 2.767 s | 2.932 s | 4.000 s | 2 | Yes |
+| Corvas Prime | 1.293 s | 1.298 s | 0.263 s | 3 | Yes |
+| Verglas Prime | 3.184 s | 3.248 s | 1.316 s | 3 | Yes |
+| Epitaph / Charged Shot | 3.220 s | 3.272 s | 0.000 s | 3 | Yes |
+| Nataruk / Perfect Shot | 2.352 s | 2.361 s | 1.000 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | 2.202 s | 2.274 s | 0.806 s | 3 | Yes |
+
+The per-case max-of-five p95 observations range from 1.298 to 3.786 s. A TTK of 0.000 s means the expected encounter kills on its first attack, whose start is the timeline origin. The melee rows use the existing attack-time proxies and are not stance-sequence validations. This is broader latency and legality evidence for the objective, not a quality ranking against exhaustive full-catalog optima or Underframe.
+
 ## Current full 20-case Node refresh with energy-scaled Arcane coverage (2026-11-12)
 
 The full-width harness ran five repetitions per scenario (100 optimizer calls) after the Primary Overcharge implementation. It includes the 19-case weapon/attack corpus plus Braton Prime with Primary Overcharge optimization supplied 1,000 Max Energy and 100% current Energy. Every returned build passed capacity, unique-name, incompatibility-group, and three-Forma checks. Per-case medians ranged from 0.911 to 2.935 seconds; max-of-five p95 observations ranged from 0.924 to 2.967 seconds. The energy-gated Braton case measured 2.363 seconds median / 2.402 seconds max-of-five p95 and returned a legal three-Forma result.
@@ -31,6 +63,7 @@ The harness's shared assumptions remain MR 30, max-rank catalog mods, Catalyst, 
 | Nukor / Normal Attack | 2.576 s | 2.605 s | 3 | Yes |
 | Nataruk / Perfect Shot | 2.138 s | 2.173 s | 1 | Yes |
 | Gram Prime / Heavy Slam Attack | 1.789 s | 1.816 s | 3 | Yes |
+
 | Braton Prime / Primary Overcharge at 1,000 / 100% Energy | 2.363 s | 2.402 s | 3 | Yes |
 
 A one-run Braton-only `--verify-arcane-selection` replay selected no Arcane when energy inputs were missing and selected rank-5 Primary Overcharge with the explicit energy inputs. The verifier found no higher-scoring available Arcane rank for either returned fixed mod set. This is conditional-on-build rank validation, not joint/global optimality evidence.
@@ -100,6 +133,19 @@ The Arcane now uses explicit Warframe Max Energy and current-Energy percentage i
 The Underframe page showed Primary Overcharge at 350/350. To replay that cap in Tenno-Hub, both candidates received rank-5 Primary Overcharge at 1,000 Max Energy and 100% current Energy (350% additional multishot). With the same fully stacked mod conditional, target, and three-Forma limit, Tenno-Hub re-optimized to a legal 60/60 build. Reassigning the exact Underframe list fit 59/60 with three Forma. The Tenno-Hub fast proxy scored its build 487,299.11 and the captured Underframe list 180,414.79, while the finite expected encounter estimated 0.824 s and 0.769 s TTK. Underframe's native Luck Average was 105,867 DPS / 0.80 s TTK; the common model estimated 109,013 DPS / 0.769 s for that list under this cap-equivalent assumption. The close native/common result is a narrow Braton check; the proxy still ranks the lists differently from expected TTK, so this is not general optimizer-parity evidence.
 
 Port 80 verified 1,000 Max Energy and 100% current Energy add 350.0% multishot, 89% current Energy removes the bonus, and Optimize Arcane selects rank-5 Primary Overcharge after the selected card is cleared. Reload restored the empty planner. `npx tsx scripts/comparePlannerBuilds.ts --fresh-underframe --fully-stacked --reoptimize --primary-overcharge` reproduces the cap-equivalent common replay. The comparison treats Underframe's 350/350 slider as the cap and maps it to 1,000 Max Energy / 100% current Energy; that input mapping is an explicit assumption, not a captured energy value.
+
+### Expected TTK objective matchup refresh (2026-11-12)
+
+Command: `npx tsx scripts/comparePlannerBuilds.ts --fresh-underframe --fully-stacked --reoptimize --primary-overcharge --goal=timeToKill`
+
+The same Braton Prime Normal Attack, level-100 Heavy Gunner pools (83,818 Health / 2,700 Armor / no Shields or Overguard), fully stacked conditionals, and cap-equivalent rank-5 Primary Overcharge were re-evaluated under the finite Expected TTK objective. Tenno-Hub selected Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, Primed Bane of Grineer R10, Spectral Serration R10, Galvanized Aptitude R10, Vile Acceleration R5, and Bladed Rounds R5. It fits 60/60 with three Forma. The captured Underframe list fits 59/60 after polarity reassignment and also uses three Forma.
+
+| Fixed build scored by Tenno-Hub's common finite encounter | Fast screening proxy | Expected TTK | Attacks | Direct damage | Status damage | Capacity / Forma |
+|---|---:|---:|---:|---:|---:|---|
+| Tenno-Hub Expected TTK optimizer | 320,176.07 | 0.824 s | 16 | 83,818 | 0 | 60/60, 3 |
+| Captured Underframe Auto Build | 131,417.46 | 0.769 s | 15 | 83,818 | 0 | 59/60, 3 |
+
+The Underframe list kills about 7.1% sooner in this common model, even though the fast proxy ranks Tenno-Hub much higher. Both finite encounters happen to deal only direct damage in this scenario; the comparison does not validate stochastic proc histories or random TTK distributions. Underframe's own captured five-second stochastic sample showed 105,867 DPS and 0.80 s TTK, while the common expected model estimates that fixed list at 109,013 DPS and 0.769 s. This is one configuration and remains evidence against a completion claim: the Expected TTK objective has not yet demonstrated parity with the captured competitor winner on this fixture, and no broad winner corpus is available.
 
 ## Prior full 18-case Node refresh (2026-11-12)
 
@@ -888,3 +934,94 @@ The armor-dependent Primary Bulwark effect was exercised on the port-80 planner.
 | Gram Prime / Heavy Slam Attack | Burst / Grineer | 1.793 s | 1.814 s | 3 | Yes |
 
 Observed medians ranged from 0.951–2.945 s; max-of-five p95 observations ranged from 0.964–3.052 s. This desktop Node-core run does not measure packaged Worker initialization, cold starts, mobile devices, finite encounter latency, or builds outside this 16-case corpus. It does not establish global optimality or Underframe winner parity. Current release checks pass at 545 tests / 48 files, production build, `validate:sources`, focused ESLint, TypeScript (`tsc -b` via build), and CRLF-aware diff check. The production catalog-independent Worker is 59,717 bytes; the existing large application-chunk warning remains.
+## Matched Braton Prime Underframe comparison and 33-scenario refresh (2026-11-12)
+
+The latest port-80 Underframe Auto Build capture used Braton Prime / Normal Attack against Grineer with 83,818 Health, 2,700 Armor, no Shields or Overguard, Fully stacked supported mod conditionals, and Primary Overcharge R5 mapped to 1,000 Max Energy / 100% current energy. Underframe's native five-second luck-averaged sample showed 5,492 raw + 1 DoT damage per shot, 105,867 DPS, and 0.80 s TTK. That candidate was 78/60 capacity with zero Forma and is therefore illegal under Tenno-Hub's capacity rules.
+
+Reassigning the captured eight-mod list to Tenno-Hub used 59/60 capacity and three Forma. The optimizer's legal Braton list also used 59/60 and three Forma. With both fixed lists passed through the same Tenno-Hub Expected TTK model and identical target/conditional/arcane assumptions, the Underframe list modeled 0.7691 s TTK and the Tenno-Hub list 0.6593 s, about 14.3% faster. The optimizer list was Malignant Force R3, High Voltage R3, Thermite Rounds R3, Galvanized Scope R10, Spectral Serration R10, Galvanized Aptitude R10, Vile Acceleration R5, and Bladed Rounds R5. Both use Primary Overcharge R5 at its 350% multishot cap. Underframe's native luck-average result is a different stochastic calculation and should not be compared numerically to this expected encounter output.
+
+This capture also revealed that Expected TTK refinement could miss an elemental replacement because it appended replacement mods and thereby changed the source-slot element order. The optimizer now replaces mods in their original slot, retains unique elemental transitions/output families in its finite refinement shortlist, and exposes the same detailed encounter evaluator to the comparison script. A regression confirms a High Voltage candidate survives proxy pruning and that the optimizer's displayed finite TTK matches the shared evaluator. This improves a directly observed search miss, but the shortlist remains heuristic rather than a full-catalog joint optimum proof.
+
+A follow-up substitution audit enumerated every legal one-, two-, three-, and four-mod swap between the optimizer's four unique mods and the Underframe candidate's four unique mods (69 total combinations). None beat the Tenno-Hub baseline of 0.6593 s under the common Expected TTK model. The best one-mod swap tied at 0.6593 s (Bladed Rounds to Vital Sense); the best two-mod result was 0.7142 s, and the exact Underframe list modeled 0.7691 s. This closes the captured candidate neighborhood only; it does not search arbitrary catalog mods or prove global optimality.
+
+The latest full-width desktop Node benchmark covered 33 scenarios × five repetitions (165 optimizations). All returned builds passed capacity and three-Forma validation. Rounded medians ranged approximately 0.98–3.30 s; max-of-five p95 observations ranged approximately 1.00–3.56 s. These are coarse desktop Node observations, not browser Worker, production bundle, cold-start, or mobile measurements. The production catalog-independent Worker is 87,096 bytes. Release checks pass at 553 tests / 48 files, production build, `validate:sources`, focused ESLint, and CRLF-aware diff checks. A final port-80 UI recheck was blocked by an unresponsive welcome overlay; see the matching entry in `BUILD_PLANNER_OVERHAUL.md`.
+
+A separate one-run Arcane audit evaluated every eligible Arcane rank against each returned build's finite Expected TTK result across the 13-case TTK corpus. All 13 selected ranks tied the best conditional Arcane option for their fixed mod list, with zero modeled gap. The audit time is excluded from optimizer latency, uses the corpus's Initial conditional state, and does not test Arcane-mod joint alternatives or prove global selection quality.
+
+## Matched Underframe replay of the legal Tenno-Hub build (2026-11-12)
+
+The earlier port-80 welcome-overlay issue was resolved in Codex's in-app browser. A fresh Braton Prime Expected TTK run on the port-80 development server returned a legal four-mod build at 30/30 capacity. Its explanation showed a 4.21 s expected encounter on the Balanced synthetic target and the optimizer's bounded-search limits. Reset and reload restored the empty planner.
+
+For the native competitor run, the exact legal Tenno-Hub list was entered in the existing Underframe `Braton Prime benchmark (Copy)` QA build: Malignant Force R3, High Voltage R3, Thermite Rounds R3, Galvanized Scope R10, Spectral Serration R10, Galvanized Aptitude R10, Vile Acceleration R5, and Bladed Rounds R5. Underframe showed 1/60 capacity remaining and three Forma. The target was Grineer level 145 with 83,818 Health, 2,700 Armor, no Shields, and no Overguard. Supported conditionals were full: Galvanized Scope 5/5, Galvanized Aptitude 2/2, Bladed Rounds enabled, and Primary Overcharge 350/350. The five-second Luck Average returned 6,343 raw + 0 DoT damage per shot, 123,677 Average DPS, and 0.68 s TTK.
+
+Tenno-Hub's finite expected model on the same mod list and target measured 127,137.94 DPS and 0.6593 s TTK. Relative to those values, Underframe's single native run was about 2.7% lower in DPS and 3.1% slower in TTK. This is a close matched result for one fixture; Luck Average and Tenno-Hub's expected finite encounter are different simulators. It does not establish general build parity. After measurement, the saved Underframe QA copy was restored and reload-verified to its original eight mods/ranks, three Forma, and Primary Bulwark 500/500.
+
+The production build was rerun for this follow-up and passed (`tsc -b` plus Vite); the production catalog-independent Worker is 89,063 bytes. The existing large-chunk warning remains. Vite preview on port 4173 timed out in the Codex in-app browser, so the built Worker asset was subsequently measured through a temporary QA page served from the reachable port-80 dev host.
+
+## Expected TTK refinement, Arcane audit, and metric consistency (2026-11-12)
+
+For Expected TTK, the optimizer skips repeated proxy-only refinement after beam search. It evaluates up to 12 effect-diverse legal beam finalists with the finite encounter model, then tests up to two passes of up to 24 legal one-mod replacements. The TTK comparator prefers a kill within 600 seconds, minimizes kill time, and uses finite encounter DPS only if both candidates reach the safety cap. A candidate already killing at the first attack's 0-second origin short-circuits further local refinement.
+
+When ownership is unrestricted, Arcane selection scores every parsed rank of each eligible candidate against the finite encounter on the final mod list. If inventory filtering is active, the selected Arcane stays at the one highest owned rank recorded by the current inventory model; lower ranks are not assumed to be owned. If the Arcane changes after mod search, one legal finite-encounter mod pass runs and the Arcane is rechecked. The independent fixed-list audit checks every rank. On the 13-case corpus below, each of five runs matched the audited best Arcane for its returned mod list with zero modeled gap. This is conditional-on-build evidence, not joint Arcane/mod or global optimality.
+
+The full filtered-catalog corpus used MR 30, max-rank mods, Catalyst, Exilus and Arcane optimization, Initial conditional state, faction presets, and up to three Forma. It ran five repetitions per case. Every output was stable across repeats and passed capacity, uniqueness, incompatibility, and Forma validation. Timings exclude the independent all-rank audit, are Node-core desktop measurements, and are not production Worker or device-independent latency.
+
+| Weapon / selected attack | Median | Max-of-five p95 | Expected TTK | Forma | Legal |
+|---|---:|---:|---:|---:|---|
+| Braton Prime / Normal Attack | 1.570 s | 1.820 s | 1.593 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | 1.407 s | 1.484 s | 6.842 s | 2 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | 1.521 s | 1.617 s | 2.490 s | 3 | Yes |
+| Laetum / Normal Attack | 1.798 s | 1.883 s | 0.160 s | 2 | Yes |
+| Cinta / Quick Shot | 1.672 s | 1.733 s | 1.059 s | 3 | Yes |
+| Kuva Hek / Normal Attack | 1.011 s | 1.059 s | 0.329 s | 1 | Yes |
+| Torid / Grenade Impact | 1.703 s | 1.759 s | 1.333 s | 3 | Yes |
+| Broken War / Normal Attack | 1.102 s | 1.119 s | 4.000 s | 2 | Yes |
+| Corvas Prime / Uncharged Shot | 0.507 s | 0.545 s | 0.263 s | 3 | Yes |
+| Verglas Prime / Normal Attack | 1.852 s | 1.934 s | 1.447 s | 3 | Yes |
+| Epitaph / Charged Shot | 2.008 s | 2.107 s | 0.000 s | 3 | Yes |
+| Nataruk / Perfect Shot | 1.385 s | 1.479 s | 1.000 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | 1.444 s | 1.516 s | 0.806 s | 3 | Yes |
+
+Across the cases, medians ranged from 0.507 to 2.008 seconds, and max-of-five p95 observations ranged from 0.545 to 2.107 seconds. All 65 outputs were stable and legal, and the independent all-rank audit found zero conditional Arcane gap on each returned mod list. Epitaph's 0-second first-attack kill evaluated exactly one finite candidate per run. These five-run observations stay below the sampled 5-second desktop Node target, but are not a population-tail estimate; melee timing rows still use the documented attack-time proxy.
+
+Port-80 in-app-browser QA enabled Expected TTK and Optimize Arcane on Braton Prime. The optimizer returned a legal 30/30 four-mod build with Primary Dexterity R5. QA exposed that the live selected-build calculation omitted an optimized Arcane's parsed trigger effects, although the optimizer and “Why This Build” applied its Realistic-state estimate. The live stats, saved-build comparison, optimizer math export, and explanation now all include the selected Arcane's modeled conditional effects. The selected-build encounter and “Why This Build” both showed 1.94 seconds / 10,839.4 expected damage per second. Reset/reload restored no selected weapon and no saved test build. The current production Worker is 88,971 bytes; Vite still reports the existing large lazy-chunk warning.
+
+### Production Worker browser sample (2026-11-13)
+
+The in-app browser loaded the actual 89,063-byte `dist/assets/buildOptimizer.worker-CsfukhLr.js` bundle through the port-80 dev host and sent the same Braton Prime / Normal Attack / Expected TTK request six times. The production Worker returned the same eight-mod list each time, a capacity-valid result, and 1.5932 s modeled TTK. The first request after Worker construction took 1,155 ms; five subsequent requests took 973, 949, 915, 913, and 903 ms (915 ms median, 973 ms maximum-of-five p95 observation). The first request includes Worker startup and computation but not a cold app/page load. These are single-desktop browser timings with catalog inputs supplied by the dev host, not mobile, population-tail, or production-server measurements.
+
+## Perigale Prime burst reload follow-up (2026-11-13)
+
+The optimizer benchmark added Perigale Prime / Normal Attack / Expected TTK against the Grineer preset, using MR 30, max-rank mods, Catalyst, up to three Forma, and the current filtered mod catalog. Five repeated runs returned the same legal build: Heavy Caliber R10, Primed Bane of Grineer R10, Vital Sense R5, Malignant Force R3, Primed Cryo Rounds R10, Hellfire R5, Split Chamber R5, and Point Strike R5. Each used three Forma, 58/60 capacity, and evaluated 61 finite encounter candidates. All modeled a 0.62-second kill before the first magazine ended.
+
+| Weapon / attack | Objective / target | Median optimizer time | Max-of-five p95 observation | Modeled TTK | Forma | Legal |
+|---|---|---:|---:|---:|---:|---|
+| Perigale Prime / Normal Attack | Expected TTK / Grineer | 1.736 s | 4.451 s | 0.620 s | 3 | Yes |
+
+This benchmark verifies a stable, capacity-legal optimizer result, but not reload behavior because the target dies within the first magazine. Separate catalog-backed encounter regressions cross the first reload: Perigale Prime's 16 ammo-consuming shots are delivered as four-shot bursts, then the next magazine begins after its 3-second reload. Both direct-sequence and finite-encounter tests agree at 5.48 seconds for their calibrated damage fixture; a separate partial-burst case checks the final incomplete burst. The max-of-five is a coarse five-sample observation, not a population p95. Current release checks pass at 561 tests / 48 files, production build, `validate:sources`, focused ESLint, and CRLF-aware diff check. The production optimizer Worker is 89,080 bytes. The existing large lazy-chunk warning remains.
+
+## Five-path Expected TTK exhaustive oracle (2026-11-13)
+
+The optimizer's finite Expected TTK result was compared with exhaustive legal builds on five current catalog attacks: Perigale Prime Normal Attack, Cedo Glaive Radial Attack, Phantasma Prime Plasma Bomb Explosion, Acrid Normal Attack, and Gram Prime Heavy Slam Attack. Each fixture used a four-mod candidate pool, maximum ranks, three mod slots, the scenario's fixed target pools, current compatibility/incompatibility rules, actual slot polarities, capacity validation, and no Forma. The oracle enumerated every unique ordering and subset up to three mods, then evaluated legal builds with the same finite Expected TTK evaluator used for optimizer scoring.
+
+| Weapon / attack | Mechanic exercised | Search result | Build legality |
+|---|---|---|---|
+| Perigale Prime / Normal Attack | Four-shot burst cadence | TTK and DPS tied exhaustive best | Capacity-valid, 0 Forma |
+| Cedo / Glaive Radial Attack | Radial attack/status mix | TTK and DPS tied exhaustive best | Capacity-valid, 0 Forma |
+| Phantasma Prime / Plasma Bomb Explosion | Charged alternate fire | TTK and DPS tied exhaustive best | Capacity-valid, 0 Forma |
+| Acrid / Normal Attack | Forced Toxin proc | TTK and DPS tied exhaustive best | Capacity-valid, 0 Forma |
+| Gram Prime / Heavy Slam Attack | Combo-sensitive heavy melee | TTK and DPS tied exhaustive best | Capacity-valid, 0 Forma |
+
+This checks search quality for five fixed, bounded candidate pools, not accuracy of the underlying evaluator or full-catalog/global optimality. It does not enumerate all ranks, joint Arcane/mod choices, or Incarnon evolutions. The focused oracle passed in 520 ms of Vitest test time; the full suite passes 561 tests across 48 files.
+
+Remaining work includes objective-equivalent Underframe comparisons beyond the captured Braton/Torid fixtures, broader weapon/status and stochastic encounter histories, full-catalog/joint-mod-and-Arcane optimality evidence, cold app startup, mobile, and cross-device measurements.
+
+## PC Hotfix 44.1.3 data refresh and full-width benchmark (2026-11-13)
+
+The generated Incarnon Wiki snapshot still contained the old Dera/Boltor Crimson Overture values. The runtime catalog now uses Hotfix 44.1.3's current +25% Ammo Efficiency per kill stack, 5-second duration, and three-stack cap for Dera, Dera Vandal, Boltor, Boltor Prime, and Telos Boltor. The Dera/Boltor Ammo Efficiency then follows the current 75% ordinary cap. Variant-specific static base damage (+8 Dera, +6 Dera Vandal, and +12 base Boltor) is modeled; the Boltor's separate +2-per-kill base-damage effect remains disclosed as unsupported. Tests verify current labels, timed conditional effects, and the right static damage for all five variants. Custom Riven imports/edits use the official shared 1.20 factor, legacy custom Riven records normalize from their recorded factor, and the browser Riven editor exposes that shared-factor rule.
+
+The refreshed five-run desktop Node corpus ran all 34 cases (170 optimizer runs) under Initial conditionals, MR 30, a Catalyst, max-rank catalog mods, Exilus and Arcane optimization, and at most three Forma. Every case returned a capacity-legal build within the Forma limit. Median latency ranged from 0.775 to 4.546 seconds; max-of-five p95 observations ranged from 0.816 to 5.298 seconds. Only the Epitaph Charged Shot Burst case exceeded five seconds (5.298 seconds). These are coarse Windows x64 Node 22.16.0 timings from five repetitions, not a population tail or packaged/cold/mobile Worker measurement.
+
+An isolated five-run repeat of Epitaph Charged Shot Burst returned the same legal build and score, with a 4.845-second median and 5.570-second maximum observation. This confirms that the five-second exceedance is reproducible on that scenario; no narrower beam or candidate set was applied because prior experiments reduced build quality on other weapons.
+
+The final regression suite passes 567 tests across 49 files. Production build, source validation, focused ESLint for the changed Riven/Incarnon domain and ModBuilder paths, and CRLF-aware diff check pass. The catalog-independent production optimizer Worker is 89,657 bytes. A full-file ESLint run on `Mods.tsx` still reports six errors and one warning in other existing areas; Vite also retains the current large lazy-chunk warning.

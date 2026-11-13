@@ -206,7 +206,7 @@ export interface SavedBuildTargetConfig {
 }
 
 export interface SavedBuildPlannerConfig {
-    goal?: "burst" | "scaling";
+    goal?: "burst" | "scaling" | "timeToKill";
     conditionalMode?: "initial" | "realistic" | "fullyStacked" | "custom";
     externalConditionalStacks?: number;
     /** Distinct additional status types assumed active for Condition Overload (including Tau). */

@@ -1,20 +1,23 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The official patch index and Melee Combo page were checked on 2026-11-12;
- * broader mechanics pages and formulas were reviewed on 2026-11-10–11. Damage quantization follows the
+ * The official patch index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4
+ * were checked on 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11. Damage quantization follows the
  * current Damage/Calculation and Damage Quantization pages; encounter and weapon-
  * specific details that remain approximate are recorded rather than inferred.
  */
 export const DAMAGE_RULESET = Object.freeze({
     id: "damage-3.0",
-    lastVerified: "2026-11-12",
+    lastVerified: "2026-11-13",
     gameUpdate: "Update 36.0 onward; checked through Update 44.1.4.1",
     sources: Object.freeze({
         damage: "https://wiki.warframe.com/w/Damage/Calculation",
         quantization: "https://wiki.warframe.com/w/Damage_Quantization",
         meleeStance: "https://wiki.warframe.com/w/Stance_Mods",
         meleeCombo: "https://wiki.warframe.com/w/Melee_Combo",
+        amanataPressure: "https://wiki.warframe.com/w/Amanata_Pressure",
+        hotfix4414: "https://www.warframe.com/en/patch-notes/pc/44-1-4",
+        pcPatchIndex: "https://www.warframe.com/en/patch-notes/pc",
         heavyAttack: "https://wiki.warframe.com/w/Heavy_Attack",
         bloodRush: "https://wiki.warframe.com/w/Blood_Rush",
         weepingWounds: "https://wiki.warframe.com/w/Weeping_Wounds",
@@ -45,11 +48,12 @@ export const DAMAGE_RULESET = Object.freeze({
         "The current DoT path applies the documented binary32 tick accumulator and faction double-dip order; average crit seeds, forced-proc grouping, and encounter-time stack state remain approximations. The finite encounter models same-source Heat stack accumulation, shared tick cadence, duration refresh, and armor-strip ramp/recovery; simultaneous Electricity ticks share a pulse while retaining separate timers. Configured 0–20 same-profile neighbors receive scheduled Electricity/Gas tick damage through their own evolving pools, and Gas ticks continue after the host dies. Gas replacement at its ten-stack cap cancels/reduces the oldest cloud's pending tick damage. Neighbor status histories, positioning, chain geometry, and Gas radius growth are not modeled; cross-source Heat inheritance remains unsupported. Per-attack forced-proc counts are source-annotated for Glaive Prime and Pathocyst variants, but coverage across other weapons and melee stances remains incomplete. Blast records an expected pre-defense hit value H and applies each stack's max(1, 0.3H) payout to the afflicted target at expiry or cap. At cap and primary-target death it also applies the separate 3×sum(H) radial to configured Blast neighbors through their defenses. Optimizer crowd scoring uses configured Electric/Gas counts and estimates Blast cap-radial value with a Poisson arrival proxy; it does not score death-triggered Blast value or evolve neighbor pools.",
         "The finite encounter and direct-hit sequence start a 0.1s enemy Shield Gate after Shields reach zero: direct body hits send 5% of Health damage through, weakspot hits bypass the gate, and the selected slam/AoE mode blocks direct damage. Scheduled status damage remains ungated. Both estimates assume the user-selected hit mode applies to every event and do not regenerate enemy Shields; the one-hit calculation and optimizer score do not simulate the gate.",
         "Magnetic's forced Electricity proc is modeled on a Shield/Overguard break using the active mean-field Magnetic stacks, starting pool maximum, a six-second tick schedule, Status Damage and faction double-dips, and ordinary Electricity mods. Same-hit Magnetic application timing, shield regeneration/recharge, and random status timing are not represented.",
-        "Ordinary ammo-efficiency bonuses are additive to a 75% cap; the calculator uses accumulated fractional ammo for positive efficiency and ignores all such effects in transformed Incarnon form. Aiming effects use the documented 75% uptime assumption; airborne effects default inactive unless the user selects a fully stacked/custom conditional state because a general airborne uptime is not defined. Energized Munitions' multiplicative stacking, Infinite Ammo abilities, external ability state, and weapon-specific ammo exceptions are not modeled or telemetry-verified.",
+        "Ordinary Ammo Efficiency bonuses are additive to a 75% cap; the calculator uses accumulated fractional ammo for positive efficiency and ignores those bonuses in transformed Incarnon form. Hotfix 44.1.3 distinguishes sources of Infinite Ammo from capped Ammo Efficiency; weapon-specific Infinite Ammo triggers, including Perigale's Gale Force, are not modeled. Chamber-mod interactions while those Infinite Ammo effects are active are also unsupported. Aiming effects use the documented 75% uptime assumption; airborne effects default inactive unless the user selects a fully stacked/custom conditional state because a general airborne uptime is not defined. Energized Munitions' multiplicative stacking, Infinite Ammo abilities, external ability state, and other weapon-specific ammo exceptions are not modeled or telemetry-verified.",
         "Enemy level-scaling helpers model standard faction curves only; special boss, Steel Path, squad-size, and target-specific exceptions require explicit profiles.",
         "The optional standard Eximus target applies current Eximus base Health/Shield adjustments, standard armor level scaling, base 12 Overguard scaling, Radiation immunity while Overguard is active, and a four-stack Cold limit while Overguard remains. Blast retains its normal ten-stack detonation threshold. It does not model special-unit Eximus variants or evolving post-Overguard status state.",
         "The finite encounter applies Cold's three-second freeze at ten stacks and restores three residual stacks afterward. The Wiki does not specify the residual stacks' remaining timers, so they are assigned one fresh Cold duration; fractional mean-field applications approximate when the ten-stack threshold is crossed.",
         "Blood Rush and Weeping Wounds scale from their parsed bonus per combo tier above 1x. The user enters the assumed tier; Initial state derives it from Initial Combo mods and supported innate weapon passives. Standard weapons cap at 12x, Dex Nikana uses 11 points per tier and caps at 11x, and Venka Prime caps at 13x. Normal melee attacks do not receive the combo damage multiplier. Selected heavy-attack rows apply the active tier after Damage 3.0 channel quantization. Direct-hit TTK steps repeated Heavy Attacks through Heavy Attack Efficiency retention and restores Initial Combo at 40 points per second, capped at its starting Initial Combo value; combo-scaled critical chance is recomputed per tier. This direct-only path does not add combo from hits, model Tennokai, stance sequences, heavy-attack wind-up, or natural combo decay. DPS, the finite status encounter, and optimizer scoring still hold the selected starting tier across scored hits.",
+        "Amanata Pressure contributes one uniformly distributed expected proc across Impact, Puncture, Slash, Heat, Cold, Electricity, Toxin, Blast, Radiation, Gas, Magnetic, Viral, and Corrosive on selected heavy-attack rows at 8x combo or higher. Its combo threshold and one-proc distribution are modeled for the primary target. DPS, optimizer scoring, and finite status encounters keep that starting tier static across repeated hits; status histories on other enemies hit by the heavy slam are not evolved.",
         "An optional melee stance-average DPS formula accepts user-entered average combo damage multiplier and base combo length, but the catalog has no coverage-verified stance timing table. It excludes stance hit sequences/forced procs, combo generation and decay, target defenses, and status history; the optimizer's Burst/Sustained objectives remain attack-rate proxies for melee.",
     ]),
 });

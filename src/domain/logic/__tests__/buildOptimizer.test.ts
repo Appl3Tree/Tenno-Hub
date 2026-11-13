@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { getArcanesByWeaponCategory, getArcanesForWeapon } from "../../catalog/arcaneCatalog";
+import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
 import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
-import { assignModsToSlots, debugScoreBuild, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild } from "../buildOptimizer";
+import { assignModsToSlots, debugEvaluateExpectedEncounter, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
 import { calculateBuild } from "../damageCalc";
 import { quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
@@ -176,6 +177,163 @@ describe("build optimizer scoring", () => {
             warframeMaxEnergy: 1000,
             warframeEnergyPercent: 100,
         })?.multishotBonus).toBe(3.5);
+    });
+
+    it("applies selected Arcane proc effects through the configured conditional state", () => {
+        const primaryDexterity = getArcanesByWeaponCategory("Primary").find((arcane) => arcane.name === "Primary Dexterity");
+        expect(primaryDexterity).toBeTruthy();
+
+        const permanentEffect = getArcaneEffectAtRank(primaryDexterity!, 5);
+        const modeledEffect = getArcaneEffectAtRank(primaryDexterity!, 5, undefined, true);
+        expect(permanentEffect).toBeNull();
+        expect(modeledEffect?.conditionalEffects?.[0]?.trigger).toBe("onMeleeKill");
+
+        const weapon = makeWeapon();
+        const initial = calculateBuild(weapon, [modeledEffect!], "", { conditionalState: { mode: "initial" } });
+        const realistic = calculateBuild(weapon, [modeledEffect!], "", { conditionalState: { mode: "realistic" } });
+
+        expect(initial.modded.totalDamageBonus).toBe(0);
+        expect(realistic.modded.totalDamageBonus).toBeGreaterThan(0);
+    });
+
+    it("selects Expected TTK arcanes by finite kill time instead of proxy DPS", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100, impact: 100, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 0,
+            fireRate: 1,
+            magazineSize: 1,
+            reloadTime: 1,
+        });
+        const makeArcane = (name: string, effect: Partial<ModEffect>): ArcaneEntry => ({
+            uniqueName: `/Test/Arcane/${name}`,
+            name,
+            rarity: "Common",
+            weaponType: "Primary",
+            maxRank: 0,
+            statsByRank: [""],
+            statsLabel: "",
+            baseBonus: "",
+            procBonus: "",
+            permanentEffectByRank: [effect],
+            optimizerEffectByRank: [effect],
+        });
+        const damageArcane = makeArcane("Damage Threshold", { damageBonus: 0.5 });
+        const fireRateArcane = makeArcane("Sustained Rate", { fireRateBonus: 5 });
+        const target = { health: 130, shields: 0, overguard: 0, armor: 0 };
+        const damageEffect = getArcaneEffectAtRank(damageArcane, 0, undefined, true)!;
+        const fireRateEffect = getArcaneEffectAtRank(fireRateArcane, 0, undefined, true)!;
+
+        const proxyDamage = debugScoreBuild(weapon, [], "timeToKill", "", damageEffect, target, { mode: "initial" });
+        const proxyFireRate = debugScoreBuild(weapon, [], "timeToKill", "", fireRateEffect, target, { mode: "initial" });
+        const exactDamage = debugEvaluateExpectedEncounter(weapon, [], "", target, { mode: "initial" }, damageEffect);
+        const exactFireRate = debugEvaluateExpectedEncounter(weapon, [], "", target, { mode: "initial" }, fireRateEffect);
+
+        expect(proxyFireRate).toBeGreaterThan(proxyDamage);
+        expect(exactDamage.timeToKillSeconds).not.toBeNull();
+        expect(exactFireRate.timeToKillSeconds).not.toBeNull();
+        expect(exactDamage.timeToKillSeconds!).toBeLessThan(exactFireRate.timeToKillSeconds!);
+
+        const result = optimizeBuild(weapon, [], "timeToKill", 0, {
+            targetFaction: "",
+            targetProfileOverride: target,
+            optimizeArcane: true,
+            arcaneCandidates: [fireRateArcane, damageArcane],
+            conditionalState: { mode: "initial" },
+        });
+
+        expect(result.arcane?.name).toBe("Damage Threshold");
+        expect(result.encounterTimeToKillSeconds).toBe(exactDamage.timeToKillSeconds);
+    });
+
+    it("checks every Arcane rank against Expected TTK when inventory is unrestricted", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100, impact: 100, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 0,
+            fireRate: 1,
+            magazineSize: 1,
+            reloadTime: 1,
+        });
+        const rankVariantArcane: ArcaneEntry = {
+            uniqueName: "/Test/Arcane/RankVariant",
+            name: "Rank Variant",
+            rarity: "Common",
+            weaponType: "Primary",
+            maxRank: 1,
+            statsByRank: ["damage", "fire rate"],
+            statsLabel: "",
+            baseBonus: "",
+            procBonus: "",
+            permanentEffectByRank: [{ damageBonus: 0.5 }, { fireRateBonus: 5 }],
+            optimizerEffectByRank: [{ damageBonus: 0.5 }, { fireRateBonus: 5 }],
+        };
+        const target = { health: 130, shields: 0, overguard: 0, armor: 0 };
+        const result = optimizeBuild(weapon, [], "timeToKill", 0, {
+            targetFaction: "",
+            targetProfileOverride: target,
+            optimizeArcane: true,
+            arcaneCandidates: [rankVariantArcane],
+            conditionalState: { mode: "initial" },
+        });
+
+        expect(result.arcane?.name).toBe("Rank Variant");
+        expect(result.arcaneRank).toBe(0);
+        expect(result.encounterTimeToKillSeconds).toBe(0);
+
+        const ownedRankEffect = getArcaneEffectAtRank(rankVariantArcane, 1, undefined, true)!;
+        const ownedRankEncounter = debugEvaluateExpectedEncounter(
+            weapon,
+            [],
+            "",
+            target,
+            { mode: "initial" },
+            ownedRankEffect,
+        );
+        const ownedRankResult = optimizeBuild(weapon, [], "timeToKill", 0, {
+            targetFaction: "",
+            targetProfileOverride: target,
+            optimizeArcane: true,
+            arcaneCandidates: [rankVariantArcane],
+            ownedArcaneUniqueNames: new Set([rankVariantArcane.uniqueName]),
+            ownedArcaneMaxRankByUniqueName: { [rankVariantArcane.uniqueName]: 1 },
+            conditionalState: { mode: "initial" },
+        });
+
+        expect(ownedRankResult.arcaneRank).toBe(1);
+        expect(ownedRankResult.encounterTimeToKillSeconds).toBe(ownedRankEncounter.timeToKillSeconds);
+    });
+
+    it("stops Expected TTK refinement when the build already kills on its first attack", () => {
+        const result = optimizeBuild(makeWeapon({
+            critChance: 0,
+            statusChance: 0,
+            fireRate: 1,
+            magazineSize: 1,
+            reloadTime: 1,
+        }), [], "timeToKill", 0, {
+            targetFaction: "",
+            targetProfileOverride: { health: 1, shields: 0, overguard: 0, armor: 0 },
+            optimizeArcane: true,
+            arcaneCandidates: getArcanesByWeaponCategory("Primary"),
+            conditionalState: { mode: "initial" },
+        });
+
+        expect(result.encounterTimeToKillSeconds).toBe(0);
+        expect(result.encounterCandidatesEvaluated).toBe(1);
+        expect(result.arcane).toBeNull();
     });
 
     it("leaves an arcane slot empty when every candidate has zero objective value", () => {
@@ -825,6 +983,10 @@ describe("build optimizer scoring", () => {
         expect(paracyst?.attacks[1]?.trigger).toBe("Charge");
         expect(paracyst?.attacks[1]?.chargeTime).toBe(0.25);
         expect(sepulcrum?.attacks[2]?.trigger).toBe("Special");
+
+        const perigalePrimeStats = calculateBuild(withSelectedAttack(perigalePrime!, 0), []).modded;
+        expect(perigalePrimeStats.magazineSize).toBe(16);
+        expect(perigalePrimeStats.shotsPerMag).toBe(16);
     });
 
     it("has burst count and delay metadata for every catalog attack marked Burst", () => {
@@ -841,6 +1003,435 @@ describe("build optimizer scoring", () => {
         expect(normalizeOptimizeGoal("crit")).toBe("burst");
         expect(normalizeOptimizeGoal("status")).toBe("burst");
         expect(normalizeOptimizeGoal("scaling")).toBe("scaling");
+        expect(normalizeOptimizeGoal("timeToKill")).toBe("timeToKill");
+        expect(rankExpectedEncounter(0.8, 100)).toBeGreaterThan(rankExpectedEncounter(0.9, 1000));
+        expect(rankExpectedEncounter(590, 1)).toBeGreaterThan(rankExpectedEncounter(null, 100000));
+    });
+
+    it("ranks Expected TTK builds with the same finite encounter that reports their result", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const wantedNames = new Set([
+            "Serration",
+            "Split Chamber",
+            "Vital Sense",
+            "Hellfire",
+            "Hunter Munitions",
+            "Malignant Force",
+        ]);
+        const candidates = getModsForWeapon(weapon!).filter((mod) =>
+            wantedNames.has(mod.name) && !/\/Beginner\//i.test(mod.uniqueName),
+        );
+        expect(new Set(candidates.map((mod) => mod.name))).toEqual(wantedNames);
+
+        const target = {
+            health: 30000,
+            shields: 12000,
+            overguard: 0,
+            armor: 1200,
+            toxinBypassesShields: true,
+        };
+        const capacityConfig = {
+            weaponRank: 30,
+            hasCatalyst: true,
+            masteryRank: 22,
+            canOverLevel: weapon!.canOverLevel,
+        };
+        const options = {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState: { mode: "realistic" as const },
+            capacityConfig,
+            slotPolarities: weapon!.polarities,
+            defaultSlotPolarities: weapon!.polarities,
+            allowForma: true,
+            maxFormaCount: 2,
+        };
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 4, options);
+        const screeningResult = optimizeBuild(weapon!, candidates, "scaling", 4, options);
+        const effects = result.slots.map((mod, index) => {
+            if (!mod) return null;
+            const rank = result.slotRanks[index] ?? mod.fusionLimit;
+            return mod.effectsByRank[rank] ?? mod.effect;
+        });
+        const independentlyScored = debugScoreExpectedEncounter(
+            weapon!,
+            effects,
+            "Grineer",
+            target,
+            options.conditionalState,
+        );
+        const detailedEncounter = debugEvaluateExpectedEncounter(
+            weapon!,
+            effects,
+            "Grineer",
+            target,
+            options.conditionalState,
+        );
+        const screeningEffects = screeningResult.slots.map((mod, index) => {
+            if (!mod) return null;
+            const rank = screeningResult.slotRanks[index] ?? mod.fusionLimit;
+            return mod.effectsByRank[rank] ?? mod.effect;
+        });
+        const screeningEncounter = debugScoreExpectedEncounter(
+            weapon!,
+            screeningEffects,
+            "Grineer",
+            target,
+            options.conditionalState,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.encounterScore).toBeCloseTo(independentlyScored.damagePerSecond, 8);
+        expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+        expect(detailedEncounter.damagePerSecond).toBe(independentlyScored.damagePerSecond);
+        expect(detailedEncounter.encounter?.damagePerSecond).toBe(independentlyScored.damagePerSecond);
+        expect(detailedEncounter.encounter?.timeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+        expect(result.encounterCandidatesEvaluated).toBeGreaterThan(0);
+        expect(result.slots.filter(Boolean)).toHaveLength(4);
+        expect(result.encounterTimeToKillSeconds).not.toBeNull();
+        expect(result.encounterTimeToKillSeconds!).toBeLessThanOrEqual(screeningEncounter.timeToKillSeconds!);
+    });
+
+    it("retains elemental alternatives that a sustained-damage proxy would prune", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const trackedNames = new Set([
+            "Malignant Force",
+            "Rime Rounds",
+            "Thermite Rounds",
+            "Primed Bane Of Grineer",
+            "Spectral Serration",
+            "Galvanized Aptitude",
+            "Vile Acceleration",
+            "Bladed Rounds",
+            "High Voltage",
+            "Galvanized Scope",
+        ].map((name) => name.toLowerCase()));
+        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!)).filter((mod) =>
+            trackedNames.has(mod.name.toLowerCase()),
+        );
+        expect(new Set(candidates.map((mod) => mod.name.toLowerCase()))).toEqual(trackedNames);
+
+        const arcane = getArcanesForWeapon(weapon!).find((entry) => entry.name === "Primary Overcharge");
+        expect(arcane).toBeTruthy();
+        const target = {
+            health: 83_818,
+            shields: 0,
+            overguard: 0,
+            armor: 2_700,
+            toxinBypassesShields: true,
+        };
+        const conditionalState = { mode: "fullyStacked" as const };
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 8, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig: {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            },
+            slotPolarities: weapon!.polarities,
+            defaultSlotPolarities: weapon!.polarities,
+            allowForma: true,
+            maxFormaCount: 3,
+            optimizeArcane: true,
+            arcaneCandidates: [arcane!],
+            warframeMaxEnergy: 1_000,
+            warframeEnergyPercent: 100,
+            optimizeExilus: false,
+            buildForAttack: weapon!.attacks[0] ?? null,
+        });
+        const selectedNames = result.slots.flatMap((mod) => mod ? [mod.name] : []);
+        const effects = result.slots.flatMap((mod, index) => mod
+            ? [mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect]
+            : []);
+        const arcaneEffect = result.arcane
+            ? getArcaneEffectAtRank(result.arcane, result.arcaneRank, undefined, false, {
+                warframeMaxEnergy: 1_000,
+                warframeEnergyPercent: 100,
+            })
+            : null;
+        const independentlyScored = debugScoreExpectedEncounter(
+            withSelectedAttack(weapon!, 0),
+            effects,
+            "Grineer",
+            target,
+            conditionalState,
+            arcaneEffect,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
+        expect(selectedNames).toContain("High Voltage");
+        expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+        expect(result.encounterTimeToKillSeconds).toBeLessThan(0.77);
+    });
+
+    it("matches the exhaustive finite-encounter optimum for a five-mod legal subset", () => {
+        const weapon = makeWeapon({
+            fireRate: 4,
+            magazineSize: 40,
+            reloadTime: 1.5,
+        });
+        const definitions = [
+            ["Damage", { ...emptyEffect(), damageBonus: 0.4 }],
+            ["Multishot", { ...emptyEffect(), multishotBonus: 0.6 }],
+            ["Critical", { ...emptyEffect(), critChanceBonus: 0.5 }],
+            ["Heat", { ...emptyEffect(), heatBonus: 0.7, statusChanceBonus: 0.2 }],
+            ["Viral", { ...emptyEffect(), coldBonus: 0.4, toxinBonus: 0.4, statusChanceBonus: 0.5 }],
+        ] as const;
+        const candidates: ModEntry[] = definitions.map(([name, effect]) => ({
+            uniqueName: `/Test/ExpectedTTK/${name}`,
+            path: `/Test/ExpectedTTK/${name}`,
+            name,
+            compatBucket: "Rifle",
+            rawCompatName: "Rifle",
+            polarity: "",
+            rarity: "Common",
+            drain: 1,
+            baseDrain: 1,
+            fusionLimit: 0,
+            statsLabel: "",
+            statsTextByRank: [""],
+            effectsByRank: [effect],
+            effect,
+            hasDamageEffect: true,
+            isAura: false,
+            isExilus: false,
+            isStance: false,
+            incompatibilityGroup: name,
+            compatibilityTags: [],
+            incompatibilityTags: [],
+        }));
+        const target = {
+            health: 30000,
+            shields: 80000,
+            overguard: 0,
+            armor: 2400,
+            toxinBypassesShields: true,
+        };
+        const targetFaction = "Grineer";
+        const betterEncounter = (
+            candidate: ReturnType<typeof debugScoreExpectedEncounter>,
+            incumbent: ReturnType<typeof debugScoreExpectedEncounter>,
+        ) => candidate.timeToKillSeconds !== null
+            ? incumbent.timeToKillSeconds === null || candidate.timeToKillSeconds < incumbent.timeToKillSeconds - 1e-9
+            : incumbent.timeToKillSeconds === null && candidate.damagePerSecond > incumbent.damagePerSecond + 1e-9;
+
+        let exhaustiveBest = debugScoreExpectedEncounter(weapon, [], targetFaction, target);
+        const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+            const score = debugScoreExpectedEncounter(
+                weapon,
+                ordered.map((mod) => mod.effect),
+                targetFaction,
+                target,
+            );
+            if (betterEncounter(score, exhaustiveBest)) exhaustiveBest = score;
+            if (ordered.length === 3) return;
+            for (const candidate of remaining) {
+                enumerate(
+                    remaining.filter((entry) => entry !== candidate),
+                    [...ordered, candidate],
+                );
+            }
+        };
+        enumerate(candidates, []);
+
+        const capacityConfig = {
+            weaponRank: 30,
+            hasCatalyst: true,
+            masteryRank: 30,
+            canOverLevel: false,
+        };
+        const result = optimizeBuild(weapon, candidates, "timeToKill", 3, {
+            targetFaction,
+            targetProfileOverride: target,
+            capacityConfig,
+            slotPolarities: ["", "", ""],
+            defaultSlotPolarities: ["", "", ""],
+            allowForma: false,
+            optimizeExilus: false,
+            optimizeArcane: false,
+        });
+        const optimizedScore = debugScoreExpectedEncounter(
+            weapon,
+            result.slots.flatMap((mod, index) => mod ? [mod.effectsByRank[result.slotRanks[index]] ?? mod.effect] : []),
+            targetFaction,
+            target,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.filter(Boolean)).toHaveLength(3);
+        expect(optimizedScore.timeToKillSeconds).toBe(exhaustiveBest.timeToKillSeconds);
+        expect(optimizedScore.damagePerSecond).toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
+    });
+
+    it("matches exhaustive Expected TTK optima across five weapon attack types", { timeout: 60000 }, () => {
+        const scenarios = [
+            {
+                weaponName: "Perigale Prime",
+                targetFaction: "Grineer",
+                targetProfileOverride: { health: 50000, shields: 0, overguard: 0, armor: 1800 },
+                modNames: ["Serration", "Split Chamber", "Vital Sense", "Malignant Force"],
+            },
+            {
+                weaponName: "Cedo",
+                attackName: "Glaive Radial Attack",
+                targetFaction: "Grineer",
+                targetProfileOverride: {
+                    health: 22000,
+                    shields: 1500,
+                    overguard: 3500,
+                    armor: 1400,
+                    statusStackCaps: { cold: 4 },
+                },
+                modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast"],
+            },
+            {
+                weaponName: "Phantasma Prime",
+                attackName: "Plasma Bomb Explosion",
+                targetFaction: "Grineer",
+                targetProfileOverride: { health: 18000, shields: 0, overguard: 0, armor: 1300 },
+                modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast"],
+            },
+            {
+                weaponName: "Acrid",
+                attackName: "Normal Attack",
+                targetFaction: "Corpus",
+                targetProfileOverride: {
+                    health: 7200,
+                    shields: 10800,
+                    overguard: 0,
+                    armor: 0,
+                    toxinBypassesShields: true,
+                },
+                modNames: ["Hornet Strike", "Barrel Diffusion", "Galvanized Diffusion", "Pistol Pestilence"],
+            },
+            {
+                weaponName: "Gram Prime",
+                attackName: "Heavy Slam Attack",
+                targetFaction: "Grineer",
+                targetProfileOverride: {
+                    health: 28000,
+                    shields: 0,
+                    overguard: 2500,
+                    armor: 1100,
+                    statusStackCaps: { cold: 4 },
+                },
+                modNames: ["Primed Pressure Point", "Blood Rush", "Organ Shatter", "Condition Overload"],
+            },
+        ] as const;
+        const slotCount = 3;
+        const betterEncounter = (
+            candidate: ReturnType<typeof debugScoreExpectedEncounter>,
+            incumbent: ReturnType<typeof debugScoreExpectedEncounter>,
+        ) => candidate.timeToKillSeconds !== null
+            ? incumbent.timeToKillSeconds === null ||
+                candidate.timeToKillSeconds < incumbent.timeToKillSeconds - 1e-9 ||
+                (Math.abs(candidate.timeToKillSeconds - incumbent.timeToKillSeconds) <= 1e-9 &&
+                    candidate.damagePerSecond > incumbent.damagePerSecond + 1e-9)
+            : incumbent.timeToKillSeconds === null && candidate.damagePerSecond > incumbent.damagePerSecond + 1e-9;
+
+        for (const scenario of scenarios) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeTruthy();
+            const candidates = scenario.modNames.map((name) => {
+                const mod = filterBuilderExpertVariants(getModsForWeapon(weapon!)).find((entry) => entry.name === name);
+                expect(mod, `${scenario.weaponName}: ${name}`).toBeTruthy();
+                return mod!;
+            });
+            const attack = scenario.attackName
+                ? weapon!.attacks.find((entry) => entry.name === scenario.attackName)
+                : undefined;
+            expect(scenario.attackName ? attack : true, `${scenario.weaponName}: attack`).toBeTruthy();
+            const scoringWeapon = attack
+                ? withSelectedAttack(weapon!, weapon!.attacks.indexOf(attack))
+                : weapon!;
+            const slotPolarities = Array.from({ length: slotCount }, (_, index) => weapon!.polarities[index] ?? "");
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            };
+            let exhaustiveBest = debugScoreExpectedEncounter(
+                scoringWeapon,
+                [],
+                scenario.targetFaction,
+                scenario.targetProfileOverride,
+            );
+            const enumerate = (remaining: typeof candidates, ordered: typeof candidates) => {
+                const ranks = ordered.map((mod) => mod.fusionLimit);
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, false);
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (placement.slotMods.filter(Boolean).length === ordered.length && !capacity.overCapacity) {
+                    const effects = placement.slotMods.map((mod, index) => {
+                        if (!mod) return null;
+                        const rank = placement.slotRanks[index] ?? mod.fusionLimit;
+                        return mod.effectsByRank[rank] ?? mod.effect;
+                    });
+                    const score = debugScoreExpectedEncounter(
+                        scoringWeapon,
+                        effects,
+                        scenario.targetFaction,
+                        scenario.targetProfileOverride,
+                    );
+                    if (betterEncounter(score, exhaustiveBest)) exhaustiveBest = score;
+                }
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index];
+                    if (ordered.some((mod) =>
+                        mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                    )) continue;
+                    enumerate(
+                        [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                        [...ordered, candidate],
+                    );
+                }
+            };
+            enumerate(candidates, []);
+
+            const optimized = optimizeBuild(weapon!, candidates, "timeToKill", slotCount, {
+                targetFaction: scenario.targetFaction,
+                targetProfileOverride: scenario.targetProfileOverride,
+                buildForAttack: attack,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: false,
+                optimizeExilus: false,
+                optimizeArcane: false,
+            });
+            const optimizedEffects = optimized.slots.map((mod, index) => {
+                if (!mod) return null;
+                const rank = optimized.slotRanks[index] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            const optimizedScore = debugScoreExpectedEncounter(
+                scoringWeapon,
+                optimizedEffects,
+                scenario.targetFaction,
+                scenario.targetProfileOverride,
+            );
+
+            expect(optimized.capacityValid, scenario.weaponName).toBe(true);
+            expect(
+                optimizedScore.timeToKillSeconds,
+                `${scenario.weaponName}: optimizer TTK should match the exhaustive legal subset`,
+            ).toBe(exhaustiveBest.timeToKillSeconds);
+            expect(optimizedScore.damagePerSecond, scenario.weaponName)
+                .toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
+        }
     });
 
     it("scores Toxin as Shield-bypassing damage while retaining the Overguard pool", () => {

@@ -40,6 +40,41 @@ function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
 }
 
 describe("damage calculation status eligibility", () => {
+    it("models Charged and Primed Chamber on only the first ammo shot in a magazine", () => {
+        const perigalePrime = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
+        expect(perigalePrime).toBeDefined();
+        const normalAttack = withSelectedAttack(perigalePrime!, 0);
+        const mods = getModsForWeapon(perigalePrime!);
+        const chargedChamber = mods.find((mod) => mod.name === "Charged Chamber");
+        const primedChamber = mods.find((mod) => mod.name === "Primed Chamber");
+        expect(chargedChamber).toBeDefined();
+        expect(primedChamber).toBeDefined();
+
+        const base = calculateBuild(normalAttack, []);
+        const charged = calculateBuild(normalAttack, [chargedChamber!.effectsByRank[chargedChamber!.fusionLimit]]);
+        const primed = calculateBuild(normalAttack, [primedChamber!.effectsByRank[primedChamber!.fusionLimit]]);
+        const both = calculateBuild(normalAttack, [
+            chargedChamber!.effectsByRank[chargedChamber!.fusionLimit],
+            primedChamber!.effectsByRank[primedChamber!.fusionLimit],
+        ]);
+
+        expect(chargedChamber!.effectsByRank.map((effect) => effect.firstShotMagazineDamageBonus))
+            .toEqual([0.1, 0.2, 0.3, 0.4]);
+        expect(primedChamber!.effectsByRank.map((effect) => effect.firstShotMagazineDamageBonus))
+            .toEqual([0.25, 0.5, 0.75, 1]);
+        expect(base.modded.shotsPerMag).toBe(16);
+        expect(charged.modded.firstShotMagazineDamageMultiplier).toBeCloseTo(1.4, 12);
+        expect(charged.modded.magazineAverageDamageMultiplier).toBeCloseTo(1.025, 12);
+        expect(charged.modded.averageShotDamage).toBeCloseTo(base.modded.averageShotDamage, 12);
+        expect(charged.burstDPS).toBeCloseTo(base.burstDPS * 1.025, 10);
+        expect(charged.sustainedDPS).toBeCloseTo(base.sustainedDPS * 1.025, 10);
+        expect(charged.modded.dotDps).toBeCloseTo(base.modded.dotDps * 1.025, 10);
+        expect(primed.modded.firstShotMagazineDamageMultiplier).toBeCloseTo(2, 12);
+        expect(both.modded.firstShotMagazineDamageBonus).toBeCloseTo(1.4, 12);
+        expect(both.modded.magazineAverageDamageMultiplier).toBeCloseTo(1.0875, 12);
+        expect(both.modded.dotDps).toBeCloseTo(base.modded.dotDps * 1.0875, 10);
+    });
+
     it("applies additive ammo efficiency to magazine shots and sustained DPS", () => {
         const weapon = {
             ...makeWeapon({ impact: 100 }),
@@ -1581,5 +1616,44 @@ describe("melee combo-scaled mod calculations", () => {
         }).modded;
         expect(innateInitialCombo.meleeComboMultiplier).toBe(2);
         expect(innateInitialCombo.meleeComboPointsBeforeHeavyAttack).toBe(30);
+    });
+
+    it("applies Amanata Pressure's random status roll to heavy attacks at 8x combo", () => {
+        const amanata = getWeaponCatalog().find((weapon) => weapon.name === "Amanata");
+        expect(amanata).toBeDefined();
+        const pressure = getModsForWeapon(amanata!).find((mod) => mod.name === "Amanata Pressure");
+        expect(pressure).toBeDefined();
+        expect(pressure!.effect.damageBonus).toBeCloseTo(3.3, 10);
+        for (const incompatibleName of ["Pressure Point", "Primed Pressure Point", "Sacrificial Pressure"]) {
+            const incompatible = getModsForWeapon(amanata!).find((mod) => mod.name === incompatibleName);
+            expect(incompatible, incompatibleName).toBeDefined();
+            expect(pressure!.incompatibilityGroup).toBe(incompatible!.incompatibilityGroup);
+        }
+
+        const heavySlam = withSelectedAttack(
+            amanata!,
+            amanata!.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack"),
+        );
+        const normalAttack = withSelectedAttack(
+            amanata!,
+            amanata!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+        );
+        const statusTypes = STATUS_DAMAGE_TYPES.filter((type) => type !== "void" && type !== "tau");
+        expect(statusTypes).toHaveLength(13);
+
+        const comboState = (meleeComboMultiplier: number) => ({
+            conditionalState: { mode: "realistic" as const, meleeComboMultiplier },
+        });
+        const effect = pressure!.effectsByRank[pressure!.fusionLimit] ?? pressure!.effect;
+        const belowThreshold = calculateBuild(heavySlam, [effect], "", comboState(7)).modded;
+        const activeAtEight = calculateBuild(heavySlam, [effect], "", comboState(8)).modded;
+        const normalAtEight = calculateBuild(normalAttack, [effect], "", comboState(8)).modded;
+
+        expect(belowThreshold.forcedProcsPerShot).toEqual({});
+        expect(activeAtEight.forcedProcsPerShot).toEqual(
+            Object.fromEntries(statusTypes.map((type) => [type, 1 / statusTypes.length])),
+        );
+        expect(activeAtEight.averageProcsPerShot - belowThreshold.averageProcsPerShot).toBeCloseTo(1, 10);
+        expect(normalAtEight.forcedProcsPerShot).toEqual({});
     });
 });

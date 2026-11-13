@@ -18,7 +18,13 @@ import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
 import OVERFRAME_MODS_RAW from "../../../external/overframe-gg/mods.json";
 import { ITEMS_CATALOG } from "./itemsCatalog";
-import { supportsStanceLikeMods, type ModCompatName, type WeaponEntry } from "./weaponCatalog";
+import {
+    supportsStanceLikeMods,
+    type ModCompatName,
+    type WeaponEntry,
+    type WeaponForcedProcDistribution,
+    type WeaponForcedProcType,
+} from "./weaponCatalog";
 
 const ALL = ALL_RAW as Record<string, unknown>[];
 const MODS_META = MODS_RAW as Record<string, {
@@ -58,6 +64,8 @@ const COMPAT_MAP: Record<string, string> = {
 
 export interface ModEffect {
     damageBonus: number;
+    /** Multiplicative weapon damage bonus for the first ammo-consuming shot after each magazine reload. */
+    firstShotMagazineDamageBonus: number;
     impactBonus: number;
     punctureBonus: number;
     slashBonus: number;
@@ -111,6 +119,10 @@ export interface ModEffect {
     directDamagePerStatusBonus: number;
     /** Condition Overload's additive melee Damage-bracket bonus per active status type. */
     conditionOverloadDamagePerStatusBonus: number;
+    /** Extra proc rolls that only activate on a selected heavy attack at a combo threshold. */
+    meleeComboTriggeredProcDistributions?: readonly (WeaponForcedProcDistribution & {
+        minimumComboMultiplier: number;
+    })[];
     perHitCritChanceBonus: number;
     nextMagazineStatusChancePerShot: number;
     nextMagazineMultishotPerShot: number;
@@ -140,6 +152,12 @@ export interface ModEffect {
     /** Which faction this mod targets, e.g. "Grineer". Empty string if not a faction mod. */
     targetFaction: string;
 }
+
+const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment";
+const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
+    "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
+    "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
+];
 
 export type ConditionalTrigger =
     | "onAbilityCast"
@@ -448,6 +466,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     );
 
     if (rest === "damage" || rest === "melee damage") return { damageBonus: scaled };
+    if (rest === "damage on first shot in magazine") return { firstShotMagazineDamageBonus: scaled };
     if (rest === "melee damage per status type affecting the target") {
         return { conditionOverloadDamagePerStatusBonus: scaled };
     }
@@ -813,6 +832,35 @@ function matchesHiddenTags(weapon: WeaponEntry, mod: ModEntry): boolean {
     return true;
 }
 
+/**
+ * WFCD's weapon feed includes some weapons whose full ancestry is missing from
+ * our lean items catalog. For those records, preserve the broad native class
+ * restrictions carried by a mod's ItemCompatibility path instead of silently
+ * dropping every standard mod in that family. Keep specialized subclasses
+ * (such as assault-rifle-only mods) opt-in through explicit weapon tags.
+ */
+function matchesKnownWeaponFamilyPath(weapon: WeaponEntry, itemCompatibilityPath: string): boolean {
+    switch (itemCompatibilityPath) {
+        case "/Lotus/Weapons/Tenno/Rifle/LotusRifle":
+            // Sniper and bow pools intentionally inherit ordinary rifle mods.
+            return weapon.modCompat === "Rifle" || weapon.modCompat === "Sniper" || weapon.modCompat === "Bow";
+        case "/Lotus/Weapons/Tenno/LotusLongGun":
+            return weapon.category === "Primary";
+        case "/Lotus/Weapons/Tenno/Shotgun/LotusShotgun":
+            return weapon.category === "Primary" && weapon.modCompat === "Shotgun";
+        case "/Lotus/Weapons/Tenno/Bows/LotusBow":
+            return weapon.category === "Primary" && weapon.modCompat === "Bow";
+        case "/Lotus/Weapons/Tenno/Rifle/LotusSniperRifle":
+            return weapon.category === "Primary" && weapon.modCompat === "Sniper";
+        case "/Lotus/Weapons/Tenno/Rifle/LotusAssaultRifle":
+            return weapon.tags.includes("ASSAULT_RIFLE");
+        case "/Lotus/Types/Game/LotusWeapon":
+            return weapon.category !== "Companion";
+        default:
+            return false;
+    }
+}
+
 function weaponMatchesItemCompatibility(weapon: WeaponEntry, itemCompatibilityPath: string | undefined): boolean {
     if (!itemCompatibilityPath) return true;
     if (weapon.uniqueName === itemCompatibilityPath) return true;
@@ -830,6 +878,9 @@ function weaponMatchesItemCompatibility(weapon: WeaponEntry, itemCompatibilityPa
             parents?: string[];
         }
         | undefined;
+    if (!raw || (!raw.parent && !(raw.parents ?? []).length)) {
+        return matchesKnownWeaponFamilyPath(weapon, itemCompatibilityPath);
+    }
     if (raw?.parent === itemCompatibilityPath) return true;
     return (raw?.parents ?? []).includes(itemCompatibilityPath);
 }
@@ -1043,6 +1094,22 @@ function buildCaches(): ModCaches {
         // Pad up to fusionLimit if levelStats has fewer entries
         while (effectsByRank.length <= fl) {
             effectsByRank.push(effectsByRank[effectsByRank.length - 1] ?? emptyEffect());
+        }
+        if (path === AMANATA_PRESSURE_PATH) {
+            // Verified 2026-11-13: the Wiki excludes Void/Tau from Amanata Pressure's
+            // random status pool. PC Hotfix 44.1.4 fixed Heavy Slam coverage and
+            // multi-enemy hits. The current DPS/finite-encounter model holds combo static.
+            // https://wiki.warframe.com/w/Amanata_Pressure
+            // https://www.warframe.com/en/patch-notes/pc/44-1-4
+            const procDistribution = {
+                minimumComboMultiplier: 8,
+                count: 1,
+                mode: "uniform" as const,
+                types: AMANATA_PRESSURE_STATUS_TYPES,
+            };
+            for (const rankEffect of effectsByRank) {
+                rankEffect.meleeComboTriggeredProcDistributions = [procDistribution];
+            }
         }
         const effect = effectsByRank[fl] ?? emptyEffect();
 

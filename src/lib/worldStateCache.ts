@@ -1,7 +1,10 @@
 // src/lib/worldStateCache.ts
-// Shared module-level cache for the warframestat.us /pc world state.
+// Shared module-level cache for warframestat.us world state with a current
+// official-feed fallback for alerts when its normalized snapshot is stale.
 // Used by both the WorldState page and the Topbar notification bell
 // so both components see the same data without double-fetching.
+
+import worldStateNodeNames from "../data/_generated/world-state-node-names.auto.json";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -317,6 +320,127 @@ function normalizeWorldStateLabel(label: string): string {
         .replace(/\s+/g, " ");
 }
 
+const OFFICIAL_WORLD_STATE_API = "https://api.warframe.com/cdn/worldState.php";
+const ALERT_SOURCE_STALE_AFTER_MS = 15 * 60 * 1000;
+const OFFICIAL_ALERT_MAX_AGE_MS = 15 * 60 * 1000;
+const OFFICIAL_ALERT_CLOCK_SKEW_MS = 60 * 1000;
+
+function normalizeWarframestatAlert(alert: any): WorldStateAlert {
+    return {
+        id: alert.id ?? "",
+        description: alert.mission?.description ?? alert.description ?? "",
+        activation: alert.activation ?? "",
+        expiry: alert.expiry ?? "",
+        node: alert.mission?.node ?? alert.node ?? "",
+        missionType: alert.mission?.type ?? alert.missionType ?? "",
+        faction: alert.mission?.faction ?? alert.faction ?? "",
+        minEnemyLevel: typeof alert.mission?.minEnemyLevel === "number" ? alert.mission.minEnemyLevel : undefined,
+        maxEnemyLevel: typeof alert.mission?.maxEnemyLevel === "number" ? alert.mission.maxEnemyLevel : undefined,
+        reward: (() => {
+            const rawReward = alert.mission?.reward ?? alert.reward ?? {};
+            if (rawReward.asString) return String(rawReward.asString);
+            const items = [
+                ...(Array.isArray(rawReward.items) ? rawReward.items.filter(Boolean) : []),
+                ...(Array.isArray(rawReward.countedItems) ? rawReward.countedItems.map((item: any) => `${item.count > 1 ? `${item.count}× ` : ""}${item.type ?? item.key ?? ""}`).filter(Boolean) : []),
+            ];
+            if (Number(rawReward.credits) > 0) items.push(`${Number(rawReward.credits).toLocaleString()} Credits`);
+            return items.join(", ");
+        })(),
+        credits: Number((alert.mission?.reward ?? alert.reward)?.credits) || 0,
+        items: (() => {
+            const rawReward = alert.mission?.reward ?? alert.reward ?? {};
+            return [
+                ...(Array.isArray(rawReward.items) ? rawReward.items.filter(Boolean) : []),
+                ...(Array.isArray(rawReward.countedItems) ? rawReward.countedItems.map((item: any) => `${item.count > 1 ? `${item.count}× ` : ""}${item.type ?? item.key ?? ""}`).filter(Boolean) : []),
+            ];
+        })(),
+    };
+}
+
+function parseOfficialWorldStateDate(value: any): string {
+    const milliseconds = Number(value?.$date?.$numberLong ?? value?.$numberLong ?? value);
+    return Number.isFinite(milliseconds) && milliseconds > 0 ? new Date(milliseconds).toISOString() : "";
+}
+
+function humanizeOfficialToken(value: unknown): string {
+    const token = typeof value === "string" ? value.replace(/^(?:MT|FC)_/, "") : "";
+    return token
+        ? normalizeWorldStateLabel(token.replace(/_/g, " ")).toLowerCase().replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+        : "";
+}
+
+function normalizeOfficialAlert(raw: any, knownAlerts: Map<string, WorldStateAlert>): WorldStateAlert {
+    const id = String(raw?._id?.$oid ?? raw?.id ?? "");
+    const activation = parseOfficialWorldStateDate(raw?.Activation);
+    const expiry = parseOfficialWorldStateDate(raw?.Expiry);
+    const known = knownAlerts.get(id);
+    if (known) return { ...known, activation, expiry };
+
+    const mission = raw?.MissionInfo ?? {};
+    const reward = mission.missionReward ?? {};
+    const countedItems = Array.isArray(reward.countedItems) ? reward.countedItems : [];
+    const items = countedItems.map((item: any) => {
+        const itemPath = String(item?.ItemType ?? "");
+        const token = itemPath.split("/").pop() ?? itemPath;
+        const itemName = token === "RoadToTauEventResource" ? "Moonflesh" : normalizeWorldStateLabel(token);
+        const count = Number(item?.ItemCount) || 1;
+        return `${count > 1 ? `${count}× ` : ""}${itemName}`;
+    }).filter(Boolean);
+    const credits = Number(reward.credits) || 0;
+    const rewardParts = [...items];
+    if (credits > 0) rewardParts.push(`${credits.toLocaleString()} Credits`);
+
+    const descKey = String(mission.descText ?? "").split("/").pop() ?? "";
+    const isMoonfleshAlert = raw?.Tag === "RoadToTauEvent"
+        || countedItems.some((item: any) => String(item?.ItemType ?? "").endsWith("/RoadToTauEventResource"));
+    const factionKey = String(mission.faction ?? "");
+    const faction = factionKey === "FC_INFESTATION" ? "Infested" : humanizeOfficialToken(factionKey);
+    const nodeId = String(mission.location ?? "");
+    const node = (worldStateNodeNames as Record<string, string>)[nodeId] ?? nodeId;
+
+    return {
+        id,
+        description: isMoonfleshAlert ? "Moonflesh Locus Detected" : humanizeOfficialToken(descKey) || "Alert",
+        activation,
+        expiry,
+        node,
+        missionType: humanizeOfficialToken(mission.missionType),
+        faction,
+        minEnemyLevel: typeof mission.minEnemyLevel === "number" ? mission.minEnemyLevel : undefined,
+        maxEnemyLevel: typeof mission.maxEnemyLevel === "number" ? mission.maxEnemyLevel : undefined,
+        reward: rewardParts.join(", "),
+        credits,
+        items,
+    };
+}
+
+async function fetchFreshOfficialAlerts(
+    knownAlerts: WorldStateAlert[],
+    signal: AbortSignal,
+    now: number,
+): Promise<{ timestamp: string; alerts: WorldStateAlert[] } | null> {
+    try {
+        const res = await fetch(`${OFFICIAL_WORLD_STATE_API}?_=${Date.now()}`, { cache: "no-store", signal });
+        if (!res.ok) return null;
+        const raw = await res.json();
+        const time = Number(raw?.Time) * 1000;
+        const age = now - time;
+        if (!Array.isArray(raw?.Alerts) || !Number.isFinite(time) || age > OFFICIAL_ALERT_MAX_AGE_MS || age < -OFFICIAL_ALERT_CLOCK_SKEW_MS) {
+            return null;
+        }
+        const knownById = new Map(knownAlerts.map((alert) => [alert.id, alert]));
+        return {
+            timestamp: new Date(time).toISOString(),
+            alerts: raw.Alerts
+                .filter((alert: unknown) => !!alert && typeof alert === "object")
+                .map((alert: any) => normalizeOfficialAlert(alert, knownById)),
+        };
+    } catch (error) {
+        if (signal.aborted) throw error;
+        return null;
+    }
+}
+
 function activeInWindow(raw: any, now = Date.now()): boolean {
     if (!raw || typeof raw !== "object" || raw.expired === true) return false;
     const activation = typeof raw.activation === "string" ? Date.parse(raw.activation) : NaN;
@@ -581,6 +705,7 @@ export type Simaris = {
 
 export type WorldStateData = {
     apiTimestamp: string;
+    alertsApiTimestamp: string;
     buildLabel: string;
     alerts: WorldStateAlert[];
     cetusCycle:           WsCycle | null;
@@ -630,7 +755,15 @@ export function getCurrentWorldEvents(events: WsEvent[], now = Date.now()): WsEv
 }
 
 export function getCurrentWorldAlerts(alerts: WorldStateAlert[], now = Date.now()): WorldStateAlert[] {
-    return alerts.filter((alert) => activeInWindow(alert, now));
+    return alerts
+        .filter((alert) => activeInWindow(alert, now))
+        .sort((a, b) => {
+            const aExpiry = Date.parse(a.expiry);
+            const bExpiry = Date.parse(b.expiry);
+            const aOrder = Number.isFinite(aExpiry) ? aExpiry : Number.POSITIVE_INFINITY;
+            const bOrder = Number.isFinite(bExpiry) ? bExpiry : Number.POSITIVE_INFINITY;
+            return aOrder - bOrder || a.id.localeCompare(b.id);
+        });
 }
 
 export function getCurrentNightwaveChallenges(nightwave: Nightwave | null, now = Date.now()): NightwaveAct[] {
@@ -810,6 +943,25 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
             const j = await res.json();
             if (!j || typeof j !== "object") throw new Error("World state API returned an invalid response");
             const fetchedAt = Date.now();
+            const apiTimestamp = typeof j.timestamp === "string" && Number.isFinite(Date.parse(j.timestamp)) ? j.timestamp : "";
+            const defaultAlerts: WorldStateAlert[] = Array.isArray(j.alerts)
+                ? j.alerts.filter((alert: unknown) => !!alert && typeof alert === "object").map(normalizeWarframestatAlert)
+                : [];
+            let alerts = defaultAlerts;
+            let alertsApiTimestamp = apiTimestamp;
+            const apiTimestampMs = Date.parse(apiTimestamp);
+            const hasMoonfleshEvent = Array.isArray(j.events) && j.events.some((event: any) =>
+                event?.tag === "RoadToTauEvent" || event?.regionDrops?.includes?.("Moonflesh"));
+            const hasActiveMoonfleshAlert = defaultAlerts.some((alert) =>
+                alert.items.some((item) => item.includes("Moonflesh")) && activeInWindow(alert, fetchedAt));
+            const alertSourceIsStale = !Number.isFinite(apiTimestampMs) || fetchedAt - apiTimestampMs > ALERT_SOURCE_STALE_AFTER_MS;
+            if (alertSourceIsStale || (hasMoonfleshEvent && !hasActiveMoonfleshAlert)) {
+                const officialAlerts = await fetchFreshOfficialAlerts(defaultAlerts, controller.signal, fetchedAt);
+                if (officialAlerts) {
+                    alerts = officialAlerts.alerts;
+                    alertsApiTimestamp = officialAlerts.timestamp;
+                }
+            }
             const rawVoidTraders = Array.isArray(j.voidTraders)
                 ? j.voidTraders
                 : (j.voidTrader ? [j.voidTrader] : []);
@@ -820,37 +972,10 @@ export async function fetchWorldState(force = false): Promise<WorldStateData> {
                     : null;
 
             const data: WorldStateData = {
-                apiTimestamp: typeof j.timestamp === "string" && Number.isFinite(Date.parse(j.timestamp)) ? j.timestamp : "",
+                apiTimestamp,
+                alertsApiTimestamp,
                 buildLabel: typeof j.buildLabel === "string" ? j.buildLabel : "",
-                alerts: Array.isArray(j.alerts) ? j.alerts.filter((alert: unknown) => !!alert && typeof alert === "object").map((alert: any): WorldStateAlert => ({
-                    id: alert.id ?? "",
-                    description: alert.mission?.description ?? alert.description ?? "",
-                    activation: alert.activation ?? "",
-                    expiry: alert.expiry ?? "",
-                    node: alert.mission?.node ?? alert.node ?? "",
-                    missionType: alert.mission?.type ?? alert.missionType ?? "",
-                    faction: alert.mission?.faction ?? alert.faction ?? "",
-                    minEnemyLevel: typeof alert.mission?.minEnemyLevel === "number" ? alert.mission.minEnemyLevel : undefined,
-                    maxEnemyLevel: typeof alert.mission?.maxEnemyLevel === "number" ? alert.mission.maxEnemyLevel : undefined,
-                    reward: (() => {
-                        const rawReward = alert.mission?.reward ?? alert.reward ?? {};
-                        if (rawReward.asString) return String(rawReward.asString);
-                        const items = [
-                            ...(Array.isArray(rawReward.items) ? rawReward.items.filter(Boolean) : []),
-                            ...(Array.isArray(rawReward.countedItems) ? rawReward.countedItems.map((item: any) => `${item.count > 1 ? `${item.count}× ` : ""}${item.type ?? item.key ?? ""}`).filter(Boolean) : []),
-                        ];
-                        if (Number(rawReward.credits) > 0) items.push(`${Number(rawReward.credits).toLocaleString()} Credits`);
-                        return items.join(", ");
-                    })(),
-                    credits: Number((alert.mission?.reward ?? alert.reward)?.credits) || 0,
-                    items: (() => {
-                        const rawReward = alert.mission?.reward ?? alert.reward ?? {};
-                        return [
-                            ...(Array.isArray(rawReward.items) ? rawReward.items.filter(Boolean) : []),
-                            ...(Array.isArray(rawReward.countedItems) ? rawReward.countedItems.map((item: any) => `${item.count > 1 ? `${item.count}× ` : ""}${item.type ?? item.key ?? ""}`).filter(Boolean) : []),
-                        ];
-                    })(),
-                })) : [],
+                alerts,
                 cetusCycle:   j.cetusCycle   ?? null,
                 vallisCycle:  j.vallisCycle  ?? j.valesCycle ?? null,
                 cambionCycle: j.cambionCycle ?? null,
@@ -1361,15 +1486,23 @@ export type ProcessedInvasion = Invasion & {
     displayLabel: string;
 };
 
+/** Match the completion percentage shown in the World State page and notification bell. */
+export function getInvasionCompletionPercent(invasion: Pick<Invasion, "count" | "requiredRuns" | "completion">): number {
+    const percent = invasion.requiredRuns > 0
+        ? Math.abs(invasion.count) / invasion.requiredRuns * 100
+        : invasion.completion;
+    return Number.isFinite(percent) ? percent : 0;
+}
+
 /**
  * Parse, deduplicate, and sort invasions for display.
  *
  * - Parses "Node (Planet)" API strings into separate planet/node fields
  * - Deduplicates: if two invasions share the same node+planet+rewards, keeps
  *   only the one with the highest completion % (the other is a stale duplicate)
- * - Sorts alphabetically: planet → nodeName (case-insensitive)
+ * - Sorts by completion percentage (highest first), then planet → nodeName
  *
- * Done-to-bottom ordering is left to the caller (requires store access).
+ * Personal completion-state tie-breaking is left to the caller (requires store access).
  */
 export function processInvasions(invasions: Invasion[]): ProcessedInvasion[] {
     // Parse planet/node from "Node (Planet)" format
@@ -1429,8 +1562,10 @@ export function processInvasions(invasions: Invasion[]): ProcessedInvasion[] {
         return true;
     });
 
-    // Sort alphabetically: planet first, then node name
+    // Prioritize invasions closest to completion; use location for deterministic ties.
     return filtered.sort((a, b) => {
+        const completion = getInvasionCompletionPercent(b) - getInvasionCompletionPercent(a);
+        if (completion !== 0) return completion;
         const planet = a.planet.localeCompare(b.planet, undefined, { sensitivity: "base" });
         if (planet !== 0) return planet;
         return a.nodeName.localeCompare(b.nodeName, undefined, { sensitivity: "base" });

@@ -160,6 +160,8 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attack events available before each reload-like interruption. */
     shotsPerMagazine?: number;
+    /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
+    firstShotMagazineDamageBonus?: number;
     /** Reload time added after a full magazine, before the next attack interval. */
     reloadDurationSeconds?: number;
     /** Number of damage events in each burst, when this attack has burst metadata. */
@@ -209,6 +211,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attacks before a reload-like interruption. */
     shotsPerMagazine?: number;
+    /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
+    firstShotMagazineDamageBonus?: number;
     /** Reload time after each full magazine. */
     reloadDurationSeconds?: number;
     /** Number of damage events in each burst, when this attack has burst metadata. */
@@ -1076,6 +1080,10 @@ export function simulateExpectedWeaponEncounter(
             now = attackTime;
             expireStatusStacks(now);
             const attackDamageRampMultiplier = rampMultiplierForAttack(attackTime, attackIndex);
+            const firstShotMagazineDamageMultiplier = attackIndex % shotsPerMagazine === 0
+                ? 1 + finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0)
+                : 1;
+            const attackDamageMultiplier = attackDamageRampMultiplier * firstShotMagazineDamageMultiplier;
             const statusModifiers = currentStatusModifiers(now);
             const conditionOverloadDamageMultiplier = statusModifiers.conditionOverloadDamageMultiplier ?? 1;
             const directDamagePerStatusMultiplier = statusModifiers.directDamagePerStatusMultiplier ?? 1;
@@ -1099,7 +1107,7 @@ export function simulateExpectedWeaponEncounter(
                 ...input,
                 ...statusModifiers,
                 damageByType,
-                damageRampMultiplier: attackDamageRampMultiplier,
+                damageRampMultiplier: attackDamageMultiplier,
                 health: remainingPools.health,
                 shields: remainingPools.shields,
                 overguard: remainingPools.overguard,
@@ -1135,14 +1143,14 @@ export function simulateExpectedWeaponEncounter(
             const gasCloudGroup = scheduleAttackDots(
                 attackTime,
                 attackStatusState.applications,
-                attackDamageRampMultiplier,
+                attackDamageMultiplier,
                 conditionOverloadDamageMultiplier,
             );
             applyExpectedStatusApplications(
                 attackTime,
                 attackStatusState.applications,
                 attackStatusState.presenceProbabilities,
-                attackDamageRampMultiplier,
+                attackDamageMultiplier,
                 conditionOverloadDamageMultiplier,
                 gasCloudGroup,
             );
@@ -1291,7 +1299,8 @@ export function simulateDirectAttackSequence(
         ? Math.max(1, Math.floor(input.shotsPerMagazine ?? 1))
         : Number.MAX_SAFE_INTEGER;
 
-    if (input.damageRampRule || input.heavyAttackCombo) {
+    const firstShotMagazineDamageBonus = finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0);
+    if (input.damageRampRule || input.heavyAttackCombo || firstShotMagazineDamageBonus > 0) {
         const damageByPool = zeroPools();
         const combo = input.heavyAttackCombo;
         let rampMultiplier = input.damageRampRule ? getInitialDamageRampMultiplier(input.damageRampRule) : 1;
@@ -1371,7 +1380,9 @@ export function simulateDirectAttackSequence(
                 ...input,
                 damageByType,
                 expectedCritMultiplier,
-                damageRampMultiplier: rampMultiplier,
+                damageRampMultiplier: rampMultiplier * (index % shotsPerMagazine === 0
+                    ? 1 + firstShotMagazineDamageBonus
+                    : 1),
                 health: remainingPools.health,
                 shields: remainingPools.shields,
                 overguard: remainingPools.overguard,
@@ -1636,13 +1647,21 @@ function attackEventTime(index: number, timing: AttackEventTiming): number {
             Math.floor(index / timing.shotsPerMagazine) * timing.reloadDurationSeconds;
     }
 
-    const triggerIndex = Math.floor(index / burstCount);
-    const shotInBurst = index % burstCount;
-    const triggersPerMagazine = Math.max(1, Math.floor(timing.shotsPerMagazine));
-    const reloadCycles = Math.floor(triggerIndex / triggersPerMagazine);
-    const triggerInMagazine = triggerIndex % triggersPerMagazine;
+    // `shotsPerMagazine` is the effective number of fired attacks before the
+    // magazine empties, including attacks granted by ammo efficiency. The
+    // burst schedule groups those events into trigger pulls. Work from the
+    // shot's magazine position so a four-shot burst does not multiply the
+    // magazine by four before inserting a reload. This also keeps a partial
+    // final burst in the same magazine when its size is not divisible by the
+    // burst count.
+    const shotsPerMagazine = Math.max(1, Math.floor(timing.shotsPerMagazine));
+    const magazineIndex = Math.floor(index / shotsPerMagazine);
+    const shotInMagazine = index % shotsPerMagazine;
+    const triggersPerMagazine = Math.ceil(shotsPerMagazine / burstCount);
+    const triggerInMagazine = Math.floor(shotInMagazine / burstCount);
+    const shotInBurst = shotInMagazine % burstCount;
     const burstCycleSeconds = 1 / burstCycleRate + (burstCount - 1) * burstDelay;
-    return reloadCycles * (triggersPerMagazine * burstCycleSeconds + timing.reloadDurationSeconds) +
+    return magazineIndex * (triggersPerMagazine * burstCycleSeconds + timing.reloadDurationSeconds) +
         triggerInMagazine * burstCycleSeconds +
         shotInBurst * burstDelay;
 }

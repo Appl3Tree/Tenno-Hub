@@ -110,7 +110,8 @@ describe("incarnonCatalog", () => {
         const boltorOption = getIncarnonRecordForWeapon("Boltor Prime")?.tiers
             .find((tier) => tier.tier === 2)?.options
             .find((option) => option.id === "tier-2-crimson-overture");
-        expect(boltorOption?.model.unsupportedLines.some((line) => /^On Kill:.*Ammo Efficiency/i.test(line))).toBe(true);
+        expect(boltorOption?.model.unsupportedLines.some((line) => /^On Kill:.*Ammo Efficiency/i.test(line))).toBe(false);
+        expect(boltorOption?.model.unsupportedLines.some((line) => /^On Kill: Increase Damage by \+2/i.test(line))).toBe(true);
         expect(boltorOption?.model.effects.flatMap((entry) => [
             entry.effect.ammoEfficiencyBonus,
             ...entry.effect.conditionalEffects.map((effect) => effect.stats.ammoEfficiencyBonus ?? 0),

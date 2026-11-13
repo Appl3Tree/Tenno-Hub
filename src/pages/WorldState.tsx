@@ -10,6 +10,7 @@ import {
     eventCompletionKey,
     getCurrentWorldActivitySummary,
     getCurrentNightwaveChallenges,
+    getInvasionCompletionPercent,
     isWorldStateEntryActive,
     type WorldStateData,
     type Fissure,
@@ -772,7 +773,6 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                                         </li>
                                     ))}
                                 </ul>
-                                <div className="mt-1.5 text-[9px] text-slate-600">The API lists reward thresholds, not your clan's current contribution.</div>
                             </div>
                         )}
 
@@ -1413,7 +1413,6 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
                                 {(alert.reward || alert.credits > 0 || alert.items.length > 0) && (
                                     <div className="mt-1.5 text-[10px] text-amber-300/80">{alert.reward || [...alert.items, ...(alert.credits ? [`${alert.credits.toLocaleString()} Credits`] : [])].join(", ")}</div>
                                 )}
-                                <div className="mt-1 text-[9px] text-slate-600">World State availability; completion is not reported by the API.</div>
                             </article>
                         ))}
                     </div>
@@ -1536,9 +1535,10 @@ function ActivitiesTab({ data }: { data: WorldStateData }) {
             {/* Invasions */}
             {hasInvasions && (() => {
                 const sorted = processedInvasions.slice().sort((a, b) => {
+                    const completion = getInvasionCompletionPercent(b) - getInvasionCompletionPercent(a);
                     const aDone = isInvasionDone(a.id) ? 1 : 0;
                     const bDone = isInvasionDone(b.id) ? 1 : 0;
-                    return aDone - bDone;
+                    return completion || aDone - bDone;
                 });
                 const doneCount = sorted.filter((inv) => isInvasionDone(inv.id)).length;
                 return (
@@ -1966,6 +1966,7 @@ export default function WorldState() {
                             <span className="text-[11px] text-[color:var(--wf-text-dim)]">
                                 Fetched {new Date(fetchedAt).toLocaleTimeString()}
                                 {data?.apiTimestamp ? ` · API ${new Date(data.apiTimestamp).toLocaleTimeString()}` : ""}
+                                {data?.alertsApiTimestamp && data.alertsApiTimestamp !== data.apiTimestamp ? ` · Alerts API ${new Date(data.alertsApiTimestamp).toLocaleTimeString()}` : ""}
                             </span>
                         )}
                         <WorkspaceAction

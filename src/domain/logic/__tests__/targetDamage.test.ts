@@ -693,6 +693,120 @@ describe("finite expected-value weapon encounters", () => {
         expect(encounter.timeToKillSeconds).toBeCloseTo(0.7, 10);
     });
 
+    it("reloads Perigale Prime after four four-shot bursts", () => {
+        const attackIntervalSeconds = 1 / (4 / (0.5 + 3 * 0.04));
+        const sequence = simulateDirectAttackSequence({
+            damageByType: { impact: 1 },
+            health: 17,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds,
+            shotsPerMagazine: 16,
+            reloadDurationSeconds: 3,
+            burstCount: 4,
+            burstDelaySeconds: 0.04,
+            burstCycleRate: 2,
+        });
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            health: 17,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds,
+            shotsPerMagazine: 16,
+            reloadDurationSeconds: 3,
+            burstCount: 4,
+            burstDelaySeconds: 0.04,
+            burstCycleRate: 2,
+            maxAttacks: 17,
+        });
+
+        // Perigale Prime carries 16 rounds, so four four-shot trigger pulls
+        // exhaust the magazine. Its first shot after reloading follows four
+        // burst cycles plus the reload.
+        expect(sequence.attacksToKill).toBe(17);
+        expect(sequence.timeToKillSeconds).toBeCloseTo(4 * 0.62 + 3, 10);
+        expect(encounter.attacks).toBe(17);
+        expect(encounter.timeToKillSeconds).toBeCloseTo(4 * 0.62 + 3, 10);
+    });
+
+    it("applies Chamber bonuses to the first attack after each magazine reload", () => {
+        const common = {
+            damageByType: { impact: 100 },
+            health: 550,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 2,
+            firstShotMagazineDamageBonus: 1,
+            reloadDurationSeconds: 2,
+        };
+
+        const sequence = simulateDirectAttackSequence(common);
+        const encounter = simulateExpectedWeaponEncounter({ ...common, maxAttacks: 6 });
+        const ordinarySequence = simulateDirectAttackSequence({
+            ...common,
+            firstShotMagazineDamageBonus: 0,
+        });
+
+        // Hits land at 0, 1, 4, and 5 seconds. Chamber doubles the first and
+        // third hits, which are the first ammo-consuming attacks per magazine.
+        expect(sequence.attacksToKill).toBe(4);
+        expect(sequence.timeToKillSeconds).toBeCloseTo(5, 10);
+        expect(ordinarySequence.attacksToKill).toBe(6);
+        expect(ordinarySequence.timeToKillSeconds).toBeCloseTo(9, 10);
+        expect(encounter.attacks).toBe(4);
+        expect(encounter.directDamageByPool.health).toBeCloseTo(550, 10);
+        expect(encounter.timeToKillSeconds).toBeCloseTo(5, 10);
+    });
+
+    it("applies a first-shot Chamber multiplier to the DoT seeded by that attack", () => {
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 16,
+            firstShotMagazineDamageBonus: 0.4,
+            dotDamagePerAttackByType: { slash: 20 },
+            maxAttacks: 1,
+            maxDurationSeconds: 7,
+        });
+
+        expect(encounter.statusDamageByPool.health).toBeCloseTo(28, 10);
+    });
+
+    it("keeps a partial final burst inside the magazine before reloading", () => {
+        const result = simulateDirectAttackSequence({
+            damageByType: { impact: 1 },
+            health: 11,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1 / (3 / (0.5 + 2 * 0.1)),
+            shotsPerMagazine: 10,
+            reloadDurationSeconds: 2,
+            burstCount: 3,
+            burstDelaySeconds: 0.1,
+            burstCycleRate: 2,
+        });
+
+        expect(result.attacksToKill).toBe(11);
+        // The 10-round magazine ends in a one-shot burst after three full
+        // bursts. The next magazine starts after four trigger cycles and reload.
+        expect(result.timeToKillSeconds).toBeCloseTo(4 * 0.7 + 2, 10);
+    });
+
     it("keeps Toxin behind Overguard, then routes its later ticks through Shields to Health", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { toxin: 1 },

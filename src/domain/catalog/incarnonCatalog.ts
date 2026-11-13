@@ -173,11 +173,12 @@ function maxStacksFromLine(line: string) {
 }
 
 type NumericModEffectKey = {
-    [Key in keyof ModEffect]: ModEffect[Key] extends number ? Key : never;
+    [Key in keyof ModEffect]-?: ModEffect[Key] extends number ? Key : never;
 }[keyof ModEffect];
 
-function addNumericEffectValue<Key extends NumericModEffectKey>(effect: ModEffect, key: Key, amount: number) {
-    effect[key] += amount;
+function addNumericEffectValue(effect: ModEffect, key: NumericModEffectKey, amount: number) {
+    const numericEffect = effect as unknown as Record<NumericModEffectKey, number>;
+    numericEffect[key] += amount;
 }
 
 function pushEffect(target: ScopedEffect[], scope: IncarnonAttackScope, patch: Partial<ModEffect>) {
@@ -392,12 +393,48 @@ const RECORDS: IncarnonWeaponRecord[] = RAW_RECORDS.map((record) => ({
         .filter((tier): tier is RawIncarnonTier & { tier: IncarnonTier } => tier.tier >= 1 && tier.tier <= 5)
         .map((tier) => ({
             tier: tier.tier,
-            options: tier.options.map((option) => ({
-                ...option,
-                model: buildOptionModel(option),
-            })),
+            options: tier.options.map((option) => {
+                const currentOption = withCurrentPatchDescription(record.weaponName, option);
+                return {
+                    ...currentOption,
+                    model: buildOptionModel(currentOption),
+                };
+            }),
         })),
 }));
+
+/**
+ * The generated Wiki snapshot predates PC Hotfix 44.1.3's Crimson Overture
+ * ammo-efficiency changes. Keep the correction at the catalog boundary so
+ * both the displayed trait and parsed conditional model use the current rules.
+ * Source: https://www.warframe.com/en/patch-notes/pc/44-1-3
+ */
+function withCurrentPatchDescription(weaponName: string, option: RawIncarnonOption): RawIncarnonOption {
+    if (option.id !== "tier-2-crimson-overture") return option;
+
+    const name = normalize(weaponName);
+    if (["boltor", "boltor prime", "telos boltor"].includes(name)) {
+        return {
+            ...option,
+            descriptionLines: [
+                ...(name === "boltor" ? ["Increase Base Damage by +12."] : []),
+                "On Kill: Increase Damage by +2 for 5 seconds. Stacks up to 3x.",
+                "On Kill: +25% Ammo Efficiency for 5 seconds. Stacks up to 3x.",
+                "At maximum stacks this adds +6 base damage per projectile in base form and +18 per projectile in Incarnon form.",
+            ],
+        };
+    }
+    if (["dera", "dera vandal"].includes(name)) {
+        return {
+            ...option,
+            descriptionLines: [
+                `Increase Base Damage by +${name === "dera" ? 8 : 6}.`,
+                "On Kill: +25% Ammo Efficiency for 5 seconds. Stacks up to 3x.",
+            ],
+        };
+    }
+    return option;
+}
 
 const RECORDS_BY_NAME = new Map(RECORDS.map((record) => [normalize(record.weaponName), record]));
 

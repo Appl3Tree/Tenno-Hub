@@ -2,6 +2,7 @@ import type { CustomRivenRecord, CustomRivenStatValue } from "./rivens";
 import {
   getCustomRivenStatDef,
   normalizeRivenWeaponFamilyKey,
+  CURRENT_RIVEN_STAT_MULTIPLIER,
 } from "./rivens";
 import { getWeaponCatalog } from "./catalog/weaponCatalog";
 import { RIVEN_BASE_WEIGHTS } from "./rivenBaseWeights";
@@ -130,10 +131,9 @@ function calculateMaxRankStats(
   rivenType: string,
   attributes: SourceRivenAttribute[],
   currentRank: number,
-  disposition: number,
 ): { stats: CustomRivenStatValue[]; unsupported: string[] } {
   const weights = RIVEN_BASE_WEIGHTS[rivenType];
-  if (!weights || disposition <= 0) return { stats: [], unsupported: attributes.map((a) => a.tag) };
+  if (!weights) return { stats: [], unsupported: attributes.map((a) => a.tag) };
 
   const positives = attributes.filter((attribute) => attribute.polarity === "positive");
   const curses = attributes.filter((attribute) => attribute.polarity === "negative");
@@ -152,7 +152,7 @@ function calculateMaxRankStats(
       continue;
     }
 
-    let value = baseWeight * 1.5 * disposition * 10;
+    let value = baseWeight * 1.5 * CURRENT_RIVEN_STAT_MULTIPLIER * 10;
     value *= attribute.polarity === "positive"
       ? curseAmplification * positiveAttenuation
       : CURSE_ATTENUATION[Math.min(positives.length, CURSE_ATTENUATION.length - 1)] *
@@ -246,7 +246,7 @@ export async function parseAlecaFrameRiven(
   } else if (rank === null) {
     importStatus = "rank-unknown";
   } else {
-    const calculated = calculateMaxRankStats(rivenType, attributes, rank, weapon.disposition);
+    const calculated = calculateMaxRankStats(rivenType, attributes, rank);
     if (calculated.unsupported.length > 0) {
       warnings.push("One or more attribute types are not supported by the current Riven catalog.");
       importStatus = "unsupported-stat";
@@ -264,7 +264,7 @@ export async function parseAlecaFrameRiven(
     name,
     sourceWeaponUniqueName: compat,
     sourceWeaponName,
-    sourceWeaponDisposition: weapon?.disposition ?? 0,
+    sourceWeaponDisposition: weapon ? CURRENT_RIVEN_STAT_MULTIPLIER : 0,
     familyKey: weapon ? normalizeRivenWeaponFamilyKey(weapon.name) : "",
     polarity,
     drain: 18,

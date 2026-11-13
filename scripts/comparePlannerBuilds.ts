@@ -1,19 +1,19 @@
 import { emptyEffect, getModsForWeapon, filterBuilderExpertVariants, type ModEffect } from "../src/domain/catalog/modCatalog";
 import {
     assignModsToSlots,
+    debugEvaluateExpectedEncounter,
     debugScoreBuild,
     getTargetProfileAssumptions,
     minimizePolaritiesByCapacity,
     type OptimizeGoal,
 } from "../src/domain/logic/buildOptimizerCore";
+import { debugScoreExpectedEncounter } from "../src/domain/logic/buildOptimizer";
 import { calculateBuild, type ConditionalState } from "../src/domain/logic/damageCalc";
-import { getWeaponCatalog, type WeaponEntry } from "../src/domain/catalog/weaponCatalog";
+import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../src/domain/catalog/weaponCatalog";
 import { getArcanesForWeapon } from "../src/domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../src/domain/logic/arcaneEffects";
 import { countPolarityChanges, effectiveDrain, fitsWithinCapacity, type CapacityConfig } from "../src/domain/logic/capacityCalc";
-import { simulateExpectedWeaponEncounter } from "../src/domain/logic/targetDamage";
 import { optimizeBuild } from "../src/domain/logic/buildOptimizer";
-import type { StatusDamageType } from "../src/domain/logic/damageRuleset";
 
 interface NamedBuild {
     name: string;
@@ -64,9 +64,14 @@ const FRESH_UNDERFRAME_BUILD: NamedBuild = {
 let SELECTED_BUILDS = process.argv.includes("--fresh-underframe")
     ? [BENCHMARK_BUILDS[0], FRESH_UNDERFRAME_BUILD]
     : BENCHMARK_BUILDS;
+let REOPTIMIZED_BUILD: NamedBuild | null = null;
+let REOPTIMIZED_RESULT: ReturnType<typeof optimizeBuild> | null = null;
 
 const WEAPON_NAME = "Braton Prime";
-const GOAL: OptimizeGoal = "burst";
+const requestedGoal = process.argv.find((arg) => arg.startsWith("--goal="))?.slice(7).trim();
+const GOAL: OptimizeGoal = requestedGoal === "timeToKill" || requestedGoal === "scaling"
+    ? requestedGoal
+    : "burst";
 const FACTION = "Grineer";
 const TARGET = {
     health: 83_818,
@@ -114,6 +119,7 @@ function makeEffects(
 }
 
 const weapon = getWeapon(WEAPON_NAME);
+const scoringWeapon = withSelectedAttack(weapon, weapon.attacks.length > 0 ? 0 : -1);
 const targetOverride = {
     ...TARGET,
 };
@@ -145,12 +151,14 @@ if (process.argv.includes("--reoptimize")) {
         optimizeExilus: false,
         buildForAttack: weapon.attacks[0] ?? null,
     });
+    REOPTIMIZED_RESULT = optimized;
     const optimizedMods = optimized.slots.flatMap((mod, index) => mod
         ? [{ name: mod.name, rank: optimized.slotRanks[index] ?? mod.fusionLimit }]
         : []);
+    REOPTIMIZED_BUILD = { name: `Tenno-Hub optimizer (${CONDITIONAL_STATE.mode})`, mods: optimizedMods };
     SELECTED_BUILDS = process.argv.includes("--fresh-underframe")
-        ? [{ name: `Tenno-Hub optimizer (${CONDITIONAL_STATE.mode})`, mods: optimizedMods }, FRESH_UNDERFRAME_BUILD]
-        : [{ name: `Tenno-Hub optimizer (${CONDITIONAL_STATE.mode})`, mods: optimizedMods }];
+        ? [REOPTIMIZED_BUILD, FRESH_UNDERFRAME_BUILD]
+        : [REOPTIMIZED_BUILD];
 }
 const target = getTargetProfileAssumptions(FACTION, targetOverride);
 const reports = SELECTED_BUILDS.map((build) => {
@@ -167,47 +175,21 @@ const reports = SELECTED_BUILDS.map((build) => {
         assigned.ranks,
     );
     const formaCount = countPolarityChanges(weapon.polarities, assigned.polarities);
-    const metrics = calculateBuild(weapon, calculatedEffects, FACTION, {
+    const metrics = calculateBuild(scoringWeapon, calculatedEffects, FACTION, {
         conditionalState: CONDITIONAL_STATE,
         statusImmuneTypes: target.statusImmuneTypes,
         statusStackCaps: target.statusStackCaps,
         targetStatusState: "initial",
     });
-    const factionDamageBonus = effects.reduce((sum, effect) =>
-        sum + (effect.targetFaction?.toLowerCase() === FACTION.toLowerCase() ? effect.factionDamageBonus : 0), 0);
-    const encounter = simulateExpectedWeaponEncounter({
-        damageByType: metrics.modded.damageBreakdown,
-        health: target.health,
-        shields: target.shields,
-        overguard: target.overguard,
-        armor: target.armor,
-        faction: FACTION,
-        factionDamageBonus,
-        toxinBypassesShields: target.toxinBypassesShields,
-        critChance: metrics.modded.critChance,
-        critMultiplier: metrics.modded.critMultiplier,
-        expectedProjectiles: metrics.modded.multishot,
-        attackIntervalSeconds: 1 / Math.max(0.0001, metrics.modded.fireRate),
-        shotsPerMagazine: metrics.modded.shotsPerMag,
-        reloadDurationSeconds: metrics.modded.reloadTime,
-        statusDurationMultiplier: metrics.modded.statusDurationMultiplier,
-        dotDamagePerAttackByType: metrics.modded.dotDamagePerShotByType,
-        dotDamagePerApplicationByType: Object.fromEntries(
-            Object.entries(metrics.modded.dotDamagePerShotByType).flatMap(([type, damage]) => {
-                const applications = metrics.modded.averageProcsPerShot *
-                    (metrics.modded.procChanceByType[type as keyof typeof metrics.modded.procChanceByType] ?? 0);
-                return applications > 0 ? [[type, damage / applications]] : [];
-            }),
-        ),
-        statusProcWeightsByType: metrics.modded.damageBreakdown,
-        statusRollsPerAttack: metrics.modded.multishot * metrics.modded.statusChance,
-        forcedStatusApplicationsPerAttackByType: metrics.modded.unfilteredExtraProcsPerShot as Partial<Record<StatusDamageType, number>>,
-        statusImmuneTypes: target.statusImmuneTypes,
-        statusStackCaps: target.statusStackCaps,
-        blastStackHitDamagePerProc: metrics.modded.blastStackHitDamagePerProc,
-        directDamagePerStatusBonus: metrics.modded.directDamagePerStatusBonus,
-        totalDamageBonus: metrics.modded.totalDamageBonus,
-    });
+    const finiteExpectedEncounter = debugEvaluateExpectedEncounter(
+        scoringWeapon,
+        effects,
+        FACTION,
+        targetOverride,
+        CONDITIONAL_STATE,
+        primaryOverchargeEffect,
+    );
+    const encounter = finiteExpectedEncounter.encounter;
 
     return {
         build: build.name,
@@ -226,28 +208,44 @@ const reports = SELECTED_BUILDS.map((build) => {
         arcane: primaryOvercharge
             ? { name: primaryOvercharge.name, rank: primaryOvercharge.maxRank, multishotBonus: primaryOverchargeEffect?.multishotBonus ?? 0 }
             : null,
-        commonOptimizerScore: debugScoreBuild(weapon, effects, GOAL, FACTION, primaryOverchargeEffect, targetOverride, CONDITIONAL_STATE),
+        commonOptimizerScore: debugScoreBuild(scoringWeapon, effects, GOAL, FACTION, primaryOverchargeEffect, targetOverride, CONDITIONAL_STATE),
+        ...(build === REOPTIMIZED_BUILD && REOPTIMIZED_RESULT
+            ? {
+                optimizerRefinement: {
+                    candidatesEvaluated: REOPTIMIZED_RESULT.encounterCandidatesEvaluated,
+                    refined: REOPTIMIZED_RESULT.encounterRefined,
+                },
+            }
+            : {}),
+        finiteExpectedEncounterObjective: {
+            damagePerSecond: finiteExpectedEncounter.damagePerSecond,
+            timeToKillSeconds: finiteExpectedEncounter.timeToKillSeconds,
+        },
         arsenalTotalPerAttack: metrics.modded.arsenalDamage,
         burstDpsBeforeTargetPools: metrics.burstDPS,
         sustainedDpsBeforeTargetPools: metrics.sustainedDPS,
-        meanFiniteEncounter: {
+        meanFiniteEncounter: encounter ? {
             attacks: encounter.attacks,
             timeToKillSeconds: encounter.timeToKillSeconds,
             damagePerSecond: encounter.damagePerSecond,
             directDamage: encounter.directDamageByPool,
             statusDamage: encounter.statusDamageByPool,
-        },
+        } : null,
     };
 });
+
+const swapAnalysis = process.argv.includes("--analyze-underframe-swaps")
+    ? analyzeUnderframeSwapNeighborhood()
+    : null;
 
 console.log(JSON.stringify({
     methodology: {
         target: "Level-100 Heavy Gunner current pools copied from the Tenno-Hub planner comparison: 83,818 Health, 2,700 Armor, no Shields or Overguard.",
-        objective: `Both fixed builds are evaluated with Tenno-Hub's same ${CONDITIONAL_STATE.mode}-state Burst score and finite expected encounter simulator; this does not equate the Underframe stochastic DPS number with Tenno-Hub's proxy score.`,
+        objective: `Both fixed builds are evaluated with Tenno-Hub's same ${CONDITIONAL_STATE.mode}-state ${GOAL} screening score and finite expected encounter. For Expected TTK, the optimizer ranks kills inside its 600-second cap ahead of capped encounters and uses damage per second only when neither build kills; this does not equate Underframe stochastic DPS with Tenno-Hub's model.`,
         assumptions: [
             primaryOvercharge
-                ? "Braton Prime normal attack; both lists receive Primary Overcharge R5 at the 350% multishot cap (1,000 Max Energy, 100% current Energy), with no Exilus, external buffs, or headshots."
-                : "Braton Prime normal attack; no arcane, Exilus, external buffs, headshots, or non-initial conditional stacks.",
+                ? `Braton Prime Normal Attack; both lists receive Primary Overcharge R5 at the 350% multishot cap (1,000 Max Energy, 100% current Energy). No target headshot multiplier, Exilus, or external buffs are supplied${CONDITIONAL_STATE.mode === "fullyStacked" ? "; Fully stacked activates supported mod conditionals such as Galvanized Scope, without adding headshot damage." : "; non-initial mod conditionals are inactive."}`
+                : `Braton Prime Normal Attack; no arcane, Exilus, external buffs, or target headshot multiplier${CONDITIONAL_STATE.mode === "fullyStacked" ? "; Fully stacked activates supported mod conditionals such as Galvanized Scope, without adding headshot damage." : "; non-initial mod conditionals are inactive."}`,
             "No explicit status immunities; the model removes Magnetic as a dead effect for a shieldless target.",
             "Three-forma feasibility is recomputed against the weapon's default polarities and 60 capacity.",
             "Fractional procs, Electricity/Gas group histories, cross-source Heat inheritance, shield gates, animation timing, and random TTK distributions remain approximations or omitted.",
@@ -257,7 +255,129 @@ console.log(JSON.stringify({
             : "Tenno-Hub seven-mod optimizer result and Underframe eight-mod Auto Build output were captured in the in-app browser on 2026-11-11.",
     },
     builds: reports,
+    ...(swapAnalysis ? { underframeSwapNeighborhood: swapAnalysis } : {}),
 }, null, 2));
+
+function chooseCombinations<T>(values: T[], count: number): T[][] {
+    if (count < 0 || count > values.length) return [];
+    const result: T[][] = [];
+    const current: T[] = [];
+    const visit = (start: number) => {
+        if (current.length === count) {
+            result.push([...current]);
+            return;
+        }
+        for (let index = start; index <= values.length - (count - current.length); index++) {
+            current.push(values[index]);
+            visit(index + 1);
+            current.pop();
+        }
+    };
+    visit(0);
+    return result;
+}
+
+function analyzeUnderframeSwapNeighborhood() {
+    if (!REOPTIMIZED_BUILD || !process.argv.includes("--fresh-underframe")) {
+        throw new Error("--analyze-underframe-swaps requires --fresh-underframe and --reoptimize");
+    }
+
+    const underframeNames = new Set(FRESH_UNDERFRAME_BUILD.mods.map((mod) => mod.name.toLowerCase()));
+    const tennoNames = new Set(REOPTIMIZED_BUILD.mods.map((mod) => mod.name.toLowerCase()));
+    const tennoOnly = REOPTIMIZED_BUILD.mods.filter((mod) => !underframeNames.has(mod.name.toLowerCase()));
+    const underframeOnly = FRESH_UNDERFRAME_BUILD.mods.filter((mod) => !tennoNames.has(mod.name.toLowerCase()));
+    const baseline = evaluateCandidate(REOPTIMIZED_BUILD);
+    const underframeBaseline = evaluateCandidate(FRESH_UNDERFRAME_BUILD);
+    const depths = [];
+
+    for (let depth = 1; depth <= Math.min(4, tennoOnly.length, underframeOnly.length); depth++) {
+        const candidates = [];
+        const removalSets = chooseCombinations(tennoOnly, depth);
+        const additionSets = chooseCombinations(underframeOnly, depth);
+        for (const removals of removalSets) {
+            for (const additions of additionSets) {
+                const removedNames = new Set(removals.map((mod) => mod.name.toLowerCase()));
+                const replacementSlots = REOPTIMIZED_BUILD.mods
+                    .map((mod, index) => ({ mod, index }))
+                    .filter(({ mod }) => removedNames.has(mod.name.toLowerCase()))
+                    .map(({ index }) => index);
+                // Preserve the optimizer's other slot order; incoming mods follow
+                // their slot order from the captured Underframe configuration.
+                const nextMods = [...REOPTIMIZED_BUILD.mods];
+                for (let index = 0; index < replacementSlots.length; index++) {
+                    nextMods[replacementSlots[index]] = additions[index];
+                }
+                const candidate = {
+                    name: `${depth}-mod swap: ${removals.map((mod) => mod.name).join(" + ")} → ${additions.map((mod) => mod.name).join(" + ")}`,
+                    mods: nextMods,
+                };
+                const evaluated = evaluateCandidate(candidate);
+                if (evaluated.legal) candidates.push({ ...evaluated, removed: removals.map((mod) => mod.name), added: additions.map((mod) => mod.name) });
+            }
+        }
+        candidates.sort(compareCandidateQuality);
+        const improvements = candidates.filter((candidate) => isBetterTtk(candidate.expectedTtk, baseline.expectedTtk));
+        depths.push({
+            changedModCount: depth,
+            combinationsChecked: removalSets.length * additionSets.length,
+            legalCandidates: candidates.length,
+            betterThanTennoBaseline: improvements.length,
+            bestLegalCandidate: candidates[0] ?? null,
+            bestImprovement: improvements[0] ?? null,
+        });
+    }
+
+    return {
+        objective: "The same Tenno-Hub finite expected encounter used by the optimizer; candidates are legal only if capacity, unique names, incompatibility groups, and three-Forma limits pass.",
+        placement: "Each selected Underframe-only mod replaces the corresponding selected Tenno-only mod slot in order; the standard capacity placer may reassign non-element slots and Forma.",
+        tennoOnly: tennoOnly.map((mod) => `${mod.name} R${mod.rank}`),
+        underframeOnly: underframeOnly.map((mod) => `${mod.name} R${mod.rank}`),
+        tennoBaseline: baseline,
+        underframeBaseline,
+        depths,
+    };
+}
+
+function evaluateCandidate(build: NamedBuild) {
+    const { effects, mods } = makeEffects(build, weapon);
+    const assigned = assignBuildForCapacity(mods.map(({ mod }) => mod), mods.map(({ rank }) => rank), weapon);
+    const formaCount = countPolarityChanges(weapon.polarities, assigned.polarities);
+    const uniqueNames = mods.map(({ mod }) => (mod.uniqueName ?? mod.name).toLowerCase());
+    const incompatibilityGroups = mods.map(({ mod }) => mod.incompatibilityGroup).filter((group): group is string => !!group);
+    const legal = fitsWithinCapacity(CAPACITY_CONFIG, assigned.polarities, assigned.slots, assigned.ranks)
+        && formaCount <= MAX_FORMA
+        && new Set(uniqueNames).size === uniqueNames.length
+        && new Set(incompatibilityGroups).size === incompatibilityGroups.length;
+    const encounter = legal
+        ? debugScoreExpectedEncounter(scoringWeapon, effects, FACTION, targetOverride, CONDITIONAL_STATE, primaryOverchargeEffect)
+        : { damagePerSecond: 0, timeToKillSeconds: null };
+    return {
+        build: build.name,
+        legal,
+        capacityUsed: assigned.usedCapacity,
+        formaCount,
+        screeningProxy: debugScoreBuild(scoringWeapon, effects, GOAL, FACTION, primaryOverchargeEffect, targetOverride, CONDITIONAL_STATE),
+        expectedTtk: encounter.timeToKillSeconds,
+        expectedDamagePerSecond: encounter.damagePerSecond,
+        orderedMods: mods.map(({ mod, rank }) => `${mod.name} R${rank}`),
+    };
+}
+
+function compareCandidateQuality(
+    left: { expectedTtk: number | null; expectedDamagePerSecond: number },
+    right: { expectedTtk: number | null; expectedDamagePerSecond: number },
+): number {
+    if (left.expectedTtk !== null && right.expectedTtk !== null) return left.expectedTtk - right.expectedTtk;
+    if (left.expectedTtk !== null) return -1;
+    if (right.expectedTtk !== null) return 1;
+    return right.expectedDamagePerSecond - left.expectedDamagePerSecond;
+}
+
+function isBetterTtk(candidate: number | null, incumbent: number | null): boolean {
+    if (candidate === null) return false;
+    if (incumbent === null) return true;
+    return candidate < incumbent - 1e-9;
+}
 
 function assignBuildForCapacity(
     mods: ReturnType<typeof getModsForWeapon>,

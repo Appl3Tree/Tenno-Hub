@@ -30,7 +30,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { avgCritMultiplier, calculateBuild, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
-import { optimizeBuild, explainBuild, debugScoreBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
+import { optimizeBuild, explainBuild, debugScoreBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, rankExpectedEncounter, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
 import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
 import { calculateDirectDamageToInitialPools, simulateDirectAttackSequence, simulateExpectedWeaponEncounter, type DirectTargetDamageInput } from "../../domain/logic/targetDamage";
@@ -162,6 +162,11 @@ const GOAL_OPTIONS: { key: OptimizeGoal; label: string; desc: string }[] = [
         key: "scaling",
         label: "Sustained DPS",
         desc: "Ranks builds by damage across repeated attacks and reload cycles for the selected target assumptions.",
+    },
+    {
+        key: "timeToKill",
+        label: "Expected TTK",
+        desc: "Ranks legal builds by finite expected time to kill; kills within 600 seconds rank first, and if both reach the simulation cap, expected damage per second breaks the tie.",
     },
 ];
 const FACTIONS = getFactionFocusOptions();
@@ -1432,11 +1437,17 @@ function buildMathBreakdown(
                 `Average crit multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgCritMultiplier, 6)}`,
                 `Average crit multiplier cross-check = 1 + crit chance × (crit multiplier - 1) = 1 + ${fmt(stats.critChance, 5)} × (${fmt(stats.critMultiplier, 5)} - 1) = ${fmt(1 + stats.critChance * (stats.critMultiplier - 1), 6)}`,
                 `Average direct damage per ${damageUnit} = quantized damage ${fmt(quantizedShotDamage, 5)} × average crit multiplier ${fmt(avgCritMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
+                ...(stats.firstShotMagazineDamageBonus > 0
+                    ? [
+                        `First ammo-consuming shot after reload = ${fmt(stats.averageShotDamage, 5)} × ${fmt(stats.firstShotMagazineDamageMultiplier, 6)} = ${fmt(stats.averageShotDamage * stats.firstShotMagazineDamageMultiplier, 5)}`,
+                        `Average magazine damage multiplier = 1 + first-shot bonus ${fmt(stats.firstShotMagazineDamageBonus, 5)} ÷ ${fmt(stats.shotsPerMag, 5)} shots = ${fmt(stats.magazineAverageDamageMultiplier, 6)}`,
+                    ]
+                    : []),
                 ...fireRateExplanation,
-                `Burst DPS = ${avgDamageLabel} ${fmt(stats.averageShotDamage, 5)} × fresh-mag attack rate ${fmt(stats.burstFireRate, 5)} × fresh-mag ramp ${fmt(stats.freshMagazineDamageMultiplier, 6)} = ${fmt(result.burstDPS, 5)}`,
+                `Burst DPS = ${avgDamageLabel} ${fmt(stats.averageShotDamage, 5)} × fresh-mag attack rate ${fmt(stats.burstFireRate, 5)} × fresh-mag ramp ${fmt(stats.freshMagazineDamageMultiplier, 6)} × average magazine damage ${fmt(stats.magazineAverageDamageMultiplier, 6)} = ${fmt(result.burstDPS, 5)}`,
                 ignoresReloadAndMagazine
                     ? `Sustained DPS = average damage ${fmt(stats.averageShotDamage, 5)} × fire rate ${fmt(stats.fireRate, 5)} × sustained ramp ${fmt(stats.sustainedDamageMultiplier, 6)} because reload/magazine are ignored = ${fmt(result.sustainedDPS, 5)}`
-                    : `Sustained DPS = average damage ${fmt(stats.averageShotDamage, 5)} × fire rate ${fmt(stats.fireRate, 5)} × magazine duty cycle ${fmt(stats.magazineDutyCycle, 6)} × sustained ramp ${fmt(stats.sustainedDamageMultiplier, 6)} = ${fmt(result.sustainedDPS, 5)}`,
+                    : `Sustained DPS = average damage ${fmt(stats.averageShotDamage, 5)} × fire rate ${fmt(stats.fireRate, 5)} × magazine duty cycle ${fmt(stats.magazineDutyCycle, 6)} × sustained ramp ${fmt(stats.sustainedDamageMultiplier, 6)} × average magazine damage ${fmt(stats.magazineAverageDamageMultiplier, 6)} = ${fmt(result.sustainedDPS, 5)}`,
                 ...damageRampLines,
                 ...(usesMeleeDamageModel(weapon.category)
                     ? meleeAverageDps && meleeDpsInputs?.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
@@ -1550,7 +1561,7 @@ function buildExportPayload(args: {
         effects.push(exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect);
     }
     if (includeArcaneStats && arcane) {
-        const ae = getArcaneEffectAtRank(arcane, arcaneRank, warframeArmor, false, { warframeMaxEnergy, warframeEnergyPercent });
+        const ae = getArcaneEffectAtRank(arcane, arcaneRank, warframeArmor, true, { warframeMaxEnergy, warframeEnergyPercent });
         if (ae) effects.push({
             ...emptyEffect(),
             ...ae,
@@ -2558,7 +2569,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
             const arcane = panelArcanes.find(a => a.uniqueName === build.arcane1UniqueName) ?? null;
             if (arcane) {
                 const rank = build.arcane1Rank ?? arcane.maxRank;
-                const ae = getArcaneEffectAtRank(arcane, rank, build.plannerConfig?.warframeArmor, false, {
+                const ae = getArcaneEffectAtRank(arcane, rank, build.plannerConfig?.warframeArmor, true, {
                     warframeMaxEnergy: build.plannerConfig?.warframeMaxEnergy,
                     warframeEnergyPercent: build.plannerConfig?.warframeEnergyPercent,
                 });
@@ -3288,7 +3299,7 @@ export default function ModBuilder() {
         const customRivens = inventoryCustomRivens
             .filter((riven: CustomRivenRecord) => !riven.importStatus || riven.importStatus === "ready")
             .filter((riven: CustomRivenRecord) => customRivenSupportsWeapon(riven, weapon))
-            .map((riven: CustomRivenRecord) => buildCustomRivenEntry(riven, weapon));
+            .map((riven: CustomRivenRecord) => buildCustomRivenEntry(riven));
         return [...filterBuilderExpertVariants(baseMods), ...customRivens];
     }, [weapon, inventoryCustomRivens]);
     const stanceMods   = useMemo(() => {
@@ -3812,7 +3823,7 @@ export default function ModBuilder() {
             }),
         ];
         if (includeArcaneStats && arcane1) {
-            const ae = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext);
+            const ae = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, true, arcaneEnergyContext);
             if (ae) effects.push({
                 ...emptyEffect(),
                 ...ae,
@@ -3916,10 +3927,14 @@ export default function ModBuilder() {
             expectedDamageMultiplier: stats.damageWeightedMultishot,
         };
     }, [activeMetrics, activeBuildEffects, activeTargetAssumptions, activeCalcWeapon, factionOn, faction]);
-    const activeTargetAttackDamage = useMemo(
-        () => activeTargetAttackInput ? calculateDirectDamageToInitialPools(activeTargetAttackInput) : null,
-        [activeTargetAttackInput],
-    );
+    const activeTargetAttackDamage = useMemo(() => {
+        if (!activeTargetAttackInput || !activeMetrics) return null;
+        const stats = activeMetrics.modded;
+        return calculateDirectDamageToInitialPools({
+            ...activeTargetAttackInput,
+            damageRampMultiplier: stats.firstAttackDamageMultiplier * stats.firstShotMagazineDamageMultiplier,
+        });
+    }, [activeTargetAttackInput, activeMetrics]);
     const activeTargetAttackSequence = useMemo(() => {
         if (!activeTargetAttackInput || !activeMetrics) return null;
         const stats = activeMetrics.modded;
@@ -3928,6 +3943,7 @@ export default function ModBuilder() {
             enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             shotsPerMagazine: stats.shotsPerMag,
+            firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             critChance: stats.critChance + stats.punctureCritChanceBonus,
             critMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
@@ -3979,6 +3995,7 @@ export default function ModBuilder() {
             expectedDamageMultiplier: stats.damageWeightedMultishot,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             shotsPerMagazine: stats.shotsPerMag,
+            firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
             statusDurationMultiplier: stats.statusDurationMultiplier,
@@ -4103,7 +4120,7 @@ export default function ModBuilder() {
                 lockedExternalEffects.push(exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect);
             }
             if (includeArcaneStats && arcane1 && !optimizeArcaneForRun) {
-                const resolved = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext);
+                const resolved = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, true, arcaneEnergyContext);
                 if (resolved) {
                     lockedArcaneEffect = {
                         ...emptyEffect(),
@@ -4148,6 +4165,7 @@ export default function ModBuilder() {
                 candidateAttackIdx: number,
                 candidateResult: ReturnType<typeof optimizeBuild>,
                 preEquippedEffects: ModEffect[],
+                useFiniteEncounterResult = true,
             ) => {
                 const scoringWeapon = makeSelectedAttackWeapon(candidateWeapon, candidateAttackIdx);
                 const effects: (ModEffect | null)[] = [
@@ -4164,7 +4182,12 @@ export default function ModBuilder() {
                 const arcaneEffect = candidateResult.arcane
                     ? getArcaneEffectAtRank(candidateResult.arcane, candidateResult.arcaneRank, warframeArmor, true, arcaneEnergyContext)
                     : null;
-                return debugScoreBuild(scoringWeapon, effects, goal, factionOn ? faction : "", arcaneEffect, targetProfileOverride, conditionalState);
+                return goal === "timeToKill" && useFiniteEncounterResult && candidateResult.encounterScore !== undefined
+                    ? rankExpectedEncounter(
+                        candidateResult.encounterTimeToKillSeconds,
+                        candidateResult.encounterScore,
+                    )
+                    : debugScoreBuild(scoringWeapon, effects, goal, factionOn ? faction : "", arcaneEffect, targetProfileOverride, conditionalState);
             };
 
             const runOptimizeForConfig = async (
@@ -4311,6 +4334,7 @@ export default function ModBuilder() {
                                 selectedAttackIdx,
                                 baselineRun.appliedResult,
                                 [...candidateWeaponState.activeIncarnonEffects, ...lockedExternalEffects],
+                                false,
                             ),
                         });
                     }
@@ -4428,7 +4452,7 @@ export default function ModBuilder() {
                 mathEffects.push(appliedResult.exilusMod.effectsByRank[appliedResult.exilusRank] ?? appliedResult.exilusMod.effect);
             }
             if (includeArcaneStats && optArcane && appliedResult.arcane) {
-                const ae = getArcaneEffectAtRank(appliedResult.arcane, appliedResult.arcaneRank, warframeArmor, false, arcaneEnergyContext);
+                const ae = getArcaneEffectAtRank(appliedResult.arcane, appliedResult.arcaneRank, warframeArmor, true, arcaneEnergyContext);
                 if (ae) mathEffects.push({
                     ...emptyEffect(),
                     ...ae,
@@ -4445,7 +4469,7 @@ export default function ModBuilder() {
             const explanationArcaneEntry = optimizeArcaneForRun ? appliedResult.arcane : includeArcaneStats ? arcane1 : null;
             const explanationArcaneRank = optimizeArcaneForRun ? appliedResult.arcaneRank : arcane1Rank;
             const explanationArcane = explanationArcaneEntry
-                ? getArcaneEffectAtRank(explanationArcaneEntry, explanationArcaneRank, warframeArmor, optimizeArcaneForRun, arcaneEnergyContext)
+                ? getArcaneEffectAtRank(explanationArcaneEntry, explanationArcaneRank, warframeArmor, true, arcaneEnergyContext)
                 : null;
             setReasoning(explainBuild(
                 weaponForOpt,
@@ -4461,6 +4485,14 @@ export default function ModBuilder() {
                     arcaneEffect: explanationArcane,
                     arcaneName: explanationArcaneEntry?.name,
                     arcaneRank: explanationArcaneEntry ? explanationArcaneRank : undefined,
+                    objectiveEncounter: goal === "timeToKill" && appliedResult.encounterScore !== undefined
+                        ? {
+                            damagePerSecond: appliedResult.encounterScore,
+                            timeToKillSeconds: appliedResult.encounterTimeToKillSeconds ?? null,
+                            refined: appliedResult.encounterRefined ?? false,
+                            candidatesEvaluated: appliedResult.encounterCandidatesEvaluated ?? 0,
+                        }
+                        : undefined,
                 },
             ));
             setReasoningContextAtOptimization(currentReasoningContextKey);
@@ -4528,7 +4560,7 @@ export default function ModBuilder() {
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
         setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
         if (plannerConfig) {
-            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling") setGoal(plannerConfig.goal);
+            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill") setGoal(plannerConfig.goal);
             const conditionalModes: ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
             if (plannerConfig.conditionalMode && conditionalModes.includes(plannerConfig.conditionalMode)) {
                 setConditionalMode(plannerConfig.conditionalMode);
@@ -5630,7 +5662,7 @@ export default function ModBuilder() {
                                                         <div className="rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-3 space-y-2">
                                                             <div className="text-[10px] uppercase tracking-wide text-slate-500">Score assumptions</div>
                                                             <div className="grid gap-x-4 gap-y-1.5 text-[10px] text-slate-400 sm:grid-cols-2">
-                                                                <div><span className="text-slate-500">Objective:</span> {goal === "burst" ? "Burst DPS" : "Sustained DPS"}</div>
+                                                                <div><span className="text-slate-500">Objective:</span> {GOAL_OPTIONS.find((option) => option.key === goal)?.label ?? goal}</div>
                                                                 <div><span className="text-slate-500">Target:</span> {activeTargetSummary}</div>
                                                                 <div><span className="text-slate-500">Attack:</span> {weapon.attacks[selectedAttackIdx]?.name ?? "Normal attack"}</div>
                                                                 {activeWeaponState?.appliedIncarnonOptions.length ? (
@@ -6038,7 +6070,7 @@ export default function ModBuilder() {
                                     return `${getBuilderDisplayModName(mod)} (exilus)`;
                                 });
                                 if (includeArcaneStats && arcane1) {
-                                    const ae = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext);
+                                    const ae = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, true, arcaneEnergyContext);
                                     if (ae) buildEffects.push({
                                         ...emptyEffect(),
                                         ...ae,
@@ -6101,6 +6133,9 @@ export default function ModBuilder() {
                                         { label: "Direct Damage", value: fmt(stats.totalDamage), sub: "post-quantization", tooltip: "Final direct damage after damage construction and Warframe's damage quantization step, before crit and multishot." },
                                         { label: "Arsenal Total", value: fmt(stats.arsenalDamage), sub: `per ${damageUnit}, no crit`, tooltip: `Unquantized Arsenal Total Damage after multishot for one ${damageUnit}, before crit weighting. Target modifiers and mission rounding are not included.` },
                                         { label: avgDamageLabel, value: fmt(stats.averageShotDamage), sub: "crit-weighted", tooltip: `Expected damage per ${damageUnit} after weighting in crit chance and crit multiplier.` },
+                                        ...(stats.firstShotMagazineDamageBonus > 0
+                                            ? [{ label: "First shot", value: fmt(stats.averageShotDamage * stats.firstShotMagazineDamageMultiplier), sub: "after reload", tooltip: `Expected direct damage for the first ammo-consuming shot in a fresh magazine, including first-shot Chamber mods and crit weighting. Later shots use the ordinary per-${damageUnit} damage above.` }]
+                                            : []),
                                         { label: "Burst DPS", value: fmt(result.burstDPS), sub: "fresh magazine", tooltip: "Damage per second while attacking through a fresh magazine without reload downtime. Verified attack ramps are averaged across that magazine." },
                                         { label: "Sustained DPS", value: fmt(result.sustainedDPS), sub: "with reload", tooltip: "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable." },
                                         { label: `DoT / ${damageUnitLabel}`, value: fmt(stats.dotDamagePerShot), sub: "full-life estimate", tooltip: `Expected status damage-over-time contributed by one ${damageUnit} if the target survives for every proc's full duration. This is not damage delivered before a target dies.` },
@@ -6338,6 +6373,13 @@ export default function ModBuilder() {
                                 };
 
                                 const hasMultipleAttacks = weapon.attacks.length > 1;
+                                const firstShotChamberMods = [...new Set(allSlotsForCap
+                                    .filter((mod): mod is ModEntry => !!mod && [
+                                        "Charged Chamber",
+                                        "Primed Chamber",
+                                        "Primed Charged Chamber",
+                                    ].includes(mod.name))
+                                    .map((mod) => mod.name))];
 
                                 return (
                                     <div className="space-y-4">
@@ -6365,6 +6407,12 @@ export default function ModBuilder() {
                                                 </div>
                                             )}
                                         </div>
+
+                                        {firstShotChamberMods.length > 0 && (
+                                            <div role="note" className="rounded-lg border border-amber-700/40 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-300/90">
+                                                {firstShotChamberMods.join(", ")} apply to the first shot in each magazine; per-magazine DPS and first-shot / finite-encounter damage include the bonus. Perigale's Gale Force Infinite Ammo trigger/uptime and its Chamber-mod interaction are not modeled.
+                                            </div>
+                                        )}
 
                                         {renderAttackStats(
                                             hasMultipleAttacks ? selectedAttackIdx : 0,
