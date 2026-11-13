@@ -1384,13 +1384,6 @@ const SOURCE_FAMILY_LABELS: Record<Exclude<SourceFamily, "all">, string> = {
   other: "Other",
 };
 
-const DISPOSITION_DOTS: Record<number, string> = {
-  1: "●○○○○",
-  2: "●●○○○",
-  3: "●●●○○",
-  4: "●●●●○",
-  5: "●●●●●",
-};
 const POLARITY_LABELS: Record<string, string> = {
   madurai: "Madurai (V)",
   naramon: "Naramon (−)",
@@ -5130,16 +5123,6 @@ export default function Inventory() {
                             value={
                               POLARITY_LABELS[allE.stancePolarity] ??
                               allE.stancePolarity
-                            }
-                          />
-                        )}
-                        {/* Riven disposition */}
-                        {allE?.disposition !== undefined && (
-                          <StatBox
-                            label="Riven Disposition"
-                            value={
-                              DISPOSITION_DOTS[allE.disposition] ??
-                              String(allE.disposition)
                             }
                           />
                         )}

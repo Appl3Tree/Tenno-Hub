@@ -21,6 +21,7 @@ import { getWeaponCatalog, type WeaponAttack, type WeaponDamage, type WeaponEntr
 import { useTrackerStore } from "../store/store";
 import { formatSourceDisplayLabel } from "../utils/sourceLabels";
 import { getHighestOwnedArcaneRankWithFallback } from "../domain/logic/arcaneInventory";
+import { CURRENT_RIVEN_STAT_MULTIPLIER } from "../domain/rivens";
 import {
     buildSearchDetailHash,
     getCatalogIdForPath,
@@ -350,7 +351,7 @@ function getWeaponStatRows(weapon: WeaponEntry): WeaponStatRow[] {
         { label: "Magazine", value: displayMagazineValue(weapon, weapon.magazineSize) },
         { label: "Reload", value: `${formatDecimal(weapon.reloadTime)}s` },
         { label: "Charge Time", value: weapon.chargeTime != null ? `${formatDecimal(weapon.chargeTime)}s` : "—" },
-        { label: "Disposition", value: formatDecimal(weapon.disposition, 2) },
+        { label: "Riven Stat Factor", value: `${CURRENT_RIVEN_STAT_MULTIPLIER.toFixed(2)}× (shared)` },
         { label: "Polarities", value: weapon.polarities.length > 0 ? weapon.polarities.map(titleCase).join(" · ") : "—" },
         { label: "Stance Family", value: weapon.stanceClasses?.length ? weapon.stanceClasses.join(" · ") : weapon.stanceClass ?? "—" },
         { label: "Overlevel", value: formatBool(weapon.canOverLevel) },

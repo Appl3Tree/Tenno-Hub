@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog } from "../weaponCatalog";
 import {
+    buildIncarnonCandidateConfigs,
     getIncarnonRecordForWeapon,
     resolveIncarnonState,
+    selectIncarnonSearchShortlist,
 } from "../incarnonCatalog";
 
 describe("incarnonCatalog", () => {
@@ -64,5 +66,110 @@ describe("incarnonCatalog", () => {
         });
 
         expect(resolved.activeEffects.some((effect) => effect.fireRateBonus === 0.2)).toBe(true);
+    });
+
+    it("models Braton Prime Munitions Grit extra-projectile damage in both forms", () => {
+        const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(bratonPrime).toBeTruthy();
+        const incarnonAttack = bratonPrime!.attacks.findIndex((attack) => /incarnon form$/i.test(attack.name));
+        expect(incarnonAttack).toBeGreaterThanOrEqual(0);
+        const config = {
+            unlockedTier: 2,
+            selectedOptionsByTier: { 2: "tier-2-munitions-grit" },
+        } as const;
+
+        const normal = resolveIncarnonState(bratonPrime!, 0, config);
+        const transformed = resolveIncarnonState(bratonPrime!, incarnonAttack, config);
+
+        for (const resolved of [normal, transformed]) {
+            expect(resolved.activeEffects.some((effect) => effect.multishotBonus === 0.2)).toBe(true);
+            expect(resolved.activeEffects.some((effect) => effect.multishotDamageBonus === 0.54)).toBe(true);
+            expect(resolved.appliedOptions[0]?.model.unsupportedLines).toEqual([]);
+        }
+    });
+
+    it("keeps unsupported conditional Incarnon bonuses out of unconditional effects", () => {
+        const bratonOption = getIncarnonRecordForWeapon("Braton Prime")?.tiers
+            .find((tier) => tier.tier === 2)?.options
+            .find((option) => option.id === "tier-2-daring-reverie");
+        expect(bratonOption?.model.unsupportedLines.some((line) => /^With Channeled Ability active:/i.test(line))).toBe(true);
+        expect(bratonOption?.model.effects.flatMap((entry) => [
+            entry.effect.ammoEfficiencyBonus,
+            ...entry.effect.conditionalEffects.map((effect) => effect.stats.ammoEfficiencyBonus ?? 0),
+        ])).not.toContain(0.5);
+
+        const deraOption = getIncarnonRecordForWeapon("Dera")?.tiers
+            .find((tier) => tier.tier === 2)?.options
+            .find((option) => option.id === "tier-2-paragon-essence");
+        expect(deraOption?.model.unsupportedLines.some((line) => /^On Status Effect:/i.test(line))).toBe(true);
+        expect(deraOption?.model.effects.flatMap((entry) => [
+            entry.effect.fireRateBonus,
+            ...entry.effect.conditionalEffects.map((effect) => effect.stats.fireRateBonus ?? 0),
+        ])).not.toContain(0.05);
+
+        const boltorOption = getIncarnonRecordForWeapon("Boltor Prime")?.tiers
+            .find((tier) => tier.tier === 2)?.options
+            .find((option) => option.id === "tier-2-crimson-overture");
+        expect(boltorOption?.model.unsupportedLines.some((line) => /^On Kill:.*Ammo Efficiency/i.test(line))).toBe(false);
+        expect(boltorOption?.model.unsupportedLines.some((line) => /^On Kill: Increase Damage by \+2/i.test(line))).toBe(true);
+        expect(boltorOption?.model.effects.flatMap((entry) => [
+            entry.effect.ammoEfficiencyBonus,
+            ...entry.effect.conditionalEffects.map((effect) => effect.stats.ammoEfficiencyBonus ?? 0),
+        ])).not.toContain(0.2);
+    });
+
+    it("keeps the manually selected evolution path when path optimization is disabled", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime");
+        const record = getIncarnonRecordForWeapon(weapon ?? null);
+        expect(record).toBeTruthy();
+        const selected = { 2: "tier-2-accurate-salvos", 4: "tier-4-critical-parallel" } as const;
+
+        expect(buildIncarnonCandidateConfigs(record!, selected, false)).toEqual([{
+            unlockedTier: 4,
+            selectedOptionsByTier: selected,
+        }]);
+    });
+
+    it("searches only explicitly selected tiers when a partial evolution path is given", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime");
+        const record = getIncarnonRecordForWeapon(weapon ?? null);
+        const tier = record?.tiers.find((candidate) => candidate.tier === 4);
+        expect(tier?.options.length).toBeGreaterThan(1);
+
+        const candidates = buildIncarnonCandidateConfigs(record ?? null, { 4: tier!.options[0].id }, true);
+        expect(candidates).toHaveLength(tier!.options.length);
+        expect(candidates.every((candidate) => Object.keys(candidate.selectedOptionsByTier).join(",") === "4")).toBe(true);
+        expect(new Set(candidates.map((candidate) => candidate.selectedOptionsByTier[4])).size).toBe(tier!.options.length);
+        expect(candidates.every((candidate) => candidate.unlockedTier === 4)).toBe(true);
+    });
+
+    it("searches every available tier when path optimization is enabled with no selections", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime");
+        const record = getIncarnonRecordForWeapon(weapon ?? null);
+        expect(record).toBeTruthy();
+        const optionTiers = record!.tiers.filter((tier) => tier.options.length > 0);
+        const expectedCandidateCount = optionTiers.reduce((product, tier) => product * tier.options.length, 1);
+
+        const candidates = buildIncarnonCandidateConfigs(record!, {}, true);
+        expect(candidates).toHaveLength(expectedCandidateCount);
+        expect(candidates.every((candidate) => optionTiers.every((tier) => Boolean(candidate.selectedOptionsByTier[tier.tier])))).toBe(true);
+        expect(candidates.every((candidate) => candidate.unlockedTier === Math.max(...optionTiers.map((tier) => tier.tier)))).toBe(true);
+    });
+
+    it("keeps a stable, unique shortlist and excludes already optimized configurations", () => {
+        const candidates = [
+            { signature: "baseline", score: 20, label: "baseline" },
+            { signature: "path-a", score: 30, label: "first path A" },
+            { signature: "path-a", score: 30, label: "duplicate path A" },
+            { signature: "path-b", score: 25, label: "path B" },
+            { signature: "path-c", score: 10, label: "path C" },
+            { signature: "invalid", score: Number.NaN, label: "invalid score" },
+        ];
+
+        expect(selectIncarnonSearchShortlist(candidates, ["baseline"], 2).map((candidate) => candidate.label)).toEqual([
+            "first path A",
+            "path B",
+        ]);
+        expect(selectIncarnonSearchShortlist(candidates, ["baseline"], 0)).toEqual([]);
     });
 });

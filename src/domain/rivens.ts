@@ -2,6 +2,14 @@ import type { ModEffect, ModEntry } from "./catalog/modCatalog";
 import { emptyEffect } from "./catalog/modCatalog";
 import type { WeaponCategory, WeaponEntry } from "./catalog/weaponCatalog";
 
+/**
+ * Hotfix 44.1.3 removed per-weapon Riven dispositions and normalized all Riven
+ * rolls to the former 1.20 disposition factor. Source: https://www.warframe.com/en/patch-notes/pc/44-1-3
+ * Keep the source field on saved
+ * records only so older inventories can be converted to this shared scale.
+ */
+export const CURRENT_RIVEN_STAT_MULTIPLIER = 1.2;
+
 export type CustomRivenStatUnit = "percent" | "multiplier" | "meters" | "seconds" | "flat";
 
 export interface CustomRivenStatDef {
@@ -27,6 +35,7 @@ export interface CustomRivenRecord {
     name: string;
     sourceWeaponUniqueName: string;
     sourceWeaponName: string;
+    /** Historical source factor used to normalize saves made before the shared 1.20 Riven factor. */
     sourceWeaponDisposition: number;
     familyKey: string;
     polarity: string;
@@ -541,9 +550,11 @@ export function generateCustomRivenName(weaponName: string, stats: CustomRivenSt
     return `${weaponName} ${ranked[0].definition.prefix}-${ranked[1].definition.prefix.toLowerCase()}${ranked[ranked.length - 1].definition.suffix.toLowerCase()}`;
 }
 
-export function scaleCustomRivenStats(record: CustomRivenRecord, targetWeapon: WeaponEntry): CustomRivenStatValue[] {
-    const baseDisposition = record.sourceWeaponDisposition > 0 ? record.sourceWeaponDisposition : 1;
-    const ratio = targetWeapon.disposition > 0 ? targetWeapon.disposition / baseDisposition : 1;
+export function normalizeCustomRivenStats(record: CustomRivenRecord): CustomRivenStatValue[] {
+    const baseDisposition = record.sourceWeaponDisposition > 0
+        ? record.sourceWeaponDisposition
+        : CURRENT_RIVEN_STAT_MULTIPLIER;
+    const ratio = CURRENT_RIVEN_STAT_MULTIPLIER / baseDisposition;
     return record.stats.map((stat) => ({
         ...stat,
         value: (() => {
@@ -554,8 +565,8 @@ export function scaleCustomRivenStats(record: CustomRivenRecord, targetWeapon: W
     }));
 }
 
-export function buildCustomRivenEntry(record: CustomRivenRecord, targetWeapon: WeaponEntry): ModEntry {
-    const scaledStats = scaleCustomRivenStats(record, targetWeapon).filter((stat) => stat.value !== 0);
+export function buildCustomRivenEntry(record: CustomRivenRecord): ModEntry {
+    const scaledStats = normalizeCustomRivenStats(record).filter((stat) => stat.value !== 0);
     const effectByRank: ModEffect[] = [];
     const statsTextByRank: string[] = [];
     for (let rank = 0; rank <= 8; rank++) {

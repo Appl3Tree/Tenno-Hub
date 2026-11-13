@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getModsForWeapon, getStancesForWeapon } from "../catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon } from "../catalog/modCatalog";
 import { getWeaponCatalog } from "../catalog/weaponCatalog";
 import { effectiveDrain } from "../logic/capacityCalc";
 import ITEMS_RAW from "../../data/_generated/items-lean.auto.json";
@@ -92,6 +92,38 @@ describe("weapon catalog stance inference", () => {
         const mods = new Set(getModsForWeapon(mausolon!).map((mod) => mod.name));
         expect(mods.has("Dual Rounds")).toBe(true);
         expect(mods.has("Serration")).toBe(false);
+    });
+
+    it("keeps rifle and sniper mods visible for Perigale variants missing lean ancestry data", () => {
+        const perigale = getWeaponCatalog().find((weapon) => weapon.name === "Perigale");
+        const perigalePrime = getWeaponCatalog().find((weapon) => weapon.name === "Perigale Prime");
+
+        expect(perigale).toBeTruthy();
+        expect(perigalePrime).toBeTruthy();
+        expect(perigale?.weaponType).toBe("Sniper");
+        expect(perigale?.modCompat).toBe("Sniper");
+        expect(perigalePrime?.category).toBe("Primary");
+        expect(perigalePrime?.weaponType).toBe("Sniper");
+        expect(perigalePrime?.modCompat).toBe("Sniper");
+
+        const baseMods = filterBuilderExpertVariants(getModsForWeapon(perigale!));
+        const mods = filterBuilderExpertVariants(getModsForWeapon(perigalePrime!));
+        const hasStandardMod = (pool: typeof mods, name: string) => pool.some((mod) =>
+            mod.name === name && !/\/(?:Beginner|Intermediate|Expert)\//i.test(mod.path),
+        );
+
+        expect(hasStandardMod(mods, "Serration")).toBe(true);
+        expect(hasStandardMod(mods, "Split Chamber")).toBe(true);
+        expect(hasStandardMod(mods, "Hunter Munitions")).toBe(true);
+        expect(baseMods.some((mod) => mod.name === "Primed Chamber")).toBe(true);
+        expect(mods.some((mod) => mod.name === "Charged Chamber")).toBe(true);
+        expect(mods.some((mod) => mod.name === "Primed Chamber")).toBe(true);
+        expect(mods.some((mod) => mod.name === "Target Acquired")).toBe(true);
+        // Missing ancestry must not widen a family-specific restriction.
+        expect(mods.some((mod) => mod.name === "Deft Tempo")).toBe(false);
+
+        const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(getModsForWeapon(bratonPrime!).some((mod) => mod.name === "Primed Chamber")).toBe(false);
     });
 
     it("classifies companion weapons by their actual mod family", () => {

@@ -1318,14 +1318,6 @@ export default function Topbar({ onMenuToggle, mobileNavOpen }: { onMenuToggle: 
                                     <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">gid</code>, not the other cookies.
                                 </div>
                                 <div>
-                                    <span className="text-slate-300 font-medium">PC alternative: </span>
-                                    Open{" "}
-                                    <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-slate-300">
-                                        %localappdata%\Warframe\EE.log
-                                    </code>{" "}
-                                    and search for <span className="font-mono text-slate-300">"Logged in"</span> — your account ID is in the parentheses next to it.
-                                </div>
-                                <div>
                                     <span className="text-slate-300 font-medium">Console / manual: </span>
                                     Use <span className="text-slate-300">Paste JSON</span> or{" "}
                                     <span className="text-slate-300">Import File</span> with data from the official profile data page.

@@ -868,7 +868,6 @@ function OverviewTab({ data }: { data: WorldStateData }) {
                                         </li>
                                     ))}
                                 </ul>
-                                <div className="mt-1.5 text-[9px] text-slate-600">The API lists reward thresholds, not your clan's current contribution.</div>
                             </div>
                         )}
 

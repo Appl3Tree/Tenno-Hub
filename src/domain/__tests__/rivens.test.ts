@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog } from "../catalog/weaponCatalog";
-import { buildCustomRivenEntry, formatRivenStatValue, generateCustomRivenName, getCustomRivenStatDef, normalizeRivenWeaponFamilyKey, type CustomRivenRecord } from "../rivens";
+import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, formatRivenStatValue, generateCustomRivenName, getCustomRivenStatDef, normalizeCustomRivenStats, normalizeRivenWeaponFamilyKey, type CustomRivenRecord } from "../rivens";
 
 describe("custom rivens", () => {
   it("normalizes variant family names", () => {
@@ -9,7 +9,7 @@ describe("custom rivens", () => {
     expect(normalizeRivenWeaponFamilyKey("Prisma Gorgon")).toBe("gorgon");
   });
 
-  it("rescales stats by target weapon disposition", () => {
+  it("normalizes legacy saved Riven stats to the shared current factor across weapon variants", () => {
     const acceltraPrime = getWeaponCatalog().find((weapon) => weapon.name === "Acceltra Prime");
     const acceltra = getWeaponCatalog().find((weapon) => weapon.name === "Acceltra");
 
@@ -21,18 +21,22 @@ describe("custom rivens", () => {
       name: "Acceltra Crita-Visiata",
       sourceWeaponUniqueName: acceltraPrime!.uniqueName,
       sourceWeaponName: acceltraPrime!.name,
-      sourceWeaponDisposition: acceltraPrime!.disposition,
+      sourceWeaponDisposition: 0.8,
       familyKey: normalizeRivenWeaponFamilyKey(acceltraPrime!.name),
       polarity: "madurai",
       drain: 16,
-      stats: [{ stat: "damageBonus", value: 100 }],
+      stats: [{ stat: "damageBonus", value: 80 }],
       createdAtIso: "2026-03-27T00:00:00.000Z",
       updatedAtIso: "2026-03-27T00:00:00.000Z",
     };
 
-    const scaledEntry = buildCustomRivenEntry(record, acceltra!);
-    const expectedDamage = (100 * acceltra!.disposition / acceltraPrime!.disposition).toFixed(1);
-    expect(scaledEntry.statsLabel).toContain(`+${expectedDamage}% Damage`);
+    const normalizedStats = normalizeCustomRivenStats(record);
+    expect(normalizedStats).toEqual([{ stat: "damageBonus", value: 120 }]);
+    expect(buildCustomRivenEntry(record).statsLabel).toContain("+120.0% Damage");
+    expect(buildCustomRivenEntry(record).statsLabel).toContain("+120.0% Damage");
+
+    const currentRecord = { ...record, sourceWeaponDisposition: CURRENT_RIVEN_STAT_MULTIPLIER };
+    expect(normalizeCustomRivenStats(currentRecord)).toEqual([{ stat: "damageBonus", value: 80 }]);
   });
 
   it("treats coda progenitor weapons as overlevel-capable", () => {
@@ -80,7 +84,7 @@ describe("custom rivens", () => {
       updatedAtIso: "2026-03-27T00:00:00.000Z",
     };
 
-    const built = buildCustomRivenEntry(record, acceltraPrime!);
+    const built = buildCustomRivenEntry(record);
     expect(built.statsLabel).toContain("x1.55 Damage to Corpus");
     expect(built.effect.factionDamageBonus).toBeCloseTo(0.55, 6);
     expect(built.effect.targetFaction).toBe("Corpus");

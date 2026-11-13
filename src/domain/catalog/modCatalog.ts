@@ -12,11 +12,19 @@
 // Additionally, weapon-specific augments (e.g. compatName "Hek") are surfaced
 // when the selected weapon's name matches the compat name.
 
+import { emptyEffect } from "./modEffectUtils";
+export { emptyEffect } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
 import OVERFRAME_MODS_RAW from "../../../external/overframe-gg/mods.json";
 import { ITEMS_CATALOG } from "./itemsCatalog";
-import { supportsStanceLikeMods, type ModCompatName, type WeaponEntry } from "./weaponCatalog";
+import {
+    supportsStanceLikeMods,
+    type ModCompatName,
+    type WeaponEntry,
+    type WeaponForcedProcDistribution,
+    type WeaponForcedProcType,
+} from "./weaponCatalog";
 
 const ALL = ALL_RAW as Record<string, unknown>[];
 const MODS_META = MODS_RAW as Record<string, {
@@ -56,6 +64,8 @@ const COMPAT_MAP: Record<string, string> = {
 
 export interface ModEffect {
     damageBonus: number;
+    /** Multiplicative weapon damage bonus for the first ammo-consuming shot after each magazine reload. */
+    firstShotMagazineDamageBonus: number;
     impactBonus: number;
     punctureBonus: number;
     slashBonus: number;
@@ -73,11 +83,17 @@ export interface ModEffect {
     tauBonus: number;
     trueBonus: number;
     critChanceBonus: number;
+    /** Critical chance per combo tier above 1x (e.g. Blood Rush). */
+    comboCritChanceBonus: number;
     finalCritChanceBonus: number;
     critMultBonus: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
+    /** Status chance per combo tier above 1x (e.g. Weeping Wounds). */
+    comboStatusChanceBonus: number;
     multishotBonus: number;
+    /** Unique damage bonus applied only to projectiles beyond the weapon's base multishot. */
+    multishotDamageBonus: number;
     fireRateBonus: number;
     magazineBonus: number;
     reloadSpeedBonus: number;
@@ -101,6 +117,12 @@ export interface ModEffect {
     lifeStealBonus: number;
     ammoEfficiencyBonus: number;
     directDamagePerStatusBonus: number;
+    /** Condition Overload's additive melee Damage-bracket bonus per active status type. */
+    conditionOverloadDamagePerStatusBonus: number;
+    /** Extra proc rolls that only activate on a selected heavy attack at a combo threshold. */
+    meleeComboTriggeredProcDistributions?: readonly (WeaponForcedProcDistribution & {
+        minimumComboMultiplier: number;
+    })[];
     perHitCritChanceBonus: number;
     nextMagazineStatusChancePerShot: number;
     nextMagazineMultishotPerShot: number;
@@ -131,7 +153,18 @@ export interface ModEffect {
     targetFaction: string;
 }
 
+const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment";
+const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
+    "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
+    "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
+];
+
 export type ConditionalTrigger =
+    | "onAbilityCast"
+    | "whileAiming"
+    | "whileAirborne"
+    | "whileAimGliding"
+    | "whileInvisible"
     | "onReload"
     | "onReloadFromEmpty"
     | "onKill"
@@ -161,18 +194,22 @@ export interface ConditionalEffect {
         | "statusChanceBonus"
         | "finalStatusChanceBonus"
         | "multishotBonus"
+        | "multishotDamageBonus"
         | "fireRateBonus"
+        | "attackSpeedBonus"
         | "magazineBonus"
         | "reloadSpeedBonus"
         | "projectileSpeedBonus"
         | "beamRangeBonus"
         | "accuracyBonus"
+        | "statusDamageBonus"
         | "punchThrough"
         | "headshotMultiplierBonus"
         | "weakPointDamageBonus"
         | "blastBonus"
         | "heatBonus"
         | "coldBonus"
+        | "electricityBonus"
         | "toxinBonus"
         | "radiationBonus"
         | "magneticBonus"
@@ -214,6 +251,8 @@ export interface ModEntry {
     incompatibilityTags: string[];
     triggerRestriction?: string;
     itemCompatibilityPath?: string;
+    /** PvPMods-path records enter PvE build pools only with a recorded PvE source. */
+    isPveEligible?: boolean;
     isBuiltIn?: boolean;
 }
 
@@ -236,12 +275,29 @@ function normalizeStatDescriptor(rest: string): string {
     return rest
         .replace(/\bfor\s+\d+(?:\.\d+)?s\b\.?/ig, "")
         .replace(/\bstacks?\s+up\s+to\s+\d+x\b\.?/ig, "")
-        .replace(/\bwhen aiming\b/ig, "")
-        .replace(/\bwhile aiming\b/ig, "")
-        .replace(/\bwhile airborne\b/ig, "")
         .replace(/\s+/g, " ")
         .replace(/\s+\.\s*/g, " ")
         .trim();
+}
+
+const CONDITIONAL_STAT_KEYS: (keyof ConditionalEffect["stats"])[] = [
+    "damageBonus", "critChanceBonus", "finalCritChanceBonus", "critMultBonus",
+    "finalCritMultiplierBonus", "statusChanceBonus", "finalStatusChanceBonus",
+    "multishotBonus", "multishotDamageBonus", "fireRateBonus", "attackSpeedBonus", "magazineBonus",
+    "reloadSpeedBonus", "projectileSpeedBonus", "beamRangeBonus", "accuracyBonus",
+    "statusDamageBonus", "punchThrough", "headshotMultiplierBonus", "weakPointDamageBonus",
+    "blastBonus", "heatBonus", "coldBonus", "electricityBonus", "toxinBonus",
+    "radiationBonus", "magneticBonus", "gasBonus", "viralBonus", "corrosiveBonus",
+    "voidBonus", "tauBonus", "trueBonus", "ammoEfficiencyBonus", "directDamagePerStatusBonus",
+];
+
+function extractConditionalStats(stats: Partial<ModEffect>): ConditionalEffect["stats"] {
+    const extracted: ConditionalEffect["stats"] = {};
+    for (const key of CONDITIONAL_STAT_KEYS) {
+        const value = stats[key];
+        if (typeof value === "number" && value !== 0) extracted[key] = value;
+    }
+    return extracted;
 }
 
 function explodeStatLines(raw: string): string[] {
@@ -283,7 +339,7 @@ function explodeStatLines(raw: string): string[] {
 
 function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
     const clean = stripColorTags(raw).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
-    const match = clean.match(/^(On Reload From Empty|On Reload|On Headshot Kill|On Headshot|On Weak Point Kill|On Weak Point Hit|On Weak Point hits? with Primary Fire|On Melee Kill|On Kill or Assist|On Consecutive throw|On Hit|On Kill):\s*(.+)$/i);
+    const match = clean.match(/^(On Ability Cast|On Reload From Empty|On Reload|On Headshot Kill|On Headshot|On Weak Point Kill|On Weak Point Hit|On Weak Point hits? with Primary Fire|On Melee Kill|On Kill or Assist|On Consecutive throw|On Hit|On Kill):\s*(.+)$/i);
     if (!match) return {};
 
     const triggerRaw = match[1].toLowerCase();
@@ -293,44 +349,20 @@ function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
     const stackMatch = body.match(/\bstacks?\s+up\s+to\s+(\d+)x\b/i);
     const maxStacks = stackMatch ? Math.max(1, Number(stackMatch[1])) : 1;
     const requiresAiming = /\bwhen aiming\b|\bwhile aiming\b/i.test(body);
-    const stats = mergeEffect(emptyEffect(), parseStatLine(body, { applyStackMultiplier: false }));
-
-    const extractedStats: ConditionalEffect["stats"] = {};
-    const statKeys: (keyof ConditionalEffect["stats"])[] = [
-        "damageBonus",
-        "critChanceBonus",
-        "critMultBonus",
-        "statusChanceBonus",
-        "multishotBonus",
-        "fireRateBonus",
-        "reloadSpeedBonus",
-        "projectileSpeedBonus",
-        "beamRangeBonus",
-        "accuracyBonus",
-        "weakPointDamageBonus",
-        "blastBonus",
-        "heatBonus",
-        "coldBonus",
-        "toxinBonus",
-        "radiationBonus",
-        "voidBonus",
-        "tauBonus",
-        "trueBonus",
-        "magneticBonus",
-        "gasBonus",
-        "viralBonus",
-        "corrosiveBonus",
-        "ammoEfficiencyBonus",
-        "directDamagePerStatusBonus",
-    ];
-    for (const key of statKeys) {
-        const value = stats[key];
-        if (value && value !== 0) extractedStats[key] = value;
-    }
+    const bodyForParsing = body
+        .replace(/\bstacks?\s+up\s+to\s+\d+x\b\.?/ig, " ")
+        .replace(/\s+for\s+\d+(?:\.\d+)?s\b\.?/ig, " ")
+        .replace(/\s+(?:when|while)\s+aiming\b\.?/ig, " ")
+        .replace(/[.]\s*$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    const stats = parseStatLine(bodyForParsing, { applyStackMultiplier: false });
+    const extractedStats = extractConditionalStats(stats);
     if (Object.keys(extractedStats).length === 0) return {};
 
     let trigger: ConditionalTrigger | null = null;
-    if (triggerRaw === "on reload") trigger = "onReload";
+    if (triggerRaw === "on ability cast") trigger = "onAbilityCast";
+    else if (triggerRaw === "on reload") trigger = "onReload";
     else if (triggerRaw === "on reload from empty") trigger = "onReloadFromEmpty";
     else if (triggerRaw === "on kill") trigger = "onKill";
     else if (triggerRaw === "on headshot") trigger = "onHeadshot";
@@ -376,8 +408,41 @@ function parseRampingLine(raw: string): Partial<ModEffect> {
     return {};
 }
 
+function parseComboScaledLine(raw: string): Partial<ModEffect> {
+    const clean = stripColorTags(raw).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+    const match = clean.match(/^\+?(\d+(?:\.\d+)?)%\s*(Critical Chance|Status Chance)\s+(?:stacks with|per)\s+Combo Multiplier\.?$/i);
+    if (!match) return {};
+    const bonusPerTier = Number(match[1]) / 100;
+    return match[2].toLowerCase() === "critical chance"
+        ? { comboCritChanceBonus: bonusPerTier }
+        : { comboStatusChanceBonus: bonusPerTier };
+}
+
 function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }): Partial<ModEffect> {
     const clean = stripColorTags(raw);
+    const stateCondition = clean.match(/\s+(while aim gliding|while airborne|while invisible|while aiming|when aiming)\s*\.?$/i);
+    if (stateCondition?.index !== undefined) {
+        const baseStats = parseStatLine(clean.slice(0, stateCondition.index).trim(), options);
+        const conditionalStats = extractConditionalStats(baseStats);
+        if (Object.keys(conditionalStats).length === 0) return {};
+        const condition = stateCondition[1].toLowerCase();
+        const trigger: ConditionalTrigger = condition === "while airborne"
+            ? "whileAirborne"
+            : condition === "while aim gliding"
+                ? "whileAimGliding"
+                : condition === "while invisible"
+                    ? "whileInvisible"
+                : "whileAiming";
+        return {
+            conditionalEffects: [{
+                trigger,
+                durationSeconds: 0,
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: conditionalStats,
+            }],
+        };
+    }
     if (/^On [^:]+:/i.test(clean)) return {};
     // Skip activation-based conditions the optimizer can't model (e.g. "Hold Wall Latch for 2s
     // to gain +X%"). The "to gain" pattern uniquely identifies these; real passive stats never
@@ -401,6 +466,10 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     );
 
     if (rest === "damage" || rest === "melee damage") return { damageBonus: scaled };
+    if (rest === "damage on first shot in magazine") return { firstShotMagazineDamageBonus: scaled };
+    if (rest === "melee damage per status type affecting the target") {
+        return { conditionOverloadDamagePerStatusBonus: scaled };
+    }
     if (rest === "direct damage per status type affecting the target") return { directDamagePerStatusBonus: scaled };
     if (rest === "critical chance") return { critChanceBonus: scaled };
     if (rest === "critical damage" || rest === "critical multiplier") return { critMultBonus: scaled };
@@ -523,36 +592,6 @@ function parseFactionLine(raw: string): Partial<ModEffect> {
     };
 }
 
-export function emptyEffect(): ModEffect {
-    return {
-        damageBonus: 0, impactBonus: 0, punctureBonus: 0, slashBonus: 0,
-        heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
-        blastBonus: 0, gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
-        voidBonus: 0, tauBonus: 0, trueBonus: 0,
-        critChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0, finalCritMultiplierBonus: 0, statusChanceBonus: 0,
-        multishotBonus: 0, fireRateBonus: 0, magazineBonus: 0,
-        reloadSpeedBonus: 0, attackSpeedBonus: 0,
-        statusDurationBonus: 0, statusDamageBonus: 0,
-        projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
-        beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
-        headshotMultiplierBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
-        comboDurationBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
-        heavyAttackEfficiencyBonus: 0, heavyAttackWindUpBonus: 0,
-        lifeStealBonus: 0, ammoEfficiencyBonus: 0, directDamagePerStatusBonus: 0,
-        perHitCritChanceBonus: 0, nextMagazineStatusChancePerShot: 0, nextMagazineMultishotPerShot: 0, nextMagazineMaxStacks: 0,
-        finalStatusChanceBonus: 0,
-        impactStatusAppliesMagneticChance: 0,
-        impactStatusAppliesSlashChance: 0,
-        impactStatusExtraProcLowFireRateThreshold: 0,
-        impactStatusExtraProcLowFireRateMultiplier: 0,
-        critAppliesSlashChance: 0,
-        aoeElementalStatusSpreadChance: 0,
-        aoeElementalStatusSpreadRadius: 0,
-        conditionalEffects: [],
-        factionDamageBonus: 0, targetFaction: "",
-    };
-}
-
 function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
     const out = { ...base };
     for (const k of Object.keys(partial) as (keyof ModEffect)[]) {
@@ -581,6 +620,16 @@ function hasDamageEffect(e: ModEffect): boolean {
 function detectTriggerRestriction(name: string): string | undefined {
     if (/^semi-/i.test(name)) return "Semi";
     return undefined;
+}
+
+function matchesTriggerRestriction(weapon: WeaponEntry, restriction: string): boolean {
+    if (restriction.toLowerCase() !== "semi") return weapon.trigger === restriction;
+
+    const declaredModes = weapon.trigger.split(/[/|]/).map((mode) => mode.trim()).filter(Boolean);
+    const attackModes = weapon.attacks.map((attack) => attack.trigger ?? weapon.trigger);
+    const allModes = [...declaredModes, ...attackModes.flatMap((mode) => mode.split(/[/|]/).map((part) => part.trim()))]
+        .filter(Boolean);
+    return allModes.length > 0 && allModes.every((mode) => mode.toLowerCase() === restriction.toLowerCase());
 }
 
 interface ModCaches {
@@ -614,7 +663,57 @@ export function isHiddenModPath(path: string): boolean {
 }
 
 function isTrainingVariant(uniqueName: string): boolean {
-    return /\/(beginner|intermediate|expert)\//i.test(uniqueName);
+    return /\/(beginner|intermediate|expert)\//i.test(uniqueName)
+        || /(?:beginner|intermediate|expert)$/i.test(uniqueName);
+}
+
+/**
+ * Some catalog paths expose a training variant and its standard counterpart
+ * under different canonical parents. The game still treats those cards as
+ * incompatible variants of one mod, so normalize their optimizer group using
+ * their shared display identity and equipment bucket.
+ */
+export function normalizeTrainingVariantGroups(pool: ModEntry[]): ModEntry[] {
+    const familyKey = (mod: ModEntry) => `${mod.compatBucket.toLowerCase()}||${mod.name.trim().toLowerCase()}`;
+    const parentByGroup = new Map(pool.map((mod) => [mod.incompatibilityGroup, mod.incompatibilityGroup]));
+    const find = (group: string): string => {
+        const parent = parentByGroup.get(group) ?? group;
+        if (parent === group) return group;
+        const root = find(parent);
+        parentByGroup.set(group, root);
+        return root;
+    };
+    const union = (left: string, right: string) => {
+        const leftRoot = find(left);
+        const rightRoot = find(right);
+        if (leftRoot !== rightRoot) parentByGroup.set(rightRoot, leftRoot);
+    };
+
+    for (const trainingMod of pool) {
+        if (!isTrainingVariant(trainingMod.path)) continue;
+        const family = familyKey(trainingMod);
+        for (const counterpart of pool) {
+            if (familyKey(counterpart) !== family || isTrainingVariant(counterpart.path)) continue;
+            union(trainingMod.incompatibilityGroup, counterpart.incompatibilityGroup);
+        }
+    }
+
+    if ([...parentByGroup].every(([group, parent]) => group === parent)) return pool;
+    return pool.map((mod) => ({ ...mod, incompatibilityGroup: find(mod.incompatibilityGroup) }));
+}
+
+function isPveEligibleMod(path: string, drops: unknown): boolean {
+    if (!path.includes("/PvPMods/")) return true;
+
+    // The item export stores both PvP-only and PvE-usable Conclave-origin mods
+    // under PvPMods (for example Tactical Reload). Admit these records only if
+    // the source data explicitly lists a non-Conclave acquisition location.
+    // Missing/incomplete source lists fail closed until PvE eligibility is verified.
+    return Array.isArray(drops) && drops.some((drop) => {
+        if (!drop || typeof drop !== "object") return false;
+        const location = (drop as { location?: unknown }).location;
+        return typeof location === "string" && !/\bConclave\b/i.test(location);
+    });
 }
 
 function normalizeVariantPath(path: string): string {
@@ -733,15 +832,55 @@ function matchesHiddenTags(weapon: WeaponEntry, mod: ModEntry): boolean {
     return true;
 }
 
+/**
+ * WFCD's weapon feed includes some weapons whose full ancestry is missing from
+ * our lean items catalog. For those records, preserve the broad native class
+ * restrictions carried by a mod's ItemCompatibility path instead of silently
+ * dropping every standard mod in that family. Keep specialized subclasses
+ * (such as assault-rifle-only mods) opt-in through explicit weapon tags.
+ */
+function matchesKnownWeaponFamilyPath(weapon: WeaponEntry, itemCompatibilityPath: string): boolean {
+    switch (itemCompatibilityPath) {
+        case "/Lotus/Weapons/Tenno/Rifle/LotusRifle":
+            // Sniper and bow pools intentionally inherit ordinary rifle mods.
+            return weapon.modCompat === "Rifle" || weapon.modCompat === "Sniper" || weapon.modCompat === "Bow";
+        case "/Lotus/Weapons/Tenno/LotusLongGun":
+            return weapon.category === "Primary";
+        case "/Lotus/Weapons/Tenno/Shotgun/LotusShotgun":
+            return weapon.category === "Primary" && weapon.modCompat === "Shotgun";
+        case "/Lotus/Weapons/Tenno/Bows/LotusBow":
+            return weapon.category === "Primary" && weapon.modCompat === "Bow";
+        case "/Lotus/Weapons/Tenno/Rifle/LotusSniperRifle":
+            return weapon.category === "Primary" && weapon.modCompat === "Sniper";
+        case "/Lotus/Weapons/Tenno/Rifle/LotusAssaultRifle":
+            return weapon.tags.includes("ASSAULT_RIFLE");
+        case "/Lotus/Types/Game/LotusWeapon":
+            return weapon.category !== "Companion";
+        default:
+            return false;
+    }
+}
+
 function weaponMatchesItemCompatibility(weapon: WeaponEntry, itemCompatibilityPath: string | undefined): boolean {
     if (!itemCompatibilityPath) return true;
     if (weapon.uniqueName === itemCompatibilityPath) return true;
+    // WFCD's weapon records do not necessarily appear in the curated item
+    // ancestry catalog. Generic player-melee compatibility still applies to
+    // ordinary melee weapons when that ancestry is unavailable.
+    if (
+        itemCompatibilityPath === "/Lotus/Weapons/Tenno/Melee/PlayerMeleeWeapon" &&
+        weapon.modCompat === "Melee" &&
+        !weapon.tags.includes("BEAST_WEAPON")
+    ) return true;
     const raw = ITEMS_CATALOG.byKey[weapon.uniqueName]?.raw as
         | {
             parent?: string;
             parents?: string[];
         }
         | undefined;
+    if (!raw || (!raw.parent && !(raw.parents ?? []).length)) {
+        return matchesKnownWeaponFamilyPath(weapon, itemCompatibilityPath);
+    }
     if (raw?.parent === itemCompatibilityPath) return true;
     return (raw?.parents ?? []).includes(itemCompatibilityPath);
 }
@@ -925,6 +1064,7 @@ function buildCaches(): ModCaches {
             for (const rawStat of (ls.stats ?? [])) {
                 for (const s of explodeStatLines(rawStat)) {
                     e = mergeEffect(e, parseRampingLine(s));
+                    e = mergeEffect(e, parseComboScaledLine(s));
                     e = mergeEffect(e, parseTriggeredStatLine(s));
                     e = mergeEffect(e, parseStatLine(s));
                     e = mergeEffect(e, parseFlatNumericLine(s));
@@ -934,10 +1074,42 @@ function buildCaches(): ModCaches {
             }
             return e;
         });
+        // The upstream plain-text export omits Hunter Munitions' linked Slash
+        // type, leaving "chance to apply on Critical". The current Wiki confirms
+        // that this independent chance applies Slash; recover the percentage
+        // from each rank while scoping the repair to this exact catalog record.
+        if (path.toLowerCase().endsWith("/primaryhuntermunitionsmod")) {
+            parsedLevelStats.forEach((levelStat, rank) => {
+                for (const rawStat of levelStat.stats ?? []) {
+                    const text = stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    const match = text.match(/([+-]?\d+(?:\.\d+)?)\s*%\s*chance to apply\s+(?:slash\s+)?on critical\b/i);
+                    if (match && effectsByRank[rank]) {
+                        effectsByRank[rank].critAppliesSlashChance = Number(match[1]) / 100;
+                        break;
+                    }
+                }
+            });
+        }
         if (effectsByRank.length === 0) effectsByRank.push(emptyEffect());
         // Pad up to fusionLimit if levelStats has fewer entries
         while (effectsByRank.length <= fl) {
             effectsByRank.push(effectsByRank[effectsByRank.length - 1] ?? emptyEffect());
+        }
+        if (path === AMANATA_PRESSURE_PATH) {
+            // Verified 2026-11-13: the Wiki excludes Void/Tau from Amanata Pressure's
+            // random status pool. PC Hotfix 44.1.4 fixed Heavy Slam coverage and
+            // multi-enemy hits. The current DPS/finite-encounter model holds combo static.
+            // https://wiki.warframe.com/w/Amanata_Pressure
+            // https://www.warframe.com/en/patch-notes/pc/44-1-4
+            const procDistribution = {
+                minimumComboMultiplier: 8,
+                count: 1,
+                mode: "uniform" as const,
+                types: AMANATA_PRESSURE_STATUS_TYPES,
+            };
+            for (const rankEffect of effectsByRank) {
+                rankEffect.meleeComboTriggeredProcDistributions = [procDistribution];
+            }
         }
         const effect = effectsByRank[fl] ?? emptyEffect();
 
@@ -947,6 +1119,16 @@ function buildCaches(): ModCaches {
                 .filter(Boolean)
                 .join("  ·  ")
         );
+        // Keep the repaired damage type visible everywhere the source stat is
+        // presented, including the picker and equipped-mod summary.
+        if (path.toLowerCase().endsWith("/primaryhuntermunitionsmod")) {
+            for (let rank = 0; rank < statsTextByRank.length; rank++) {
+                statsTextByRank[rank] = statsTextByRank[rank].replace(
+                    /chance to apply\s+on Critical\b/i,
+                    "chance to apply Slash on Critical",
+                );
+            }
+        }
         if (statsTextByRank.length === 0) {
             for (let i = 0; i <= fl; i++) statsTextByRank.push("Stance Mod");
         }
@@ -979,6 +1161,7 @@ function buildCaches(): ModCaches {
             incompatibilityTags: meta?.incompatibilityTags ?? [],
             triggerRestriction: detectTriggerRestriction(name),
             itemCompatibilityPath: meta?.itemCompatibilityPath,
+            isPveEligible: isPveEligibleMod(path, item.drops),
         };
     }
 
@@ -987,7 +1170,7 @@ function buildCaches(): ModCaches {
     const byStanceCompat = new Map<string, ModEntry[]>();
     const byFixedStanceWeapon = new Map<string, ModEntry[]>();
 
-    for (const { item, fl: _ } of bestGeneric.values()) {
+    for (const { item } of bestGeneric.values()) {
         const rawCompat = String(item.compatName ?? "");
         const bucket = COMPAT_MAP[rawCompat];
         if (!bucket) continue;
@@ -1091,12 +1274,12 @@ export function getModsForWeapon(weapon: WeaponEntry): ModEntry[] {
         : getModsForCompat(weapon.modCompat);
 
     // Apply trigger restriction
-    const trigger = weapon.trigger ?? "";
     const seen = new Set<string>();
     const filtered = baseMods.filter(m =>
         (!seen.has(m.uniqueName) ? (seen.add(m.uniqueName), true) : false) &&
+        m.isPveEligible !== false &&
         weaponMatchesItemCompatibility(weapon, m.itemCompatibilityPath) &&
-        (!m.triggerRestriction || m.triggerRestriction === trigger) &&
+        (!m.triggerRestriction || matchesTriggerRestriction(weapon, m.triggerRestriction)) &&
         matchesHiddenTags(weapon, m)
     );
 
@@ -1114,6 +1297,7 @@ export function getModsForWeapon(weapon: WeaponEntry): ModEntry[] {
         // "Soma Prime"-exclusive mods because "soma prime".includes("soma") is true.
         if (weaponNameLower.includes(compatLower)) {
             for (const m of mods) {
+                if (m.isPveEligible === false) continue;
                 if (!weaponMatchesItemCompatibility(weapon, m.itemCompatibilityPath)) continue;
                 if (!augSeen.has(m.uniqueName) && matchesHiddenTags(weapon, m)) {
                     augSeen.add(m.uniqueName);
@@ -1125,7 +1309,21 @@ export function getModsForWeapon(weapon: WeaponEntry): ModEntry[] {
 
     const out = [...filtered];
     if (augments.length > 0) out.push(...augments.sort((a, b) => a.name.localeCompare(b.name)));
-    return out;
+    return normalizeTrainingVariantGroups(out);
+}
+
+/**
+ * The Mod Builder presents only one version of an expert-path mod when the same
+ * mod is also available through a non-expert path. Keep this filtering in the
+ * catalog layer so UI optimization and offline benchmark pools stay identical.
+ */
+export function filterBuilderExpertVariants(pool: ModEntry[]): ModEntry[] {
+    const isExpertPath = (path: string): boolean => /\/expert\//i.test(path) || /Expert$/i.test(path);
+    return pool.filter((entry) =>
+        !isExpertPath(entry.path) || !pool.some((candidate) =>
+            candidate.name === entry.name && !isExpertPath(candidate.path),
+        ),
+    );
 }
 
 export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
@@ -1134,9 +1332,9 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     const fixedStances = [...byFixedStanceWeapon.entries()]
         .filter(([itemCompatibilityPath]) => weaponMatchesItemCompatibility(weapon, itemCompatibilityPath))
         .flatMap(([, mods]) => mods)
-        .filter((mod) => weaponMatchesItemCompatibility(weapon, mod.itemCompatibilityPath) && matchesHiddenTags(weapon, mod));
+        .filter((mod) => mod.isPveEligible !== false && weaponMatchesItemCompatibility(weapon, mod.itemCompatibilityPath) && matchesHiddenTags(weapon, mod));
     if (fixedStances.length > 0) {
-        return fixedStances.sort((a, b) => a.name.localeCompare(b.name));
+        return normalizeTrainingVariantGroups(fixedStances.sort((a, b) => a.name.localeCompare(b.name)));
     }
     const stanceClasses = weapon.stanceClasses?.length
         ? weapon.stanceClasses
@@ -1149,6 +1347,7 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     const out: ModEntry[] = [];
     for (const stanceClass of stanceClasses) {
         for (const mod of byStanceCompat.get(stanceClass) ?? []) {
+            if (mod.isPveEligible === false) continue;
             if (weapon.tags.includes("BEAST_WEAPON")) {
                 if (!mod.path.includes("/BeastWeapons/Stances/")) continue;
                 if (!weaponMatchesItemCompatibility(weapon, mod.itemCompatibilityPath)) continue;
@@ -1158,5 +1357,5 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
             out.push(mod);
         }
     }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
+    return normalizeTrainingVariantGroups(out.sort((a, b) => a.name.localeCompare(b.name)));
 }

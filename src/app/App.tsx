@@ -4,7 +4,7 @@ import Shell from "./layout/Shell";
 import ErrorBoundary from "./ErrorBoundary";
 import { useTrackerStore } from "../store/store";
 import type { PageKey } from "../domain/models/userState";
-import { buildSearchDetailHash, parseSearchDetailHash, type SearchDetailRef } from "../domain/search/globalSearch";
+import { buildSearchDetailHash, parseSearchDetailHash, type SearchDetailRef } from "../domain/search/searchDetailHash";
 import { appendSearchDetailRef, searchDetailRefsEqual, syncSearchDetailStack } from "../domain/search/searchDetailNavigation";
 
 const Dashboard = lazy(() => import("../pages/Dashboard"));

@@ -8,11 +8,11 @@
 //  - Minimum mod capacity = 15 + floor(MR / 2); +1 per Legendary Rank after MR 30
 //  - Mod drain at rank r = baseDrain + r  (max rank r = fusionLimit)
 //  - Matching polarity: halves drain, ceil((drain)/2)
-//  - Non-matching polarity: increases drain by Math.round(drain/4)
+//  - Non-matching polarity: increases drain by 25%, rounded up
 //  - Aura mods (baseDrain < 0): GRANT capacity instead of consuming it
 //    - Base grant = |baseDrain| + fusionLimit
 //    - Matching polarity: doubles the grant
-//    - Non-matching polarity: reduces grant by 25%, Math.round(grant * 0.75)
+//    - Non-matching polarity: grants 80%, rounded down
 
 import type { ModEntry } from "../catalog/modCatalog";
 
@@ -32,31 +32,34 @@ export function effectiveDrain(
 ): number {
     const rank = modRank ?? mod.fusionLimit; // default to max rank
     const rawDrain = mod.baseDrain + rank;
+    const hasModPolarity = Boolean(mod.polarity && mod.polarity !== "none");
+    const hasSlotPolarity = Boolean(slotPolarity && slotPolarity !== "none");
+    const matchesPolarity = hasModPolarity && hasSlotPolarity && slotPolarity === mod.polarity;
 
     if (mod.isAura || mod.isStance) {
         // Aura and stance mods add capacity. WFCD stores baseDrain as a negative value for
         // auras; stances use the same effective rank math but are identified separately.
         // At rank r the base grant is |baseDrain| + r, then matching polarity doubles it
-        // while non-matching reduces it by 25%.
+        // while a different polarized slot grants 80% of the base amount.
         const grant = Math.abs(mod.baseDrain) + rank;
-        if (slotPolarity === mod.polarity) {
+        if (matchesPolarity) {
             return -(grant * 2);
-        } else {
-            return -Math.round(grant * 0.75);
         }
+        if (!hasSlotPolarity) return -grant;
+        return -Math.floor(grant * 0.8);
     }
 
     if (rawDrain <= 0) return 0;
 
-    if (slotPolarity === mod.polarity) {
+    if (matchesPolarity) {
         // Matching: halve drain, rounded up
         return Math.ceil(rawDrain / 2);
-    } else if (slotPolarity === "" || slotPolarity === "none") {
+    } else if (!hasSlotPolarity) {
         // Unset/empty slot polarity — no polarity modifier (neutral)
         return rawDrain;
     } else {
-        // Non-matching: add Math.round(drain / 4)
-        return rawDrain + Math.round(rawDrain / 4);
+        // Non-matching: add 25% of the base drain, rounded up.
+        return rawDrain + Math.ceil(rawDrain / 4);
     }
 }
 
@@ -80,6 +83,16 @@ export function maxWeaponRank(canOverLevel: boolean): number {
     return canOverLevel ? 40 : 30;
 }
 
+/** Count polarity changes by their physical slot, including newly polarized slots. */
+export function countPolarityChanges(defaultPolarities: string[], currentPolarities: string[]): number {
+    const slotCount = Math.max(defaultPolarities.length, currentPolarities.length);
+    let changes = 0;
+    for (let index = 0; index < slotCount; index++) {
+        if ((defaultPolarities[index] ?? "") !== (currentPolarities[index] ?? "")) changes++;
+    }
+    return changes;
+}
+
 /**
  * Minimum mod capacity based on player's Mastery Rank.
  * MR 0–30: 15 + floor(MR/2)
@@ -99,6 +112,27 @@ export function minModCapacity(masteryRank: number): number {
 export function totalModCapacity(cfg: CapacityConfig): number {
     const base = Math.max(cfg.weaponRank, minModCapacity(cfg.masteryRank));
     return cfg.hasCatalyst ? base * 2 : base;
+}
+
+/** Allocation-light capacity check for optimizer hot paths. */
+export function fitsWithinCapacity(
+    cfg: CapacityConfig,
+    slotPolarities: string[],
+    mods: (ModEntry | null)[],
+    modRanks?: (number | undefined)[],
+    extraSlots: Array<{ mod: ModEntry; rank: number; polarity: string }> = [],
+): boolean {
+    let usedCapacity = 0;
+    for (let index = 0; index < mods.length; index++) {
+        const mod = mods[index] ?? null;
+        if (!mod) continue;
+        const rank = modRanks?.[index] ?? mod.fusionLimit;
+        usedCapacity += effectiveDrain(mod, slotPolarities[index] ?? "", rank);
+    }
+    for (const slot of extraSlots) {
+        usedCapacity += effectiveDrain(slot.mod, slot.polarity, slot.rank);
+    }
+    return usedCapacity <= totalModCapacity(cfg);
 }
 
 // ── Build-level capacity accounting ─────────────────────────────────────────

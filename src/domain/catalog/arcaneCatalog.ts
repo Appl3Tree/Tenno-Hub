@@ -11,6 +11,21 @@ const ALL = ALL_RAW as Record<string, unknown>[];
 
 export type ArcaneWeaponType = "Primary" | "Secondary" | "Melee";
 
+export interface ArcaneArmorScaledWeaponDamage {
+    /** Warframe armor below this threshold does not contribute. */
+    minimumArmor: number;
+    /** Armor contribution cap, by arcane rank, above minimumArmor. */
+    maxArmorAboveMinimumByRank: number[];
+    /** Additive weapon damage bonus per armor point, indexed by arcane rank. */
+    damageBonusPerArmorByRank: number[];
+}
+
+export interface ArcaneEnergyScaledMultishot {
+    energyPercentThreshold: number;
+    maxEnergyFraction: number;
+    capByRank: number[];
+}
+
 export interface ArcaneEntry {
     uniqueName: string;
     name: string;
@@ -34,6 +49,10 @@ export interface ArcaneEntry {
     permanentEffectByRank: Partial<ModEffect>[];
     /** Effects used by the optimizer, including stacked conditional bonuses where parseable. */
     optimizerEffectByRank: Partial<ModEffect>[];
+    /** Dynamic weapon damage from the user's Warframe armor input. */
+    armorScaledWeaponDamage?: ArcaneArmorScaledWeaponDamage;
+    /** Dynamic multishot from Primary Overcharge when current Energy is above its threshold. */
+    energyScaledMultishot?: ArcaneEnergyScaledMultishot;
 }
 
 function stripColorTags(s: string): string {
@@ -273,6 +292,8 @@ function parseArcaneStats(levelStats: Array<{ stats: string[] }>): {
     procBonus: string;
     permanentEffectByRank: Partial<ModEffect>[];
     optimizerEffectByRank: Partial<ModEffect>[];
+    armorScaledWeaponDamage?: ArcaneArmorScaledWeaponDamage;
+    energyScaledMultishot?: ArcaneEnergyScaledMultishot;
 } {
     const maxStats = levelStats[levelStats.length - 1]?.stats ?? [];
     const maxDisplay = buildArcaneDisplayParts(maxStats);
@@ -312,6 +333,61 @@ function parseArcaneStats(levelStats: Array<{ stats: string[] }>): {
         return effect;
     });
 
+    const armorScaledRanks = levelStats.map((level) => {
+        for (const line of level.stats ?? []) {
+            const clean = stripColorTags(line).replace(/\\n/g, " ").trim();
+            const match = clean.match(/gain\s+\+?(\d+(?:\.\d+)?)%\s+damage\s+for\s+each\s+unit\s+of\s+armor\s+past\s+([\d,]+),\s+up\s+to\s+a\s+max\s+of\s+\+?(\d+(?:\.\d+)?)%/i);
+            if (!match) continue;
+            const listedPerArmor = Number(match[1]) / 100;
+            const minimumArmor = Number(match[2].replace(/,/g, ""));
+            const maxDamageBonus = Number(match[3]) / 100;
+            // Verified against https://wiki.warframe.com/w/Primary_Bulwark on
+            // 2026-11-12. The generated item text reports +1% at every rank,
+            // which conflicts with the Wiki's 0.5%-to-1.0% rank table. The Wiki
+            // caps every rank at 500 armor above the threshold, so derive each
+            // rank's rate from its sourced max-damage value.
+            const maxArmorAboveMinimum = 500;
+            const damageBonusPerArmor = maxDamageBonus / maxArmorAboveMinimum;
+            if (listedPerArmor <= 0 || minimumArmor < 0 || maxDamageBonus <= 0) continue;
+            return { minimumArmor, maxArmorAboveMinimum, damageBonusPerArmor };
+        }
+        return null;
+    });
+    const firstArmorRank = armorScaledRanks[0];
+    const armorScaledWeaponDamage = firstArmorRank &&
+        armorScaledRanks.every((rank) => rank && rank.minimumArmor === firstArmorRank.minimumArmor)
+        ? {
+            minimumArmor: firstArmorRank.minimumArmor,
+            maxArmorAboveMinimumByRank: armorScaledRanks.map((rank) => rank!.maxArmorAboveMinimum),
+            damageBonusPerArmorByRank: armorScaledRanks.map((rank) => rank!.damageBonusPerArmor),
+        }
+        : undefined;
+
+    const energyScaledRanks = levelStats.map((level) => {
+        for (const line of level.stats ?? []) {
+            const clean = stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+            const match = clean.match(/at or above\s+(\d+(?:\.\d+)?)%\s+Energy:\s+Gain\s+(\d+(?:\.\d+)?)%\s+of Max Energy as Multishot, capped at\s+(\d+(?:\.\d+)?)%/i);
+            if (!match) continue;
+            return {
+                energyPercentThreshold: Number(match[1]),
+                maxEnergyFraction: Number(match[2]) / 100,
+                cap: Number(match[3]),
+            };
+        }
+        return null;
+    });
+    const firstEnergyRank = energyScaledRanks[0];
+    const energyScaledMultishot = firstEnergyRank &&
+        energyScaledRanks.every((rank) => rank &&
+            rank.energyPercentThreshold === firstEnergyRank.energyPercentThreshold &&
+            rank.maxEnergyFraction === firstEnergyRank.maxEnergyFraction)
+        ? {
+            energyPercentThreshold: firstEnergyRank.energyPercentThreshold,
+            maxEnergyFraction: firstEnergyRank.maxEnergyFraction,
+            capByRank: energyScaledRanks.map((rank) => rank!.cap),
+        }
+        : undefined;
+
     return {
         statsByRank: levelStats.map(ls =>
             buildArcaneDisplayParts(ls.stats ?? []).combined.join(" | "),
@@ -321,6 +397,8 @@ function parseArcaneStats(levelStats: Array<{ stats: string[] }>): {
         procBonus: maxDisplay.procLines.join(" · "),
         permanentEffectByRank,
         optimizerEffectByRank,
+        armorScaledWeaponDamage,
+        energyScaledMultishot,
     };
 }
 

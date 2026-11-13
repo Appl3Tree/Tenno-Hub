@@ -10,6 +10,25 @@ const OVERFRAME_ITEMS = OVERFRAME_ITEMS_RAW as Record<string, Record<string, unk
 
 export type WeaponCategory = "Primary" | "Secondary" | "Melee" | "Arch-Gun" | "Arch-Melee" | "Companion";
 export type ModCompatName = "Rifle" | "Sniper" | "Shotgun" | "Pistol" | "Bow" | "Melee" | "Archgun" | "Archmelee";
+export type IntrinsicDamagePerStatusMode = "additiveBase" | "multiplicativeBase";
+
+// WFCD's weapon feed currently labels both Perigale variants as "Rifle", but
+// they are sniper rifles and accept the sniper-specific mod family.
+const PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES = new Set([
+    "/Lotus/Weapons/Tenno/LongGuns/TnQuadSniper/TnQuadSniper",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
+]);
+
+export interface WeaponDamageRampRule {
+    /** Minimum damage factor before the weapon has ramped up. */
+    minimumDamageMultiplier: number;
+    /** Time spent firing before the beam reaches full damage. */
+    rampToFullSeconds: number;
+    /** Continuous idle time before damage begins to decay. */
+    idleBeforeDecaySeconds: number;
+    /** Time spent idle after the delay before returning to minimum damage. */
+    decayToMinimumSeconds: number;
+}
 
 export interface WeaponDamage {
     total: number;
@@ -34,6 +53,33 @@ export interface WeaponDamage {
 export interface WeaponAttack {
     name: string;
     speed: number;
+    /** Verified weapon passive bonus per unique active status, for direct hits only. */
+    intrinsicDamagePerStatusBonus?: number;
+    /** How the attack-specific passive stacks with ordinary base-damage bonuses. */
+    intrinsicDamagePerStatusMode?: IntrinsicDamagePerStatusMode;
+    /** True when the source catalog identifies this damage instance as area damage. */
+    isAreaDamage?: boolean;
+    /** Per-attack trigger, when a weapon has distinct fire-mode attacks. */
+    trigger?: string;
+    /** Burst timing metadata for this attack, where verified. */
+    burstCount?: number;
+    burstDelay?: number;
+    /** Base projectiles/hits per trigger for this attack, when it differs from the weapon default. */
+    multishot?: number;
+    /** Ammo consumed by one trigger/attack event when it differs by firing mode. */
+    ammoCostPerShot?: number;
+    /** Verified fixed ammo consumption rate for an ammo-charged attack. */
+    chargeAmmoPerSecond?: number;
+    /** Ammo cost represented by the attack row's unscaled base damage. */
+    chargeDamageBaseAmmoCost?: number;
+    /** Verified time-based damage behavior for this named attack. */
+    damageRamp?: WeaponDamageRampRule;
+    /** Forced status effects per projectile/hit, independent of status chance and damage weights. */
+    forcedProcs?: WeaponForcedProcs;
+    /** Guaranteed non-damage status types that count as unique Galvanized/CO states. */
+    uniqueStatusProcs?: readonly WeaponUniqueStatusType[];
+    /** Expected status counts from forced rolls with a weighted or uniform outcome. */
+    forcedProcDistributions?: readonly WeaponForcedProcDistribution[];
     critChance: number;    // 0–1
     critMultiplier: number;
     statusChance: number;  // 0–1
@@ -62,16 +108,31 @@ export interface WeaponEntry {
     multishot: number;
     trigger: string;
     chargeTime: number | null;
+    /** Burst metadata for weapons whose source catalogs expose shot count and effective base rate. */
+    burstCount?: number;
+    burstCycleRate?: number;
+    burstDelay?: number;
     polarities: string[];
     canOverLevel: boolean;
     baseSlotCount: number;
     /**
-     * Riven disposition (omegaAttenuation in WFCD). Range 0.5–1.55.
-     * Used to calculate max possible riven stat values.
+     * Legacy upstream Riven factor (`omegaAttenuation`). Since Hotfix 44.1.3
+     * the current roll formula uses one shared 1.20 factor; retain this field
+     * only for catalog compatibility and Riven eligibility metadata.
      */
     disposition: number;
     /** All named attacks from the WFCD data */
     attacks: WeaponAttack[];
+    /** Forced status effects shared by all attacks unless an attack overrides them. */
+    forcedProcs?: WeaponForcedProcs;
+    /** Unique non-damage statuses from the default/selected attack. */
+    uniqueStatusProcs?: readonly WeaponUniqueStatusType[];
+    /** Forced status outcome distributions shared by all attacks unless an attack overrides them. */
+    forcedProcDistributions?: readonly WeaponForcedProcDistribution[];
+    /** Intrinsic direct-hit bonus per unique status on the selected attack. */
+    intrinsicDamagePerStatusBonus?: number;
+    /** Stacking order for the selected attack's intrinsic per-status damage bonus. */
+    intrinsicDamagePerStatusMode?: IntrinsicDamagePerStatusMode;
     /** True when this entry comes from WFCD's exalted weapon data. */
     isExalted?: boolean;
     /** Optional melee stance polarity. */
@@ -88,15 +149,44 @@ export interface WeaponEntry {
     selectedAttackName?: string;
     /** True when the selected attack is part of the weapon's Incarnon form. */
     selectedAttackIsIncarnon?: boolean;
+    /** True when the selected attack's source row is explicitly marked as area damage. */
+    selectedAttackIsAreaDamage?: boolean;
+    /** True when the selected melee attack is excluded from Condition Overload's bonus. */
+    selectedAttackIgnoresConditionOverload?: boolean;
+    /** True when the selected attack's damage is multiplied by the active melee combo tier. */
+    selectedAttackUsesMeleeComboMultiplier?: boolean;
+    /** Selected attack's fixed ammo charge rate, where verified. */
+    selectedAttackChargeAmmoPerSecond?: number;
+    /** Ammo cost represented by the selected attack row's base damage. */
+    selectedAttackChargeDamageBaseAmmoCost?: number;
+    /** Time-based damage behavior carried from the selected attack row. */
+    selectedAttackDamageRamp?: WeaponDamageRampRule;
+}
+
+export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
+export type WeaponForcedProcs = Partial<Record<WeaponForcedProcType, number>>;
+export type WeaponUniqueStatusType = "microwave";
+export interface WeaponForcedProcDistribution {
+    /** Guaranteed rolls per hit/projectile before multishot. */
+    count: number;
+    /** Damage-weighted uses normal proc weights; uniform divides equally across `types`. */
+    mode: "damageWeighted" | "uniform";
+    types?: readonly WeaponForcedProcType[];
 }
 
 export function isGroundMeleeCategory(category: WeaponCategory): boolean {
     return category === "Melee";
 }
 
-export function usesMeleeDamageModel(category: WeaponCategory): boolean {
-    return category === "Melee" || category === "Arch-Melee";
-}
+export {
+    clampMeleeComboMultiplier,
+    getInitialMeleeComboMultiplier,
+    getMeleeComboRules,
+    selectedAttackUsesIncarnonForm,
+    usesMeleeDamageModel,
+    withSelectedAttack,
+    type MeleeComboRules,
+} from "./weaponRules";
 
 export function supportsStanceMods(category: WeaponCategory): boolean {
     return category === "Melee";
@@ -105,27 +195,6 @@ export function supportsStanceMods(category: WeaponCategory): boolean {
 export function supportsStanceLikeMods(weapon: Pick<WeaponEntry, "category" | "tags"> | null | undefined): boolean {
     if (!weapon) return false;
     return weapon.category === "Melee" || (weapon.category === "Companion" && weapon.tags.includes("BEAST_WEAPON"));
-}
-
-function isNamedIncarnonAttack(name: string | undefined): boolean {
-    return /incarnon/i.test(String(name ?? ""));
-}
-
-export function selectedAttackUsesIncarnonForm(weapon: WeaponEntry, selectedAttackIdx: number): boolean {
-    const selectedAttack = weapon.attacks[selectedAttackIdx] ?? weapon.attacks[0];
-    if (!selectedAttack) return false;
-    if (isNamedIncarnonAttack(selectedAttack.name)) return true;
-
-    const firstIncarnonIdx = weapon.attacks.findIndex((attack) => isNamedIncarnonAttack(attack.name));
-    if (firstIncarnonIdx < 0) return false;
-
-    const selectedName = String(selectedAttack.name ?? "").toLowerCase();
-    if (/^normal\b/.test(selectedName) || /\buntransformed\b/.test(selectedName)) return false;
-
-    // WFCD sometimes emits supplementary Incarnon-mode attacks like "Auto Radial Attack"
-    // without the word "Incarnon" in the name. Those attacks are grouped after the first
-    // explicit Incarnon-form entry in the same attack list, so treat them as Incarnon scope.
-    return selectedAttackIdx >= firstIncarnonIdx;
 }
 
 /** Kuva/Tenet/Coda weapons can rank to 40 */
@@ -155,16 +224,184 @@ function resolveChargeTime(trigger: string, attacks: unknown[]): number | null {
 
     // Collect all attacks that have a numeric charge_time
     const withCT = attacks
-        .filter((a): a is Record<string, unknown> =>
-            typeof a === "object" && a !== null && typeof (a as any).charge_time === "number"
-        )
-        .map(a => (a as any).charge_time as number);
+        .filter((attack): attack is { charge_time: number } => {
+            if (typeof attack !== "object" || attack === null) return false;
+            return typeof (attack as Record<string, unknown>).charge_time === "number";
+        })
+        .map((attack) => attack.charge_time);
 
     if (withCT.length === 0) return null;
 
     // Use the minimum charge time — this represents the fastest viable charged shot
     // (e.g. Nataruk's Perfect Shot at 0.7s vs Charged Shot at 1.0s)
     return Math.min(...withCT);
+}
+
+interface BurstRuleOverride {
+    count: number;
+    delay: number;
+}
+
+/**
+ * Current Wiki-confirmed exceptions for attacks absent or stale in source snapshots.
+ * Checked 2026-11-10 against the weapon pages and https://wiki.warframe.com/w/Fire_Rate.
+ * WFCD effective-rate snapshots disagree for Perigale Prime, Harpak, and Paracyst;
+ * the current Wiki burst count/delay/cycle values are used for those attacks.
+ */
+const BURST_RULE_OVERRIDES: Readonly<Record<string, BurstRuleOverride>> = Object.freeze({
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper|normal attack": { count: 4, delay: 0.04 },
+    "/Lotus/Weapons/Grineer/LongGuns/GrnHarpoonGun/GrnHarpoonGun|normal attack": { count: 3, delay: 0.1 },
+    "/Lotus/Weapons/Grineer/LongGuns/GrnFourBarrelRifle/GrnFourBarrelRifleWeapon|burst-fire": { count: 4, delay: 0 },
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Quartakk/KuvaQuartakk|burst-fire while aiming": { count: 4, delay: 0 },
+    "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|normal attack": { count: 3, delay: 0.05 },
+    "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|primary-fire": { count: 2, delay: 0 },
+    "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|radial attack": { count: 2, delay: 0 },
+});
+
+const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
+    "/Lotus/Weapons/Grineer/LongGuns/GrnHarpoonGun/GrnHarpoonGun|harpoon": "Semi",
+    "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon": "Charge",
+    "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon contact": "Charge",
+    // The Torid's Genesis Incarnon form is a held beam, although its base
+    // grenade launcher is semi-auto. Cannonade requires every firing form to
+    // be semi-auto, so the base trigger alone is insufficient here.
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon|incarnon form": "Held",
+    "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on mode": "Special",
+    "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on radial attack": "Special",
+});
+
+const ATTACK_CHARGE_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
+    "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon": 0.25,
+    "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon contact": 0.25,
+});
+
+const VERIFIED_WEAPON_RELOAD_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
+    // WFCD reports 0.05s for Nataruk, but the current Wiki notes that its real
+    // reload time is 0.6s. Bow cadence uses this value after each arrow.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Nataruk
+    "/Lotus/Weapons/Tenno/Bows/Omicrus/OmicrusPlayerWep": 0.6,
+});
+
+const VERIFIED_ATTACK_AMMO_COST_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
+    // Current Wiki weapon tables list 0.5 ammo per beam tick and 2 ammo for
+    // each alternate-fire launch (the impact, explosion, and bomblet rows are
+    // separate representations of that same launch in this catalog).
+    // Verified 2026-11-11: https://wiki.warframe.com/w/Phantasma
+    // https://wiki.warframe.com/w/Phantasma_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun": Object.freeze({
+        "beam": 0.5,
+        "plasma bomb impact": 2,
+        "plasma bomb explosion": 2,
+        "cluster bombs impact": 2,
+        "cluster bombs explosion": 2,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun": Object.freeze({
+        "beam": 0.5,
+        "plasma bomb impact": 2,
+        "plasma bomb explosion": 2,
+        "cluster bombs impact": 2,
+        "cluster bombs explosion": 2,
+    }),
+});
+
+const PHANTASMA_BEAM_DAMAGE_RAMP: WeaponDamageRampRule = Object.freeze({
+    minimumDamageMultiplier: 0.15,
+    rampToFullSeconds: 0.6,
+    idleBeforeDecaySeconds: 0.8,
+    decayToMinimumSeconds: 2,
+});
+
+const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Record<string, WeaponDamageRampRule>>>> = Object.freeze({
+    // Both Beam rows share the Wiki-documented 15%→100% ramp and 0.8s/2s
+    // idle decay. The alternate-fire damage rows do not use this rule.
+    // Verified 2026-11-11: https://wiki.warframe.com/w/Phantasma
+    // https://wiki.warframe.com/w/Phantasma_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun": Object.freeze({
+        "beam": PHANTASMA_BEAM_DAMAGE_RAMP,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun": Object.freeze({
+        "beam": PHANTASMA_BEAM_DAMAGE_RAMP,
+    }),
+});
+
+const VERIFIED_ATTACK_AMMO_CHARGE_RULES: Readonly<Record<string, Readonly<Record<string, {
+    ammoPerSecond: number;
+    damageBaseAmmoCost: number;
+}>>>> = Object.freeze({
+    // These Wiki damage rows represent the ordinary two-ammo launch. Damage
+    // scales with charged ammo up to the magazine at 11 ammo/sec; fire-rate
+    // mods do not change the charge rate.
+    // Verified 2026-11-11: https://wiki.warframe.com/w/Phantasma
+    // https://wiki.warframe.com/w/Phantasma_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun": Object.freeze({
+        "plasma bomb impact": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+        "plasma bomb explosion": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+        "cluster bombs impact": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+        "cluster bombs explosion": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun": Object.freeze({
+        "plasma bomb impact": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+        "plasma bomb explosion": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+        "cluster bombs impact": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+        "cluster bombs explosion": { ammoPerSecond: 11, damageBaseAmmoCost: 2 },
+    }),
+});
+
+function resolveAttackTrigger(uniqueName: string, attackName: string, attackIndex: number, weaponTrigger: string): string {
+    const normalizedName = attackName.trim().toLowerCase();
+    const override = ATTACK_TRIGGER_OVERRIDES[`${uniqueName}|${normalizedName}`];
+    if (override) return override;
+    if (/full[- ]auto/i.test(attackName)) return "Auto";
+
+    const modes = weaponTrigger.split(/[/|]/).map((mode) => mode.trim()).filter(Boolean);
+    if (modes.length > 1) return modes[Math.min(attackIndex, modes.length - 1)];
+    return weaponTrigger;
+}
+
+function resolveBurstBehavior(uniqueName: string): { count: number; delay?: number } | undefined {
+    const item = OVERFRAME_ITEMS[uniqueName];
+    const data = item?.data as Record<string, unknown> | undefined;
+    const behaviors = Array.isArray(data?.Behaviors) ? data.Behaviors as Record<string, unknown>[] : [];
+    const burstBehavior = behaviors.find((behavior) =>
+        String(behavior["state:Type"] ?? "").endsWith("WeaponBurstStateBehavior"),
+    );
+    const state = burstBehavior?.["state:WeaponBurstStateBehavior"] as Record<string, unknown> | undefined;
+    const count = Number(state?.NumShots ?? state?.BurstCount);
+    const delay = Number(state?.BurstDelay);
+    if (!Number.isInteger(count) || count <= 1) return undefined;
+    return {
+        count,
+        ...(Number.isFinite(delay) && delay >= 0 ? { delay } : {}),
+    };
+}
+
+function deriveBurstDelay(burstCount: number | undefined, effectiveFireRate: number, burstCycleRate: number): number | undefined {
+    if (!burstCount || burstCount <= 1 || effectiveFireRate <= 0 || burstCycleRate <= 0) return undefined;
+    const delay = (burstCount / effectiveFireRate - 1 / burstCycleRate) / (burstCount - 1);
+    // Catalog fire rates are rounded to two or more decimals. A tiny negative
+    // residual is consistent with a simultaneous burst whose true delay is zero.
+    return delay >= -0.001 ? Math.max(0, delay) : undefined;
+}
+
+function resolveAttackBurstRule(
+    uniqueName: string,
+    attackName: string,
+    attackTrigger: string,
+    effectiveFireRate: number,
+    cycleRate: number,
+): BurstRuleOverride | undefined {
+    const normalizedAttackName = attackName.trim().toLowerCase();
+    const override = BURST_RULE_OVERRIDES[`${uniqueName}|${normalizedAttackName}`];
+    if (override) return override;
+    if (/^lock-on\b/i.test(attackName)) return undefined;
+
+    const isBurstAttack = attackTrigger.toLowerCase() === "burst" || /\bburst\b/i.test(attackName);
+    if (!isBurstAttack) return undefined;
+
+    const behavior = resolveBurstBehavior(uniqueName);
+    const count = behavior?.count;
+    const delay = deriveBurstDelay(count, effectiveFireRate, cycleRate);
+    return count !== undefined && delay !== undefined ? { count, delay } : undefined;
 }
 
 function inferCompanionWeaponFamily(item: Record<string, unknown>): { weaponType: string; modCompat: ModCompatName } {
@@ -230,6 +467,9 @@ function resolveWeaponFamily(category: WeaponCategory, item: Record<string, unkn
     if (category === "Arch-Melee") return { weaponType: weaponType || "Arch-Melee", modCompat: "Archmelee" };
     if (category === "Secondary") return { weaponType: weaponType || "Pistol", modCompat: "Pistol" };
     if (category === "Melee") return { weaponType: weaponType || "Melee", modCompat: "Melee" };
+    if (category === "Primary" && PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES.has(String(item.uniqueName ?? ""))) {
+        return { weaponType: "Sniper", modCompat: "Sniper" };
+    }
     const t = (weaponType ?? "").toLowerCase();
     if (t === "shotgun") return { weaponType: "Shotgun", modCompat: "Shotgun" };
     if (t === "bow") return { weaponType: "Bow", modCompat: "Bow" };
@@ -540,6 +780,323 @@ function n(v: unknown): number {
     return isFinite(x) ? x : 0;
 }
 
+const FORCED_PROC_TYPES: WeaponForcedProcType[] = [
+    "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin", "blast",
+    "radiation", "gas", "magnetic", "viral", "corrosive", "void", "tau",
+];
+
+/** Wiki-verified weapon statuses that count for Galvanized/Condition Overload bonuses. */
+const VERIFIED_ATTACK_UNIQUE_STATUS_OVERRIDES: Readonly<Record<
+    string,
+    Readonly<Record<string, readonly WeaponUniqueStatusType[]>>
+>> = Object.freeze({
+    // Both beams apply the infinite-duration Microwave status on touched enemies.
+    // It is a unique CO/Galvanized state, not a damage-type proc.
+    // Verified 2026-11-12:
+    // https://wiki.warframe.com/w/Nukor
+    // https://wiki.warframe.com/w/Kuva_Nukor
+    // https://wiki.warframe.com/w/Galvanized_Shot
+    "/Lotus/Weapons/Grineer/Pistols/GrineerMicrowavegun/GrnMicrowavePistol": Object.freeze({
+        "normal attack": Object.freeze(["microwave"] as const),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/Secondaries/Nukor/KuvaNukor": Object.freeze({
+        "normal attack": Object.freeze(["microwave"] as const),
+    }),
+});
+
+/** Current Wiki-verified intrinsic direct-damage bonuses scoped to weapon attacks. */
+const VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES: Readonly<Record<
+    string,
+    Readonly<Record<string, { bonus: number; mode: IntrinsicDamagePerStatusMode }>>
+>> = Object.freeze({
+    // Cedo and Cedo Prime add 60% per unique status on primary fire. Their direct
+    // glaive hit multiplies ordinary base-damage bonuses, while the radial attack
+    // does not receive the passive.
+    // Verified 2026-11-11: https://wiki.warframe.com/w/Cedo
+    // https://wiki.warframe.com/w/Cedo_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/TnAlchemistShotgun/TnAlchemistShotgun": Object.freeze({
+        "normal attack": Object.freeze({ bonus: 0.6, mode: "additiveBase" }),
+        "alt-fire glaive": Object.freeze({ bonus: 0.6, mode: "multiplicativeBase" }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeCedo/PrimeCedoWeapon": Object.freeze({
+        "normal attack": Object.freeze({ bonus: 0.6, mode: "additiveBase" }),
+        "alt-fire glaive": Object.freeze({ bonus: 0.6, mode: "multiplicativeBase" }),
+    }),
+});
+
+/** Current Wiki-verified weapon attack proc rules absent from the WFCD export. */
+const VERIFIED_ATTACK_FORCED_PROC_OVERRIDES: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponForcedProcs>>
+>> = Object.freeze({
+    // Acrid always applies a Toxin proc on a direct needle hit. The four
+    // Hystrix quill rows force their selected element without adding that
+    // element to the weapon's damage composition.
+    // Verified 2026-11-12:
+    // https://wiki.warframe.com/w/Acrid
+    // https://wiki.warframe.com/w/Hystrix
+    // https://wiki.warframe.com/w/Hystrix_Prime
+    "/Lotus/Weapons/ClanTech/Bio/AcidDartPistol": Object.freeze({
+        "normal attack": Object.freeze({ toxin: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/Pistols/QuillDartgun/QuillDartGunWeapon": Object.freeze({
+        "poison quill": Object.freeze({ toxin: 1 }),
+        "fire quill": Object.freeze({ heat: 1 }),
+        "electric quill": Object.freeze({ electricity: 1 }),
+        "ice quill": Object.freeze({ cold: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/Pistols/PrimeHystrix/PrimeHystrixWeapon": Object.freeze({
+        "poison quill": Object.freeze({ toxin: 1 }),
+        "fire quill": Object.freeze({ heat: 1 }),
+        "electric quill": Object.freeze({ electricity: 1 }),
+        "ice quill": Object.freeze({ cold: 1 }),
+    }),
+    // Glaive Prime applies forced Impact + Slash on throws and recall explosions;
+    // its bounce explosions do not receive this override.
+    // Verified 2026-11-11: https://wiki.warframe.com/w/Glaive_Prime
+    "/Lotus/Weapons/Tenno/Melee/Glaives/PrimeGlaive/PrimeGlaiveWeapon": Object.freeze({
+        "throw": Object.freeze({ impact: 1, slash: 1 }),
+        "charged throw": Object.freeze({ impact: 1, slash: 1 }),
+        "throw recall explosion": Object.freeze({ impact: 1, slash: 1 }),
+        "charged throw recall explosion": Object.freeze({ impact: 1, slash: 1 }),
+    }),
+    // Both Pathocyst variants force Impact + Viral only on recall explosions;
+    // their bounce explosions remain ordinary status rolls.
+    // Verified 2026-11-11:
+    // https://wiki.warframe.com/w/Pathocyst
+    // https://wiki.warframe.com/w/Coda_Pathocyst
+    "/Lotus/Weapons/Infested/Melee/InfBoomerang/InfBoomerangWeapon": Object.freeze({
+        "throw recall explosion": Object.freeze({ impact: 1, viral: 1 }),
+        "charged throw recall explosion": Object.freeze({ impact: 1, viral: 1 }),
+    }),
+    "/Lotus/Weapons/Infested/InfestedLich/Melee/CodaPathocyst/CodaPathocyst": Object.freeze({
+        "throw recall explosion": Object.freeze({ impact: 1, viral: 1 }),
+        "charged throw recall explosion": Object.freeze({ impact: 1, viral: 1 }),
+    }),
+    // Phantasma's plasma-bomb impact and explosion, plus seeking-bomblet
+    // explosions, each apply one forced Impact proc. The beam has no forced
+    // status proc; bomblet impact forces Stagger, which is not a damage status.
+    // Verified 2026-11-11:
+    // https://wiki.warframe.com/w/Phantasma
+    // https://wiki.warframe.com/w/Phantasma_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun": Object.freeze({
+        "plasma bomb impact": Object.freeze({ impact: 1 }),
+        "plasma bomb explosion": Object.freeze({ impact: 1 }),
+        "cluster bombs explosion": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun": Object.freeze({
+        "plasma bomb impact": Object.freeze({ impact: 1 }),
+        "plasma bomb explosion": Object.freeze({ impact: 1 }),
+        "cluster bombs explosion": Object.freeze({ impact: 1 }),
+    }),
+    // Nataruk's Quick Shot forces Impact; Charged and Perfect shots use ordinary
+    // status rolls. Verified 2026-11-12: https://wiki.warframe.com/w/Nataruk
+    "/Lotus/Weapons/Tenno/Bows/Omicrus/OmicrusPlayerWep": Object.freeze({
+        "quick shot": Object.freeze({ impact: 1 }),
+    }),
+    // Daikyu and Daikyu Prime charge attacks force Impact. The Prime's Quick
+    // Shot also carries it; no forced proc is inferred for any other mode.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Daikyu
+    // https://wiki.warframe.com/w/Daikyu_Prime
+    "/Lotus/Weapons/Tenno/Bows/AsymetricalBow/AsymetricalBow": Object.freeze({
+        "charged shot": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/Bows/PrimeDaikyu/PrimeDaikyuBow": Object.freeze({
+        "quick shot": Object.freeze({ impact: 1 }),
+        "charged shot": Object.freeze({ impact: 1 }),
+    }),
+    // Acceltra direct rocket impacts force Impact; the separate AoE explosion
+    // does not. Verified 2026-11-12:
+    // https://wiki.warframe.com/w/Acceltra
+    // https://wiki.warframe.com/w/Acceltra_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/SapientPrimary/SapientPrimaryWeapon": Object.freeze({
+        "rocket impact": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeAcceltra/PrimeAcceltraWeapon": Object.freeze({
+        "rocket impact": Object.freeze({ impact: 1 }),
+    }),
+    // Astilla slugs force Impact on the direct hit; the glass explosion is a
+    // separate status instance without a forced damage-status proc.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Astilla and
+    // https://wiki.warframe.com/w/Astilla_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/TnGlassShotgun/TnGlassShotgunGun": Object.freeze({
+        "slug impact": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeAstilla/AstillaPrimeWeapon": Object.freeze({
+        "slug impact": Object.freeze({ impact: 1 }),
+    }),
+    // Kuva Chakkhurr's direct hit and explosion each force their own Impact
+    // application; Kuva Ogris forces Impact on the direct rocket only.
+    // Verified 2026-11-12:
+    // https://wiki.warframe.com/w/Kuva_Chakkhurr
+    // https://wiki.warframe.com/w/Kuva_Ogris
+    "/Lotus/Weapons/Grineer/LongGuns/GrnKuvaLichRifle/GrnKuvaLichRifleWeapon": Object.freeze({
+        "normal attack": Object.freeze({ impact: 1 }),
+        "explosion": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Ogris/KuvaOgris": Object.freeze({
+        "rocket impact": Object.freeze({ impact: 1 }),
+    }),
+    // Afentis Prime's primary hit forces Impact and its radial hit forces Heat;
+    // its spear throw only forces Knockdown, which is not a damage status.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Afentis_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeAfentis/PrimeAfentisWeapon": Object.freeze({
+        "semi": Object.freeze({ impact: 1 }),
+        "radial attack": Object.freeze({ heat: 1 }),
+    }),
+    // Corinth's alternate-fire projectile directly forces Impact; the radial
+    // explosion forces Knockdown only. Verified 2026-11-12:
+    // https://wiki.warframe.com/w/Corinth
+    // https://wiki.warframe.com/w/Corinth_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/TnHeavyShotgun/TnHeavyShotgunGun": Object.freeze({
+        "air burst projectile": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeCorinth/PrimeCorinth": Object.freeze({
+        "air burst projectile": Object.freeze({ impact: 1 }),
+    }),
+    // The Javlok's thrown spear direct impact and explosion both force Impact;
+    // the primary projectile/explosion do not. Knockdown/Stagger are utility
+    // effects and are intentionally excluded from the damage-proc model.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Javlok
+    "/Lotus/Weapons/Grineer/LongGuns/GrnFlameSpear/GrnFlameSpear": Object.freeze({
+        "spear throw impact": Object.freeze({ impact: 1 }),
+        "spear throw explosion": Object.freeze({ impact: 1 }),
+    }),
+    // Epitaph variants force Impact on direct hits, while uncharged AoE forces
+    // Cold. Prime charged shots additionally force Cold.
+    // Verified 2026-11-12:
+    // https://wiki.warframe.com/w/Epitaph
+    // https://wiki.warframe.com/w/Epitaph_Prime
+    "/Lotus/Weapons/Tenno/Pistols/TnWraitheSidearm/TnWraitheSidearmWeapon": Object.freeze({
+        "charged shot": Object.freeze({ impact: 1 }),
+        "uncharged direct hit": Object.freeze({ impact: 1 }),
+        "uncharged aoe": Object.freeze({ cold: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/Pistols/PrimeEpitaph/PrimeEpitaphSidearmWeapon": Object.freeze({
+        "charged shot": Object.freeze({ impact: 1, cold: 1 }),
+        "uncharged direct hit": Object.freeze({ impact: 1 }),
+        "uncharged aoe": Object.freeze({ cold: 1 }),
+    }),
+    // Both Lenz variants force Impact on the arrow and Cold on the initial
+    // explosion; the delayed Blast collapse is a separate unforced instance.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Lenz and
+    // https://wiki.warframe.com/w/Prisma_Lenz
+    "/Lotus/Weapons/Corpus/Bow/Longbow/CrpBow": Object.freeze({
+        "charged shot": Object.freeze({ impact: 1 }),
+        "initial blast": Object.freeze({ cold: 1 }),
+    }),
+    "/Lotus/Weapons/Corpus/Bow/Longbow/PrismaLenz/PrismaLenzWeapon": Object.freeze({
+        "charged shot": Object.freeze({ impact: 1 }),
+        "initial blast": Object.freeze({ cold: 1 }),
+    }),
+    // Zakti variants force Impact on the dart only; their delayed Gas cloud
+    // separately rolls ordinary status and its stagger is not a damage proc.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Zakti and
+    // https://wiki.warframe.com/w/Zakti_Prime
+    "/Lotus/Weapons/Tenno/Pistols/TnGuandoPistol/TnGuandoPistolGun": Object.freeze({
+        "dart impact": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/Pistols/PrimeZakti/PrimeZaktiPistol": Object.freeze({
+        "normal attack": Object.freeze({ impact: 1 }),
+    }),
+    // Tenet Spirex's direct slug hit forces Impact; its distinct explosion
+    // does not. Verified 2026-11-12: https://wiki.warframe.com/w/Tenet_Spirex
+    "/Lotus/Weapons/Corpus/Pistols/CrpIgniterPistol/CrpIgniterPistol": Object.freeze({
+        "slug impact": Object.freeze({ impact: 1 }),
+    }),
+    // Nagantaka's semi-auto and magazine-burst bolts force Impact on both
+    // variants. Verified 2026-11-12:
+    // https://wiki.warframe.com/w/Nagantaka
+    // https://wiki.warframe.com/w/Nagantaka_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/GarudaCrossbow/GarudaCrossbow": Object.freeze({
+        "semi-auto": Object.freeze({ impact: 1 }),
+        "burst shot": Object.freeze({ impact: 1 }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeNagantaka/PrimeNagantakaWeapon": Object.freeze({
+        "semi-auto": Object.freeze({ impact: 1 }),
+        "burst shot": Object.freeze({ impact: 1 }),
+    }),
+    // Zymos' initial projectile forces Impact. Its distance-gated homing-spore
+    // behavior (>7 m from the headshot target) is not represented as unconditional.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Zymos
+    "/Lotus/Weapons/Infested/Pistols/InfUzi/InfUziWeapon": Object.freeze({
+        "normal attack": Object.freeze({ impact: 1 }),
+    }),
+});
+
+/** Current Wiki-verified forced-proc rolls whose outcome is randomly selected. */
+const VERIFIED_ATTACK_FORCED_PROC_DISTRIBUTION_OVERRIDES: Readonly<Record<
+    string,
+    Readonly<Record<string, readonly WeaponForcedProcDistribution[]>>
+>> = Object.freeze({
+    // Each Cedo Alt-Fire Glaive explosion applies two guaranteed rolls:
+    // one normal damage-weighted proc and one uniform Heat/Cold/Electricity/Toxin proc.
+    // Direct hits have ordinary status chance only. Verified 2026-11-11:
+    // https://wiki.warframe.com/w/Cedo
+    "/Lotus/Weapons/Tenno/LongGuns/TnAlchemistShotgun/TnAlchemistShotgun": Object.freeze({
+        "glaive radial attack": Object.freeze([
+            Object.freeze({ count: 1, mode: "damageWeighted" } satisfies WeaponForcedProcDistribution),
+            Object.freeze({
+                count: 1,
+                mode: "uniform",
+                types: Object.freeze(["heat", "cold", "electricity", "toxin"]),
+            } satisfies WeaponForcedProcDistribution),
+        ]),
+    }),
+});
+
+/** Current Wiki-verified base multishot for attack rows whose fire modes differ. */
+const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
+    // Cedo's primary attack has six pellets, while each alternate-fire glaive
+    // attack starts with one projectile; multishot mods can create extra glaives.
+    // Verified 2026-11-11: https://wiki.warframe.com/w/Cedo
+    "/Lotus/Weapons/Tenno/LongGuns/TnAlchemistShotgun/TnAlchemistShotgun": Object.freeze({
+        "alt-fire glaive": 1,
+        "glaive radial attack": 1,
+    }),
+    // The held Beam uses six innate beams; each charged alternate-fire damage
+    // row has its own projectile count, including five seeking-bomblet impacts.
+    // Verified 2026-11-11:
+    // https://wiki.warframe.com/w/Phantasma
+    // https://wiki.warframe.com/w/Phantasma_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun": Object.freeze({
+        "plasma bomb impact": 1,
+        "plasma bomb explosion": 1,
+        "cluster bombs impact": 5,
+        "cluster bombs explosion": 1,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun": Object.freeze({
+        "plasma bomb impact": 1,
+        "plasma bomb explosion": 1,
+        "cluster bombs impact": 5,
+        "cluster bombs explosion": 1,
+    }),
+    // Corinth buckshot uses six pellets, but each alternate-fire row is one
+    // projectile. Without attack-scoped values the weapon-level pellet count
+    // incorrectly multiplies Air Burst damage and forced Impact.
+    // Verified 2026-11-12: https://wiki.warframe.com/w/Corinth and
+    // https://wiki.warframe.com/w/Corinth_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/TnHeavyShotgun/TnHeavyShotgunGun": Object.freeze({
+        "air burst projectile": 1,
+        "air burst explosion": 1,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeCorinth/PrimeCorinth": Object.freeze({
+        "air burst projectile": 1,
+        "air burst explosion": 1,
+    }),
+});
+
+function parseForcedProcs(input: unknown): WeaponForcedProcs | undefined {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+    const record = input as Record<string, unknown>;
+    const forcedProcs: WeaponForcedProcs = {};
+    for (const type of FORCED_PROC_TYPES) {
+        const count = Math.max(0, n(record[type]));
+        if (count > 0) forcedProcs[type] = count;
+    }
+    return Object.keys(forcedProcs).length > 0 ? forcedProcs : undefined;
+}
+
 function parseDamageRecord(input: unknown): WeaponDamage {
     const ad = (input as Record<string, number> | undefined) ?? {};
     const dmgKeys = ["impact","puncture","slash","heat","cold","electricity",
@@ -702,6 +1259,8 @@ export function getWeaponCatalog(): WeaponEntry[] {
         const family = exaltedClass ?? resolveWeaponFamily(cat, item);
         const weaponType = family.weaponType;
         const trigger    = String(item.trigger ?? "Auto");
+        const name = String(item.name);
+        const uniqueName = String(item.uniqueName ?? "");
         const rawAttacks = Array.isArray(item.attacks) ? item.attacks as Record<string, unknown>[] : [];
 
         // Parse named attacks — only keep those with distinct names (skip unnamed / single attacks)
@@ -709,13 +1268,31 @@ export function getWeaponCatalog(): WeaponEntry[] {
             .filter(a => typeof a.name === "string" && a.name.length > 0 && typeof a.damage === "object" && a.damage)
             .map(a => {
                 const attackDmg = parseDamageRecord(a.damage);
+                const attackName = String(a.name).trim().toLowerCase();
+                const intrinsicPerStatus = VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES[uniqueName]?.[attackName];
+                const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
+                const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
                 return {
                     name: String(a.name),
                     speed:          n(a.speed) || 1,
+                    intrinsicDamagePerStatusBonus: intrinsicPerStatus?.bonus ?? 0,
+                    intrinsicDamagePerStatusMode: intrinsicPerStatus?.mode ?? "additiveBase",
+                    isAreaDamage: String(a.shot_type ?? "").trim().toLowerCase() === "aoe",
                     critChance:    n(a.crit_chance) / 100,
                     critMultiplier: n(a.crit_mult) || 1.5,
                     statusChance:  n(a.status_chance) / 100,
+                    multishot: VERIFIED_ATTACK_MULTISHOT_OVERRIDES[uniqueName]?.[attackName]
+                        ?? (n(a.multishot) > 0 ? n(a.multishot) : undefined),
+                    ammoCostPerShot: VERIFIED_ATTACK_AMMO_COST_OVERRIDES[uniqueName]?.[attackName]
+                        ?? (typeof a.ammo_cost === "number" ? a.ammo_cost : undefined),
+                    chargeAmmoPerSecond: ammoChargeRule?.ammoPerSecond,
+                    chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
+                    damageRamp,
                     chargeTime:    typeof a.charge_time === "number" ? a.charge_time : undefined,
+                    forcedProcs: VERIFIED_ATTACK_FORCED_PROC_OVERRIDES[uniqueName]?.[attackName]
+                        ?? parseForcedProcs(a.forcedProcs),
+                    uniqueStatusProcs: VERIFIED_ATTACK_UNIQUE_STATUS_OVERRIDES[uniqueName]?.[attackName],
+                    forcedProcDistributions: VERIFIED_ATTACK_FORCED_PROC_DISTRIBUTION_OVERRIDES[uniqueName]?.[attackName],
                     damage: attackDmg,
                     damageTotal: attackDmg.total,
                 };
@@ -723,14 +1300,37 @@ export function getWeaponCatalog(): WeaponEntry[] {
         const dmg = parseDamageRecord(item.damage ?? parsedAttacks[0]?.damage);
         if (!dmg.total && parsedAttacks.length === 0) continue;
 
-        const name = String(item.name);
-        const uniqueName = String(item.uniqueName ?? "");
         const hasExplicitMagazineSize = Object.prototype.hasOwnProperty.call(item, "magazineSize");
         const rawPolarities = Array.isArray(item.polarities)
             ? (item.polarities as unknown[]).map(p => String(p))
             : inferMainPolaritiesFromItems(uniqueName);
 
         const stanceClasses = inferStanceClasses(item, exaltedType);
+        const fireRate = n(item.fireRate) || 1;
+        const attacks = parsedAttacks.map((attack, attackIndex) => {
+            const attackTrigger = resolveAttackTrigger(uniqueName, attack.name, attackIndex, trigger);
+            const burst = resolveAttackBurstRule(
+                uniqueName,
+                attack.name,
+                attackTrigger,
+                fireRate,
+                attack.speed,
+            );
+            const normalizedAttackName = attack.name.trim().toLowerCase();
+            const chargeTime = ATTACK_CHARGE_TIME_OVERRIDES[`${uniqueName}|${normalizedAttackName}`]
+                ?? attack.chargeTime;
+            return {
+                ...attack,
+                trigger: burst ? "Burst" : attackTrigger,
+                chargeTime,
+                ...(burst ? { burstCount: burst.count, burstDelay: burst.delay } : {}),
+            };
+        });
+        const firstAttack = attacks[0];
+        const baseAmmoCostPerShot = firstAttack?.ammoCostPerShot ?? Math.max(0.0001, n(item.ammoCost) || 1);
+        const burstCount = firstAttack?.burstCount;
+        const burstCycleRate = burstCount !== undefined ? firstAttack.speed : undefined;
+        const burstDelay = firstAttack?.burstDelay;
         const entry = {
             uniqueName,
             name,
@@ -741,21 +1341,28 @@ export function getWeaponCatalog(): WeaponEntry[] {
             critChance:    n(item.criticalChance),
             critMultiplier: n(item.criticalMultiplier) || 1.5,
             statusChance:  n(item.procChance) || n(item.statusChance),
-            fireRate:      n(item.fireRate) || 1,
-            // Bows typically behave like single-shot magazines with effectively no reload animation
-            // between shots; use 1 when the source data does not report a magazine size.
+            fireRate,
+            // Missing magazine data defaults to a one-shot magazine. Bow shot
+            // cadence is modeled separately from the magazine duty cycle.
             magazineSize:  n(item.magazineSize) || 1,
-            ammoCostPerShot: Math.max(0.0001, n((item as any).ammoCost) || 1),
+            ammoCostPerShot: baseAmmoCostPerShot,
             hasExplicitMagazineSize,
-            reloadTime:    n(item.reloadTime),
+            reloadTime:    VERIFIED_WEAPON_RELOAD_TIME_OVERRIDES[uniqueName] ?? n(item.reloadTime),
             multishot:     n(item.multishot) || 1,
             trigger,
             chargeTime:    resolveChargeTime(trigger, rawAttacks),
+            burstCount: burstDelay === undefined ? undefined : burstCount,
+            burstCycleRate: burstDelay === undefined ? undefined : burstCycleRate,
+            burstDelay,
             polarities:    rawPolarities,
             canOverLevel:  isOverLevelWeapon(name, uniqueName),
             baseSlotCount: 8,
             disposition:   Number(item.omegaAttenuation ?? 1.0),
-            attacks:       parsedAttacks,
+            attacks,
+            uniqueStatusProcs: firstAttack?.uniqueStatusProcs,
+            intrinsicDamagePerStatusBonus: firstAttack?.intrinsicDamagePerStatusBonus ?? 0,
+            intrinsicDamagePerStatusMode: firstAttack?.intrinsicDamagePerStatusMode ?? "additiveBase",
+            forcedProcs: parseForcedProcs(item.forcedProcs),
             isExalted:     exaltedType,
             stancePolarity: typeof item.stancePolarity === "string" ? String(item.stancePolarity) : undefined,
             stanceClass: stanceClasses[0],

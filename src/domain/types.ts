@@ -11,6 +11,7 @@ export interface CustomRivenRecord {
     name: string;
     sourceWeaponUniqueName: string;
     sourceWeaponName: string;
+    /** Historical factor used only to normalize legacy saves to the current shared 1.20 Riven factor. */
     sourceWeaponDisposition: number;
     familyKey: string;
     polarity: string;
@@ -85,7 +86,8 @@ export interface Inventory {
 
     /**
      * User-authored unveiled rivens. These are persisted separately from flat mod counts
-     * because each riven is unique and may scale across weapon variants via disposition.
+     * because each riven is unique. `sourceWeaponDisposition` is retained as a
+     * migration baseline for records created before Riven stats normalized to 1.20.
      */
     customRivens?: CustomRivenRecord[];
 
