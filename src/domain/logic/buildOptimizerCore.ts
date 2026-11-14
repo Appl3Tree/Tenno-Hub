@@ -2028,6 +2028,7 @@ const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 24;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 12;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 12;
 const ENCOUNTER_REFINE_PASSES = 2;
+const ARCANE_MOD_JOINT_REFINE_PASSES = 3;
 
 const ENCOUNTER_PRIMARY_ELEMENT_COMBINATIONS: Record<string, string> = {
     "cold+electricity": "magnetic",
@@ -3190,6 +3191,113 @@ function optimizeBuildInternal(
         }
     }
 
+    const effectsForCurrentSlots = () => [
+        ...preEquippedEffects,
+        ...slotMods.map((mod, index) => mod
+            ? mod.effectsByRank[slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+            : null),
+        ...contextualExtraEffects,
+    ];
+    const setArcane = (selection: { arcane: ArcaneEntry | null; rank: number }) => {
+        arcane = selection.arcane;
+        arcaneRank = selection.rank;
+        contextualArcaneEffect = arcane
+            ? getArcaneEffectAtRank(arcane, arcaneRank, effectiveOpts.warframeArmor, true, {
+                warframeMaxEnergy: effectiveOpts.warframeMaxEnergy,
+                warframeEnergyPercent: effectiveOpts.warframeEnergyPercent,
+            })
+            : null;
+    };
+    const refineCurrentSlotsWithArcane = () => {
+        const refined = refineBuildSet(
+            scoringWeapon,
+            slotMods.filter((mod): mod is ModEntry => !!mod),
+            slotMods.flatMap((mod, index) => mod ? [slotRanks[index]] : []),
+            candidates,
+            goal,
+            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualExtraEffects,
+            contextualArcaneEffect,
+        );
+        const filled = fillEmptySlots(
+            scoringWeapon,
+            refined.mods,
+            refined.ranks,
+            candidates,
+            goal,
+            slotCount,
+            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualExtraEffects,
+            contextualArcaneEffect,
+        );
+        const comboRefined = comboRefineBuildSet(
+            scoringWeapon,
+            filled.mods,
+            filled.ranks,
+            candidates,
+            goal,
+            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualExtraEffects,
+            contextualArcaneEffect,
+        );
+        mods = comboRefined.mods;
+        ranks = comboRefined.ranks;
+        const reassignedMods = assignModsToSlots(
+            mods,
+            ranks,
+            assignmentPolarities,
+            slotCount,
+            allowForma,
+            effectiveOpts.maxFormaCount,
+        );
+        const minimized = allowForma
+            ? minimizePolaritiesByCapacity(
+                paddedDefaults,
+                reassignedMods.slotMods,
+                reassignedMods.slotRanks,
+                capCfg,
+                effectiveOpts.extraCapacitySlots ?? [],
+                exilusMod ? { mod: exilusMod, rank: exilusRank, basePolarity: exilusPolarity } : undefined,
+                effectiveOpts.maxFormaCount,
+                effectiveOpts.lockedSlotMask ?? [],
+            )
+            : { mainPolarities: reassignedMods.resultPolarities, exilusPolarity: finalExilusPolarity };
+        for (let index = 0; index < slotCount; index++) {
+            slotMods[index] = reassignedMods.slotMods[index];
+            slotRanks[index] = reassignedMods.slotRanks[index];
+            finalPolarities[index] = minimized.mainPolarities[index] ?? "";
+        }
+        if (allowForma && exilusMod) finalExilusPolarity = minimized.exilusPolarity;
+    };
+
+    // For proxy objectives, Arcane choice and mod refinement use the same score
+    // function. Reconcile them after slot placement and the final empty-slot pass.
+    if (goal !== "timeToKill" && optimizeArcane && !hasLockedMainSlots) {
+        for (let pass = 0; pass < ARCANE_MOD_JOINT_REFINE_PASSES; pass++) {
+            const selectedArcane = optimizeArcaneSlot(
+                scoringWeapon,
+                effectsForCurrentSlots(),
+                goal,
+                targetFaction,
+                effectiveOpts,
+            );
+            const arcaneChanged = selectedArcane.arcane?.uniqueName !== arcane?.uniqueName ||
+                selectedArcane.rank !== arcaneRank;
+            setArcane(selectedArcane);
+            if (!arcaneChanged) break;
+            refineCurrentSlotsWithArcane();
+        }
+        // The last legal refinement can expose a better Arcane. The bounded
+        // loop ends with the best Arcane for the exact mod list being returned.
+        setArcane(optimizeArcaneSlot(
+            scoringWeapon,
+            effectsForCurrentSlots(),
+            goal,
+            targetFaction,
+            effectiveOpts,
+        ));
+    }
+
     let encounterScore: number | undefined;
     let encounterTimeToKillSeconds: number | null | undefined;
     let encounterRefined: boolean | undefined;
@@ -3219,34 +3327,22 @@ function optimizeBuildInternal(
         encounterCandidatesEvaluated = encounterRefinement.candidatesEvaluated;
     }
 
-    // Select the Arcane against the final mod list, then give it one legal
-    // finite-encounter mod-refinement pass before reporting the final objective.
+    // Alternate the exact finite-encounter Arcane choice with legal one-mod
+    // refinement. An Arcane can change which replacement is best, and that
+    // replacement can in turn change the best Arcane.
     if (goal === "timeToKill" && optimizeArcane && !hasLockedMainSlots) {
-        const effectsForArcane = [
-            ...preEquippedEffects,
-            ...slotMods.map((mod, index) => mod
-                ? mod.effectsByRank[slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
-                : null),
-            ...contextualExtraEffects,
-        ];
-        const finalArcane = optimizeArcaneSlot(
-            scoringWeapon,
-            effectsForArcane,
-            goal,
-            targetFaction,
-            effectiveOpts,
-        );
-        const arcaneChanged = finalArcane.arcane?.uniqueName !== arcane?.uniqueName ||
-            finalArcane.rank !== arcaneRank;
-        if (arcaneChanged) {
-            arcane = finalArcane.arcane;
-            arcaneRank = finalArcane.rank;
-            contextualArcaneEffect = arcane
-                ? getArcaneEffectAtRank(arcane, arcaneRank, effectiveOpts.warframeArmor, true, {
-                    warframeMaxEnergy: effectiveOpts.warframeMaxEnergy,
-                    warframeEnergyPercent: effectiveOpts.warframeEnergyPercent,
-                })
-                : null;
+        for (let pass = 0; pass < ARCANE_MOD_JOINT_REFINE_PASSES; pass++) {
+            const selectedArcane = optimizeArcaneSlot(
+                scoringWeapon,
+                effectsForCurrentSlots(),
+                goal,
+                targetFaction,
+                effectiveOpts,
+            );
+            const arcaneChanged = selectedArcane.arcane?.uniqueName !== arcane?.uniqueName ||
+                selectedArcane.rank !== arcaneRank;
+            setArcane(selectedArcane);
+            if (!arcaneChanged) break;
 
             const encounterRefinement = refineBuildByExpectedEncounter(
                 scoringWeapon,
@@ -3272,32 +3368,25 @@ function optimizeBuildInternal(
             encounterTimeToKillSeconds = encounterRefinement.timeToKillSeconds;
             encounterRefined = encounterRefined || encounterRefinement.refined;
             encounterCandidatesEvaluated = (encounterCandidatesEvaluated ?? 0) + encounterRefinement.candidatesEvaluated;
+        }
 
-            const finalEffects = [
-                ...preEquippedEffects,
-                ...slotMods.map((mod, index) => mod
-                    ? mod.effectsByRank[slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
-                    : null),
-                ...contextualExtraEffects,
-            ];
-            const reassessedArcane = optimizeArcaneSlot(
-                scoringWeapon,
-                finalEffects,
-                goal,
-                targetFaction,
-                effectiveOpts,
-            );
-            arcane = reassessedArcane.arcane;
-            arcaneRank = reassessedArcane.rank;
-            contextualArcaneEffect = arcane
-                ? getArcaneEffectAtRank(arcane, arcaneRank, effectiveOpts.warframeArmor, true, {
-                    warframeMaxEnergy: effectiveOpts.warframeMaxEnergy,
-                    warframeEnergyPercent: effectiveOpts.warframeEnergyPercent,
-                })
-                : null;
+        // Recheck after the bounded loop because its last mod replacement may
+        // have changed the best Arcane. Keep the Arcane optimal for the reported
+        // list even if the search reaches its pass limit before a fixed point.
+        setArcane(optimizeArcaneSlot(
+            scoringWeapon,
+            effectsForCurrentSlots(),
+            goal,
+            targetFaction,
+            effectiveOpts,
+        ));
+        // A time-zero kill is already the objective's lower bound; when no
+        // Arcane was selected, the earlier exact score is still the final one.
+        if (!(arcane === null && encounterTimeToKillSeconds !== null &&
+            encounterTimeToKillSeconds !== undefined && encounterTimeToKillSeconds <= 1e-9)) {
             const finalEncounterEffects = contextualArcaneEffect
-                ? [...finalEffects, normalizeArcaneEffect(contextualArcaneEffect)]
-                : finalEffects;
+                ? [...effectsForCurrentSlots(), normalizeArcaneEffect(contextualArcaneEffect)]
+                : effectsForCurrentSlots();
             const finalEncounter = expectedEncounterScoreForEffects(
                 scoringWeapon,
                 finalEncounterEffects,
@@ -3575,7 +3664,7 @@ export function explainBuild(
         summary,
         winningEdge,
         comparisonNote: goal === "timeToKill"
-            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to two passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders and uses the remaining places for distinct single-element substitutions and elemental output families before filling by proxy score. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
-            : "Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model and do not prove a global optimum.",
+            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to two passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders and uses the remaining places for distinct single-element substitutions and elemental output families before filling by proxy score. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter, alternating Arcane choice and legal mod refinement for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
+            : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }

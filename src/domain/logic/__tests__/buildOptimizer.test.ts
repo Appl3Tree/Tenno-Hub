@@ -1181,12 +1181,35 @@ describe("build optimizer scoring", () => {
             conditionalState,
             arcaneEffect,
         );
+        const bestFinalListArcaneScore = Math.max(...Array.from(
+            { length: arcane!.maxRank + 1 },
+            (_, rank) => {
+                const effect = getArcaneEffectAtRank(arcane!, rank, undefined, true, {
+                    warframeMaxEnergy: 1_000,
+                    warframeEnergyPercent: 100,
+                });
+                const encounter = debugScoreExpectedEncounter(
+                    withSelectedAttack(weapon!, 0),
+                    effects,
+                    "Grineer",
+                    target,
+                    conditionalState,
+                    effect,
+                );
+                return rankExpectedEncounter(encounter.timeToKillSeconds, encounter.damagePerSecond);
+            },
+        ));
+        const selectedFinalListArcaneScore = rankExpectedEncounter(
+            independentlyScored.timeToKillSeconds,
+            independentlyScored.damagePerSecond,
+        );
 
         expect(result.capacityValid).toBe(true);
         expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
         expect(selectedNames).toContain("High Voltage");
         expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
         expect(result.encounterTimeToKillSeconds).toBeLessThan(0.77);
+        expect(selectedFinalListArcaneScore).toBeCloseTo(bestFinalListArcaneScore, 12);
     });
 
     it("matches the exhaustive finite-encounter optimum for a five-mod legal subset", () => {
