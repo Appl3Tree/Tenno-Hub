@@ -75,6 +75,8 @@ export interface ModEffect {
     slashBonus: number;
     /** Additive base-damage bonus that applies only to a selected heavy attack. */
     heavyAttackDamageBonus: number;
+    /** Multiplicative Slam Damage bonus for eligible named slam attacks. */
+    slamAttackDamageBonus: number;
     heatBonus: number;
     coldBonus: number;
     electricityBonus: number;
@@ -490,8 +492,11 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "critical chance and damage") {
         return { critChanceBonus: scaled, critMultBonus: scaled };
     }
-    if (/^bonus damage on final shot\.?\s*requires magazine \d+ or higher\.?$/.test(rest)) return { lastShotMagazineDamageBonus: scaled };
+    if (/^bonus damage on final shot\.?\s*requires magazine \d+ or higher\.?$/.test(rest)) {
+        return { lastShotMagazineDamageBonus: scaled };
+    }
     if (rest === "melee damage on heavy attack") return { heavyAttackDamageBonus: scaled };
+    if (rest === "slam attack damage") return { slamAttackDamageBonus: scaled };
     if (rest === "damage on first shot in magazine") return { firstShotMagazineDamageBonus: scaled };
     if (rest === "melee damage per status type affecting the target") {
         return { conditionOverloadDamagePerStatusBonus: scaled };
