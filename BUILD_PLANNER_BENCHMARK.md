@@ -1,8 +1,16 @@
 # Build Planner Optimizer Benchmark
 
-Run date: 2026-11-13; current full-width refresh: 2026-11-13
+Run date: 2026-11-14; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
+
+## HiGHS runtime prototype and deployed production UI sample (2026-11-14)
+
+The `highs@1.15.4` WebAssembly package was installed in a disposable temporary folder, without changing project dependencies. A 12-binary-variable additive surrogate enforced a four-slot count, capacity, and exclusivity groups. HiGHS reported an optimal objective of 799, equal to exhaustive enumeration of all 4,096 subsets. Solver initialization took 18.0 ms; the first solve took 53.5 ms and four warm solves had a 5.36 ms median. The ESM loader plus WASM measured 3,699,489 bytes raw / 1,258,610 bytes gzip. This prototype tests the binding and linear constraints only: it does not score real weapon damage or compare build quality. No solver dependency was added to the app.
+
+The deployed production page at commit `f62362f` was also exercised in a real browser. Five warmed Braton Prime / Expected TTK optimizations at MR 0, uncatalyzed, and the Balanced synthetic target returned one legal 30/30 four-mod build with 4.21 s modeled TTK. Click-to-result times were 519, 417, 422, 415, and 420 ms (420 ms median, 519 ms maximum). Reset and reload restored the blank planner. This is a single desktop/browser UI measurement, not cold app startup, mobile latency, or a statistically robust tail estimate.
+
+Release checks for this follow-up: `npm test` passes 577 tests across 49 files; `npm run build`, `npm run validate:sources`, planner ESLint, and CRLF-aware diff checking pass. The production optimizer Worker is 90,717 bytes.
 
 ## Joint Arcane refinement full-width refresh (2026-11-13)
 
