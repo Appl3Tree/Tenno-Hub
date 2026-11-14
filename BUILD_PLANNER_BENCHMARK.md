@@ -1128,3 +1128,32 @@ Release checks after the implementation pass: `npm test` passes 583 tests across
 Port-80 QA selected Laetum Incarnon Form, Evolution V Overwhelming Attrition, Realistic conditional state, and Expected TTK. The selected build used Pistol Pestilence R3, Frostbite R3, Accelerated Isotope R3, Magnetic Might R3, and Spry Sights R3 in an uncatalyzed 30/30 setup. The full math trace reported 22.0% crit, 48.4% status, one projectile per attack group, and a 40.248% chance that the whole group qualified. The finite encounter started at zero stacks and reached modeled Expected TTK in 0.75 seconds / 8 expected attacks against the Balanced synthetic pools (21,000 total); the steady-state DPS estimate continued to show its separate three-stack average. This UI observation is a single scenario and does not measure a repeatable browser p95 or a device population.
 
 Current release checks: `npm test` passes 588 tests across 49 files; `npm run build`, `npm run validate:sources`, focused planner ESLint, and `git -c core.whitespace=cr-at-eol diff --check` pass. The catalog-independent optimizer Worker is 97,784 bytes. The current UI encounter is mean-field and does not simulate random crit/status streaks; no equivalent selected-Overwhelming-Attrition Underframe result was available for a matched comparison.
+
+## Pairwise Expected TTK refinement and 14-case refresh (2026-11-14)
+
+A fully stacked Braton Prime / Grineer comparison exposed a local-search trap in the Expected TTK path. Under the same finite evaluator, target pools (83,818 Health / 2,700 Armor / no Shields or Overguard), Primary Overcharge assumption (1,000 Max Energy at 100%), and three-Forma cap, the prior single-mod refinement returned 0.895 s. A legal two-mod change from its own candidate neighborhood modeled 0.670 s, showing that neither swap improved the starting list alone. The new refinement keeps distinct mod-effect families in the single-mod shortlist, then, only when that shortlist stalls, screens legal two-mod replacements from a 12-mod family-diverse pool and finite-scores up to 24 proxy-ranked pair candidates. Capacity, Forma, duplicate-mod, and incompatibility constraints still apply.
+
+The revised optimizer returned a legal 59/60 three-Forma Braton build at 0.6561 s. The captured Underframe list modeled 0.7691 s under the same expected evaluator; this is a 14.7% lower modeled TTK. A controlled no-pair ablation returned 0.6696 s, supporting that the pair step accounts for the improvement on this fixture. This is one candidate pool and shared-model comparison, not a random-time Underframe parity claim or a proof of global optimality.
+
+The full five-run Expected TTK corpus covered 14 weapon/attack cases (70 optimizations). Every returned build fit capacity and stayed within three Forma. The table reports each median and maximum-of-five observation; the latter is sometimes called the corpus's coarse “p95 observation” in the benchmark harness, but five runs are not enough to estimate a population p95.
+
+| Weapon / attack | Median | Maximum of five |
+|---|---:|---:|
+| Perigale Prime / Normal Attack | 3.936 s | 4.510 s |
+| Braton Prime / Normal Attack | 4.118 s | 4.201 s |
+| Cedo / Glaive Radial Attack | 3.332 s | 3.740 s |
+| Phantasma Prime / Plasma Bomb Explosion | 3.660 s | 3.751 s |
+| Laetum / Incarnon Auto Radial Attack | 4.291 s | 4.470 s |
+| Cinta / Perfect Shot | 4.382 s | 4.406 s |
+| Kuva Hek / Quadruple Tap | 2.786 s | 2.835 s |
+| Torid / Incarnon Form | 3.546 s | 3.904 s |
+| Broken War / Normal Attack | 3.106 s | 3.152 s |
+| Corvas Prime / Charged Shot | 1.176 s | 1.245 s |
+| Verglas Prime / Normal Attack | 4.483 s | 4.643 s |
+| Epitaph / Charged Shot | 4.455 s | 4.613 s |
+| Nataruk / Perfect Shot | 3.267 s | 3.302 s |
+| Gram Prime / Heavy Slam Attack | 4.227 s | 4.266 s |
+
+All 14 maximum observations were below five seconds on this desktop Node run, though several are close to the target. This does not measure cold app startup, a production Worker, mobile, or cross-device latency. The fixed Braton quality fixture also remains separate from broad objective-equivalent Underframe coverage.
+
+Release checks after the change: `npm test` passes 588 tests across 49 files; the TypeScript and production Vite build, `npm run validate:sources`, focused ESLint for `buildOptimizerCore.ts` and its regression file, and CRLF-aware diff check pass. The production optimizer Worker is 102,287 bytes. Vite continues to report the existing large lazy chunks.
