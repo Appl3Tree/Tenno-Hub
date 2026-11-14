@@ -1,15 +1,15 @@
 import { getModsForWeapon, type ModEffect, type ModEntry } from "../catalog/modCatalog";
 import { getArcanesForWeapon } from "../catalog/arcaneCatalog";
+import { withSelectedAttack, type WeaponEntry } from "../catalog/weaponCatalog";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
 import type { ConditionalState } from "./damageCalc";
-import { withSelectedAttack, type WeaponEntry } from "../catalog/weaponCatalog";
 import {
     debugScoreBuild,
     debugScoreExpectedEncounter,
     optimizeBuildCore,
+    rankExpectedEncounter,
     type OptimizeGoal,
     type OptimizerOptions,
-    rankExpectedEncounter,
     type OptimizeResult,
     type TargetProfileOverride,
 } from "./buildOptimizerCore";

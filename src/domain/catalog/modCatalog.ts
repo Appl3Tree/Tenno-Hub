@@ -178,6 +178,7 @@ export type ConditionalTrigger =
     | "onHeadshot"
     | "onHeadshotKill"
     | "onHit"
+    | "onNonCriticalNoStatusHit"
     | "onPunchThroughHit"
     | "onWeakPointHit"
     | "onWeakPointKill"

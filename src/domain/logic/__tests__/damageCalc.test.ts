@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon } from "../../catalog/modCatalog";
-import { avgHitDamageMultiplier, calculateBuild, calculateMeleeAverageDps, estimateFiniteIndependentDotDps } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -455,6 +455,70 @@ describe("damage calculation status eligibility", () => {
             8,
         );
         expect(avgHitDamageMultiplier(1.5, 2, effect.nonCriticalHitDamageProcs)).toBeCloseTo(2.5, 8);
+    });
+
+    it("estimates Overwhelming Attrition from qualifying multishot groups and incremental stack decay", () => {
+        const qualifyingGroupChance = estimateNonCriticalNoStatusHitGroupProbability(0.12, 0.924, 3.9);
+        const perProjectileChance = (1 - 0.12) * (1 - 0.924);
+        expect(qualifyingGroupChance).toBeCloseTo(
+            perProjectileChance ** 3 * (0.1 + 0.9 * perProjectileChance),
+            12,
+        );
+        expect(estimateNonCriticalNoStatusHitGroupProbability(1, 0, 1)).toBe(0);
+        expect(estimateNonCriticalNoStatusHitGroupProbability(0, 1, 1)).toBe(0);
+        expect(estimateNonCriticalNoStatusHitGroupProbability(0, 0, 0.5)).toBe(0.5);
+
+        const conditional = {
+            trigger: "onNonCriticalNoStatusHit" as const,
+            durationSeconds: 10,
+            requiresAiming: false,
+            maxStacks: 3,
+            stats: { damageBonus: 4 },
+        };
+        const slowQualifyingGroups = estimateConditionalStackFactor(
+            conditional,
+            7.75,
+            12,
+            { mode: "realistic" },
+            { qualifyingHitGroupProbability: qualifyingGroupChance },
+        );
+        const oneEligibleGroupPerSecond = estimateConditionalStackFactor(
+            conditional,
+            0.1,
+            12,
+            { mode: "realistic" },
+            { qualifyingHitGroupProbability: 1 },
+        );
+        expect(slowQualifyingGroups).toBeGreaterThan(0);
+        expect(slowQualifyingGroups).toBeLessThan(0.1);
+        expect(oneEligibleGroupPerSecond).toBeCloseTo(2.126, 2);
+
+        const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0, statusChance: 0, fireRate: 0.1 };
+        const effect = { ...emptyEffect(), conditionalEffects: [conditional] };
+        const initial = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "initial" } }).modded;
+        const realistic = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "realistic" } }).modded;
+        const fullyStacked = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        expect(initial.totalDamageBonus).toBe(0);
+        expect(realistic.totalDamageBonus).toBeCloseTo(oneEligibleGroupPerSecond * 4, 2);
+        expect(fullyStacked.totalDamageBonus).toBe(12);
+
+        const finiteEncounter = calculateBuildForExpectedEncounter(weapon, [effect], "", {
+            conditionalState: { mode: "realistic" },
+        }).modded;
+        expect(finiteEncounter.totalDamageBonus).toBe(0);
+        expect(finiteEncounter.timedConditionalDamageStacks[0]).toMatchObject({
+            trigger: "onNonCriticalNoStatusHit",
+            durationSeconds: 10,
+            maxStacks: 3,
+            damageBonusPerStack: 4,
+            initialStacks: 0,
+        });
+        expect(finiteEncounter.timedConditionalDamageStacks[0].steadyStateStacks).toBeCloseTo(oneEligibleGroupPerSecond, 2);
+
+        const impactOnly = { ...makeWeapon({ impact: 100 }), critChance: 0, statusChance: 1, fireRate: 1 };
+        expect(calculateBuild(impactOnly, [effect]).modded.totalDamageBonus).toBe(0);
+        expect(calculateBuild(impactOnly, [effect], "", { statusImmuneTypes: ["impact"] }).modded.totalDamageBonus)
+            .toBeCloseTo(12, 3);
     });
 
     it("computes Blast stack hit damage from modded base damage with faction double-dip and Status Damage", () => {

@@ -50,6 +50,90 @@ describe("target damage progress across defense pools", () => {
         expect(result.directDamageByPool.health).toBeCloseTo(1_100, 8);
     });
 
+    it("ramps timed hit-triggered damage after qualifying attacks instead of granting it on the first hit", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 320 },
+            rawDamageByType: { impact: 320 },
+            baseDamageTotal: 320,
+            health: 1_920,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 0.1,
+            timedConditionalDamageStacks: [{
+                trigger: "onNonCriticalNoStatusHit",
+                durationSeconds: 10,
+                maxStacks: 3,
+                damageBonusPerStack: 4,
+                qualifyingHitGroupProbability: 1,
+                initialStacks: 0,
+                steadyStateStacks: 3,
+            }],
+            maxAttacks: 10,
+        });
+
+        expect(result.attacks).toBe(2);
+        expect(result.timeToKillSeconds).toBeCloseTo(0.1, 8);
+        expect(result.directDamageByPool.health).toBeCloseTo(1_920, 8);
+    });
+
+    it("decays timed hit-triggered damage one stack at each full idle duration", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 320 },
+            rawDamageByType: { impact: 320 },
+            baseDamageTotal: 320,
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 10,
+            timedConditionalDamageStacks: [{
+                trigger: "onNonCriticalNoStatusHit",
+                durationSeconds: 10,
+                maxStacks: 3,
+                damageBonusPerStack: 4,
+                qualifyingHitGroupProbability: 0,
+                initialStacks: 2,
+                steadyStateStacks: 2,
+            }],
+            maxAttacks: 3,
+            maxDurationSeconds: 25,
+        });
+
+        expect(result.attacks).toBe(3);
+        expect(result.timeToKillSeconds).toBeNull();
+        expect(result.directDamageByPool.health).toBeCloseTo(4_800, 8);
+    });
+
+    it("uses expected qualifying-group probability when ramping timed hit stacks", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 320 },
+            rawDamageByType: { impact: 320 },
+            baseDamageTotal: 320,
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 0.1,
+            timedConditionalDamageStacks: [{
+                trigger: "onNonCriticalNoStatusHit",
+                durationSeconds: 10,
+                maxStacks: 3,
+                damageBonusPerStack: 4,
+                qualifyingHitGroupProbability: 0.5,
+                initialStacks: 0,
+                steadyStateStacks: 2,
+            }],
+            maxAttacks: 3,
+        });
+
+        // Expected bonuses are 0, half a stack, then one stack before each hit.
+        expect(result.directDamageByPool.health).toBeCloseTo(2_880, 8);
+    });
+
     it("applies Condition Overload only from statuses active before each hit and scales proc seeds", () => {
         const direct = simulateExpectedWeaponEncounter({
             damageByType: { impact: 100 },

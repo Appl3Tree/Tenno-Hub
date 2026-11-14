@@ -149,6 +149,7 @@ function scopeForLine(line: string, notes: string[]): IncarnonAttackScope {
 
 function triggerFromLine(line: string): ConditionalEffect["trigger"] | null {
     const normalized = normalize(line);
+    if (normalized.startsWith("on hit that is neither critical nor applies a status effect:")) return "onNonCriticalNoStatusHit";
     if (normalized.startsWith("on reload from empty:")) return "onReloadFromEmpty";
     if (normalized.startsWith("on reload:")) return "onReload";
     if (normalized.startsWith("on headshot kill:")) return "onHeadshotKill";
@@ -258,6 +259,14 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
         const line = rawLine.trim();
         if (!line) continue;
 
+        if (
+            option.id === "tier-5-overwhelming-attrition" &&
+            /^when the buff times out, one stack is lost and the buff duration resets\.?$/i.test(line)
+        ) {
+            modeledLineCount += 1;
+            continue;
+        }
+
         const trigger = triggerFromLine(line);
 
         // Condition clauses that do not map to a supported optimizer trigger
@@ -319,12 +328,11 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
         }
         if (
             /^affects both (?:forms|modes)\.?$/i.test(line) ||
-            /^(?:damage bonus is )?multiplicative to base damage (?:sources|bonuses)\b/i.test(line)
+            /^(?:damage bonus is )?(?:additive|multiplicative) to base damage (?:sources|bonuses)\b/i.test(line)
         ) {
             modeledLineCount += 1;
             continue;
         }
-
         let matched = true;
         const multishotDamageMatch = statsLine.match(/multishot consumes ammo[^.]*?\+([\d.]+)%\s*damage/i);
         if (multishotDamageMatch) {
@@ -342,6 +350,9 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
         } else if (/increase base status chance by [+-]?\d+(?:\.\d+)?%/i.test(statsLine)) {
             const match = statsLine.match(/increase base status chance by ([+-]?\d+(?:\.\d+)?)%/i);
             addAdjustment({ statusChanceFlat: parsePercent(match?.[1] ?? "0") });
+        } else if (/[+-]?\d+(?:\.\d+)?%\s*damage\b/i.test(statsLine)) {
+            const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*damage\b/i);
+            addTriggeredOrStaticEffect({ damageBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*fire rate/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*fire rate/i);
             addTriggeredOrStaticEffect({ fireRateBonus: parsePercent(match?.[1] ?? "0") });
