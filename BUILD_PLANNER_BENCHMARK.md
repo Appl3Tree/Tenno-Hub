@@ -4,6 +4,12 @@ Run date: 2026-11-14; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Shattering Impact and Perigale picker follow-up (2026-11-14)
+
+Shattering Impact now contributes its rank-scaled 1–6 flat base-Armor removal on each melee hit with nonzero quantized Impact damage, without requiring an Impact status proc. The target models permanent unscaled base-Armor removal before Heat and Corrosive percentage strips, using expected multishot as a mean-field number of hits. Charged/heavy Glaive throws are excluded; Melee Duplicate doubling and Archon/commandeered Prime immunity exceptions are not modeled. The rule follows the [WARFRAME Wiki Armor reference](https://wiki.warframe.com/w/Armor) and its Damage 3.0 quantization guidance.
+
+Focused regressions cover ranks, low-Impact quantization, persistent armor reduction, percentage-strip order, and source attribution. The latest clean release checks pass at 602 tests / 49 files, production TypeScript/Vite build, source validation, and focused ESLint. The catalog-independent Worker is 105,901 bytes. A port-80 screenshot verified the weapon selector no longer collapses and is 360px wide; browser input did not activate the picker, so the reported Perigale Prime UI behavior remains unverified in this pass. Existing catalog coverage includes standard Rifle/Sniper options as well as Flawed variants. Desktop Node timings are not production-browser Worker measurements; cold/mobile timing, full-catalog optimality, and broad quality evidence remain open.
+
 ## Synth Charge optimizer corpus (2026-11-14)
 
 The repeatable optimizer corpus now includes Lex Prime for Burst and Expected TTK. With the full 107-mod pool, five Burst runs returned the same legal 57/60 build using three Forma; median latency was 4.282 s and the maximum-of-five observation was 4.672 s. Synth Charge was screened but not selected over the stronger candidates in this fixture. Five Expected TTK runs returned the same legal 59/60 build using three Forma and evaluated 77 exact encounter candidates; median latency was 3.100 s and the maximum was 3.762 s. The default Corpus target dies on the first attack at time zero, so this is an optimizer latency sample, not a multi-shot final-shot kill-time comparison.
