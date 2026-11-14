@@ -38,6 +38,14 @@ export interface DirectTargetDamageInput {
     shields: number;
     overguard: number;
     armor: number;
+    /** Enemy's unscaled Codex/base armor before level scaling and initial armor clamps. */
+    baseArmorValue?: number;
+    /** Enemy armor level multiplier used to derive current armor from base armor. */
+    armorLevelMultiplier?: number;
+    /** Remaining armor multiplier after any already active Heat/Corrosive strips. */
+    armorDamageReductionMultiplier?: number;
+    /** Permanent base armor removed on each qualifying Impact melee hit. */
+    shatteringImpactBaseArmorPerHit?: number;
     faction: string;
     /** Faction damage mods, applied to all damage dealt to the named faction. */
     factionDamageBonus?: number;
@@ -70,6 +78,13 @@ export interface DirectTargetDamageResult {
     totalDamage: number;
 }
 
+function armorFromRemainingBase(initialScaledArmor: number, remainingBaseArmor: number, armorLevelMultiplier: number): number {
+    return Math.min(
+        finiteNonNegative(initialScaledArmor),
+        finiteNonNegative(remainingBaseArmor) * finiteNonNegative(armorLevelMultiplier),
+    );
+}
+
 /**
  * Expected direct damage from one attack against the target's *initial* pools.
  * Damage types are independent: Overguard receives the full bundle while present;
@@ -84,7 +99,7 @@ export function calculateDirectDamageToInitialPools(
     const health = finiteNonNegative(input.health);
     const shields = finiteNonNegative(input.shields);
     const overguard = finiteNonNegative(input.overguard);
-    const armor = finiteNonNegative(input.armor);
+    const armor = finiteNonNegative(input.armor) * Math.max(0, finiteNonNegative(input.armorDamageReductionMultiplier ?? 1));
     const projectileCount = finiteNonNegative(input.expectedProjectiles ?? 1);
     const expectedDamageMultiplier = finiteNonNegative(input.expectedDamageMultiplier ?? projectileCount);
     const hitDamageMultiplier = finiteNonNegative(input.expectedHitDamageMultiplier ?? (
@@ -168,11 +183,11 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attack events available before each reload-like interruption. */
     shotsPerMagazine?: number;
-    /** Treat ammunition as infinite and suppress both first- and final-shot magazine bonuses. */
+    /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
     infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
     firstShotMagazineDamageBonus?: number;
-    /** One-hit bonus on the final ammo-consuming attack in each magazine. */
+    /** Last-shot bonus applied to one hit; divided across the expected projectiles in that attack. */
     lastShotMagazineDamageBonus?: number;
     /** Reload time added after a full magazine, before the next attack interval. */
     reloadDurationSeconds?: number;
@@ -212,6 +227,8 @@ export interface DirectAttackSequenceResult {
     /** Actual pool damage applied over the sequence; excess damage never spills between pools. */
     damageByPool: Record<TargetDamagePool, number>;
     remainingPools: Record<TargetDamagePool, number>;
+    /** Permanent base armor remaining after Shattering Impact, before temporary Heat/Corrosive strips. */
+    remainingArmorAfterBaseStrip: number;
     /** Heavy-attack combo tier at the first event, when combo consumption is modeled. */
     comboMultiplierAtStart?: number;
     /** Heavy-attack combo tier at the killing event, when combo consumption is modeled. */
@@ -223,11 +240,11 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attacks before a reload-like interruption. */
     shotsPerMagazine?: number;
-    /** Treat ammunition as infinite and suppress both first- and final-shot magazine bonuses. */
+    /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
     infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
     firstShotMagazineDamageBonus?: number;
-    /** One-hit bonus on the final ammo-consuming attack in each magazine. */
+    /** Last-shot bonus applied to one hit; divided across the expected projectiles in that attack. */
     lastShotMagazineDamageBonus?: number;
     /** Reload time after each full magazine. */
     reloadDurationSeconds?: number;
@@ -312,6 +329,8 @@ export interface ExpectedWeaponEncounterResult {
     electricGasCollateralDamageByPool: Record<TargetDamagePool, number>;
     electricGasCollateralEnemyCount: number;
     remainingPools: Record<TargetDamagePool, number>;
+    /** Permanent base armor remaining after Shattering Impact, before temporary Heat/Corrosive strips. */
+    remainingArmorAfterBaseStrip: number;
     totalDamage: number;
     damagePerAttack: number;
     damagePerSecond: number;
@@ -508,6 +527,10 @@ export function simulateExpectedWeaponEncounter(
         health: finiteNonNegative(input.health),
     };
     const initialHealth = remainingPools.health;
+    const initialArmor = finiteNonNegative(input.armor);
+    const armorLevelMultiplier = finiteNonNegative(input.armorLevelMultiplier ?? 1);
+    let remainingBaseArmor = finiteNonNegative(input.baseArmorValue ?? initialArmor);
+    let armorAfterBaseStrip = initialArmor;
     const maximumShields = finiteNonNegative(input.maxShields ?? remainingPools.shields);
     const maximumOverguard = finiteNonNegative(input.maxOverguard ?? remainingPools.overguard);
     const directDamageByPool = zeroPools();
@@ -1048,7 +1071,7 @@ export function simulateExpectedWeaponEncounter(
             )
             : finiteNonNegative(input.expectedHitDamageMultiplier ?? 1);
         return {
-            armor: finiteNonNegative(input.armor) * (1 - corrosiveStrip) * (1 - heatArmorStrip),
+            armor: armorAfterBaseStrip * (1 - corrosiveStrip) * (1 - heatArmorStrip),
             viralHealthDamageBonus: finiteNonNegative(input.viralHealthDamageBonus ?? 0) + viralBonus,
             magneticDefenseDamageBonus: finiteNonNegative(input.magneticDefenseDamageBonus ?? 0) + magneticBonus,
             expectedHitDamageMultiplier: hitDamageMultiplier,
@@ -1194,11 +1217,13 @@ export function simulateExpectedWeaponEncounter(
             const firstShotMagazineDamageMultiplier = !input.infiniteAmmoActive && attackIndex % shotsPerMagazine === 0
                 ? 1 + finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0)
                 : 1;
-            const lastShotMagazineDamageMultiplier = !input.infiniteAmmoActive && attackIndex % shotsPerMagazine === shotsPerMagazine - 1
+            const lastShotMagazineDamageMultiplier = !input.infiniteAmmoActive &&
+                attackIndex % shotsPerMagazine === shotsPerMagazine - 1
                 ? 1 + finiteNonNegative(input.lastShotMagazineDamageBonus ?? 0) /
                     Math.max(1, finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ?? 1))
                 : 1;
-            const attackDamageMultiplier = attackDamageRampMultiplier * firstShotMagazineDamageMultiplier * lastShotMagazineDamageMultiplier;
+            const attackDamageMultiplier =
+                attackDamageRampMultiplier * firstShotMagazineDamageMultiplier * lastShotMagazineDamageMultiplier;
             const timedDamageBonus = timedDamageStacks.reduce(
                 (sum, runtime) => sum +
                     advanceTimedDamageStackRuntime(runtime, now) * runtime.rule.damageBonusPerStack,
@@ -1254,6 +1279,21 @@ export function simulateExpectedWeaponEncounter(
             };
             addPools(directDamageByPool, appliedDirectDamage);
             subtractPools(remainingPools, appliedDirectDamage);
+            if (
+                finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) > 0 &&
+                finiteNonNegative(damageByType.impact ?? 0) > 0
+            ) {
+                remainingBaseArmor = Math.max(
+                    0,
+                    remainingBaseArmor - finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) *
+                        finiteNonNegative(input.expectedProjectiles ?? 1),
+                );
+                armorAfterBaseStrip = armorFromRemainingBase(
+                    initialArmor,
+                    remainingBaseArmor,
+                    armorLevelMultiplier,
+                );
+            }
             if (poolsBeforeAttack.overguard > 0 && remainingPools.overguard <= Number.EPSILON) {
                 scheduleMagneticBreakProc(attackTime, "overguard");
             }
@@ -1397,6 +1437,7 @@ export function simulateExpectedWeaponEncounter(
         electricGasCollateralDamageByPool,
         electricGasCollateralEnemyCount,
         remainingPools,
+        remainingArmorAfterBaseStrip: armorAfterBaseStrip,
         totalDamage,
         damagePerAttack: attacks > 0 ? totalDamage / attacks : 0,
         damagePerSecond: rateDuration > 0 ? totalDamage / rateDuration : 0,
@@ -1420,6 +1461,10 @@ export function simulateDirectAttackSequence(
     };
     const remainingPools = { ...initialPools };
     const damageByPool: Record<TargetDamagePool, number> = { overguard: 0, shields: 0, health: 0 };
+    const initialArmor = finiteNonNegative(input.armor);
+    const armorLevelMultiplier = finiteNonNegative(input.armorLevelMultiplier ?? 1);
+    let remainingBaseArmor = finiteNonNegative(input.baseArmorValue ?? initialArmor);
+    let armorAfterBaseStrip = initialArmor;
     const attackInterval = finiteNonNegative(input.attackIntervalSeconds);
     const reloadDuration = input.infiniteAmmoActive ? 0 : finiteNonNegative(input.reloadDurationSeconds ?? 0);
     const shotsPerMagazine = input.infiniteAmmoActive
@@ -1438,7 +1483,13 @@ export function simulateDirectAttackSequence(
         1,
         finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ?? 1),
     );
-    if (input.damageRampRule || input.heavyAttackCombo || firstShotMagazineDamageBonus > 0 || lastShotMagazineDamageBonus > 0) {
+    if (
+        input.damageRampRule ||
+        input.heavyAttackCombo ||
+        firstShotMagazineDamageBonus > 0 ||
+        lastShotMagazineDamageBonus > 0 ||
+        finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) > 0
+    ) {
         const damageByPool = zeroPools();
         const combo = input.heavyAttackCombo;
         let rampMultiplier = input.damageRampRule ? getInitialDamageRampMultiplier(input.damageRampRule) : 1;
@@ -1520,6 +1571,7 @@ export function simulateDirectAttackSequence(
             }
             const result = calculateDirectDamageToInitialPools({
                 ...input,
+                armor: armorAfterBaseStrip,
                 damageByType,
                 expectedHitDamageMultiplier,
                 damageRampMultiplier: rampMultiplier *
@@ -1547,6 +1599,21 @@ export function simulateDirectAttackSequence(
             };
             addPools(damageByPool, appliedDirectDamage);
             subtractPools(remainingPools, appliedDirectDamage);
+            if (
+                finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) > 0 &&
+                finiteNonNegative(damageByType.impact ?? 0) > 0
+            ) {
+                remainingBaseArmor = Math.max(
+                    0,
+                    remainingBaseArmor - finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) *
+                        finiteNonNegative(input.expectedProjectiles ?? 1),
+                );
+                armorAfterBaseStrip = armorFromRemainingBase(
+                    initialArmor,
+                    remainingBaseArmor,
+                    armorLevelMultiplier,
+                );
+            }
             if (poolsBeforeAttack.shields > 0 && remainingPools.shields <= Number.EPSILON) {
                 enemyShieldGateUntil = attackTime + ENEMY_SHIELD_GATE_DURATION_SECONDS;
             }
@@ -1561,6 +1628,7 @@ export function simulateDirectAttackSequence(
                     timeToKillSeconds: attackTime,
                     damageByPool,
                     remainingPools,
+                    remainingArmorAfterBaseStrip: armorAfterBaseStrip,
                     ...(comboMultiplierAtStart === undefined ? {} : { comboMultiplierAtStart }),
                     ...(comboMultiplierAtKill === undefined ? {} : { comboMultiplierAtKill }),
                 };
@@ -1572,6 +1640,7 @@ export function simulateDirectAttackSequence(
             timeToKillSeconds: null,
             damageByPool,
             remainingPools,
+            remainingArmorAfterBaseStrip: armorAfterBaseStrip,
             ...(comboMultiplierAtStart === undefined ? {} : { comboMultiplierAtStart }),
             ...(comboMultiplierAtKill === undefined ? {} : { comboMultiplierAtKill }),
         };
@@ -1700,6 +1769,7 @@ export function simulateDirectAttackSequence(
             timeToKillSeconds: Number.isFinite(timeToKillSeconds) ? timeToKillSeconds : null,
             damageByPool: { ...damageByPool },
             remainingPools: { ...remainingPools },
+            remainingArmorAfterBaseStrip: armorAfterBaseStrip,
         };
     }
 }

@@ -68,6 +68,8 @@ export interface ModEffect {
     firstShotMagazineDamageBonus: number;
     /** Bonus damage on one hit of the final ammo-consuming shot in each eligible magazine. */
     lastShotMagazineDamageBonus: number;
+    /** Permanent base armor removed by Shattering Impact on each qualifying melee hit. */
+    shatteringImpactBaseArmorPerHit: number;
     impactBonus: number;
     punctureBonus: number;
     slashBonus: number;
@@ -165,6 +167,7 @@ export interface NonCriticalHitDamageProc {
 }
 
 const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment";
+const SHATTERING_IMPACT_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeArmorShatterMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
     "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
@@ -1143,6 +1146,20 @@ function buildCaches(): ModCaches {
             unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
+        if (path === SHATTERING_IMPACT_PATH) {
+            parsedLevelStats.forEach((levelStat, rank) => {
+                for (const rawStat of levelStat.stats ?? []) {
+                    const text = stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    const match = text.match(/^Impact Damage reduces enemy Armor by (\d+)\.?$/i);
+                    if (!match || !effectsByRank[rank]) continue;
+                    effectsByRank[rank].shatteringImpactBaseArmorPerHit = Number(match[1]);
+                    unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                        !/^Impact Damage reduces enemy Armor by \d+\.?$/i.test(line),
+                    );
+                    break;
+                }
+            });
+        }
         // The upstream plain-text export omits Hunter Munitions' linked Slash
         // type, leaving "chance to apply on Critical". The current Wiki confirms
         // that this independent chance applies Slash; recover the percentage

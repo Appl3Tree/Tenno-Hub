@@ -15,6 +15,59 @@ const phantasmaRamp: WeaponDamageRampRule = {
 };
 
 describe("target damage progress across defense pools", () => {
+    it("strips persistent base armor on each Impact hit before percentage strips", () => {
+        const sequence = simulateDirectAttackSequence({
+            damageByType: { impact: 2_000 },
+            health: 1_500,
+            shields: 0,
+            overguard: 0,
+            armor: 1_000,
+            armorDamageReductionMultiplier: 0.5,
+            baseArmorValue: 100,
+            armorLevelMultiplier: 10,
+            shatteringImpactBaseArmorPerHit: 6,
+            faction: "",
+            attackIntervalSeconds: 0.1,
+        });
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 2_000 },
+            health: 1_500,
+            shields: 0,
+            overguard: 0,
+            armor: 1_000,
+            baseArmorValue: 100,
+            armorLevelMultiplier: 10,
+            shatteringImpactBaseArmorPerHit: 6,
+            faction: "",
+            attackIntervalSeconds: 0.1,
+            maxAttacks: 10,
+        });
+
+        expect(sequence.attacksToKill).toBe(2);
+        expect(sequence.remainingArmorAfterBaseStrip).toBe(880);
+        expect(encounter.attacks).toBe(2);
+        expect(encounter.remainingArmorAfterBaseStrip).toBe(880);
+        expect(encounter.statusApplicationsByType.impact ?? 0).toBe(0);
+    });
+
+    it("does not strip armor when the qualifying hit has no Impact damage", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { puncture: 100 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 1_000,
+            baseArmorValue: 100,
+            armorLevelMultiplier: 10,
+            shatteringImpactBaseArmorPerHit: 6,
+            faction: "",
+            attackIntervalSeconds: 1,
+            maxAttacks: 1,
+        });
+
+        expect(result.remainingArmorAfterBaseStrip).toBe(1_000);
+    });
+
     it("includes noncritical-hit procs in an initial-pool damage estimate", () => {
         const result = calculateDirectDamageToInitialPools({
             damageByType: { impact: 100 },
@@ -885,33 +938,6 @@ describe("finite expected-value weapon encounters", () => {
         expect(encounter.timeToKillSeconds).toBeCloseTo(5, 10);
     });
 
-    it("suppresses magazine reloads and Chamber bonuses while infinite ammo is active", () => {
-        const common = {
-            damageByType: { impact: 100 },
-            health: 250,
-            shields: 0,
-            overguard: 0,
-            armor: 0,
-            faction: "",
-            attackIntervalSeconds: 1,
-            shotsPerMagazine: 1,
-            firstShotMagazineDamageBonus: 1,
-            reloadDurationSeconds: 10,
-            infiniteAmmoActive: true,
-        };
-
-        const sequence = simulateDirectAttackSequence(common);
-        const encounter = simulateExpectedWeaponEncounter({ ...common, maxAttacks: 5 });
-
-        // Three unboosted hits land at 0, 1, and 2 seconds. The magazine size,
-        // reload time, and first-shot bonus do not interrupt maintained Gale Force.
-        expect(sequence.attacksToKill).toBe(3);
-        expect(sequence.timeToKillSeconds).toBeCloseTo(2, 10);
-        expect(encounter.attacks).toBe(3);
-        expect(encounter.timeToKillSeconds).toBeCloseTo(2, 10);
-        expect(encounter.directDamageByPool.health).toBeCloseTo(250, 10);
-    });
-
     it("applies a final-shot magazine bonus to one hit among multishot projectiles", () => {
         const common = {
             damageByType: { impact: 100 },
@@ -937,6 +963,33 @@ describe("finite expected-value weapon encounters", () => {
         expect(sequence.attacksToKill).toBe(4);
         expect(sequence.timeToKillSeconds).toBeCloseTo(3, 10);
         expect(sequence.damageByPool.health).toBeCloseTo(1_400, 10);
+    });
+
+    it("suppresses magazine reloads and Chamber bonuses while infinite ammo is active", () => {
+        const common = {
+            damageByType: { impact: 100 },
+            health: 250,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 1,
+            firstShotMagazineDamageBonus: 1,
+            reloadDurationSeconds: 10,
+            infiniteAmmoActive: true,
+        };
+
+        const sequence = simulateDirectAttackSequence(common);
+        const encounter = simulateExpectedWeaponEncounter({ ...common, maxAttacks: 5 });
+
+        // Three unboosted hits land at 0, 1, and 2 seconds. The magazine size,
+        // reload time, and first-shot bonus do not interrupt maintained Gale Force.
+        expect(sequence.attacksToKill).toBe(3);
+        expect(sequence.timeToKillSeconds).toBeCloseTo(2, 10);
+        expect(encounter.attacks).toBe(3);
+        expect(encounter.timeToKillSeconds).toBeCloseTo(2, 10);
+        expect(encounter.directDamageByPool.health).toBeCloseTo(250, 10);
     });
 
     it("applies a first-shot Chamber multiplier to the DoT seeded by that attack", () => {

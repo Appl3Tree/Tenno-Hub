@@ -135,16 +135,26 @@ export interface ModdedWeaponStats {
     averageShotDamage: number;
     /** Additive multiplicative bonus for the first ammo-consuming shot after each magazine reload. */
     firstShotMagazineDamageBonus: number;
+    firstShotMagazineDamageMultiplier: number;
     /** One-hit bonus for the final ammo-consuming attack in an eligible magazine. */
     lastShotMagazineDamageBonus: number;
-    /** Aggregate final-shot multiplier, allocating the bonus to one hit among multishot. */
+    /** Aggregate attack multiplier on the final shot, allocating the bonus to one hit among multishot. */
     lastShotMagazineDamageMultiplier: number;
-    /** Rank-summed bonus requested by selected mods, even if inactive for this attack. */
+    /** Rank-summed last-shot bonus requested by selected mods, even if inactive for this attack. */
     lastShotMagazineRequestedDamageBonus: number;
+    /** Active permanent base-armor removal per hit for a supported Shattering Impact attack. */
+    shatteringImpactBaseArmorPerHit: number;
     /** Why the selected last-shot bonus is inactive, when one is present. */
-    lastShotMagazineInactiveReason: "base-magazine-under-six" | "continuous-weapon" | "unmodeled-reload-grenade" | "incarnon-attack" | "exalted-weapon" | "infinite-ammo" | "one-attack-per-magazine" | null;
-    firstShotMagazineDamageMultiplier: number;
-    /** Average direct damage multiplier over a magazine after first- and final-shot bonuses. */
+    lastShotMagazineInactiveReason:
+        | "base-magazine-under-six"
+        | "continuous-weapon"
+        | "unmodeled-reload-grenade"
+        | "incarnon-attack"
+        | "exalted-weapon"
+        | "infinite-ammo"
+        | "one-attack-per-magazine"
+        | null;
+    /** Average direct damage multiplier over a magazine after first- and last-shot bonuses. */
     magazineAverageDamageMultiplier: number;
     quantizedBaseCritMultiplier: number;
     critChance: number;
@@ -696,6 +706,7 @@ export function calculateBuild(
     let damageBonus = 0;
     let firstShotMagazineDamageBonus = 0;
     let lastShotMagazineDamageBonus = 0;
+    let shatteringImpactBaseArmorPerHit = 0;
     let impactBonus = 0;
     let punctureBonus = 0;
     let slashBonus = 0;
@@ -746,11 +757,12 @@ export function calculateBuild(
         const e = mods[index];
         if (!e) continue;
         damageBonus += e.damageBonus ?? 0;
+        lastShotMagazineDamageBonus += e.lastShotMagazineDamageBonus ?? 0;
+        shatteringImpactBaseArmorPerHit += e.shatteringImpactBaseArmorPerHit ?? 0;
         if (weapon.selectedAttackUsesMeleeComboMultiplier === true) {
             damageBonus += e.heavyAttackDamageBonus ?? 0;
         }
         firstShotMagazineDamageBonus += e.firstShotMagazineDamageBonus ?? 0;
-        lastShotMagazineDamageBonus += e.lastShotMagazineDamageBonus ?? 0;
         impactBonus += e.impactBonus ?? 0;
         punctureBonus += e.punctureBonus ?? 0;
         slashBonus += e.slashBonus ?? 0;
@@ -1228,13 +1240,13 @@ export function calculateBuild(
                     ? "infinite-ammo"
                     : weapon.magazineSize < 6
                         ? "base-magazine-under-six"
-                        : /catabolyst/i.test(weapon.name) && /reload.*explosion/i.test(weapon.selectedAttackName ?? "")
-                            ? "unmodeled-reload-grenade"
-                            : weapon.tags.includes("BEAM")
-                                ? "continuous-weapon"
-                                : Math.floor(calculatedShotsPerMag) < 2
-                                    ? "one-attack-per-magazine"
-                                    : null;
+                    : /catabolyst/i.test(weapon.name) && /reload.*explosion/i.test(weapon.selectedAttackName ?? "")
+                        ? "unmodeled-reload-grenade"
+                        : weapon.tags.includes("BEAM")
+                            ? "continuous-weapon"
+                            : Math.floor(calculatedShotsPerMag) < 2
+                                ? "one-attack-per-magazine"
+                                : null;
     const activeLastShotMagazineDamageBonus = lastShotMagazineInactiveReason === null
         ? requestedLastShotMagazineDamageBonus
         : 0;
@@ -1242,7 +1254,10 @@ export function calculateBuild(
     const lastShotMagazineDamageMultiplier = 1 +
         activeLastShotMagazineDamageBonus / Math.max(1, damageWeightedMultishot);
     const magazineAverageDamageMultiplier = shotsPerMag > 0
-        ? 1 + (activeFirstShotMagazineDamageBonus + activeLastShotMagazineDamageBonus / Math.max(1, damageWeightedMultishot)) / shotsPerMag
+        ? 1 + (
+            activeFirstShotMagazineDamageBonus +
+            activeLastShotMagazineDamageBonus / Math.max(1, damageWeightedMultishot)
+        ) / shotsPerMag
         : 1;
     const damageRampMultipliers = calculateDamageRampMultipliers(
         weapon.selectedAttackDamageRamp,
@@ -1610,6 +1625,15 @@ export function calculateBuild(
     for (const key of DAMAGE_KEYS) {
         damageBreakdownBeforePerStatus[key] = quantizeDamageContribution(rawBreakdown[key], totalBase);
     }
+    const selectedAttackName = (weapon.selectedAttackName ?? "").toLowerCase();
+    const isGlaive = /\/glaives?\//i.test(weapon.uniqueName) || /\bglaive\b/i.test(weapon.weaponType);
+    const unsupportedThrownCharge = isGlaive && /\b(?:charged|heavy)\s+throw\b/.test(selectedAttackName);
+    const activeShatteringImpactBaseArmorPerHit =
+        weapon.category === "Melee" &&
+        !unsupportedThrownCharge &&
+        damageBreakdownBeforePerStatus.impact > 0
+            ? shatteringImpactBaseArmorPerHit
+            : 0;
     const damageBreakdown = emptyBreakdown();
     for (const key of DAMAGE_KEYS) {
         damageBreakdown[key] = quantizeDamageContribution(directRawBreakdown[key], conditionOverloadTotalBase * directDamagePerStatusMultiplier);
@@ -1746,6 +1770,7 @@ export function calculateBuild(
         viralHealthDamageBonus,
         heatArmorStrip,
         corrosiveArmorStrip,
+        shatteringImpactBaseArmorPerHit: activeShatteringImpactBaseArmorPerHit,
         magneticShieldDamageBonus,
         magneticBreakElectricSourceMultiplier,
         radiationAllyDamageBonus,
