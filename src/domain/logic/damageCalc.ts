@@ -1312,6 +1312,8 @@ export function calculateBuild(
     const forcedProcsPerShot: Partial<Record<DamageKey, number>> = {};
     const extraProcsPerShot: Partial<Record<DamageKey, number>> = {};
     const unfilteredExtraProcsPerShot: Partial<Record<DamageKey, number>> = {};
+    const independentRandomProcCountPerShot: Partial<Record<StatusDamageType, number>> = {};
+    const independentRandomProcProbabilityByType: Partial<Record<StatusDamageType, number>> = {};
     const addExtraProc = (key: DamageKey, value: number) => {
         if (value <= 0) return;
         unfilteredExtraProcsPerShot[key] = (unfilteredExtraProcsPerShot[key] ?? 0) + value;
@@ -1378,6 +1380,26 @@ export function calculateBuild(
     ) * fireRate;
     const expectedTauStacks = expectedStacksForRate("tau", tauProcRatePerSecond);
     const tauStatusChanceMultiplier = 1 + scaleLinearCap(expectedTauStacks, 0.1, 1.0);
+    // Prototype Shock Coils adds a second, independent status roll per hit.
+    // Its base chance is scaled by the same additive and final Status Chance
+    // bonuses as ordinary rolls, but it does not use damage-type weighting.
+    for (const effect of mods) {
+        for (const [type, baseChance] of Object.entries(effect?.independentStatusProcChanceByType ?? {}) as Array<[StatusDamageType, number]>) {
+            if (!Number.isFinite(baseChance) || baseChance <= 0) continue;
+            const chanceWithMods = baseChance * (1 + statusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase) + finalStatusChanceBonus;
+            const chanceWithTargetState = chanceWithMods * (type === "tau" ? 1 : tauStatusChanceMultiplier);
+            const perHitChance = Math.min(1, Math.max(0, chanceWithTargetState));
+            if (perHitChance <= 0) continue;
+            const expectedCount = Math.max(0, moddedMultishot) * perHitChance;
+            independentRandomProcCountPerShot[type] = (independentRandomProcCountPerShot[type] ?? 0) + expectedCount;
+            addExtraProc(type, expectedCount);
+            const probability = statusImmuneTypes.has(type)
+                ? 0
+                : probabilityAtLeastOneStatusProc(perHitChance, moddedMultishot, 1);
+            independentRandomProcProbabilityByType[type] = 1 -
+                (1 - (independentRandomProcProbabilityByType[type] ?? 0)) * (1 - probability);
+        }
+    }
     const procCountsPerShotByType: Partial<Record<DamageKey, number>> = {};
     for (const type of STATUS_DAMAGE_TYPES) {
         const ordinaryMultiplier = type === "tau" ? 1 : tauStatusChanceMultiplier;
@@ -1523,8 +1545,13 @@ export function calculateBuild(
             );
             // Some weapon-specific forced-proc rules are conditional/dependent. Their
             // expected count is known, but occurrence probability is an explicit approximation.
-            const forcedProcProbability = Math.min(1, extraProcsPerShot[key] ?? 0);
-            const probabilityOfAnyProc = 1 - (1 - baseProcProbability) * (1 - forcedProcProbability);
+            const otherExtraProcCount = Math.max(0,
+                (extraProcsPerShot[key] ?? 0) - (independentRandomProcCountPerShot[key] ?? 0),
+            );
+            const forcedProcProbability = Math.min(1, otherExtraProcCount);
+            const independentRandomProcProbability = independentRandomProcProbabilityByType[key] ?? 0;
+            const probabilityOfAnyProc = 1 - (1 - baseProcProbability) *
+                (1 - forcedProcProbability) * (1 - independentRandomProcProbability);
             const seedSumFromAttack = expectedProcsPerShotForType * dotSeedPerProc;
             const seedSumBeforeConditionOverload = expectedProcsPerShotForType * dotSeedPerProcBeforeConditionOverload;
             const seedTickDamageBeforeConditionOverload = statusDotTickDamage(
@@ -1885,3 +1912,4 @@ export function estimateFiniteIndependentDotDps(
     );
     return (damagePerTick * expectedProcsPerShot * finiteTicks) / encounterDurationSeconds;
 }
+
