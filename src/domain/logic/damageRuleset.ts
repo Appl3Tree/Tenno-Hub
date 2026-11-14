@@ -1,7 +1,7 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The Impact and Puncture status pages were checked on 2026-11-14. The official patch
+ * The Impact, Puncture, melee Slam Damage, and Korumm pages were checked on 2026-11-14. The official patch
  * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
  * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
  * Damage quantization follows the
@@ -28,6 +28,10 @@ export const DAMAGE_RULESET = Object.freeze({
         heat: "https://wiki.warframe.com/w/Damage/Heat_Damage",
         impact: "https://wiki.warframe.com/w/Damage/Impact_Damage",
         shatteringImpact: "https://wiki.warframe.com/w/Shattering_Impact",
+        seismicWave: "https://wiki.warframe.com/w/Seismic_Wave",
+        korumm: "https://wiki.warframe.com/w/Korumm",
+        melee: "https://wiki.warframe.com/w/Melee",
+        meleeUpdate35: "https://wiki.warframe.com/w/Update_35",
         puncture: "https://wiki.warframe.com/w/Damage/Puncture_Damage",
         cold: "https://wiki.warframe.com/w/Damage/Cold_Damage",
         status: "https://wiki.warframe.com/w/Status_Effect",
@@ -54,6 +58,7 @@ export const DAMAGE_RULESET = Object.freeze({
         "Puncture lasts 10 seconds with five stacks on ordinary targets: it reduces enemy outgoing attack damage by 40% at one stack and 10 percentage points per additional stack up to 80%. The status panel displays the mean-field outgoing-damage reduction, but the planner does not simulate enemy attacks or score this defensive value. Its offensive support grants +5 percentage points of critical chance to incoming weapon hits per stack up to +25%, additive after mods, but not to Area-of-Effect damage or Warframe abilities. The damage model uses expected Puncture stacks for weapon attack rows; only rows explicitly marked as AoE are excluded, so unclassified attack rows remain uncertain. The Wiki also documents a three-stack cap for Overguarded VIPs; target identity does not currently apply that exception.",
         "Impact status lasts 6 seconds and stacks to five; repeat procs extend its stagger. Ospreys, bosses, and Tenno are immune to that stagger. On heavy Mercy-eligible units, each stack raises the Mercy health threshold by 8 percentage points to +40%; Corpus/Eximus with all Shields removed can be eligible at 100% Health. The panel reports only the expected threshold bonus: target eligibility, stagger immunity, shield state, and Mercy outcomes are not modeled, and this utility is not scored by the optimizer.",
         "Shattering Impact removes 1–6 flat base Armor per qualifying melee hit with nonzero Damage 3.0-quantized Impact damage; it does not require an Impact status proc and applies before percentage Heat/Corrosive strips. Expected multishot is used as a mean-field number of hits, and normal level scaling/caps apply before the persistent base-Armor reduction. Charged/heavy Glaive throws are excluded. Melee Duplicate's critical-hit doubling and Archon/commandeered Prime immunity exceptions are not modeled.",
+        "Seismic Wave adds its rank-scaled 50–200% Slam Damage category, multiplicative with other melee damage bonuses, for catalog rows named Slam Attack, Heavy Slam Attack, or a slam attack performed by a stance combo. The multiplier scales quantization and status seeds. Korumm's Tactical Combo Slam hit is verified to benefit, but the complete multi-hit combo and its special restrictions on other mods/conditional effects are not modeled; other stance-combo rows are treated as ordinary selected attacks. Slam attacks absent from the catalog, falloff, radius/geometry, Nira's Set, Riven Slam Damage, and weapon-specific Slam effects are not modeled.",
         "The finite encounter and direct-hit sequence start a 0.1s enemy Shield Gate after Shields reach zero: direct body hits send 5% of Health damage through, weakspot hits bypass the gate, and the selected slam/AoE mode blocks direct damage. Scheduled status damage remains ungated. Both estimates assume the user-selected hit mode applies to every event and do not regenerate enemy Shields; the one-hit calculation and optimizer score do not simulate the gate.",
         "Magnetic's forced Electricity proc is modeled on a Shield/Overguard break using the active mean-field Magnetic stacks, starting pool maximum, a six-second tick schedule, Status Damage and faction double-dips, and ordinary Electricity mods. Same-hit Magnetic application timing, shield regeneration/recharge, and random status timing are not represented.",
         "Ordinary Ammo Efficiency bonuses are additive to a 75% cap; the calculator uses accumulated fractional ammo for positive efficiency and ignores those bonuses in transformed Incarnon form. Perigale and Perigale Prime's Gale Force is modeled as maintained infinite ammo only in Fully stacked or Custom scenarios with at least one external stack; it suppresses reloads and first-shot Chamber bonuses. Its headshot/kill activation, four-second refresh timing, and uptime are not simulated, so Initial and Realistic scenarios leave it inactive. Aiming effects use the documented 75% uptime assumption; airborne effects default inactive unless the user selects a fully stacked/custom conditional state because a general airborne uptime is not defined. Energized Munitions' multiplicative stacking, Infinite Ammo abilities, external ability state, and other weapon-specific ammo exceptions are not modeled or telemetry-verified.",

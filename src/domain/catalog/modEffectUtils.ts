@@ -15,6 +15,7 @@ export function emptyEffect(): ModEffect {
         damageBonus: 0, firstShotMagazineDamageBonus: 0, lastShotMagazineDamageBonus: 0,
         shatteringImpactBaseArmorPerHit: 0, impactBonus: 0, punctureBonus: 0, slashBonus: 0,
         heavyAttackDamageBonus: 0,
+        slamAttackDamageBonus: 0,
         heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
         blastBonus: 0, gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
         voidBonus: 0, tauBonus: 0, trueBonus: 0,

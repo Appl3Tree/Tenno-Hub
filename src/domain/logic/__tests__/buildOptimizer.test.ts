@@ -523,6 +523,41 @@ describe("build optimizer scoring", () => {
         expect(shortMagazine.slots).not.toContain(synthCharge);
     });
 
+    it("selects Seismic Wave for slam builds but not for a normal melee attack", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Gram Prime");
+        expect(weapon).toBeDefined();
+        const seismicWave = getModsForWeapon(weapon!).find((entry) => entry.name === "Seismic Wave");
+        expect(seismicWave).toBeDefined();
+        const slam = weapon!.attacks.find((attack) => attack.name === "Slam Attack");
+        const normal = weapon!.attacks.find((attack) => attack.name === "Normal Attack");
+        expect(slam).toBeDefined();
+        expect(normal).toBeDefined();
+
+        const optimizeFor = (attack: NonNullable<typeof slam>) => optimizeBuild(
+            weapon!,
+            [seismicWave!],
+            "burst",
+            1,
+            { buildForAttack: attack, optimizeArcane: false, optimizeExilus: false },
+        );
+        const slamBuild = optimizeFor(slam!);
+        const normalBuild = optimizeFor(normal!);
+
+        expect(slamBuild.slots).toContain(seismicWave);
+        expect(normalBuild.slots).not.toContain(seismicWave);
+
+        const korumm = getWeaponCatalog().find((entry) => entry.name === "Korumm");
+        expect(korumm).toBeDefined();
+        const tacticalSlam = korumm!.attacks.find((attack) => attack.name === "Tactical Combo Slam Attack");
+        expect(tacticalSlam).toBeDefined();
+        const tacticalBuild = optimizeBuild(korumm!, [seismicWave!], "burst", 1, {
+            buildForAttack: tacticalSlam,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        });
+        expect(tacticalBuild.slots).toContain(seismicWave);
+    });
+
     it("scores Galvanized Reflex Initial Combo stacks for heavy attacks", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
         expect(weapon).toBeDefined();

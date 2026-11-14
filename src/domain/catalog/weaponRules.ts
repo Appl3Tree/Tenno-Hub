@@ -148,6 +148,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackIsAreaDamage: attack.isAreaDamage === true,
         selectedAttackIgnoresConditionOverload: ignoresConditionOverload,
         selectedAttackUsesMeleeComboMultiplier: usesMeleeComboMultiplier,
+        selectedAttackUsesSlamDamageBonus: /\bslam attack\b/.test(attackName),
         selectedAttackChargeAmmoPerSecond: attack.chargeAmmoPerSecond,
         selectedAttackChargeDamageBaseAmmoCost: attack.chargeDamageBaseAmmoCost,
         selectedAttackDamageRamp: attack.damageRamp,

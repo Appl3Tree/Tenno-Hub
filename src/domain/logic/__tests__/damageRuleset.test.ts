@@ -23,6 +23,8 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-14");
         expect(DAMAGE_RULESET.sources.impact).toBe("https://wiki.warframe.com/w/Damage/Impact_Damage");
         expect(DAMAGE_RULESET.sources.shatteringImpact).toBe("https://wiki.warframe.com/w/Shattering_Impact");
+        expect(DAMAGE_RULESET.sources.seismicWave).toBe("https://wiki.warframe.com/w/Seismic_Wave");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) => entry.includes("Seismic Wave"))).toBe(true);
     });
 
     it("uses signed 1/32 round-half-up quantization relative to modded base damage", () => {

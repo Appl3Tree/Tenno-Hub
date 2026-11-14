@@ -1294,7 +1294,9 @@ function buildMathBreakdown(
             : 0);
     const moddedBaseDamageBeforeConditionOverload = baseDamage * baseDamageMultiplier;
     const moddedBaseDamage = moddedBaseDamageBeforeConditionOverload * stats.conditionOverloadDamageMultiplier;
-    const quantScale = (moddedBaseDamage / 32) * (stats.directDamagePerStatusMultiplier || 1);
+    const selectedAttackDamageMultiplier = stats.slamAttackDamageMultiplier * stats.meleeAttackComboDamageMultiplier;
+    const moddedBaseDamageForQuantization = moddedBaseDamage * selectedAttackDamageMultiplier;
+    const quantScale = (moddedBaseDamageForQuantization / 32) * (stats.directDamagePerStatusMultiplier || 1);
     const fireRateBonus = usesMeleeDamageModel(weapon.category) ? totals.attackSpeedBonus : totals.fireRateBonus;
     const quantizedShotDamage = stats.totalDamage * stats.damageWeightedMultishot;
     const avgHitMultiplier = quantizedShotDamage > 0 ? stats.averageShotDamage / quantizedShotDamage : 1;
@@ -1443,6 +1445,9 @@ function buildMathBreakdown(
             title: "Damage Bonuses",
             lines: [
                 `Damage bonus = ${fmt(totals.damageBonus * 100, 3)}% | impact bonus = ${fmt(totals.impactBonus * 100, 3)}% | puncture bonus = ${fmt(totals.punctureBonus * 100, 3)}% | slash bonus = ${fmt(totals.slashBonus * 100, 3)}%`,
+                ...(stats.slamAttackDamageMultiplier > 1
+                    ? [`Selected slam damage multiplier = ×${fmt(stats.slamAttackDamageMultiplier, 5)} (multiplicative Slam Damage category)`]
+                    : []),
                 `Primary element bonuses = heat ${fmt(totals.heatBonus * 100, 3)}%, cold ${fmt(totals.coldBonus * 100, 3)}%, electricity ${fmt(totals.electricityBonus * 100, 3)}%, toxin ${fmt(totals.toxinBonus * 100, 3)}%`,
                 `Advanced element bonuses = magnetic ${fmt(totals.magneticBonus * 100, 3)}%, radiation ${fmt(totals.radiationBonus * 100, 3)}%, viral ${fmt(totals.viralBonus * 100, 3)}%, corrosive ${fmt(totals.corrosiveBonus * 100, 3)}%, void ${fmt(totals.voidBonus * 100, 3)}%, tau ${fmt(totals.tauBonus * 100, 3)}%, true ${fmt(totals.trueBonus * 100, 3)}%`,
                 `Status damage bonus = ${fmt(totals.statusDamageBonus * 100, 3)}% | status duration bonus = ${fmt(totals.statusDurationBonus * 100, 3)}% | faction damage bonus tracked here = ${fmt(totals.factionDamageBonus * 100, 3)}% | mod direct damage per status = ${fmt(stats.directDamagePerStatusBonus * 100, 3)}% | intrinsic direct damage per status = ${fmt(stats.intrinsicDamagePerStatusBonus * 100, 3)}% (${stats.intrinsicDamagePerStatusMode})`,
@@ -1453,6 +1458,9 @@ function buildMathBreakdown(
             title: "Damage Construction",
             lines: [
                 `Modded base damage = base total ${fmt(baseDamage, 5)} × damage bracket ${fmt(baseDamageMultiplier, 5)} = ${fmt(moddedBaseDamageBeforeConditionOverload, 5)}; Condition Overload adds ${fmt(moddedBaseDamage - moddedBaseDamageBeforeConditionOverload, 5)} = ${fmt(moddedBaseDamage, 5)}`,
+                ...(selectedAttackDamageMultiplier !== 1
+                    ? [`Selected attack damage multipliers = Slam Damage ${fmt(stats.slamAttackDamageMultiplier, 5)} × heavy-attack combo ${fmt(stats.meleeAttackComboDamageMultiplier, 5)} = ${fmt(selectedAttackDamageMultiplier, 5)}; quantization base = ${fmt(moddedBaseDamage, 5)} × ${fmt(selectedAttackDamageMultiplier, 5)} = ${fmt(moddedBaseDamageForQuantization, 5)}`]
+                    : []),
                 ...(totals.conditionOverloadDamagePerStatusBonus > 0 && !stats.conditionOverloadApplies
                     ? ["Condition Overload is disabled for this selected source-marked area, slam, or glaive heavy-throw attack."]
                     : []),
@@ -1469,7 +1477,7 @@ function buildMathBreakdown(
         {
             title: "Quantization",
             lines: [
-                `Scale = direct-hit modded base damage ÷ 32 = (${fmt(moddedBaseDamage, 5)} × ${fmt(stats.directDamagePerStatusMultiplier, 5)}) ÷ 32 = ${fmt(quantScale, 5)}`,
+                `Scale = direct-hit modded base damage, including selected attack multipliers, ÷ 32 = (${fmt(moddedBaseDamage, 5)} × ${fmt(selectedAttackDamageMultiplier, 5)} × ${fmt(stats.directDamagePerStatusMultiplier, 5)}) ÷ 32 = ${fmt(quantScale, 5)}`,
                 `Per-type quantization follows Round(raw ÷ scale) × scale`,
                 ...quantizedLines,
                 `Quantized final breakdown = ${Object.entries(stats.damageBreakdown).filter(([, value]) => (value as number) > 0).map(([type, value]) => `${type} ${fmt(value as number, 5)}`).join(", ") || "none"}`,
