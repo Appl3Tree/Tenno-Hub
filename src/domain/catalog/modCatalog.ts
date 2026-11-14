@@ -91,6 +91,8 @@ export interface ModEffect {
     tauBonus: number;
     trueBonus: number;
     critChanceBonus: number;
+    /** Additive critical chance that applies only to selected slide attacks. */
+    slideAttackCritChanceBonus: number;
     /** Independent damage procs that trigger on a non-critical hit. `damageBonus` is additive, so 20 means 21x damage when triggered. */
     nonCriticalHitDamageProcs?: NonCriticalHitDamageProc[];
     /** Critical chance per combo tier above 1x (e.g. Blood Rush). */
