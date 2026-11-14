@@ -178,6 +178,8 @@ export interface WeaponEntry {
     selectedAttackUsesMeleeComboMultiplier?: boolean;
     /** True when the selected catalog row is a slam attack affected by Slam Damage mods. */
     selectedAttackUsesSlamDamageBonus?: boolean;
+    /** True when the selected catalog row is an ordinary slide attack. */
+    selectedAttackIsSlideAttack?: boolean;
     /** Selected attack's fixed ammo charge rate, where verified. */
     selectedAttackChargeAmmoPerSecond?: number;
     /** Ammo cost represented by the selected attack row's base damage. */

@@ -130,6 +130,22 @@ describe("slot-specific Forma accounting", () => {
 });
 
 describe("build optimizer scoring", () => {
+    it("includes Maiming Strike in the selected slide attack's legal critical builds", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Telos Boltace");
+        expect(weapon).toBeDefined();
+        const slideAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Stormpath Slide Attack");
+        expect(slideAttackIndex).toBeGreaterThanOrEqual(0);
+        const slideAttack = withSelectedAttack(weapon!, slideAttackIndex);
+        const maimingStrike = filterBuilderExpertVariants(getModsForWeapon(weapon!))
+            .find((mod) => mod.name === "Maiming Strike");
+        expect(maimingStrike).toBeDefined();
+
+        const result = optimizeBuild(slideAttack, [maimingStrike!], "burst", 1);
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots[0]?.uniqueName).toBe(maimingStrike!.uniqueName);
+        expect(result.slotRanks[0]).toBe(maimingStrike!.fusionLimit);
+    });
+
     it("requires explicit Warframe armor before considering Primary Bulwark", () => {
         const weapon = makeWeapon();
         const bulwark = getArcanesByWeaponCategory("Primary").find((arcane) => arcane.name === "Primary Bulwark");

@@ -149,6 +149,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackIgnoresConditionOverload: ignoresConditionOverload,
         selectedAttackUsesMeleeComboMultiplier: usesMeleeComboMultiplier,
         selectedAttackUsesSlamDamageBonus: /\bslam attack\b/.test(attackName),
+        selectedAttackIsSlideAttack: /\bslide attack\b/.test(attackName),
         selectedAttackChargeAmmoPerSecond: attack.chargeAmmoPerSecond,
         selectedAttackChargeDamageBaseAmmoCost: attack.chargeDamageBaseAmmoCost,
         selectedAttackDamageRamp: attack.damageRamp,

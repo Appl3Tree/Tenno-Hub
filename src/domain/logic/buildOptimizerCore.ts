@@ -1568,7 +1568,7 @@ function beamThemeSignature(state: BeamState): string {
         if ((effect.factionDamageBonus ?? 0) > 0 && effect.targetFaction) tags.add(`faction:${effect.targetFaction.toLowerCase()}`);
         if ((effect.directDamagePerStatusBonus ?? 0) > 0) tags.add("per-status");
         if ((effect.conditionOverloadDamagePerStatusBonus ?? 0) > 0) tags.add("per-status");
-        if ((effect.critChanceBonus ?? 0) > 0 || (effect.critMultBonus ?? 0) > 0) tags.add("crit");
+        if ((effect.critChanceBonus ?? 0) > 0 || (effect.slideAttackCritChanceBonus ?? 0) > 0 || (effect.critMultBonus ?? 0) > 0) tags.add("crit");
     }
     return [...tags].sort().join("|");
 }
@@ -2181,7 +2181,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
+    if (has("critChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "attackSpeedBonus")) families.push("fire-rate");
@@ -3863,6 +3863,9 @@ function goalLabel(goal: OptimizeGoal): string {
 function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     const value = (key: keyof ModEffect) => Number(effect[key] ?? 0);
     const parts: string[] = [];
+    if (value("slideAttackCritChanceBonus") > 0) {
+        parts.push("+" + (value("slideAttackCritChanceBonus") * 100).toFixed(0) + "% slide-attack cc");
+    }
     if (value("damageBonus") > 0) parts.push(`+${(value("damageBonus") * 100).toFixed(0)}% dmg`);
     if (value("critChanceBonus") > 0) parts.push(`+${(value("critChanceBonus") * 100).toFixed(0)}% cc`);
     if (value("critMultBonus") > 0) parts.push(`+${(value("critMultBonus") * 100).toFixed(0)}% cd`);
