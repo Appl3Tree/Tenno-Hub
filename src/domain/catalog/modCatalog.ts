@@ -482,6 +482,9 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     );
 
     if (rest === "damage" || rest === "melee damage") return { damageBonus: scaled };
+    if (rest === "critical chance and damage") {
+        return { critChanceBonus: scaled, critMultBonus: scaled };
+    }
     if (rest === "melee damage on heavy attack") return { heavyAttackDamageBonus: scaled };
     if (rest === "damage on first shot in magazine") return { firstShotMagazineDamageBonus: scaled };
     if (rest === "melee damage per status type affecting the target") {
