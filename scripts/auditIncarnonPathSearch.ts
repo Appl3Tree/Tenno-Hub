@@ -13,8 +13,24 @@ import { countPolarityChanges } from "../src/domain/logic/capacityCalc";
 import { optimizeBuild, scoreOptimizerResultForConfiguration } from "../src/domain/logic/buildOptimizer";
 import type { OptimizeResult } from "../src/domain/logic/buildOptimizerCore";
 
-const WEAPON_NAME = "Laetum";
-const TARGET_FACTION = "Grineer";
+const SCENARIOS = {
+    Laetum: {
+        attackName: "Normal Attack",
+        targetFaction: "Grineer",
+        candidateModNames: ["Barrel Diffusion", "Frostbite", "Hornet Strike", "Pistol Pestilence"],
+        candidateArcaneNames: ["Secondary Deadhead", "Secondary Merciless"],
+    },
+    Torid: {
+        attackName: "Incarnon Form",
+        targetFaction: "Grineer",
+        candidateModNames: ["Galvanized Chamber", "Hunter Munitions", "Malignant Force", "Serration"],
+        candidateArcaneNames: ["Primary Deadhead", "Primary Merciless"],
+    },
+} as const;
+const WEAPON_NAME = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9).trim() || "Laetum";
+const scenario = SCENARIOS[WEAPON_NAME as keyof typeof SCENARIOS];
+if (!scenario) throw new Error(`Unsupported weapon ${WEAPON_NAME}; choose ${Object.keys(SCENARIOS).join(" or ")}`);
+const TARGET_FACTION = scenario.targetFaction;
 const PATH_REFINEMENT_LIMIT = 2;
 const TARGET = {
     health: 83_818,
@@ -27,16 +43,8 @@ const TARGET = {
     crowdControlImmune: false,
     grouped: false,
 };
-const CANDIDATE_MOD_NAMES = new Set([
-    "Barrel Diffusion",
-    "Frostbite",
-    "Hornet Strike",
-    "Pistol Pestilence",
-]);
-const CANDIDATE_ARCANE_NAMES = new Set([
-    "Secondary Deadhead",
-    "Secondary Merciless",
-]);
+const CANDIDATE_MOD_NAMES = new Set<string>(scenario.candidateModNames);
+const CANDIDATE_ARCANE_NAMES = new Set<string>(scenario.candidateArcaneNames);
 
 const weapon = getWeaponCatalog().find((entry) => entry.name === WEAPON_NAME);
 if (!weapon) throw new Error(`${WEAPON_NAME} is missing from the weapon catalog`);
@@ -54,7 +62,8 @@ if (candidateArcanes.length !== CANDIDATE_ARCANE_NAMES.size) {
     throw new Error(`Expected ${CANDIDATE_ARCANE_NAMES.size} candidate Arcanes, found ${candidateArcanes.map((arcane) => arcane.name).join(", ")}`);
 }
 
-const attackIndex = 0;
+const attackIndex = weapon.attacks.findIndex((attack) => attack.name === scenario.attackName);
+if (attackIndex < 0) throw new Error(`${WEAPON_NAME} is missing attack ${scenario.attackName}`);
 const buildForAttack = weapon.attacks[attackIndex] ?? null;
 const candidates = buildIncarnonCandidateConfigs(record, {}, true);
 const options = {
@@ -144,8 +153,25 @@ const fullResults = candidates.map((candidate) => {
     };
 });
 const fullSweepElapsedMs = performance.now() - fullSweepStart;
-const bestFull = [...fullResults].sort((left, right) => right.score - left.score)[0];
-const shortlistedFull = shortlist.map((candidate) => fullResults.find((result) => result.signature === candidate.signature)!);
+const baselineFull = {
+    signature: signature(baselineConfig),
+    path: baselineConfig.selectedOptionsByTier,
+    elapsedMs: baselineElapsedMs,
+    ttkSeconds: baseline.result.encounterTimeToKillSeconds ?? null,
+    score: runScore(baseline.state, baseline.result, true),
+    capacityValid: baseline.result.capacityValid,
+    formaCount: formaCount(baseline.result),
+    mods: baseline.result.slots.flatMap((mod, index) => mod
+        ? [`${mod.name} R${baseline.result.slotRanks[index] ?? mod.fusionLimit}`]
+        : []),
+    arcane: baseline.result.arcane ? `${baseline.result.arcane.name} R${baseline.result.arcaneRank}` : null,
+};
+const allPathResults = [baselineFull, ...fullResults];
+const bestFull = [...allPathResults].sort((left, right) => right.score - left.score)[0];
+const shortlistedFull = [
+    baselineFull,
+    ...shortlist.map((candidate) => fullResults.find((result) => result.signature === candidate.signature)!),
+];
 const bestShortlisted = [...shortlistedFull].sort((left, right) => right.score - left.score)[0];
 
 console.log(JSON.stringify({
@@ -156,6 +182,7 @@ console.log(JSON.stringify({
     candidateMods: candidateMods.map((mod) => mod.name),
     candidateArcanes: candidateArcanes.map((arcane) => arcane.name),
     pathCount: candidates.length,
+    fullSweepIncludesBaseline: true,
     baseline: {
         elapsedMs: baselineElapsedMs,
         ttkSeconds: baseline.result.encounterTimeToKillSeconds ?? null,
@@ -173,8 +200,12 @@ console.log(JSON.stringify({
         path: candidate.candidate.selectedOptionsByTier,
     })),
     refinedWinners: {
-        fullSweep: { elapsedMs: fullSweepElapsedMs, ...bestFull },
-        shortlist: bestShortlisted,
+        fullSweep: {
+            totalElapsedMs: fullSweepElapsedMs,
+            evaluatedPaths: allPathResults.length,
+            bestPath: bestFull,
+        },
+        shortlist: { bestPath: bestShortlisted },
         ttkGapSeconds: bestShortlisted && bestFull?.ttkSeconds !== null && bestShortlisted.ttkSeconds !== null
             ? bestShortlisted.ttkSeconds - (bestFull?.ttkSeconds ?? 0)
             : null,
