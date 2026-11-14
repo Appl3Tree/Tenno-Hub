@@ -172,6 +172,7 @@ export interface NonCriticalHitDamageProc {
 
 const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment";
 const SHATTERING_IMPACT_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeArmorShatterMod";
+const MAIMING_STRIKE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/SlideAttackCritChanceMod";
 const PROTOTYPE_SHOCK_COILS_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
@@ -1170,6 +1171,24 @@ function buildCaches(): ModCaches {
                     effectsByRank[rank].shatteringImpactBaseArmorPerHit = Number(match[1]);
                     unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                         !/^Impact Damage reduces enemy Armor by \d+\.?$/i.test(line),
+                    );
+                    break;
+                }
+            });
+        }
+        if (path === MAIMING_STRIKE_PATH) {
+            // Current Maiming Strike notes include normal and aerial slide
+            // attacks plus heavy attacks initiated while sliding. This catalog
+            // currently exposes the Telos Boltace Stormpath Slide Attack row.
+            // https://wiki.warframe.com/w/Maiming_Strike
+            parsedLevelStats.forEach((levelStat, rank) => {
+                for (const rawStat of levelStat.stats ?? []) {
+                    const text = stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    const match = text.match(/^\+?(\d+(?:\.\d+)?)% Critical Chance for Slide Attack\.?$/i);
+                    if (!match || !effectsByRank[rank]) continue;
+                    effectsByRank[rank].slideAttackCritChanceBonus = Number(match[1]) / 100;
+                    unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim() !== text,
                     );
                     break;
                 }
