@@ -773,6 +773,9 @@ export function calculateBuild(
         punctureBonus += e.punctureBonus ?? 0;
         slashBonus += e.slashBonus ?? 0;
         critChanceBonus += e.critChanceBonus ?? 0;
+        if (weapon.selectedAttackIsSlideAttack === true) {
+            critChanceBonus += e.slideAttackCritChanceBonus ?? 0;
+        }
         nonCriticalHitDamageProcs.push(...(e.nonCriticalHitDamageProcs ?? []));
         comboCritChanceBonus += e.comboCritChanceBonus ?? 0;
         finalCritChanceBonus += e.finalCritChanceBonus ?? 0;
