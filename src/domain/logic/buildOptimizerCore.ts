@@ -1579,7 +1579,12 @@ function beamSearch(
     goal: OptimizeGoal,
     slotCount: number,
     opts: OptimizerOptions,
-): { mods: ModEntry[]; ranks: number[]; expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> } {
+): {
+    mods: ModEntry[];
+    ranks: number[];
+    expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }>;
+    scoreCache: Map<string, number>;
+} {
     const {
         capacityConfig,
         targetFaction = "",
@@ -1859,7 +1864,12 @@ function beamSearch(
             }
         }
     }
-    return { mods: resultMods, ranks: resultRanks, expectedEncounterSeeds };
+    const scoreCache = new Map<string, number>();
+    for (const state of beam) {
+        const signature = getBeamStateSignature(state.mods, state.ranks, true);
+        if (!scoreCache.has(signature)) scoreCache.set(signature, state.score);
+    }
+    return { mods: resultMods, ranks: resultRanks, expectedEncounterSeeds, scoreCache };
 }
 
 function refineBuildSet(
@@ -1871,6 +1881,7 @@ function refineBuildSet(
     opts: OptimizerOptions,
     extraEffects: (ModEffect | null)[] = [],
     arcaneEffect?: Partial<ModEffect> | null,
+    sharedScoreCache?: Map<string, number>,
 ): { mods: ModEntry[]; ranks: number[] } {
     const {
         slotPolarities = [],
@@ -1885,7 +1896,7 @@ function refineBuildSet(
     const padded = [...slotPolarities];
     while (padded.length < mods.length) padded.push("");
 
-    const scoreCache = new Map<string, number>();
+    const scoreCache = sharedScoreCache ?? new Map<string, number>();
     const scoreCurrent = (modsToScore: ModEntry[], ranksToScore: number[]) => {
         const key = getBeamStateSignature(modsToScore, ranksToScore, true);
         const cached = scoreCache.get(key);
@@ -2872,6 +2883,7 @@ function comboRefineBuildSet(
     opts: OptimizerOptions,
     extraEffects: (ModEffect | null)[] = [],
     arcaneEffect?: Partial<ModEffect> | null,
+    sharedScoreCache?: Map<string, number>,
 ): { mods: ModEntry[]; ranks: number[] } {
     const {
         slotPolarities = [],
@@ -2888,7 +2900,7 @@ function comboRefineBuildSet(
     const padded = [...slotPolarities];
     while (padded.length < Math.max(selectedMods.length, 8)) padded.push("");
 
-    const scoreCache = new Map<string, number>();
+    const scoreCache = sharedScoreCache ?? new Map<string, number>();
     const scoreCurrent = (modsToScore: ModEntry[], ranksToScore: number[]) => {
         const key = getBeamStateSignature(modsToScore, ranksToScore, true);
         const cached = scoreCache.get(key);
@@ -3224,6 +3236,9 @@ function optimizeBuildInternal(
             candidates,
             goal,
             effectiveOpts,
+            [],
+            undefined,
+            initial.scoreCache,
         ));
         ({ mods, ranks } = comboRefineBuildSet(
             scoringWeapon,
@@ -3232,6 +3247,9 @@ function optimizeBuildInternal(
             candidates,
             goal,
             effectiveOpts,
+            [],
+            undefined,
+            initial.scoreCache,
         ));
     }
 

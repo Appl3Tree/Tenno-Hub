@@ -4,6 +4,10 @@ Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Buil
 
 ## Latest follow-up (2026-11-14)
 
+### Epitaph Burst shared-score reuse
+
+Initial single-mod and combo refinement now reuse a bounded cache of exact proxy scores populated by the final beam states. This changes only reuse, not the score or candidate neighborhood. On five-run Epitaph Charged Shot batches, cache-on measured 5.140 s median / 5.809 s maximum versus 5.558 s / 5.930 s cache-off; both returned the same legal 60/60 three-Forma build and score. This is a small sampled improvement, still above the 5 s target, with no stable p95 or production/mobile result. See BUILD_PLANNER_BENCHMARK.md. Overall assignment remains open.
+
 ### Shattering Impact base-armor removal
 
 The mod parser now reads the rank-scaled 1–6 base-Armor removal and passes it through selected-build and Expected TTK calculations. It activates only for melee hits with nonzero Damage 3.0-quantized Impact, does not require a status proc, persists across attacks, and applies before Heat/Corrosive percentage strips. Expected multishot is treated as a mean-field number of hits. Charged/heavy Glaive throws are excluded. Melee Duplicate critical-hit doubling and Archon/commandeered Prime immunity exceptions are not modeled. See the [WARFRAME Wiki Armor reference](https://wiki.warframe.com/w/Armor).

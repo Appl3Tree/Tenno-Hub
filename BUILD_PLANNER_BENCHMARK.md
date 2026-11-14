@@ -1276,3 +1276,12 @@ Current Korumm notes (https://wiki.warframe.com/w/Korumm) confirm that its Tacti
 
 Release gates pass: 604 tests across 49 files, TypeScript plus production Vite build, source validation, focused planner ESLint, and the mod-effect coverage audit. The catalog-independent production Worker is 106,165 bytes. The audit covers 694 weapons and 598 eligible mod records; 86 records remain conservatively flagged for review (17 partial and 69 fully unparsed), including utility false positives. Vite still reports existing large lazy chunks. This change does not close global/joint optimizer optimality, broad objective-equivalent Underframe coverage, stochastic history modeling, the Epitaph Burst latency exception, or cold/mobile/cross-device Worker measurements.
 
+
+
+## Epitaph Burst shared scoring cache (2026-11-14)
+
+A bounded per-optimization cache now reuses exact proxy scores from the final beam states during the initial single-mod and combo refinement passes. It keeps the score function, candidate neighborhood, and capacity checks unchanged. The cache is shared only while those inputs remain fixed; later finite Expected TTK and Arcane-refinement stages keep their own scoring paths.
+
+Five cache-on runs and five cache-off runs returned the identical legal Epitaph Charged Shot build: Lethal Torrent R5, Primed Target Cracker R10, Pathogen Rounds R5, Pistol Pestilence R3, Hornet Strike R10, Barrel Diffusion R5, Primed Expel Corpus R10, and Creeping Bullseye R5. It scored 241,624.7363 at 60/60 capacity with three Forma in both batches. Cache-on measured 5.140 s median and 5.809 s maximum; cache-off measured 5.558 s median and 5.930 s maximum. This five-run result shows a small improvement but remains above the 5 s latency target and does not establish a stable p95 gain.
+
+The port-80 in-app browser returned a legal four-mod 28/30 build, but the browser click-to-result interval was not captured reliably. Node measurements still do not cover production-browser cold starts, mobile devices, or cross-device performance. The Epitaph case remains an open latency exception.
