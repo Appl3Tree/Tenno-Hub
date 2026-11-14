@@ -75,6 +75,39 @@ describe("damage calculation status eligibility", () => {
         expect(both.modded.dotDps).toBeCloseTo(base.modded.dotDps * 1.0875, 10);
     });
 
+    it("models maintained Gale Force as infinite ammo and suppresses Chamber bonuses", () => {
+        const catalog = getWeaponCatalog();
+        const perigale = catalog.find((candidate) => candidate.name === "Perigale");
+        const perigalePrime = catalog.find((candidate) => candidate.name === "Perigale Prime");
+        expect(perigale?.hasGaleForceAmmoPassive).toBe(true);
+        expect(perigalePrime?.hasGaleForceAmmoPassive).toBe(true);
+
+        const weapon = withSelectedAttack(perigalePrime!, 0);
+        const primedChamber = getModsForWeapon(weapon).find((mod) => mod.name === "Primed Chamber");
+        expect(primedChamber).toBeDefined();
+        const effect = primedChamber!.effectsByRank[primedChamber!.fusionLimit];
+
+        const initial = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "initial" } }).modded;
+        const realistic = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "realistic" } }).modded;
+        const customZero = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "custom", externalStacks: 0 } }).modded;
+        const fullyStacked = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        const customMaintained = calculateBuild(weapon, [effect], "", { conditionalState: { mode: "custom", externalStacks: 1 } }).modded;
+
+        expect([initial.infiniteAmmoActive, realistic.infiniteAmmoActive, customZero.infiniteAmmoActive])
+            .toEqual([false, false, false]);
+        expect(initial.firstShotMagazineDamageBonus).toBe(1);
+        expect(realistic.firstShotMagazineDamageBonus).toBe(1);
+        for (const active of [fullyStacked, customMaintained]) {
+            expect(active.infiniteAmmoActive).toBe(true);
+            expect(active.ammoEfficiencyBonus).toBe(0);
+            expect(active.shotsPerMag).toBe(Number.MAX_SAFE_INTEGER);
+            expect(active.magazineDutyCycle).toBe(1);
+            expect(active.firstShotMagazineDamageBonus).toBe(0);
+            expect(active.firstShotMagazineDamageMultiplier).toBe(1);
+            expect(active.magazineAverageDamageMultiplier).toBe(1);
+        }
+    });
+
     it("applies additive ammo efficiency to magazine shots and sustained DPS", () => {
         const weapon = {
             ...makeWeapon({ impact: 100 }),

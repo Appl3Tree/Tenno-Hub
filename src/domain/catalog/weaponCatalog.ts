@@ -19,6 +19,11 @@ const PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES = new Set([
     "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
 ]);
 
+const PERIGALE_GALE_FORCE_UNIQUE_NAMES = new Set([
+    "/Lotus/Weapons/Tenno/LongGuns/TnQuadSniper/TnQuadSniper",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
+]);
+
 export interface WeaponDamageRampRule {
     /** Minimum damage factor before the weapon has ramped up. */
     minimumDamageMultiplier: number;
@@ -145,6 +150,8 @@ export interface WeaponEntry {
     tags: string[];
     /** True for progenitor weapons that can carry a Valence Bonus (Kuva/Tenet/Coda). */
     isProgenitorWeapon?: boolean;
+    /** True for Perigale variants with the Gale Force ammo-efficiency passive. */
+    hasGaleForceAmmoPassive?: boolean;
     /** Selected attack context carried into calculator/optimizer scoring. */
     selectedAttackName?: string;
     /** True when the selected attack is part of the weapon's Incarnon form. */
@@ -1369,6 +1376,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
             stanceClasses,
             tags: inferWeaponTags(item, exaltedType),
             isProgenitorWeapon: isProgenitorWeapon(name, uniqueName),
+            ...(PERIGALE_GALE_FORCE_UNIQUE_NAMES.has(uniqueName) ? { hasGaleForceAmmoPassive: true } : {}),
         };
         entries.push(entry);
         seenUniqueNames.add(uniqueName);

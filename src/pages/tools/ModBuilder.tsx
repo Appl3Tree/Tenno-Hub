@@ -614,8 +614,9 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
         ["Status", `${fmt((stats?.statusChance ?? 0) * 100, 1)}%`],
         ["Multishot", `${fmt(stats?.multishot ?? 0, 2)}x`],
         [rateStatLabel, `${fmt(stats?.fireRate ?? 0, 2)}/s`],
-        ["Magazine", stats ? (stats.shotsPerMag > 9999 ? "∞" : fmt(stats.magazineSize, 0)) : "0"],
-        ["Reload", `${fmt(stats?.reloadTime ?? 0, 2)}s`],
+        ["Magazine", stats ? fmt(stats.magazineSize, 0) : "0"],
+        ["Shots / Mag", stats ? (stats.infiniteAmmoActive ? "∞" : fmt(stats.shotsPerMag, 0)) : "0"],
+        ["Reload", stats?.infiniteAmmoActive ? "None" : `${fmt(stats?.reloadTime ?? 0, 2)}s`],
         ["DoT DPS", fmt(stats?.dotDps ?? 0)],
         ...(payload.calculated?.meleeAverageDps
             ? [["Stance Avg DPS", fmt(payload.calculated.meleeAverageDps.averageDps)]]
@@ -1360,6 +1361,9 @@ function buildMathBreakdown(
                 `Base crit chance = ${fmt(weapon.critChance * 100, 5)}% | base crit multiplier = ${fmt(weapon.critMultiplier, 5)} | base status chance = ${fmt(weapon.statusChance * 100, 5)}%`,
                 `${rateLabel} base = ${fmt(weapon.fireRate, 5)} | magazine base = ${displayMagazineValue(weapon, weapon.magazineSize)} | reload base = ${fmt(weapon.reloadTime, 5)}s | multishot base = ${fmt(weapon.multishot, 5)}`,
                 `Conditional effects scenario = ${conditionalState.mode}${conditionalState.mode === "custom" ? ` (${conditionalState.externalStacks ?? 0} maintained stacks per effect)` : ""}`,
+                ...(weapon.hasGaleForceAmmoPassive ? [
+                    `Gale Force = ${stats.infiniteAmmoActive ? "assumed continuously maintained" : "not active"}; headshot/kill trigger and four-second refresh timing are not simulated.${stats.infiniteAmmoActive ? " Infinite ammo prevents reloads, and first-shot Chamber bonuses are already spent." : " Select Fully stacked or Custom with at least one maintained stack to model the active buff."}`,
+                ] : []),
                 targetFaction ? `Target faction used for damage modifiers = ${targetFaction}` : "No target faction damage modifier selected",
                 ...(usesMeleeDamageModel(weapon.category)
                     ? [
@@ -1459,11 +1463,13 @@ function buildMathBreakdown(
                         : ["Stance average DPS is unavailable until average combo damage multiplier and base combo length are entered from the selected stance's reference data."]
                     : []),
                 ...(!usesMeleeDamageModel(weapon.category) && !weapon.isExalted ? [
-                    `Ammo efficiency = ${fmt(stats.ammoEfficiencyBonus * 100, 3)}% after additive bonuses and the 75% cap${weapon.selectedAttackIsIncarnon ? " (ignored in transformed Incarnon form)" : ""}`,
+                    `Ordinary ammo efficiency = ${fmt(stats.ammoEfficiencyBonus * 100, 3)}% after additive bonuses and the 75% cap${weapon.selectedAttackIsIncarnon ? " (ignored in transformed Incarnon form)" : ""}${stats.infiniteAmmoActive ? "; Gale Force is modeled separately as maintained infinite ammo" : ""}`,
                     ...(weapon.selectedAttackChargeAmmoPerSecond && weapon.selectedAttackChargeDamageBaseAmmoCost ? [
                         `Charged attack damage = Wiki row damage × (${fmt(stats.ammoCostPerShot, 5)} ammo ÷ ${fmt(weapon.selectedAttackChargeDamageBaseAmmoCost, 5)}-ammo baseline) = ${fmt(stats.totalDamage, 5)}; charge time = ${fmt(stats.ammoCostPerShot, 5)} ÷ ${fmt(weapon.selectedAttackChargeAmmoPerSecond, 5)} ammo/s = ${fmt(stats.chargeTimeSeconds ?? 0, 5)}s.`,
                     ] : []),
-                    stats.ammoEfficiencyBonus > 0
+                    stats.infiniteAmmoActive
+                        ? "Shots per magazine = unbounded while the Gale Force buff is assumed active; no reload interruption is modeled."
+                        : stats.ammoEfficiencyBonus > 0
                         ? `Shots per magazine = ceil(${fmt(stats.magazineSize, 5)} ÷ (${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)}))) = ${fmt(stats.shotsPerMag, 5)}; ammo-efficiency fractional remainder is carried into the next shot.`
                         : `Shots per magazine = ${fmt(stats.magazineSize, 5)} ÷ (${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)})) = ${fmt(stats.shotsPerMag, 5)}`,
                 ] : []),
@@ -3943,6 +3949,7 @@ export default function ModBuilder() {
             enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             shotsPerMagazine: stats.shotsPerMag,
+            infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             critChance: stats.critChance + stats.punctureCritChanceBonus,
@@ -3995,6 +4002,7 @@ export default function ModBuilder() {
             expectedDamageMultiplier: stats.damageWeightedMultishot,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             shotsPerMagazine: stats.shotsPerMag,
+            infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
@@ -4867,6 +4875,11 @@ export default function ModBuilder() {
                                                                 : "Applies this maintained stack count to each conditional effect."}
                                                 </span>
                                             </div>
+                                            {weapon?.hasGaleForceAmmoPassive && (
+                                                <p className="mb-3 text-[10px] text-slate-400">
+                                                    Gale Force provides Infinite Ammo for 4 seconds after a headshot kill or four headshots in one burst. Its trigger and refresh timing are not simulated. Perigale assumes it is maintained only in Fully stacked or Custom with at least one stack; while active, the build has no reloads or further first-shot Chamber bonus.
+                                                </p>
+                                            )}
                                             {weapon && usesMeleeDamageModel(weapon.category) && (
                                                 <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses Initial Combo mods and supported weapon passives, and ignores this field. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). Direct-hit TTK then steps combo after each heavy hit and rebuilds Initial Combo at 40 points/s. It does not model combo generated by hits, Tennokai, stance sequences, heavy-attack wind-up, or enemies hit per swing. DPS, the finite status encounter, and optimizer scores hold the starting tier.</p>
                                             )}
@@ -6137,7 +6150,7 @@ export default function ModBuilder() {
                                             ? [{ label: "First shot", value: fmt(stats.averageShotDamage * stats.firstShotMagazineDamageMultiplier), sub: "after reload", tooltip: `Expected direct damage for the first ammo-consuming shot in a fresh magazine, including first-shot Chamber mods and crit weighting. Later shots use the ordinary per-${damageUnit} damage above.` }]
                                             : []),
                                         { label: "Burst DPS", value: fmt(result.burstDPS), sub: "fresh magazine", tooltip: "Damage per second while attacking through a fresh magazine without reload downtime. Verified attack ramps are averaged across that magazine." },
-                                        { label: "Sustained DPS", value: fmt(result.sustainedDPS), sub: "with reload", tooltip: "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable." },
+                                        { label: "Sustained DPS", value: fmt(result.sustainedDPS), sub: stats.infiniteAmmoActive ? "Gale Force maintained" : "with reload", tooltip: stats.infiniteAmmoActive ? "Damage per second assumes Gale Force stays active, so no reload downtime or recurring first-shot Chamber bonus is applied." : "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable." },
                                         { label: `DoT / ${damageUnitLabel}`, value: fmt(stats.dotDamagePerShot), sub: "full-life estimate", tooltip: `Expected status damage-over-time contributed by one ${damageUnit} if the target survives for every proc's full duration. This is not damage delivered before a target dies.` },
                                         { label: "DoT DPS", value: fmt(stats.dotDps), sub: "steady-state estimate", tooltip: "Estimated DoT damage per second against a target that survives long enough for status stacks to reach steady state. Ramp-enabled attacks assume fully warmed damage for this long-run estimate; the expected encounter scales each proc seed by its attack-time ramp." },
                                         {
@@ -6176,18 +6189,26 @@ export default function ModBuilder() {
                                                 : usesHitTerminology(weapon.category) ? "Attacks per second." : "Shots per second.",
                                         },
                                         { label: "Magazine", value: displayMagazineValue(weapon, stats.magazineSize), tooltip: usesHitTerminology(weapon.category) ? "Melee weapons do not use magazines, so this stays at the weapon's effective default value." : "Rounds available before reloading." },
-                                        ...(!usesHitTerminology(weapon.category) && !weapon.isExalted ? [{ label: "Ammo Efficiency", value: fmt(stats.ammoEfficiencyBonus * 100, 1) + "%", tooltip: "Additive ammo-efficiency bonuses, capped at 75%. Fractional ammo is accumulated between shots; transformed Incarnon attacks ignore ammo efficiency. Conditional bonuses follow the selected condition state." }] : []),
+                                        ...(!usesHitTerminology(weapon.category) && !weapon.isExalted ? [{ label: "Ammo Efficiency", value: fmt(stats.ammoEfficiencyBonus * 100, 1) + "%", tooltip: "Ordinary additive ammo-efficiency bonuses, capped at 75%. Fractional ammo is accumulated between shots; transformed Incarnon attacks ignore ammo efficiency. Perigale's Gale Force is modeled separately as infinite ammo when assumed maintained." }] : []),
+                                        ...(weapon.hasGaleForceAmmoPassive ? [{
+                                            label: "Gale Force",
+                                            value: stats.infiniteAmmoActive ? "Active" : "Inactive",
+                                            sub: stats.infiniteAmmoActive ? "infinite ammo assumed" : "scenario assumption",
+                                            tooltip: "Gale Force's headshot/kill trigger and 4-second refresh timing are not simulated. Fully stacked or Custom with at least one maintained stack assumes it stays active; then reloads and first-shot Chamber bonuses are disabled.",
+                                        }] : []),
                                         {
                                             label: weapon.weaponType.trim().toLowerCase() === "bow" ? "Shots / Cycle" : "Shots / Mag",
-                                            value: fmt(stats.shotsPerMag, 2),
-                                            sub: weapon.weaponType.trim().toLowerCase() === "bow" ? "per arrow cycle" : "before reload",
+                                            value: stats.infiniteAmmoActive ? "∞" : fmt(stats.shotsPerMag, 2),
+                                            sub: stats.infiniteAmmoActive ? "while Gale Force is maintained" : weapon.weaponType.trim().toLowerCase() === "bow" ? "per arrow cycle" : "before reload",
                                             tooltip: weapon.weaponType.trim().toLowerCase() === "bow"
                                                 ? "Bow attacks fire one arrow per charge/reload cycle. The repeating bow rate already includes this cycle, so it is not counted again as magazine downtime."
+                                                : stats.infiniteAmmoActive
+                                                    ? "Gale Force is assumed maintained, so ammo does not run out and no reload occurs."
                                                 : usesHitTerminology(weapon.category)
                                                     ? "Effective attack count before any reload-like interruption. For melee this is mostly a placeholder value."
                                                     : "Number of trigger pulls available before reloading.",
                                         },
-                                        { label: "Reload", value: stats.reloadTime.toFixed(2) + "s", tooltip: usesHitTerminology(weapon.category) ? "Melee weapons do not reload, so this should normally remain at 0." : "Time needed to refill the magazine." },
+                                        { label: "Reload", value: stats.infiniteAmmoActive ? "None" : stats.reloadTime.toFixed(2) + "s", tooltip: stats.infiniteAmmoActive ? "No reload occurs while Gale Force's infinite-ammo buff is assumed maintained." : usesHitTerminology(weapon.category) ? "Melee weapons do not reload, so this should normally remain at 0." : "Time needed to refill the magazine." },
                                         {
                                             label: `Avg Procs/${damageUnitLabel}`,
                                             value: fmt(stats.averageProcsPerShot, 2),
@@ -6410,7 +6431,9 @@ export default function ModBuilder() {
 
                                         {firstShotChamberMods.length > 0 && (
                                             <div role="note" className="rounded-lg border border-amber-700/40 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-300/90">
-                                                {firstShotChamberMods.join(", ")} apply to the first shot in each magazine; per-magazine DPS and first-shot / finite-encounter damage include the bonus. Perigale's Gale Force Infinite Ammo trigger/uptime and its Chamber-mod interaction are not modeled.
+                                                {activeMetrics?.modded.infiniteAmmoActive
+                                                    ? `${firstShotChamberMods.join(", ")} are excluded while Gale Force is assumed maintained: its infinite-ammo state prevents a magazine reload, so the first-shot bonus has already been spent.`
+                                                    : `${firstShotChamberMods.join(", ")} apply to the first shot in each magazine; per-magazine DPS and first-shot / finite-encounter damage include the bonus.${weapon.hasGaleForceAmmoPassive ? " Gale Force trigger/refresh timing is not modeled; its maintained state is available in Fully stacked and Custom scenarios." : ""}`}
                                             </div>
                                         )}
 
