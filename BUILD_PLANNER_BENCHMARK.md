@@ -4,6 +4,35 @@ Run date: 2026-11-14; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Expected TTK refinement coverage and production baseline (2026-11-14)
+
+The single-replacement Expected TTK shortlist now reserves an exact finite-encounter evaluation for each available effect family before taking a second candidate from any family. The cap increased from 24 to 40 to preserve elemental, tempo, critical, multishot, faction, status, and base-damage alternatives in the same pass. This remains a bounded heuristic; family labels choose which candidates receive the exact evaluator and do not guarantee a global optimum.
+
+This change corrected a reproducible Braton Prime quality miss. Under the same fully stacked state, level-100 Grineer pools (83,818 Health / 2,700 Armor), rank-5 Primary Overcharge cap (350% multishot), and three-Forma limit, the prior optimizer list modeled 0.65613 s Expected TTK. A legal one-mod replacement, Bladed Rounds → Vile Acceleration, modeled 0.59085 s and was previously missed by the exact-evaluation shortlist. After balanced family coverage, the optimizer returns the 0.59085 s list directly. The captured Underframe Auto Build list models 0.76915 s under Tenno-Hub's same finite model; both displayed lists can be assigned legally at 59/60 capacity and three Forma. Tenno-Hub is 23.2% faster on this common expected model, not a claim about Underframe's native stochastic simulator. A bounded 1–4-mod substitution audit over the Underframe-only mods found no legal candidate faster than 0.59085 s. This remains one target/build fixture and a small competitor-neighborhood comparison.
+
+Follow-up against the deployed 396107c code found that the family loop could spend a second candidate on early families before reaching tempo candidates. The shortlist now makes a first pass across all families before any second pass. On the fixture above this preserves Vile Acceleration in the exact-refinement set and returns the 0.59085 s build. The regression requires that mod and a result under 0.60 s. This changes ordering within a bounded shortlist; it does not prove the full candidate space optimal.
+
+After the shortlist change, the 14-case Expected TTK corpus ran five times per case (70 optimizations). All results were deterministic and legal within three Forma. Medians ranged from 1.445 to 4.173 s; maximum-of-five observations ranged from 1.465 to 4.199 s. These maxima are coarse observations from five runs, not statistically robust population p95 estimates.
+
+| Weapon / selected attack | Median | Max-of-five | Expected TTK | Forma | Legal |
+|---|---:|---:|---:|---:|---|
+| Perigale Prime / Normal Attack | 3.813 s | 3.942 s | 0.144 s | 3 | Yes |
+| Braton Prime / Normal Attack | 3.595 s | 3.686 s | 1.593 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | 3.726 s | 3.855 s | 5.105 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | 3.265 s | 3.555 s | 2.490 s | 3 | Yes |
+| Laetum / Normal Attack | 4.173 s | 4.199 s | 0.138 s | 3 | Yes |
+| Cinta / Normal Attack | 3.536 s | 3.677 s | 1.059 s | 3 | Yes |
+| Kuva Hek / Normal Attack | 2.950 s | 3.369 s | 0.200 s | 1 | Yes |
+| Torid / Normal Attack | 3.323 s | 3.491 s | 1.333 s | 3 | Yes |
+| Broken War / Normal Attack | 2.358 s | 2.555 s | 4.000 s | 2 | Yes |
+| Corvas Prime / Normal Attack | 1.445 s | 1.465 s | 0.000 s | 3 | Yes |
+| Verglas Prime / Normal Attack | 3.384 s | 3.506 s | 1.316 s | 3 | Yes |
+| Epitaph / Charged Shot | 3.252 s | 3.303 s | 0.000 s | 3 | Yes |
+| Nataruk / Perfect Shot | 2.511 s | 2.857 s | 0.000 s | 2 | Yes |
+| Gram Prime / Heavy Slam Attack | 2.702 s | 2.731 s | 1.613 s | 3 | Yes |
+
+As a separate production baseline at merge `396107c`, four warmed, blank-start Epitaph / Charged Shot runs at MR 0 with no Catalyst completed at 767, 789, 801, and 830 ms (795 ms median). Each returned the same legal four-mod 28/30 build. This is a narrow UI-to-result sample from the earlier shortlist version; it is neither a production measurement of the new 40-candidate refinement nor comparable to the MR 30 Node corpus above.
+
 ## Production UI and Incarnon path-search audit (2026-11-14)
 
 The production app at merge commit `07e75a6` was exercised in the Codex in-app browser after deployment. Braton Prime / Normal Attack / Expected TTK used the uncatalyzed MR 0 setup, blank starting mod slots, and the Balanced synthetic target. Fifteen warmed optimize/reset runs completed. The observed result was a legal four-mod 30/30 build. Measured click-to-"Optimize Build"-enabled observations were 1,110, 921, 1,109, 1,063, 1,109, 920, 1,064, 950, 1,109, 1,032, 1,025, 1,041, 1,079, 942, and 952 ms (1,041 ms median; 1,110 ms maximum observation). Timing includes browser action and accessibility-state polling, so it is a UI-to-result observation, not a pure Worker duration or population p95. The production tab used for this measurement was temporary; the separate live manual-testing tab remained blank.
@@ -1213,4 +1242,4 @@ Epitaph Charged Shot / Burst is the performance exception. An isolated five-run 
 
 The catalog-coverage audit checked 694 weapons and 598 unique builder-eligible mod records: 466 have a parsed damage/performance effect, 132 have no parsed effect at maximum rank, and 90 records have unmatched lines conservatively flagged for review (17 partially parsed, 73 fully unparsed). The keyword screen includes utility false positives; this is a review list, not 90 confirmed missing damage models. Affected ranks stay manually selectable with an explanation and are omitted from auto-optimization until their combat effects are modeled.
 
-The production optimizer Worker is 103,969 bytes after moving the review helper out of the catalog's runtime module. This prevents the catalog JSON from being duplicated inside the Worker. Release checks pass at 595 tests / 49 files, TypeScript and production build, `npm run validate:sources`, focused ESLint, and CRLF-aware diff checking. The production Worker remains unmeasured for cold-start and mobile devices.
+The production optimizer Worker is 104,038 bytes after moving the review helper out of the catalog's runtime module. This prevents the catalog JSON from being duplicated inside the Worker. Release checks pass at 595 tests / 49 files, TypeScript and production build, `npm run validate:sources`, focused ESLint, and CRLF-aware diff checking. The production Worker remains unmeasured for cold-start and mobile devices.
