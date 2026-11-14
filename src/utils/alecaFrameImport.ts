@@ -9,6 +9,8 @@ const IV = new Uint8Array([49, 50, 70, 71, 66, 51, 54, 45, 76, 69, 51, 45, 113, 
 export const ALECAFRAME_MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_ARRAY_RECORDS = 100_000;
 const MAX_ITEM_QUANTITY = 100_000_000;
+const MAX_WEEKLY_GUILD_VAULT_RECORDS = 100;
+const MAX_WEEKLY_GUILD_VAULT_DATA_CHARS = 500_000;
 
 type JsonObject = Record<string, unknown>;
 export type AlecaFrameKind = "item" | "mod" | "arcane" | "riven";
@@ -75,6 +77,7 @@ export interface AlecaFrameInventorySnapshot {
   records: AlecaFrameRecord[];
   unresolvedRecords: AlecaFrameUnresolvedRecord[];
   rivenRecords: CustomRivenRecord[];
+  weeklyGuildVaultBonusInfo?: JsonObject[];
   issues: AlecaFrameIssue[];
   warnings: AlecaFrameIssue[];
   sections: Record<string, AlecaFrameSectionSummary>;
@@ -270,7 +273,8 @@ export async function parseAlecaFrameInventory(
   const value = unwrapAlecaFrameInventory(input);
   if (!isObject(value)) throw new Error("Not a supported AlecaFrame inventory snapshot.");
 
-  const presentSupported = [...SUPPORTED_ITEM_SECTIONS].some((section) => Array.isArray(value[section]));
+  const presentSupported = [...SUPPORTED_ITEM_SECTIONS].some((section) => Array.isArray(value[section])) ||
+    value.WeeklyGuildVaultBonusInfo !== undefined;
   if (!presentSupported) {
     throw new Error("Not a supported AlecaFrame inventory snapshot (no recognized inventory sections).");
   }
@@ -285,12 +289,78 @@ export async function parseAlecaFrameInventory(
   const sections: Record<string, AlecaFrameSectionSummary> = {};
   const excludedSections: Record<string, { sourceRecords: number; reason: string }> = {};
   const seenInstanceIds = new Map<string, { path: string; section: string; index: number }>();
-  const totalArrayRecords = Object.values(value).reduce<number>(
-    (total, entry) => total + (Array.isArray(entry) ? entry.length : 0), 0,
+  const totalArrayRecords = Object.entries(value).reduce<number>(
+    (total, [section, entry]) => {
+      if (Array.isArray(entry)) return total + entry.length;
+      return total + (section === "WeeklyGuildVaultBonusInfo" && isObject(entry) ? 1 : 0);
+    },
+    0,
   );
 
   const issue = (target: AlecaFrameIssue[], section: string, index: number, path: string, reason: string) =>
     target.push({ section, index, path, reason });
+
+  const weeklyGuildVaultBonusSource = value.WeeklyGuildVaultBonusInfo;
+  let weeklyGuildVaultBonusInfo: JsonObject[] | undefined;
+  if (weeklyGuildVaultBonusSource === undefined) {
+    sections.WeeklyGuildVaultBonusInfo = {
+      sourceRecords: 0, importedRecords: 0, importedCopies: 0,
+      unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0,
+      skippedRecords: 0, failedRecords: 0, excludedRecords: 0,
+      status: "missing", reason: "Personal weekly initiative data is absent from the save.",
+    };
+  } else {
+    const weeklyEntries = Array.isArray(weeklyGuildVaultBonusSource)
+      ? weeklyGuildVaultBonusSource
+      : isObject(weeklyGuildVaultBonusSource) ? [weeklyGuildVaultBonusSource] : null;
+    if (!weeklyEntries) {
+      issue(issues, "WeeklyGuildVaultBonusInfo", -1, "", "Personal weekly initiative data has an invalid structure.");
+      sections.WeeklyGuildVaultBonusInfo = {
+        sourceRecords: 0, importedRecords: 0, importedCopies: 0,
+        unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0,
+        skippedRecords: 0, failedRecords: 1, excludedRecords: 0,
+        status: "unclassified", reason: "Expected an array or a single progress record.",
+      };
+    } else if (weeklyEntries.length > MAX_WEEKLY_GUILD_VAULT_RECORDS) {
+      issue(issues, "WeeklyGuildVaultBonusInfo", -1, "", "Personal weekly initiative data exceeds the supported record limit.");
+      sections.WeeklyGuildVaultBonusInfo = {
+        sourceRecords: weeklyEntries.length, importedRecords: 0, importedCopies: 0,
+        unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0,
+        skippedRecords: 0, failedRecords: weeklyEntries.length, excludedRecords: 0,
+        status: "unclassified", reason: "Section exceeds the supported record limit.",
+      };
+    } else {
+      const validEntries: JsonObject[] = [];
+      let failedRecords = 0;
+      weeklyEntries.forEach((entry, index) => {
+        if (!isObject(entry)) {
+          issue(issues, "WeeklyGuildVaultBonusInfo", index, "", "Weekly initiative entry is not an object.");
+          failedRecords += 1;
+          return;
+        }
+        validEntries.push(entry);
+      });
+      const serializedWeeklyInfo = JSON.stringify(validEntries) ?? "[]";
+      if (serializedWeeklyInfo.length > MAX_WEEKLY_GUILD_VAULT_DATA_CHARS) {
+        issue(issues, "WeeklyGuildVaultBonusInfo", -1, "", "Personal weekly initiative data exceeds the supported size limit.");
+        sections.WeeklyGuildVaultBonusInfo = {
+          sourceRecords: weeklyEntries.length, importedRecords: 0, importedCopies: 0,
+          unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0,
+          skippedRecords: 0, failedRecords: weeklyEntries.length, excludedRecords: 0,
+          status: "unclassified", reason: "Section exceeds the supported size limit.",
+        };
+      } else {
+        weeklyGuildVaultBonusInfo = validEntries;
+        sections.WeeklyGuildVaultBonusInfo = {
+          sourceRecords: weeklyEntries.length, importedRecords: validEntries.length, importedCopies: 0,
+          unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0,
+          skippedRecords: 0, failedRecords, excludedRecords: 0,
+          status: failedRecords > 0 ? "partial" : "imported",
+          reason: "Personal weekly reward progress is retained separately from owned inventory.",
+        };
+      }
+    }
+  }
 
   const addRecord = (
     section: string,
@@ -617,7 +687,11 @@ export async function parseAlecaFrameInventory(
     };
   }
 
-  const known = new Set([...SUPPORTED_ITEM_SECTIONS, ...Object.keys(EXCLUDED_SECTIONS)]);
+  const known = new Set([
+    ...SUPPORTED_ITEM_SECTIONS,
+    ...Object.keys(EXCLUDED_SECTIONS),
+    "WeeklyGuildVaultBonusInfo",
+  ]);
   for (const [section, entries] of Object.entries(value)) {
     if (!Array.isArray(entries) || known.has(section)) continue;
     if (entries.length > MAX_ARRAY_RECORDS) {
@@ -683,6 +757,7 @@ export async function parseAlecaFrameInventory(
     records: normalizedRecords,
     unresolvedRecords: normalizedUnresolved,
     rivenRecords: [...rivenRecords.values()].sort((left, right) => left.id.localeCompare(right.id)),
+    ...(weeklyGuildVaultBonusInfo !== undefined ? { weeklyGuildVaultBonusInfo } : {}),
     issues, warnings, sections, excludedSections,
     totalArrayRecords, sourceRecords: totalArrayRecords,
     distinctItems: normalizedRecords.length + rivenCatalogIds.size,
@@ -693,7 +768,8 @@ export async function parseAlecaFrameInventory(
       valueType: Array.isArray(entry) ? "array" : entry === null ? "null" : typeof entry,
     })),
     importable: issues.length === 0 &&
-      (normalizedRecords.length > 0 || normalizedUnresolved.length > 0 || rivenRecords.size > 0),
+      (normalizedRecords.length > 0 || normalizedUnresolved.length > 0 || rivenRecords.size > 0 ||
+        weeklyGuildVaultBonusInfo !== undefined),
     coverageComplete,
   };
 }

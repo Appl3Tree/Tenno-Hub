@@ -8,7 +8,7 @@ export default function Imports() {
             <WorkspaceHero
                 eyebrow="System Workspace"
                 title="Imports & Backups"
-                description="Move profile data in and out safely, verify what will change, and keep a recoverable backup before major updates."
+                description="Move profile data in and out, review what will change, and choose whether to download a backup before importing."
                 stats={
                     <WorkspaceStat
                         label="Safety"

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { FULL_CATALOG, type CatalogId } from "../domain/catalog/loadFullCatalog";
+import type { AlecaFrameProgressSnapshot } from "../domain/types";
 import { useTrackerStore } from "../store/store";
 import {
   ALECAFRAME_MAX_FILE_BYTES,
@@ -98,6 +99,12 @@ function safeFilenameDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatSnapshotJson(value: unknown): string {
+  const json = JSON.stringify(value, null, 2) ?? "null";
+  const maxChars = 50_000;
+  return json.length <= maxChars ? json : json.slice(0, maxChars) + "\n… truncated for display.";
+}
+
 export default function AlecaFrameImport() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<AlecaFrameInventorySnapshot | null>(null);
@@ -108,9 +115,11 @@ export default function AlecaFrameImport() {
   const [keepLocalIds, setKeepLocalIds] = useState<Set<string>>(new Set());
   const [unresolvedAcknowledged, setUnresolvedAcknowledged] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [downloadBackupBeforeImport, setDownloadBackupBeforeImport] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const inventory = useTrackerStore((store) => store.state.inventory);
+  const alecaFrameProgress = useTrackerStore((store) => store.state.alecaFrameProgress);
   const exportProgressPackJson = useTrackerStore((store) => store.exportProgressPackJson);
   const applyAlecaFrameInventory = useTrackerStore((store) => store.applyAlecaFrameInventory);
 
@@ -131,6 +140,7 @@ export default function AlecaFrameImport() {
     setKeepLocalIds(new Set());
     setUnresolvedAcknowledged(false);
     setConfirmOpen(false);
+    setDownloadBackupBeforeImport(false);
     setMessage("");
     setBusy(true);
     if (file.size > ALECAFRAME_MAX_FILE_BYTES) {
@@ -172,6 +182,9 @@ export default function AlecaFrameImport() {
   const pageCount = Math.ceil(filteredRows.length / 40);
   const currentPage = Math.min(page, Math.max(0, pageCount - 1));
   const visibleRows = filteredRows.slice(currentPage * 40, currentPage * 40 + 40);
+  const weeklyProgressChanged = preview?.weeklyGuildVaultBonusInfo !== undefined &&
+    JSON.stringify(preview.weeklyGuildVaultBonusInfo) !==
+      JSON.stringify(alecaFrameProgress?.weeklyGuildVaultBonusInfo ?? null);
 
   const plannedChanges = useMemo(() => {
     if (!review) return 0;
@@ -180,12 +193,14 @@ export default function AlecaFrameImport() {
     const changedRivens = review.rivenRows.filter((row) =>
       row.changed && !row.isNew && !keepLocalIds.has("riven-instance:" + row.record.id),
     ).length;
-    if (mode === "keep-local") return newRecords + unresolvedReportChanges;
-    if (mode === "overwrite") return newRecords + review.changedCount + review.changedRivenCount + unresolvedReportChanges;
+    if (mode === "keep-local") return newRecords + unresolvedReportChanges + Number(weeklyProgressChanged);
+    if (mode === "overwrite") {
+      return newRecords + review.changedCount + review.changedRivenCount + unresolvedReportChanges + Number(weeklyProgressChanged);
+    }
     return newRecords + unresolvedReportChanges + review.rows.filter((row) =>
       row.changed && !row.isNew && !keepLocalIds.has(row.record.catalogId),
-    ).length + changedRivens;
-  }, [keepLocalIds, mode, review]);
+    ).length + changedRivens + Number(weeklyProgressChanged);
+  }, [keepLocalIds, mode, review, weeklyProgressChanged]);
 
   function setModeAndChoices(nextMode: AlecaFrameReconciliationMode): void {
     setMode(nextMode);
@@ -217,33 +232,41 @@ export default function AlecaFrameImport() {
     if (preview.unresolvedRecords.length > 0 && !unresolvedAcknowledged) return;
     if (!confirmOpen) return;
 
-    let backupPayload: unknown;
-    try {
-      backupPayload = JSON.parse(exportProgressPackJson());
-    } catch {
-      setMessage("The current Progress Pack backup could not be prepared. No inventory changes were applied.");
-      setConfirmOpen(false);
-      return;
+    if (downloadBackupBeforeImport) {
+      let backupPayload: unknown;
+      try {
+        backupPayload = JSON.parse(exportProgressPackJson());
+      } catch {
+        setMessage("The current Progress Pack backup could not be prepared. No inventory changes were applied.");
+        setConfirmOpen(false);
+        return;
+      }
+      try {
+        downloadJson("tenno-hub-before-alecaframe-" + safeFilenameDate() + ".json", backupPayload);
+      } catch {
+        setMessage("The Progress Pack backup could not be downloaded. No inventory changes were applied.");
+        setConfirmOpen(false);
+        return;
+      }
     }
+    const importedAtIso = new Date().toISOString();
     const reconciled = reconcileAlecaFrameInventory(
       inventory,
       preview,
       mode,
       keepLocalIds,
-      new Date().toISOString(),
+      importedAtIso,
     );
-    try {
-      downloadJson("tenno-hub-before-alecaframe-" + safeFilenameDate() + ".json", backupPayload);
-    } catch {
-      setMessage("The Progress Pack backup could not be downloaded. No inventory changes were applied.");
-      setConfirmOpen(false);
-      return;
-    }
-    const result = applyAlecaFrameInventory(reconciled);
+    const progress: AlecaFrameProgressSnapshot | undefined = preview.weeklyGuildVaultBonusInfo !== undefined
+      ? { importedAtIso, weeklyGuildVaultBonusInfo: preview.weeklyGuildVaultBonusInfo }
+      : undefined;
+    const result = applyAlecaFrameInventory(reconciled, progress);
     setConfirmOpen(false);
     setMessage(result.ok
-      ? "Imported " + plannedChanges.toLocaleString() + " reviewed records. Local-only records and unrelated progress were preserved."
-      : (result.error ?? "Import failed. Use the downloaded Progress Pack backup if recovery is needed."));
+      ? "Applied " + plannedChanges.toLocaleString() + " reviewed changes. Local-only records and unrelated progress were preserved."
+      : (result.error ?? (downloadBackupBeforeImport
+        ? "Import failed. Use the downloaded Progress Pack backup if recovery is needed."
+        : "Import failed. No inventory changes were applied.")));
   }
 
   function downloadAudit(): void {
@@ -259,6 +282,7 @@ export default function AlecaFrameImport() {
       coverageComplete: preview.coverageComplete,
       sections: preview.sections,
       excludedSections: preview.excludedSections,
+      weeklyGuildVaultBonusInfo: preview.weeklyGuildVaultBonusInfo ?? null,
       matches: preview.records.map((record) => ({
         catalogId: record.catalogId,
         kind: record.kind,
@@ -290,7 +314,9 @@ export default function AlecaFrameImport() {
     ? preview.unresolvedRecords.reduce((sum, record) => sum + record.quantity, 0)
     : 0;
   const missingCoverageSections = preview
-    ? Object.entries(preview.sections).filter(([, section]) => section.status === "missing").map(([name]) => name)
+    ? Object.entries(preview.sections)
+      .filter(([name, section]) => name !== "WeeklyGuildVaultBonusInfo" && section.status === "missing")
+      .map(([name]) => name)
     : [];
   const partialCoverageSections = preview
     ? Object.entries(preview.sections).filter(([, section]) => section.status === "partial").map(([name]) => name)
@@ -303,7 +329,7 @@ export default function AlecaFrameImport() {
     <WorkspacePanel>
       <div className="space-y-4 px-4 py-4 sm:px-5">
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-[color:var(--wf-text-strong)]">AlecaFrame inventory import</h2>
+          <h2 className="text-lg font-semibold text-[color:var(--wf-text-strong)]">AlecaFrame inventory and progress import</h2>
           <p className="text-sm text-[color:var(--wf-text-muted)]">
             Select <code>%LOCALAPPDATA%\AlecaFrame\lastData.dat</code>. The file is decrypted and analyzed in this browser only.
             Select a newer file whenever you want to refresh your inventory; Tenno Hub cannot monitor that folder.
@@ -343,13 +369,26 @@ export default function AlecaFrameImport() {
               </ul>
             </details>
           ) : null}
+          {(!preview || preview.weeklyGuildVaultBonusInfo === undefined) && alecaFrameProgress ? (
+            <details className="max-w-4xl rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-3">
+              <summary className="cursor-pointer text-sm font-medium text-[color:var(--wf-text-strong)]">
+                Saved Weekly Personal Rewards snapshot · {alecaFrameProgress.weeklyGuildVaultBonusInfo.length.toLocaleString()} records
+              </summary>
+              <p className="mt-2 text-xs text-[color:var(--wf-text-muted)]">
+                Imported {new Date(alecaFrameProgress.importedAtIso).toLocaleString()}. This is your personal reward-track data and is stored separately from owned item counts.
+              </p>
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-[color:var(--wf-surface-2)] p-2 text-xs text-[color:var(--wf-text-muted)]">
+                {formatSnapshotJson(alecaFrameProgress.weeklyGuildVaultBonusInfo)}
+              </pre>
+            </details>
+          ) : null}
         </div>
 
         {preview ? (
           <div className="space-y-4">
             <section aria-label="Import coverage summary" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {[
-                ["Array records analyzed", preview.sourceRecords.toLocaleString(), "Every top-level array entry, including classified non-inventory state"],
+                ["Source records analyzed", preview.sourceRecords.toLocaleString(), "Every top-level array entry and normalized singleton source record"],
                 ["Distinct matched catalog IDs", preview.distinctItems.toLocaleString(), "Exact canonical paths represented in the catalog"],
                 ["Total copies", preview.totalCopies.toLocaleString(), "Matched and unresolved stack quantities plus individual instances"],
                 ["Personalized Riven instances", preview.rivenRecords.length.toLocaleString(), "Unique Riven records; incomplete fields remain marked unknown"],
@@ -367,6 +406,27 @@ export default function AlecaFrameImport() {
                 </div>
               ))}
             </section>
+
+            {preview.weeklyGuildVaultBonusInfo !== undefined ? (
+              <section className="rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-3">
+                <h3 className="font-semibold text-[color:var(--wf-text-strong)]">Weekly Personal Rewards</h3>
+                <p className="mt-1 text-xs text-[color:var(--wf-text-muted)]">
+                  {preview.weeklyGuildVaultBonusInfo.length.toLocaleString()} source records found. This tracks your weekly personal rewards earned through Clan Vault bonuses; it will be saved separately from owned inventory counts.
+                </p>
+                {preview.weeklyGuildVaultBonusInfo.length > 0 ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-sm text-[color:var(--wf-text-strong)]">Inspect source values</summary>
+                    <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-[color:var(--wf-surface-2)] p-2 text-xs text-[color:var(--wf-text-muted)]">
+                      {formatSnapshotJson(preview.weeklyGuildVaultBonusInfo)}
+                    </pre>
+                  </details>
+                ) : null}
+              </section>
+            ) : (
+              <p className="rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-3 text-xs text-[color:var(--wf-text-muted)]">
+                This snapshot has no Weekly Personal Rewards section. Any previously imported progress will be kept.
+              </p>
+            )}
 
             <div className="rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-3 text-sm text-[color:var(--wf-text-muted)]">
               {preview.coverageComplete
@@ -693,11 +753,23 @@ export default function AlecaFrameImport() {
               <section role="dialog" aria-labelledby="alecaframe-confirm-title" className="rounded-lg border border-[color:var(--wf-accent)] bg-[color:var(--wf-surface-1)] p-4">
                 <h3 id="alecaframe-confirm-title" className="font-semibold text-[color:var(--wf-text-strong)]">Confirm AlecaFrame import</h3>
                 <p className="mt-1 text-sm text-[color:var(--wf-text-muted)]">
-                  Apply {plannedChanges.toLocaleString()} reviewed changes using “{mode}”. A Progress Pack backup will download first. Existing local-only inventory, mastery, goals, saved builds, and unrelated progress remain unchanged.
+                  Apply {plannedChanges.toLocaleString()} reviewed changes using “{mode}”. Existing local-only inventory, mastery, goals, saved builds, and unrelated progress remain unchanged.
+                  {preview.weeklyGuildVaultBonusInfo !== undefined
+                    ? " Personal Weekly Rewards data will be stored separately from owned item counts."
+                    : " The existing Personal Weekly Rewards snapshot will be kept because this file has no such section."}
                   {preview.unresolvedRecords.length > 0
                     ? " " + preview.unresolvedRecords.length.toLocaleString() + " unresolved identities will be saved in the local report and excluded from canonical counts."
                     : ""}
                 </p>
+                <label className="mt-3 flex items-start gap-2 text-sm text-[color:var(--wf-text-strong)]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={downloadBackupBeforeImport}
+                    onChange={(event) => setDownloadBackupBeforeImport(event.currentTarget.checked)}
+                  />
+                  <span>Download a Progress Pack backup before importing</span>
+                </label>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" onClick={() => setConfirmOpen(false)}
                     className="rounded-lg border border-[color:var(--wf-border-subtle)] px-3 py-2 text-sm text-[color:var(--wf-text-strong)]">
@@ -705,7 +777,7 @@ export default function AlecaFrameImport() {
                   </button>
                   <button type="button" onClick={applyImport}
                     className="rounded-lg bg-[color:var(--wf-accent)] px-4 py-2 text-sm font-semibold text-[color:var(--wf-accent-contrast)]">
-                    Download backup and import
+                    {downloadBackupBeforeImport ? "Download backup and import" : "Import without backup"}
                   </button>
                 </div>
               </section>

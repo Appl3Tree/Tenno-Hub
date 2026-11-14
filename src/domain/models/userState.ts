@@ -1,5 +1,6 @@
 // ===== FILE: src/domain/models/userState.ts =====
 import type {
+    AlecaFrameProgressSnapshot,
     DailyTask,
     Inventory,
     ResetChecklistState,
@@ -119,6 +120,8 @@ export interface UserStateV2 {
     prereqs: UserPrereqsV2;
 
     inventory: Inventory;
+    /** Personal progression imported from AlecaFrame, kept outside inventory counts. */
+    alecaFrameProgress?: AlecaFrameProgressSnapshot;
     syndicates: SyndicateState[];
     dailyTasks: DailyTask[];
     resetChecklist: ResetChecklistState;

@@ -11,6 +11,7 @@ import { immer } from "zustand/middleware/immer";
 import { persist } from "zustand/middleware";
 import { toYMD } from "../domain/ymd";
 import type {
+    AlecaFrameProgressSnapshot,
     CustomRivenRecord,
     DailyTask,
     Inventory,
@@ -96,7 +97,7 @@ export interface TrackerStore {
     exportProgressPackJson: () => string;
     importProgressPackJson: (json: string) => { ok: boolean; error?: string };
     restoreProgressPackJson: (json: string) => { ok: boolean; error?: string };
-    applyAlecaFrameInventory: (inventory: Inventory) => { ok: boolean; error?: string };
+    applyAlecaFrameInventory: (inventory: Inventory, progress?: AlecaFrameProgressSnapshot) => { ok: boolean; error?: string };
 
     resetToDefaults: () => void;
     resetAllLocalData: () => void;
@@ -689,8 +690,9 @@ export const useTrackerStore = create<TrackerStore>()(
                 }
             },
 
-            applyAlecaFrameInventory: (inventory) => {
+            applyAlecaFrameInventory: (inventory, progress) => {
                 const previous = get().state.inventory;
+                const previousProgress = get().state.alecaFrameProgress;
                 try {
                     const updatedAtIso = nowIso();
                     const validated = ProgressPackSchemaV2.safeParse({
@@ -700,13 +702,16 @@ export const useTrackerStore = create<TrackerStore>()(
                             updatedAtIso,
                         },
                         inventory,
+                        ...(progress ? { alecaFrameProgress: progress } : {}),
                     });
                     if (!validated.success || !validated.data.inventory) {
                         return { ok: false, error: "The reviewed inventory failed validation; no changes were applied." };
                     }
                     const nextInventory = validated.data.inventory as Inventory;
+                    const nextProgress = validated.data.alecaFrameProgress as AlecaFrameProgressSnapshot | undefined;
                     set((s) => {
                         s.state.inventory = nextInventory;
+                        if (nextProgress) s.state.alecaFrameProgress = nextProgress;
                         s.state.meta.updatedAtIso = updatedAtIso;
                     });
                     return { ok: true };
@@ -714,6 +719,7 @@ export const useTrackerStore = create<TrackerStore>()(
                     try {
                         set((s) => {
                             s.state.inventory = previous;
+                            s.state.alecaFrameProgress = previousProgress;
                         });
                     } catch {
                         // The downloaded Progress Pack remains available for recovery.

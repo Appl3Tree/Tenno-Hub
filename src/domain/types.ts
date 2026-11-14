@@ -39,6 +39,12 @@ export interface AlecaFrameUnresolvedRecord {
     reason: string;
 }
 
+/** Personal Weekly Initiatives data retained separately from owned inventory. */
+export interface AlecaFrameProgressSnapshot {
+    importedAtIso: string;
+    weeklyGuildVaultBonusInfo: Array<Record<string, unknown>>;
+}
+
 export interface Inventory {
     /**
      * Credits and Platinum are the only "special" currencies that live outside
