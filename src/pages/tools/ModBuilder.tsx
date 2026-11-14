@@ -205,7 +205,7 @@ const STATUS_TIPS: Record<string, string> = {
     impact:      "Knockback (5 stacks max): Staggers enemy, increases Parazon mercy kill threshold by 8% per stack (max +40%). Enemy only.",
     puncture:    "Weakened (5 stacks max): 1st stack −40% enemy damage. Each subsequent stack −10% more, max −80%. Also grants +5% enemy Crit Chance threshold per stack (max +25%).",
     slash:       "Bleed: Deals 35% base damage/sec over 6s, ignoring armor. Each proc is independent — multiple stacks deal multiple simultaneous DoTs.",
-    heat:        "Ignite: Deals 50% base damage/sec as Heat DoT over 6s. Enemy panics for 4s. Gradually strips up to 50% armor over duration.",
+    heat:        "Ignite: Deals 50% base damage/sec as Heat DoT over 6s after a 1s delay and gradually strips up to 50% armor over 2s. Panic duration depends on enemy type (about 4s for humanoids, 3s for most Infested, and 2s for MOAs/Chargers); Ospreys, bosses, Tenno, and enemies with active Overguard are immune to the crowd control. Applying Heat again reapplies panic, and breaking Overguard triggers it even without a new Heat proc. This target-dependent utility is not included in the optimizer score.",
     cold:        "Freeze (10 stacks max): −50% movement/fire/attack speed. Each extra stack adds −5% slow (max −90% at 9 stacks). At 10 stacks: enemy freezes solid for 3s, shields stop recharging, +1.0 crit multiplier bonus.",
     electricity: "Tesla Chain: Deals 50% base damage/sec as Electricity to enemies within 3m. Stuns primary target for 3s.",
     toxin:       "Poison: Deals 50% base damage/sec as Toxin DoT over 6s. Bypasses shields — damage goes directly to health.",
