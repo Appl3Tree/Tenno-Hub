@@ -2164,6 +2164,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     )) families.push("elemental");
     const statusRelevant = has(
         "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
         "impactStatusAppliesMagneticChance", "impactStatusAppliesSlashChance", "critAppliesSlashChance",
     );
@@ -2188,6 +2189,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     if (has("factionDamageBonus")) families.push("faction-damage");
     if (has(
         "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
         "impactStatusAppliesMagneticChance", "impactStatusAppliesSlashChance", "critAppliesSlashChance",
     )) families.push("status");
@@ -3868,6 +3870,11 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     if (value("multishotBonus") > 0) parts.push(`+${(value("multishotBonus") * 100).toFixed(0)}% ms`);
     if (value("fireRateBonus") > 0) parts.push(`+${(value("fireRateBonus") * 100).toFixed(0)}% fr`);
     if (value("statusDamageBonus") > 0) parts.push(`+${(value("statusDamageBonus") * 100).toFixed(0)}% status damage`);
+    for (const [type, chance] of Object.entries(effect.independentStatusProcChanceByType ?? {})) {
+        if (typeof chance === "number" && chance > 0) {
+            parts.push(`+${(chance * 100).toFixed(0)}% base independent ${type} proc (scales with Status Chance)`);
+        }
+    }
     if (value("statusDurationBonus") > 0) parts.push(`+${(value("statusDurationBonus") * 100).toFixed(0)}% status duration`);
     if (value("shatteringImpactBaseArmorPerHit") > 0) {
         parts.push(`-${value("shatteringImpactBaseArmorPerHit").toFixed(0)} base armor per Impact melee hit`);
@@ -4020,3 +4027,4 @@ export function explainBuild(
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
+
