@@ -1313,97 +1313,134 @@ describe("build optimizer scoring", () => {
     });
 
     it("scores alternate Incarnon paths with the finite Expected TTK objective", { timeout: 60000 }, () => {
-        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
-        expect(weapon).toBeTruthy();
-        const selectedAttackIdx = weapon!.attacks.findIndex((attack) => /incarnon form/i.test(attack.name));
-        expect(selectedAttackIdx).toBeGreaterThanOrEqual(0);
-        const record = getIncarnonRecordForWeapon(weapon!);
-        expect(record).toBeTruthy();
-        const incarnonCandidates = buildIncarnonCandidateConfigs(record!, {}, true);
-        expect(incarnonCandidates).toHaveLength(18);
+        const scenarios = [
+            {
+                weaponName: "Braton Prime",
+                attackPattern: /incarnon form/i,
+                candidateCount: 18,
+                modNames: ["Serration", "Split Chamber", "Malignant Force", "Rime Rounds"],
+                arcaneNames: ["Primary Bulwark", "Primary Overcharge"],
+                energyContext: { warframeMaxEnergy: 1_000, warframeEnergyPercent: 100 },
+            },
+            {
+                weaponName: "Torid",
+                attackPattern: /incarnon form/i,
+                candidateCount: 18,
+                modNames: ["Serration", "Split Chamber", "Malignant Force", "Rime Rounds"],
+                arcaneNames: [],
+            },
+            {
+                weaponName: "Laetum",
+                attackPattern: /incarnon form/i,
+                candidateCount: 81,
+                modNames: ["Hornet Strike", "Barrel Diffusion", "Pistol Pestilence", "Frostbite"],
+                arcaneNames: [],
+            },
+            {
+                weaponName: "Praedos",
+                attackPattern: /^normal attack$/i,
+                candidateCount: 81,
+                modNames: ["Primed Pressure Point", "Blood Rush", "Organ Shatter", "Condition Overload"],
+                arcaneNames: [],
+            },
+        ] as const;
 
         const targetFaction = "Grineer";
         const target = { health: 83818, shields: 0, overguard: 0, armor: 2700 };
         const conditionalState = { mode: "initial" as const };
-        const candidates = ["Serration", "Split Chamber", "Malignant Force", "Rime Rounds"].map((name) => {
-            const mod = filterBuilderExpertVariants(getModsForWeapon(weapon!)).find((entry) => entry.name === name);
-            expect(mod, name).toBeTruthy();
-            return mod!;
-        });
-        const arcaneCandidates = getArcanesForWeapon(weapon!).filter((arcane) =>
-            arcane.name === "Primary Bulwark" || arcane.name === "Primary Overcharge"
-        );
-        const energyContext = { warframeMaxEnergy: 1_000, warframeEnergyPercent: 100 };
-        const slotPolarities = weapon!.polarities.slice(0, 3);
-        const capacityConfig = {
-            weaponRank: 30,
-            hasCatalyst: true,
-            masteryRank: 30,
-            canOverLevel: weapon!.canOverLevel,
-        };
-        const baseline = optimizeBuild(weapon!, candidates, "timeToKill", 3, {
-            targetFaction,
-            targetProfileOverride: target,
-            capacityConfig,
-            slotPolarities,
-            defaultSlotPolarities: slotPolarities,
-            allowForma: false,
-            optimizeExilus: false,
-            optimizeArcane: true,
-            arcaneCandidates,
-            warframeArmor: 1_500,
-            ...energyContext,
-            buildForAttack: weapon!.attacks[selectedAttackIdx],
-            conditionalState,
-        });
-        expect(baseline.capacityValid).toBe(true);
 
-        const scored = incarnonCandidates.map((candidate) => {
-            const state = resolveIncarnonState(weapon!, selectedAttackIdx, candidate);
-            const score = scoreOptimizerResultForConfiguration({
-                weapon: state.weapon,
-                result: baseline,
-                goal: "timeToKill",
+        for (const scenario of scenarios) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeTruthy();
+            const selectedAttackIdx = weapon!.attacks.findIndex((attack) => scenario.attackPattern.test(attack.name));
+            expect(selectedAttackIdx, scenario.weaponName).toBeGreaterThanOrEqual(0);
+            const record = getIncarnonRecordForWeapon(weapon!);
+            expect(record, scenario.weaponName).toBeTruthy();
+            const incarnonCandidates = buildIncarnonCandidateConfigs(record!, {}, true);
+            expect(incarnonCandidates, scenario.weaponName).toHaveLength(scenario.candidateCount);
+
+            const candidates = scenario.modNames.map((name) => {
+                const mod = filterBuilderExpertVariants(getModsForWeapon(weapon!)).find((entry) => entry.name === name);
+                expect(mod, `${scenario.weaponName}: ${name}`).toBeTruthy();
+                return mod!;
+            });
+            const arcaneCandidates = scenario.arcaneNames.map((name) => {
+                const arcane = getArcanesForWeapon(weapon!).find((entry) => entry.name === name);
+                expect(arcane, `${scenario.weaponName}: ${name}`).toBeTruthy();
+                return arcane!;
+            });
+            const energyContext = scenario.energyContext ?? {};
+            const slotPolarities = weapon!.polarities.slice(0, 3);
+            const baseline = optimizeBuild(weapon!, candidates, "timeToKill", 3, {
                 targetFaction,
-                selectedAttackIdx,
                 targetProfileOverride: target,
-                conditionalState,
-                preEquippedEffects: state.activeEffects,
+                capacityConfig: {
+                    weaponRank: 30,
+                    hasCatalyst: true,
+                    masteryRank: 30,
+                    canOverLevel: weapon!.canOverLevel,
+                },
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: false,
+                optimizeExilus: false,
+                optimizeArcane: arcaneCandidates.length > 0,
+                arcaneCandidates,
                 warframeArmor: 1_500,
                 ...energyContext,
-                useFiniteEncounterResult: false,
-            });
-            const effects = [
-                ...state.activeEffects,
-                ...baseline.slots.map((mod, index) => {
-                    if (!mod) return null;
-                    const rank = baseline.slotRanks[index] ?? mod.fusionLimit;
-                    return mod.effectsByRank[rank] ?? mod.effect;
-                }),
-            ];
-            const exact = debugScoreExpectedEncounter(
-                withSelectedAttack(state.weapon, selectedAttackIdx),
-                effects,
-                targetFaction,
-                target,
+                buildForAttack: weapon!.attacks[selectedAttackIdx],
                 conditionalState,
-                baseline.arcane
-                    ? getArcaneEffectAtRank(baseline.arcane, baseline.arcaneRank, 1_500, true, energyContext)
-                    : null,
-            );
-            expect(score).toBe(rankExpectedEncounter(exact.timeToKillSeconds, exact.damagePerSecond));
-            const signature = Object.entries(candidate.selectedOptionsByTier)
-                .sort(([left], [right]) => Number(left) - Number(right))
-                .map(([tier, option]) => `${tier}:${option}`)
-                .join("|");
-            const shortlistEntry = { signature, score };
-            expect(Number.isFinite(score), signature).toBe(true);
-            return shortlistEntry;
-        });
-        const exactBest = [...scored].sort((left, right) => right.score - left.score)[0];
-        const selected = selectIncarnonSearchShortlist(scored, [], 3);
-        expect(selected[0]?.signature).toBe(exactBest.signature);
-        expect(new Set(scored.map((entry) => entry.score)).size).toBeGreaterThan(1);
+            });
+            expect(baseline.capacityValid, scenario.weaponName).toBe(true);
+
+            const scored = incarnonCandidates.map((candidate) => {
+                const state = resolveIncarnonState(weapon!, selectedAttackIdx, candidate);
+                const score = scoreOptimizerResultForConfiguration({
+                    weapon: state.weapon,
+                    result: baseline,
+                    goal: "timeToKill",
+                    targetFaction,
+                    selectedAttackIdx,
+                    targetProfileOverride: target,
+                    conditionalState,
+                    preEquippedEffects: state.activeEffects,
+                    warframeArmor: 1_500,
+                    ...energyContext,
+                    useFiniteEncounterResult: false,
+                });
+                const effects = [
+                    ...state.activeEffects,
+                    ...baseline.slots.map((mod, index) => {
+                        if (!mod) return null;
+                        const rank = baseline.slotRanks[index] ?? mod.fusionLimit;
+                        return mod.effectsByRank[rank] ?? mod.effect;
+                    }),
+                ];
+                const exact = debugScoreExpectedEncounter(
+                    withSelectedAttack(state.weapon, selectedAttackIdx),
+                    effects,
+                    targetFaction,
+                    target,
+                    conditionalState,
+                    baseline.arcane
+                        ? getArcaneEffectAtRank(baseline.arcane, baseline.arcaneRank, 1_500, true, energyContext)
+                        : null,
+                );
+                expect(score).toBe(rankExpectedEncounter(exact.timeToKillSeconds, exact.damagePerSecond));
+                const signature = Object.entries(candidate.selectedOptionsByTier)
+                    .sort(([left], [right]) => Number(left) - Number(right))
+                    .map(([tier, option]) => `${tier}:${option}`)
+                    .join("|");
+                expect(Number.isFinite(score), `${scenario.weaponName}: ${signature}`).toBe(true);
+                return { signature, score };
+            });
+            const exactBestScore = Math.max(...scored.map((entry) => entry.score));
+            const selected = selectIncarnonSearchShortlist(scored, [], 3);
+            expect(selected[0]?.score, scenario.weaponName).toBe(exactBestScore);
+            if (scenario.weaponName === "Braton Prime") {
+                expect(new Set(scored.map((entry) => entry.score)).size).toBeGreaterThan(1);
+            }
+        }
     });
 
     it("matches exhaustive joint Expected TTK mod-and-Arcane optima across five weapon attack types", { timeout: 60000 }, () => {
