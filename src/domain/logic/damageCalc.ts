@@ -130,6 +130,8 @@ export interface ModdedWeaponStats {
      * Galvanized Aptitude as additive within this bracket rather than as a separate multiplier.
      */
     totalDamageBonus: number;
+    /** Timed hit-triggered damage stacks that the finite encounter can ramp from their selected initial state. */
+    timedConditionalDamageStacks: TimedConditionalDamageStack[];
     averageShotDamage: number;
     /** Additive multiplicative bonus for the first ammo-consuming shot after each magazine reload. */
     firstShotMagazineDamageBonus: number;
@@ -248,6 +250,16 @@ export interface ModdedWeaponStats {
     damageBreakdownBeforePerStatus: Record<DamageKey, number>;
 }
 
+export interface TimedConditionalDamageStack {
+    trigger: "onNonCriticalNoStatusHit";
+    durationSeconds: number;
+    maxStacks: number;
+    damageBonusPerStack: number;
+    qualifyingHitGroupProbability: number;
+    initialStacks: number;
+    steadyStateStacks: number;
+}
+
 const AIMING_UPTIME_ASSUMPTION = 0.75;
 const ON_KILL_UPTIME_ASSUMPTION = 0.6;
 const ON_HEADSHOT_UPTIME_ASSUMPTION = 0.55;
@@ -293,6 +305,8 @@ export interface DamageCalculationOptions {
     targetStatusState?: "initial" | "steadyState";
     /** Skip per-attack DoT details in the optimizer hot path; steady-state DoT DPS is retained. */
     includeDoTTickDetails?: boolean;
+    /** Include the qualifying-group metadata needed by finite-encounter timed stack progression. */
+    includeTimedConditionalHitStackDetails?: boolean;
 }
 
 export interface ConditionalState {
@@ -484,6 +498,10 @@ export function estimateConditionalUptime(
         case "onHit":
             uptime = ON_HIT_UPTIME_ASSUMPTION;
             break;
+        case "onNonCriticalNoStatusHit":
+            // The trigger-specific stack model below supplies its expected active-stack count.
+            uptime = 1;
+            break;
         case "onPunchThroughHit":
             uptime = ON_HIT_UPTIME_ASSUMPTION * 0.45;
             break;
@@ -505,16 +523,125 @@ export function estimateConditionalUptime(
     return Math.max(0, Math.min(1, uptime));
 }
 
+/** Probability that an attack group has at least one projectile and every projectile is noncritical and statusless. */
+export function estimateNonCriticalNoStatusHitGroupProbability(
+    critChance: number,
+    statusChance: number,
+    multishot: number,
+): number {
+    const chance = (value: number) => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+    const noCritAndNoStatusPerProjectile = (1 - chance(critChance)) * (1 - chance(statusChance));
+    const projectileCount = Number.isFinite(multishot) ? Math.max(0, multishot) : 0;
+    if (projectileCount <= 0) return 0;
+
+    const guaranteedProjectiles = Math.floor(projectileCount);
+    const fractionalProjectile = projectileCount - guaranteedProjectiles;
+    if (guaranteedProjectiles === 0) return fractionalProjectile * noCritAndNoStatusPerProjectile;
+    return Math.pow(noCritAndNoStatusPerProjectile, guaranteedProjectiles) * (
+        1 - fractionalProjectile + fractionalProjectile * noCritAndNoStatusPerProjectile
+    );
+}
+
+/**
+ * Time-average stack count for Poisson-arriving hits that add one stack and,
+ * after each full duration without a hit, remove one stack and restart the timer.
+ */
+function estimateDecayingHitStackCount(ratePerSecond: number, durationSeconds: number, maxStacks: number): number {
+    const stackCap = Math.max(0, Math.floor(Number.isFinite(maxStacks) ? maxStacks : 0));
+    const rate = Math.max(0, Number.isFinite(ratePerSecond) ? ratePerSecond : 0);
+    const duration = Math.max(0, Number.isFinite(durationSeconds) ? durationSeconds : 0);
+    if (stackCap === 0 || rate === 0 || duration === 0) return 0;
+    const intervalRate = rate * duration;
+    if (!Number.isFinite(intervalRate) || intervalRate >= 40) return stackCap;
+
+    const noHitForDuration = Math.exp(-intervalRate);
+    const hitWithinDuration = -Math.expm1(-intervalRate);
+    if (stackCap === 1) return hitWithinDuration;
+    if (stackCap === 2) {
+        const denominator = 1 - noHitForDuration + noHitForDuration * noHitForDuration;
+        const oneStackAtAnEvent = (noHitForDuration * noHitForDuration) / denominator;
+        const twoStacksAtAnEvent = (1 - noHitForDuration) / denominator;
+        return hitWithinDuration * (oneStackAtAnEvent + twoStacksAtAnEvent * (2 + noHitForDuration));
+    }
+    if (stackCap === 3) {
+        const noHitSquared = noHitForDuration * noHitForDuration;
+        const denominator = 1 - 2 * noHitForDuration + 2 * noHitSquared;
+        const oneStackAtAnEvent = (noHitSquared * noHitForDuration) / denominator;
+        const twoStacksAtAnEvent = (noHitSquared * hitWithinDuration) / denominator;
+        const threeStacksAtAnEvent = (hitWithinDuration * hitWithinDuration) / denominator;
+        const expectedStackRewardPerInterval =
+            oneStackAtAnEvent +
+            twoStacksAtAnEvent * (2 + noHitForDuration) +
+            threeStacksAtAnEvent * (3 + 2 * noHitForDuration + noHitSquared);
+        return Math.max(0, Math.min(stackCap, hitWithinDuration * expectedStackRewardPerInterval));
+    }
+
+    const transition = Array.from({ length: stackCap + 1 }, () => new Array<number>(stackCap + 1).fill(0));
+    for (let currentStacks = 1; currentStacks <= stackCap; currentStacks++) {
+        for (let decayCount = 0; decayCount < currentStacks; decayCount++) {
+            const nextStacks = Math.min(stackCap, currentStacks - decayCount + 1);
+            transition[currentStacks][nextStacks] += hitWithinDuration * Math.pow(noHitForDuration, decayCount);
+        }
+        transition[currentStacks][1] += Math.pow(noHitForDuration, currentStacks);
+    }
+
+    let eventStackDistribution = new Array<number>(stackCap + 1).fill(0);
+    eventStackDistribution[1] = 1;
+    for (let iteration = 0; iteration < 64; iteration++) {
+        const nextDistribution = new Array<number>(stackCap + 1).fill(0);
+        for (let currentStacks = 1; currentStacks <= stackCap; currentStacks++) {
+            for (let nextStacks = 1; nextStacks <= stackCap; nextStacks++) {
+                nextDistribution[nextStacks] += eventStackDistribution[currentStacks] * transition[currentStacks][nextStacks];
+            }
+        }
+        const difference = nextDistribution.reduce((sum, probability, stacks) =>
+            sum + Math.abs(probability - eventStackDistribution[stacks]), 0);
+        eventStackDistribution = nextDistribution;
+        if (difference < 1e-13) break;
+    }
+
+    // A Poisson inter-hit gap spends E[min(G-kT, T)] in stack k:
+    // exp(-rate*kT) * (1-exp(-rate*T)) / rate. Multiplying the reward per gap
+    // by the event rate converts it to a time-average stack count.
+    let rewardPerGapTimesRate = 0;
+    for (let currentStacks = 1; currentStacks <= stackCap; currentStacks++) {
+        let stackReward = 0;
+        for (let decayCount = 0; decayCount < currentStacks; decayCount++) {
+            stackReward += (currentStacks - decayCount) * Math.pow(noHitForDuration, decayCount);
+        }
+        rewardPerGapTimesRate += eventStackDistribution[currentStacks] * stackReward;
+    }
+    return Math.max(0, Math.min(stackCap, hitWithinDuration * rewardPerGapTimesRate));
+}
+
+export interface ConditionalStackEstimationContext {
+    /** Per-attack probability that the entire multishot group meets this trigger's hit condition. */
+    qualifyingHitGroupProbability?: number;
+    /** Effective qualifying attack rate when conditional fire-rate effects are already included. */
+    qualifyingHitRatePerSecond?: number;
+}
+
 function estimateConditionalStackFactor(
     conditional: ConditionalEffect,
     fireRate: number,
     _magazineSize: number,
     state: ConditionalState = DEFAULT_CONDITIONAL_STATE,
+    context: ConditionalStackEstimationContext = {},
 ): number {
     if (state.mode === "initial") return 0;
     if (state.mode === "fullyStacked") return Math.max(1, conditional.maxStacks ?? 1);
     if (state.mode === "custom") {
         return Math.max(0, Math.min(conditional.maxStacks ?? 1, state.externalStacks ?? 0));
+    }
+    if (conditional.trigger === "onNonCriticalNoStatusHit") {
+        const qualifyingHitGroupProbability = Math.max(0, Math.min(1, context.qualifyingHitGroupProbability ?? 0));
+        return estimateDecayingHitStackCount(
+            Number.isFinite(context.qualifyingHitRatePerSecond)
+                ? Math.max(0, context.qualifyingHitRatePerSecond ?? 0)
+                : Math.max(0, fireRate) * qualifyingHitGroupProbability,
+            conditional.durationSeconds,
+            conditional.maxStacks,
+        );
     }
     if ((conditional.maxStacks ?? 1) <= 1) return 1;
 
@@ -698,6 +825,117 @@ export function calculateBuild(
         includeBowReload,
     );
     const baselineMagazineSize = Math.max(1, Math.round(weapon.magazineSize * (1 + magazineBonus)));
+    let qualifyingHitGroupProbability = 0;
+    let qualifyingHitRatePerSecond = 0;
+    if (
+        (conditionalState.mode === "realistic" || options.includeTimedConditionalHitStackDetails === true) &&
+        conditionalEffects.some(({ effect }) => effect.trigger === "onNonCriticalNoStatusHit")
+    ) {
+        let eligibilityCritChanceBonus = 0;
+        let eligibilityFinalCritChanceBonus = 0;
+        let eligibilityStatusChanceBonus = 0;
+        let eligibilityFinalStatusChanceBonus = 0;
+        let eligibilityMultishotBonus = 0;
+        let eligibilityFireRateBonus = 0;
+        let eligibilityAttackSpeedBonus = 0;
+        let eligibilityReloadSpeedBonus = 0;
+        let eligibilityDamageBonus = damageBonus;
+        const eligibilityConditionalElements: Array<{ type: DamageKey; value: number; order: number }> = [];
+        const eligibilityConditionalDirectBreakdown = emptyBreakdown();
+        const comboTiersForTrigger = conditionalState.mode === "initial"
+            ? 0
+            : Math.max(0, (conditionalState.meleeComboMultiplier ?? 1) - 1);
+        for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
+            if (conditional.trigger === "onNonCriticalNoStatusHit") continue;
+            const factor =
+                estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState) *
+                estimateConditionalStackFactor(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState);
+            eligibilityDamageBonus += (conditional.stats.damageBonus ?? 0) * factor;
+            eligibilityCritChanceBonus += (conditional.stats.critChanceBonus ?? 0) * factor;
+            eligibilityFinalCritChanceBonus += (conditional.stats.finalCritChanceBonus ?? 0) * factor;
+            eligibilityStatusChanceBonus += (conditional.stats.statusChanceBonus ?? 0) * factor;
+            eligibilityFinalStatusChanceBonus += (conditional.stats.finalStatusChanceBonus ?? 0) * factor;
+            eligibilityMultishotBonus += (conditional.stats.multishotBonus ?? 0) * factor;
+            eligibilityFireRateBonus += (conditional.stats.fireRateBonus ?? 0) * factor;
+            eligibilityAttackSpeedBonus += (conditional.stats.attackSpeedBonus ?? 0) * factor;
+            eligibilityReloadSpeedBonus += (conditional.stats.reloadSpeedBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.blast += (conditional.stats.blastBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.gas += (conditional.stats.gasBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.magnetic += (conditional.stats.magneticBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.radiation += (conditional.stats.radiationBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.viral += (conditional.stats.viralBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.corrosive += (conditional.stats.corrosiveBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.void += (conditional.stats.voidBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.tau += (conditional.stats.tauBonus ?? 0) * factor;
+            eligibilityConditionalDirectBreakdown.true += (conditional.stats.trueBonus ?? 0) * factor;
+            const elementOrder = (sourceModIndex * 1000) + 100 + (sourceEffectIndex * 4);
+            const conditionalHeat = conditional.stats.heatBonus ?? 0;
+            const conditionalCold = conditional.stats.coldBonus ?? 0;
+            const conditionalElectricity = conditional.stats.electricityBonus ?? 0;
+            const conditionalToxin = conditional.stats.toxinBonus ?? 0;
+            if (conditionalHeat > 0) eligibilityConditionalElements.push({ type: "heat", value: conditionalHeat * factor, order: elementOrder });
+            if (conditionalCold > 0) eligibilityConditionalElements.push({ type: "cold", value: conditionalCold * factor, order: elementOrder + 1 });
+            if (conditionalElectricity > 0) eligibilityConditionalElements.push({ type: "electricity", value: conditionalElectricity * factor, order: elementOrder + 2 });
+            if (conditionalToxin > 0) eligibilityConditionalElements.push({ type: "toxin", value: conditionalToxin * factor, order: elementOrder + 3 });
+        }
+        const eligibilityCritChance = weapon.critChance * (
+            1 + critChanceBonus + comboCritChanceBonus * comboTiersForTrigger + eligibilityCritChanceBonus
+        ) + finalCritChanceBonus + eligibilityFinalCritChanceBonus;
+        const eligibilityStatusChanceBeforeImmunity = weapon.statusChance * (
+            1 + statusChanceBonus + comboStatusChanceBonus * comboTiersForTrigger + eligibilityStatusChanceBonus
+        ) + finalStatusChanceBonus + eligibilityFinalStatusChanceBonus;
+        const eligibilityMultishot = weapon.multishot * (1 + multishotBonus + eligibilityMultishotBonus);
+        const eligibilityBaseDamageMultiplier = Math.max(0, 1 + eligibilityDamageBonus);
+        const eligibilityTotalBase = totalDamageOf(weapon.damage) * eligibilityBaseDamageMultiplier;
+        const eligibilityElementEntries = [...orderedPrimaryElementBonuses, ...eligibilityConditionalElements]
+            .filter((entry) => entry.value > 0 && eligibilityTotalBase > 0);
+        const eligibilityLastElementOrder = eligibilityElementEntries.reduce(
+            (latest, entry) => Math.max(latest, entry.order),
+            -1,
+        );
+        const eligibilityInnateElements = PRIMARY_ELEMENTS.flatMap((type, index) =>
+            weapon.damage[type] > 0 && eligibilityBaseDamageMultiplier > 0
+                ? [{ type, value: 1, order: eligibilityLastElementOrder + 1 + index }]
+                : [],
+        );
+        const eligibilityCombinedElements = combineElementQueue([
+            ...eligibilityElementEntries.map((entry) => ({ ...entry, value: 1 })),
+            ...eligibilityInnateElements,
+        ]);
+        const hasUnimmuneStatusDamageType = STATUS_DAMAGE_TYPES.some((type) => {
+            if (statusImmuneTypes.has(type)) return false;
+            if (PRIMARY_ELEMENTS.includes(type)) return eligibilityCombinedElements[type] > 0;
+            return (weapon.damage[type] > 0 && eligibilityBaseDamageMultiplier > 0) ||
+                (directBonusBreakdown[type] > 0 && eligibilityTotalBase > 0) ||
+                (eligibilityConditionalDirectBreakdown[type] > 0 && eligibilityTotalBase > 0);
+        });
+        const hasUnimmuneForcedStatus = Object.entries(weapon.forcedProcs ?? {}).some(([type, count]) =>
+            count > 0 && !statusImmuneTypes.has(type as StatusDamageType),
+        );
+        const eligibilityStatusChance = hasUnimmuneForcedStatus
+            ? 1
+            : hasUnimmuneStatusDamageType
+                ? eligibilityStatusChanceBeforeImmunity
+                : 0;
+        qualifyingHitGroupProbability = estimateNonCriticalNoStatusHitGroupProbability(
+            eligibilityCritChance,
+            eligibilityStatusChance,
+            eligibilityMultishot,
+        );
+        const eligibilityRateBonus = usesMeleeDamageModel(weapon.category)
+            ? attackSpeedBonus + eligibilityAttackSpeedBonus
+            : fireRateBonus + eligibilityFireRateBonus;
+        const eligibilityReloadTime = ignoresReloadAndMagazine
+            ? weapon.reloadTime
+            : baselineReloadTime / (1 + eligibilityReloadSpeedBonus);
+        qualifyingHitRatePerSecond = effectiveFireRate(
+            weapon,
+            eligibilityRateBonus,
+            weapon.ammoCostPerShot,
+            eligibilityReloadTime,
+            includeBowReload,
+        ) * qualifyingHitGroupProbability;
+    }
     let conditionalDamageBonus = 0;
     let conditionalCritChanceBonus = 0;
     let conditionalFinalCritChanceBonus = 0;
@@ -713,11 +951,55 @@ export function calculateBuild(
     let conditionalAmmoEfficiencyBonus = 0;
     let conditionalDirectDamagePerStatusBonus = 0;
     let conditionalInitialComboBonus = 0;
+    const timedConditionalDamageStacks: TimedConditionalDamageStack[] = [];
     const conditionalDirectBonusBreakdown = emptyBreakdown();
     for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
+        const isTimedHitStack = conditional.trigger === "onNonCriticalNoStatusHit";
+        if (conditionalState.mode === "initial" && !isTimedHitStack) continue;
+        const triggerUptime = isTimedHitStack && conditional.requiresAiming
+            ? AIMING_UPTIME_ASSUMPTION
+            : 1;
+        const conditionalQualifyingGroupProbability = Math.max(
+            0,
+            Math.min(1, qualifyingHitGroupProbability * triggerUptime),
+        );
         const factor =
             estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState) *
-            estimateConditionalStackFactor(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState);
+            estimateConditionalStackFactor(
+                conditional,
+                baselineRawFireRate,
+                baselineMagazineSize,
+                conditionalState,
+                conditional.trigger === "onNonCriticalNoStatusHit"
+                    ? {
+                        qualifyingHitGroupProbability: conditionalQualifyingGroupProbability,
+                        qualifyingHitRatePerSecond: qualifyingHitRatePerSecond * triggerUptime,
+                    }
+                    : undefined,
+            );
+        if (isTimedHitStack && (conditional.stats.damageBonus ?? 0) !== 0) {
+            const maxStacks = Math.max(0, Math.floor(conditional.maxStacks ?? 1));
+            const initialStacks = conditionalState.mode === "fullyStacked"
+                ? maxStacks
+                : conditionalState.mode === "custom"
+                    ? Math.max(0, Math.min(maxStacks, conditionalState.externalStacks ?? 0))
+                    : 0;
+            timedConditionalDamageStacks.push({
+                trigger: "onNonCriticalNoStatusHit",
+                durationSeconds: conditional.durationSeconds,
+                maxStacks,
+                damageBonusPerStack: conditional.stats.damageBonus ?? 0,
+                qualifyingHitGroupProbability: conditionalQualifyingGroupProbability,
+                initialStacks,
+                steadyStateStacks: estimateConditionalStackFactor(
+                    conditional,
+                    baselineRawFireRate,
+                    baselineMagazineSize,
+                    conditionalState,
+                    { qualifyingHitGroupProbability: conditionalQualifyingGroupProbability },
+                ),
+            });
+        }
         conditionalDamageBonus += (conditional.stats.damageBonus ?? 0) * factor;
         conditionalCritChanceBonus += (conditional.stats.critChanceBonus ?? 0) * factor;
         conditionalFinalCritChanceBonus += (conditional.stats.finalCritChanceBonus ?? 0) * factor;
@@ -1365,6 +1647,7 @@ export function calculateBuild(
         baseDamageTotal: baseDamageTotal * meleeAttackComboDamageMultiplier,
         arsenalDamage,
         totalDamageBonus: damageBonus,
+        timedConditionalDamageStacks,
         averageShotDamage,
         firstShotMagazineDamageBonus: activeFirstShotMagazineDamageBonus,
         firstShotMagazineDamageMultiplier,
@@ -1455,6 +1738,39 @@ export function calculateBuild(
     const sustainedDPS = averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier;
 
     return { modded, burstDPS, sustainedDPS };
+}
+
+/** Build stats for a finite encounter, keeping timed hit-stack triggers separate from steady-state DPS. */
+export function calculateBuildForExpectedEncounter(
+    weapon: WeaponEntry,
+    mods: (ModEffect | null)[],
+    targetFaction = "",
+    options: DamageCalculationOptions = {},
+): DamageMetrics {
+    const selectedState = calculateBuild(weapon, mods, targetFaction, {
+        ...options,
+        includeTimedConditionalHitStackDetails: true,
+    });
+    const timedStacks = selectedState.modded.timedConditionalDamageStacks;
+    if (timedStacks.length === 0) return selectedState;
+
+    const effectsWithoutTimedStackDamage = mods.map((effect) => {
+        if (!effect?.conditionalEffects?.length) return effect;
+        return {
+            ...effect,
+            conditionalEffects: effect.conditionalEffects.filter((conditional) =>
+                conditional.trigger !== "onNonCriticalNoStatusHit" || !(conditional.stats.damageBonus ?? 0),
+            ),
+        };
+    });
+    const baseline = calculateBuild(weapon, effectsWithoutTimedStackDamage, targetFaction, options);
+    return {
+        ...baseline,
+        modded: {
+            ...baseline.modded,
+            timedConditionalDamageStacks: timedStacks,
+        },
+    };
 }
 
 /**

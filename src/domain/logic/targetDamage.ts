@@ -22,6 +22,7 @@ import {
 } from "../catalog/weaponRules";
 import { advanceDamageRampMultiplier, getInitialDamageRampMultiplier } from "./weaponDamageRamp";
 import { avgHitDamageMultiplier } from "./damageCalc";
+import type { TimedConditionalDamageStack } from "./damageCalc";
 import type { NonCriticalHitDamageProc } from "../catalog/modCatalog";
 
 export type TargetDamagePool = "overguard" | "shields" | "health";
@@ -286,6 +287,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     intrinsicDamagePerStatusMode?: "additiveBase" | "multiplicativeBase";
     /** Existing additive base Damage bracket before per-status bonuses. */
     totalDamageBonus?: number;
+    /** Weapon hit-triggered additive damage stacks, advanced at attack events in order. */
+    timedConditionalDamageStacks?: readonly TimedConditionalDamageStack[];
     /** Hard stops keep malformed profiles from running unbounded simulations. */
     maxDurationSeconds?: number;
     maxAttacks?: number;
@@ -348,6 +351,90 @@ interface ExpectedStatusStackQueue {
     totalStacks: number;
     logProbabilityNoneActive: number;
     guaranteedPresenceEntries: number;
+}
+
+interface TimedDamageStackState {
+    stacks: number;
+    nextDecayAt: number;
+    probability: number;
+}
+
+interface TimedDamageStackRuntime {
+    rule: TimedConditionalDamageStack;
+    states: Map<string, TimedDamageStackState>;
+}
+
+function timedDamageStackStateKey(stacks: number, nextDecayAt: number): string {
+    return `${stacks}:${Number.isFinite(nextDecayAt) ? nextDecayAt.toFixed(9) : "inf"}`;
+}
+
+function addTimedDamageStackState(
+    states: Map<string, TimedDamageStackState>,
+    state: TimedDamageStackState,
+): void {
+    if (state.probability <= 1e-15) return;
+    const key = timedDamageStackStateKey(state.stacks, state.nextDecayAt);
+    const previous = states.get(key);
+    if (previous) previous.probability += state.probability;
+    else states.set(key, state);
+}
+
+function createTimedDamageStackRuntime(rule: TimedConditionalDamageStack): TimedDamageStackRuntime | null {
+    const maxStacks = Math.max(0, Math.floor(finiteNonNegative(rule.maxStacks)));
+    const durationSeconds = finiteNonNegative(rule.durationSeconds);
+    if (maxStacks <= 0 || durationSeconds <= 0 || !Number.isFinite(rule.damageBonusPerStack)) return null;
+    const initialStacks = Math.max(0, Math.min(maxStacks, Math.floor(finiteNonNegative(rule.initialStacks))));
+    const states = new Map<string, TimedDamageStackState>();
+    addTimedDamageStackState(states, {
+        stacks: initialStacks,
+        nextDecayAt: initialStacks > 0 ? durationSeconds : Number.POSITIVE_INFINITY,
+        probability: 1,
+    });
+    return { rule: { ...rule, maxStacks, durationSeconds, initialStacks }, states };
+}
+
+function advanceTimedDamageStackRuntime(runtime: TimedDamageStackRuntime, time: number): number {
+    const advanced = new Map<string, TimedDamageStackState>();
+    let expectedStacks = 0;
+    for (const state of runtime.states.values()) {
+        let stacks = state.stacks;
+        let nextDecayAt = state.nextDecayAt;
+        while (stacks > 0 && nextDecayAt <= time + 1e-9) {
+            stacks -= 1;
+            nextDecayAt += runtime.rule.durationSeconds;
+        }
+        if (stacks <= 0) nextDecayAt = Number.POSITIVE_INFINITY;
+        const updated = { stacks, nextDecayAt, probability: state.probability };
+        addTimedDamageStackState(advanced, updated);
+        expectedStacks += stacks * state.probability;
+    }
+    runtime.states = advanced;
+    return expectedStacks;
+}
+
+function recordTimedDamageStackTrigger(runtime: TimedDamageStackRuntime, time: number): void {
+    const triggerProbability = Math.max(0, Math.min(1, finiteNonNegative(runtime.rule.qualifyingHitGroupProbability)));
+    if (triggerProbability <= 0) return;
+    const triggered = new Map<string, TimedDamageStackState>();
+    for (const state of runtime.states.values()) {
+        addTimedDamageStackState(triggered, { ...state, probability: state.probability * (1 - triggerProbability) });
+        if (triggerProbability >= 1 || state.stacks < runtime.rule.maxStacks) {
+            addTimedDamageStackState(triggered, {
+                stacks: Math.min(runtime.rule.maxStacks, state.stacks + 1),
+                nextDecayAt: time + runtime.rule.durationSeconds,
+                probability: state.probability * triggerProbability,
+            });
+        }
+        // A successful qualifying hit at the stack cap still refreshes its decay timer.
+        else {
+            addTimedDamageStackState(triggered, {
+                stacks: state.stacks,
+                nextDecayAt: time + runtime.rule.durationSeconds,
+                probability: state.probability * triggerProbability,
+            });
+        }
+    }
+    runtime.states = triggered;
 }
 
 function addStatusPresence(queue: ExpectedStatusStackQueue, presenceProbability: number): void {
@@ -473,6 +560,9 @@ export function simulateExpectedWeaponEncounter(
     const durationMultiplier = Math.max(0, finiteNonNegative(input.statusDurationMultiplier ?? 1));
     let previousRampAttackTime: number | null = null;
     let activeDamageRampMultiplier = getInitialDamageRampMultiplier(input.damageRampRule);
+    const timedDamageStacks = (input.timedConditionalDamageStacks ?? [])
+        .map(createTimedDamageStackRuntime)
+        .filter((runtime): runtime is TimedDamageStackRuntime => runtime !== null);
 
     const scheduleStatusTick = (time: number, type: StatusDamageType, damage: number) => {
         if (type === "electricity") {
@@ -900,7 +990,7 @@ export function simulateExpectedWeaponEncounter(
         applyExpectedStatusApplications(time, { electricity: magneticStacks });
     };
 
-    const currentStatusModifiers = (time: number) => {
+    const currentStatusModifiers = (time: number, timedDamageBonus = 0) => {
         const viralStacks = stackCount("viral");
         const magneticStacks = stackCount("magnetic");
         const corrosiveStacks = stackCount("corrosive");
@@ -930,7 +1020,7 @@ export function simulateExpectedWeaponEncounter(
             (count, [type, queue]) => count + (type === "tau" ? 0 : expectedStatusPresence(queue)),
             0,
         ) + activeUniqueStatusTypes.size;
-        const damageBracket = Math.max(0.0001, 1 + finiteSigned(input.totalDamageBonus ?? 0));
+        const damageBracket = Math.max(0.0001, 1 + finiteSigned(input.totalDamageBonus ?? 0) + timedDamageBonus);
         const conditionOverloadDamagePerStatusBonus =
             finiteNonNegative(input.conditionOverloadDamagePerStatusBonus ?? 0);
         const conditionOverloadDamageBracket = damageBracket +
@@ -1101,23 +1191,32 @@ export function simulateExpectedWeaponEncounter(
                 ? 1 + finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0)
                 : 1;
             const attackDamageMultiplier = attackDamageRampMultiplier * firstShotMagazineDamageMultiplier;
-            const statusModifiers = currentStatusModifiers(now);
+            const timedDamageBonus = timedDamageStacks.reduce(
+                (sum, runtime) => sum +
+                    advanceTimedDamageStackRuntime(runtime, now) * runtime.rule.damageBonusPerStack,
+                0,
+            );
+            const baseDamageBracket = Math.max(0.0001, 1 + finiteSigned(input.totalDamageBonus ?? 0));
+            const attackDamageBracket = Math.max(0.0001, baseDamageBracket + timedDamageBonus);
+            const timedDamageBracketMultiplier = attackDamageBracket / baseDamageBracket;
+            const statusModifiers = currentStatusModifiers(now, timedDamageBonus);
             const conditionOverloadDamageMultiplier = statusModifiers.conditionOverloadDamageMultiplier ?? 1;
             const directDamagePerStatusMultiplier = statusModifiers.directDamagePerStatusMultiplier ?? 1;
             const combinedDamageMultiplier = conditionOverloadDamageMultiplier * directDamagePerStatusMultiplier;
             const canRequantizeDynamicPerStatusDamage =
                 input.rawDamageByType !== undefined && Number.isFinite(input.baseDamageTotal);
-            const damageBracket = Math.max(0.0001, 1 + finiteSigned(input.totalDamageBonus ?? 0));
             const dynamicQuantizationBase = finiteNonNegative(input.baseDamageTotal ?? 0) *
-                damageBracket * combinedDamageMultiplier;
+                attackDamageBracket * combinedDamageMultiplier;
             const damageByType = Object.fromEntries(DAMAGE_TYPES.map((type) => [
                 type,
                 canRequantizeDynamicPerStatusDamage
                     ? quantizeDamageContribution(
-                        finiteSigned(input.rawDamageByType?.[type] ?? 0) * combinedDamageMultiplier,
+                        finiteSigned(input.rawDamageByType?.[type] ?? 0) *
+                            timedDamageBracketMultiplier * combinedDamageMultiplier,
                         dynamicQuantizationBase,
                     )
-                    : finiteNonNegative(input.damageByType[type] ?? 0) * combinedDamageMultiplier,
+                    : finiteNonNegative(input.damageByType[type] ?? 0) *
+                        timedDamageBracketMultiplier * combinedDamageMultiplier,
             ])) as Partial<Record<DamageType, number>>;
             const poolsBeforeAttack = { ...remainingPools };
             const result = calculateDirectDamageToInitialPools({
@@ -1160,17 +1259,20 @@ export function simulateExpectedWeaponEncounter(
             const gasCloudGroup = scheduleAttackDots(
                 attackTime,
                 attackStatusState.applications,
-                attackDamageMultiplier,
+                attackDamageMultiplier * timedDamageBracketMultiplier,
                 conditionOverloadDamageMultiplier,
             );
             applyExpectedStatusApplications(
                 attackTime,
                 attackStatusState.applications,
                 attackStatusState.presenceProbabilities,
-                attackDamageMultiplier,
+                attackDamageMultiplier * timedDamageBracketMultiplier,
                 conditionOverloadDamageMultiplier,
                 gasCloudGroup,
             );
+            for (const runtime of timedDamageStacks) {
+                recordTimedDamageStackTrigger(runtime, attackTime);
+            }
             for (const uniqueStatus of input.uniqueStatusProcsPerAttack ?? []) {
                 activeUniqueStatusTypes.add(uniqueStatus);
             }

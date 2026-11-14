@@ -86,6 +86,23 @@ describe("incarnonCatalog", () => {
         expect(laetumOption?.descriptionLines).not.toContain("Bosses ignore this perk.");
     });
 
+    it("models Overwhelming Attrition as a decaying noncritical, statusless hit-group bonus", () => {
+        const option = getIncarnonRecordForWeapon("Laetum")?.tiers
+            .find((tier) => tier.tier === 5)?.options
+            .find((candidate) => candidate.id === "tier-5-overwhelming-attrition");
+        const conditional = option?.model.effects.flatMap((entry) => entry.effect.conditionalEffects)
+            .find((effect) => effect.trigger === "onNonCriticalNoStatusHit");
+
+        expect(conditional).toEqual({
+            trigger: "onNonCriticalNoStatusHit",
+            durationSeconds: 10,
+            requiresAiming: false,
+            maxStacks: 3,
+            stats: { damageBonus: 4 },
+        });
+        expect(option?.model.unsupportedLines).toEqual([]);
+    });
+
     it("models Braton Prime Munitions Grit extra-projectile damage in both forms", () => {
         const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(bratonPrime).toBeTruthy();

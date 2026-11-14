@@ -15,6 +15,7 @@ import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
 import {
     calculateBuild,
+    calculateBuildForExpectedEncounter,
     avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
     type ConditionalState,
@@ -2135,12 +2136,13 @@ function expectedEncounterScoreForEffects(
     const target = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
     if (target.poolTotal <= 0) return { score: 0, timeToKillSeconds: null, encounter: null };
 
-    const stats = calculateBuild(weapon, effects, targetFaction, {
+    const encounterBuild = calculateBuildForExpectedEncounter(weapon, effects, targetFaction, {
         statusImmuneTypes: target.statusImmuneTypes,
         statusStackCaps: target.statusStackCaps,
         conditionalState,
         targetStatusState: "initial",
-    }).modded;
+    });
+    const stats = encounterBuild.modded;
     const factionDamageBonus = effects.reduce((sum, effect) =>
         effect?.targetFaction?.toLowerCase() === targetFaction.toLowerCase()
             ? sum + (effect.factionDamageBonus ?? 0)
@@ -2205,6 +2207,7 @@ function expectedEncounterScoreForEffects(
         intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
         intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
         totalDamageBonus: stats.totalDamageBonus,
+        timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
     });
 
     return {

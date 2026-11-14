@@ -29,7 +29,7 @@ import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, typ
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
-import { avgHitDamageMultiplier, calculateBuild, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
 import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
@@ -1246,6 +1246,7 @@ function buildMathBreakdown(
         conditionalState,
         statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
+        includeTimedConditionalHitStackDetails: true,
     });
     const stats = result.modded;
     const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
@@ -1282,8 +1283,16 @@ function buildMathBreakdown(
     const avgDamageLabel = averageDamageLabel(weapon.category);
     const rateLabel = actionRateLabel(weapon.category);
     const conditionalEntries = effects.flatMap((effect) => effect?.conditionalEffects ?? []);
-    const baselineRateForConditionals = calculateBuild(weapon, [], targetFaction, { conditionalState }).modded.fireRate;
-    const baseMagazineForConditionals = Math.max(1, Math.round(weapon.magazineSize || 1));
+    let timedStackTraceIndex = 0;
+    const unconditionalEffects = effects.map((effect) => effect ? { ...effect, conditionalEffects: [] } : effect);
+    const baselineConditionalStats = calculateBuild(weapon, unconditionalEffects, targetFaction, { conditionalState }).modded;
+    const baselineRateForConditionals = baselineConditionalStats.fireRate;
+    const baseMagazineForConditionals = baselineConditionalStats.magazineSize;
+    const qualifyingHitGroupProbability = estimateNonCriticalNoStatusHitGroupProbability(
+        stats.critChance,
+        stats.statusChance,
+        stats.multishot,
+    );
     const rawBreakdown = buildCombinedRawBreakdown(weapon, effects);
     const nonZeroRawEntries = Object.entries(stats.rawDamageBreakdown).filter(([, value]) => value > 0);
     const quantizedLines = nonZeroRawEntries.map(([type, rawValue]) => {
@@ -1307,15 +1316,31 @@ function buildMathBreakdown(
         `Fresh-magazine average ramp multiplier = ${fmt(stats.freshMagazineDamageMultiplier, 6)}; steady repeating-cycle multiplier = ${fmt(stats.sustainedDamageMultiplier, 6)}. Ramp scales direct damage. Per-attack DoT/Blast seed scaling is a model assumption because the Wiki does not specify seed inheritance separately; status chance and proc weights stay unchanged.`,
     ] : [];
     const conditionalLines = conditionalEntries.map((conditional, index) => {
+        const timedStackModel = conditional.trigger === "onNonCriticalNoStatusHit"
+            ? stats.timedConditionalDamageStacks[timedStackTraceIndex++]
+            : undefined;
+        const conditionalQualifyingGroupProbability = timedStackModel?.qualifyingHitGroupProbability ?? qualifyingHitGroupProbability;
         const uptime = estimateConditionalUptime(conditional, baselineRateForConditionals, baseMagazineForConditionals, conditionalState);
-        const stackFactor = estimateConditionalStackFactor(conditional, baselineRateForConditionals, baseMagazineForConditionals, conditionalState);
+        const stackFactor = estimateConditionalStackFactor(
+            conditional,
+            baselineRateForConditionals,
+            baseMagazineForConditionals,
+            conditionalState,
+            {
+                qualifyingHitGroupProbability: conditionalQualifyingGroupProbability,
+                qualifyingHitRatePerSecond: stats.fireRate * conditionalQualifyingGroupProbability,
+            },
+        );
         const combinedFactor = uptime * stackFactor;
         const statsApplied = Object.entries(conditional.stats)
             .filter(([, value]) => typeof value === "number" && value !== 0)
             .map(([key, value]) => `${key} ${fmt((value as number) * 100, 2)}%`)
             .join(", ");
         const triggerLabel = conditional.trigger.replace(/([A-Z])/g, " $1").toLowerCase();
-        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]`;
+        const triggerModel = conditional.trigger === "onNonCriticalNoStatusHit"
+            ? ` qualifying group chance ${fmt(conditionalQualifyingGroupProbability * 100, 5)}% from ${fmt(stats.critChance * 100, 2)}% crit, ${fmt(stats.statusChance * 100, 2)}% status, and ${fmt(stats.multishot, 3)} multishot; the steady-state estimate uses Poisson arrivals at ${fmt(stats.fireRate * conditionalQualifyingGroupProbability, 5)}/s and one-stack decay per full duration without a trigger. The finite encounter starts at ${timedStackModel?.initialStacks ?? 0} stacks and advances one qualifying attack group at a time. The model treats crit/status rolls as independent per projectile and averages fractional multishot as one extra-projectile chance. Target status immunities and forced weapon procs are applied; DoT ticks and externally applied statuses are excluded.`
+            : "";
+        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${triggerModel}`;
     });
     const customTargetLines = targetProfileOverride ? [
         `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,
@@ -3888,7 +3913,7 @@ export default function ModBuilder() {
         });
     }, [weapon, initialTargetMetrics, meleeDpsInputs]);
     const encounterTargetMetrics = useMemo(
-        () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
+        () => activeCalcWeapon ? calculateBuildForExpectedEncounter(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState,
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
@@ -4042,6 +4067,7 @@ export default function ModBuilder() {
             intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
             intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
             totalDamageBonus: stats.totalDamageBonus,
+            timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
     }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount]);
     const activeEncounterStatusSummary = activeTargetEncounter
@@ -5756,7 +5782,7 @@ export default function ModBuilder() {
                                                                 <div className="sm:col-span-2"><span className="text-slate-500">Modeled pools:</span> Health {fmt(activeTargetAssumptions.health, 0)} ({fmt(activeTargetAssumptions.healthShare * 100, 1)}%) · Shields {fmt(activeTargetAssumptions.shields, 0)} ({fmt(activeTargetAssumptions.shieldShare * 100, 1)}%) · Overguard {fmt(activeTargetAssumptions.overguard, 0)} ({fmt(activeTargetAssumptions.overguardShare * 100, 1)}%) · Armor {fmt(activeTargetAssumptions.armor, 0)} · Total {fmt(activeTargetAssumptions.effectiveHealth, 0)}</div>
                                                                 <div className="sm:col-span-2"><span className="text-slate-500">Status immunities:</span> {activeTargetAssumptions.statusImmuneTypes.map((type) => `${type[0].toUpperCase()}${type.slice(1)}`).join(", ") || "None"} · Stack caps {Object.entries(activeTargetAssumptions.statusStackCaps).map(([type, cap]) => `${type} ${cap}`).join(", ") || "standard"} · Toxin shield bypass {activeTargetAssumptions.toxinBypassesShields ? "enabled" : "disabled"} · {activeTargetAssumptions.grouped ? "grouped target estimate" : "single target estimate"}{activeTargetAssumptions.crowdControlImmune ? " · CC immune" : ""}</div>
                                                             </div>
-                                                            <p className="text-[10px] text-slate-500">The selected-state one-hit estimate uses minimum attack-ramp damage when the selected weapon has a ramp. The direct-hit sequence starts cold and advances its ramp per attack; for selected heavy attacks it also applies combo consumption, supported Heavy Attack Efficiency, and 40 points/s Initial Combo recovery. It does not model attack-generated combo, Tennokai, stance sequences, or heavy-attack wind-up. The finite encounter keeps the starting combo tier and starts with no weapon-generated status stacks, then applies the selected conditional-state estimate and processes expected attacks and scheduled DoT ticks in event order. It updates Heat/Corrosive armor strip, Viral/Magnetic/Cold/Puncture/Tau state and proc eligibility as target pools deplete. Condition Overload uses weapon statuses active before each hit plus the user-entered external-status count. Fractional proc applications remain mean-field estimates; the selected 0.1 s enemy Shield Gate applies to direct hits while status ticks ignore it, and shield regeneration, attenuation, projectile travel, neighbor status histories, chain geometry, Gas radius growth, and melee stance hit timing remain unsupported.</p>
+                                                            <p className="text-[10px] text-slate-500">The selected-state one-hit estimate uses minimum attack-ramp damage when the selected weapon has a ramp. The direct-hit sequence starts cold and advances its ramp per attack; for selected heavy attacks it also applies combo consumption, supported Heavy Attack Efficiency, and 40 points/s Initial Combo recovery. It does not model attack-generated combo, Tennokai, stance sequences, or heavy-attack wind-up. The finite encounter keeps the starting combo tier, starts with no weapon-generated status stacks, and advances supported timed damage stacks such as Overwhelming Attrition as qualifying attack groups occur. It processes expected attacks and scheduled DoT ticks in event order, updating Heat/Corrosive armor strip, Viral/Magnetic/Cold/Puncture/Tau state and proc eligibility as target pools deplete. Condition Overload uses weapon statuses active before each hit plus the user-entered external-status count. Fractional proc applications remain mean-field estimates; the selected 0.1 s enemy Shield Gate applies to direct hits while status ticks ignore it, and shield regeneration, attenuation, projectile travel, neighbor status histories, chain geometry, Gas radius growth, and melee stance hit timing remain unsupported.</p>
                                                         </div>
                                                         {displayedReasoning ? (
                                                             <>
