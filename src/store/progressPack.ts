@@ -69,6 +69,13 @@ const InventorySchema = z.object({
     })).max(100_000).optional(),
 });
 
+const AlecaFrameProgressSchema = z.object({
+    importedAtIso: z.string().max(64),
+    weeklyGuildVaultBonusInfo: z.array(z.record(z.string(), z.unknown())).max(100),
+}).refine((snapshot) => (JSON.stringify(snapshot.weeklyGuildVaultBonusInfo) ?? "[]").length <= 500_000, {
+    message: "AlecaFrame Weekly Initiative data exceeds the supported size limit.",
+});
+
 export const ProgressPackSchemaV2 = z
     .object({
         meta: z
@@ -104,6 +111,7 @@ export const ProgressPackSchemaV2 = z
             .passthrough()
             .optional(),
         inventory: InventorySchema.optional(),
+        alecaFrameProgress: AlecaFrameProgressSchema.optional(),
         syndicates: z.any().optional(),
         dailyTasks: z.any().optional(),
         resetChecklist: z.any().optional(),
@@ -243,6 +251,13 @@ export function mergeProgressPackIntoState(current: UserStateV2, incoming: any):
             alecaFrameUnresolvedRecords: Array.isArray(incoming.inventory.alecaFrameUnresolvedRecords)
                 ? incoming.inventory.alecaFrameUnresolvedRecords
                 : next.inventory.alecaFrameUnresolvedRecords ?? [],
+        };
+    }
+
+    if (incoming.alecaFrameProgress) {
+        next.alecaFrameProgress = {
+            importedAtIso: incoming.alecaFrameProgress.importedAtIso,
+            weeklyGuildVaultBonusInfo: incoming.alecaFrameProgress.weeklyGuildVaultBonusInfo,
         };
     }
 

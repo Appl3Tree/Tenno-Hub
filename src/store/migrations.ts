@@ -17,6 +17,7 @@ import { migratePrereqCompletionAliases } from "./prereqCompletionMigration";
 const LegacyPayloadSchema = z
     .object({
         inventory: z.any().optional(),
+        alecaFrameProgress: z.any().optional(),
         syndicates: z.any().optional(),
         reserves: z.any().optional(),
         dailyTasks: z.any().optional(),
@@ -51,6 +52,7 @@ const UserStateV1Schema = z
             })
             .passthrough(),
         inventory: z.any().optional(),
+        alecaFrameProgress: z.any().optional(),
         syndicates: z.any().optional(),
         reserves: z.any().optional(),
         dailyTasks: z.any().optional(),
@@ -85,6 +87,7 @@ const UserStateV2Schema = z
             })
             .passthrough(),
         inventory: z.any().optional(),
+        alecaFrameProgress: z.any().optional(),
         syndicates: z.any().optional(),
         reserves: z.any().optional(),
         dailyTasks: z.any().optional(),
@@ -240,6 +243,20 @@ function normalizeInventory(raw: any): any {
     };
 }
 
+function normalizeAlecaFrameProgress(raw: any): UserStateV2["alecaFrameProgress"] {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+    const source = raw.weeklyGuildVaultBonusInfo;
+    const sourceEntries = Array.isArray(source) ? source : source && typeof source === "object" ? [source] : null;
+    if (!sourceEntries) return undefined;
+    const weeklyGuildVaultBonusInfo = sourceEntries.slice(0, 100).filter((entry: unknown): entry is Record<string, unknown> =>
+        !!entry && typeof entry === "object" && !Array.isArray(entry),
+    );
+    const importedAtIso = typeof raw.importedAtIso === "string" && raw.importedAtIso.length <= 64
+        ? raw.importedAtIso
+        : nowIso();
+    return { importedAtIso, weeklyGuildVaultBonusInfo };
+}
+
 function normalizeMastery(raw: any): { xpByItem: Record<string, number>; mastered: Record<string, boolean>; overLevelMastered: Record<string, boolean> } {
     const m = raw && typeof raw === "object" ? raw : {};
     const xp = (m as any).xpByItem && typeof (m as any).xpByItem === "object" ? (m as any).xpByItem : {};
@@ -365,6 +382,7 @@ export function migrateToUserStateV2(raw: unknown): UserStateV2 | null {
     if (v2.success) {
         const data: any = v2.data;
         data.inventory = normalizeInventory(data.inventory);
+        data.alecaFrameProgress = normalizeAlecaFrameProgress(data.alecaFrameProgress);
         data.mastery = normalizeMastery(data.mastery);
         data.missions = normalizeMissions(data.missions);
 
@@ -406,6 +424,7 @@ export function migrateToUserStateV2(raw: unknown): UserStateV2 | null {
                 completed: normalizePrereqsCompleted(v1.data.prereqs?.completed)
             },
             inventory: normalizeInventory(v1.data.inventory),
+            alecaFrameProgress: normalizeAlecaFrameProgress((v1.data as any).alecaFrameProgress),
             syndicates: (v1.data as any).syndicates ?? [],
             dailyTasks: (v1.data as any).dailyTasks ?? [],
             resetChecklist: normalizeResetChecklist(undefined),
@@ -456,6 +475,7 @@ export function migrateToUserStateV2(raw: unknown): UserStateV2 | null {
                 completed: {}
             },
             inventory: normalizeInventory(legacy.data.inventory),
+            alecaFrameProgress: normalizeAlecaFrameProgress((legacy.data as any).alecaFrameProgress),
             syndicates: legacy.data.syndicates ?? [],
             dailyTasks: legacy.data.dailyTasks ?? [],
             resetChecklist: normalizeResetChecklist(undefined),

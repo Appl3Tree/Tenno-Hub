@@ -10,6 +10,7 @@ const EMPTY_INVENTORY_COUNTS: Record<string, number> = {};
 const EMPTY_INTRINSICS: Record<string, number> = {};
 import WarframeResetTracker from "../components/WarframeResetTracker";
 import DashboardWorldState from "../components/DashboardWorldState";
+import DashboardWeeklyInitiative from "../components/DashboardWeeklyInitiative";
 import ProgressionNextStepsPanel from "../components/ProgressionNextStepsPanel";
 import DailyChecklist from "../components/DailyChecklist";
 import { useTrackerStore } from "../store/store";
@@ -104,6 +105,8 @@ export default function Dashboard() {
                     )}
                 </div>
             </WorkspacePanel>
+
+            <DashboardWeeklyInitiative onImport={() => setActivePage("imports")} />
 
             <WorkspacePanel className="overflow-hidden rounded-[32px] px-5 py-5 lg:px-6">
                 <div className="grid gap-8 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
