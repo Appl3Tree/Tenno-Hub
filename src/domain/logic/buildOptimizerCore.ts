@@ -215,6 +215,8 @@ export const CANONICAL_FACTIONS = [
 
 interface TargetProfile {
     armor: number;
+    armorBaseValue?: number;
+    armorLevelMultiplier?: number;
     health?: number;
     shields?: number;
     overguard?: number;
@@ -234,6 +236,10 @@ export interface TargetProfileOverride {
     /** User-facing note for nonstandard target scaling applied before scoring. */
     description?: string;
     armor?: number;
+    /** Unscaled Codex/base armor used by per-hit base-armor stripping. */
+    armorBaseValue?: number;
+    /** Current level-scaling multiplier for armorBaseValue. */
+    armorLevelMultiplier?: number;
     health?: number;
     shields?: number;
     overguard?: number;
@@ -2162,6 +2168,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         if (statusRelevant) families.push(`elemental-${element}-status`);
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
+    if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
     if (has("critChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
         families.push("critical");
     }
@@ -2220,6 +2227,9 @@ function expectedEncounterScoreForEffects(
         maxShields: target.pools.shields,
         maxOverguard: target.pools.overguard,
         armor: target.pools.armor,
+        baseArmorValue: targetProfileOverride?.armorBaseValue ?? target.pools.armor,
+        armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+        shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
         faction: targetFaction,
         factionDamageBonus,
         toxinBypassesShields: target.pools.toxinBypassesShields,
@@ -3841,6 +3851,9 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     if (value("fireRateBonus") > 0) parts.push(`+${(value("fireRateBonus") * 100).toFixed(0)}% fr`);
     if (value("statusDamageBonus") > 0) parts.push(`+${(value("statusDamageBonus") * 100).toFixed(0)}% status damage`);
     if (value("statusDurationBonus") > 0) parts.push(`+${(value("statusDurationBonus") * 100).toFixed(0)}% status duration`);
+    if (value("shatteringImpactBaseArmorPerHit") > 0) {
+        parts.push(`-${value("shatteringImpactBaseArmorPerHit").toFixed(0)} base armor per Impact melee hit`);
+    }
     if (value("punchThrough") > 0) parts.push(`+${value("punchThrough").toFixed(1)} punch-through`);
     const elementalBonus = [
         "heatBonus", "coldBonus", "electricityBonus", "toxinBonus", "magneticBonus", "radiationBonus",
