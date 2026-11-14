@@ -325,6 +325,17 @@ describe("damage calculation status eligibility", () => {
         expect(area.punctureCritChanceBonus).toBe(0);
     });
 
+    it("caps the displayed Impact Mercy threshold bonus at five expected stacks", () => {
+        const stats = calculateBuild({
+            ...makeWeapon({ impact: 100 }),
+            statusChance: 1,
+            fireRate: 1,
+        }, []).modded;
+
+        expect(stats.expectedStacksByType.impact).toBe(5);
+        expect(stats.impactMercyThresholdBonus).toBeCloseTo(0.4, 10);
+    });
+
     it("preserves a source AoE attack classification when selecting an attack", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Cortege");
         expect(weapon).toBeDefined();
