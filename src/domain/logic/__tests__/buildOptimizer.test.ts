@@ -3087,6 +3087,126 @@ describe("build optimizer scoring", () => {
         expect(score(resultEffects, result.arcane, result.arcaneRank)).toBeCloseTo(exhaustiveBest, 7);
     });
 
+    it("matches a bounded exhaustive Expected TTK optimum across joint mod and Arcane choices", { timeout: 60000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const names = ["Serration", "Split Chamber", "Malignant Force", "Rime Rounds"];
+        const catalogMods = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const candidates = names.map((name) => {
+            const mod = catalogMods.find((entry) => entry.name === name);
+            expect(mod, name).toBeTruthy();
+            return mod!;
+        });
+        const targetFaction = "Grineer";
+        const target = { health: 18000, shields: 0, overguard: 0, armor: 1200 };
+        const conditionalState = { mode: "initial" as const };
+        const capacityConfig = {
+            weaponRank: 30,
+            hasCatalyst: true,
+            masteryRank: 30,
+            canOverLevel: weapon!.canOverLevel,
+        };
+        const arcaneCandidates = getArcanesForWeapon(weapon!).filter((arcane) =>
+            arcane.name === "Primary Bulwark" || arcane.name === "Primary Overcharge"
+        );
+        expect(arcaneCandidates.map((arcane) => arcane.name).sort()).toEqual([
+            "Primary Bulwark",
+            "Primary Overcharge",
+        ]);
+        const energyContext = { warframeMaxEnergy: 1000, warframeEnergyPercent: 100 };
+        const arcaneOptions = [
+            { arcane: null, rank: 0, effect: null },
+            ...arcaneCandidates.flatMap((arcane) =>
+                Array.from({ length: arcane.maxRank + 1 }, (_, rank) => ({
+                    arcane,
+                    rank,
+                    effect: getArcaneEffectAtRank(arcane, rank, 1500, true, energyContext),
+                })).filter((option) => option.effect),
+            ),
+        ];
+        const score = (effects: (ModEffect | null)[], arcaneEffect: Partial<ModEffect> | null) =>
+            debugScoreExpectedEncounter(
+                weapon!,
+                effects,
+                targetFaction,
+                target,
+                conditionalState,
+                arcaneEffect,
+            );
+        const betterEncounter = (
+            candidate: ReturnType<typeof debugScoreExpectedEncounter>,
+            incumbent: ReturnType<typeof debugScoreExpectedEncounter>,
+        ) => candidate.timeToKillSeconds !== null
+            ? incumbent.timeToKillSeconds === null || candidate.timeToKillSeconds < incumbent.timeToKillSeconds - 1e-9
+            : incumbent.timeToKillSeconds === null && candidate.damagePerSecond > incumbent.damagePerSecond + 1e-9;
+
+        let exhaustiveBest = score([], null);
+        const enumerate = (remaining: typeof candidates, ordered: typeof candidates) => {
+            const ranks = ordered.map((mod) => mod.fusionLimit);
+            const placement = assignModsToSlots(ordered, ranks, weapon!.polarities, 3, false);
+            const capacity = computeCapacity(
+                capacityConfig,
+                placement.resultPolarities.map((polarity) => ({ polarity })),
+                placement.slotMods,
+                placement.slotRanks,
+            );
+            if (placement.slotMods.filter(Boolean).length === ordered.length && !capacity.overCapacity) {
+                const effects = placement.slotMods.map((mod, index) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[index] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                for (const option of arcaneOptions) {
+                    const candidate = score(effects, option.effect);
+                    if (betterEncounter(candidate, exhaustiveBest)) exhaustiveBest = candidate;
+                }
+            }
+            if (ordered.length >= 3) return;
+            for (let index = 0; index < remaining.length; index++) {
+                const candidate = remaining[index];
+                if (ordered.some((mod) =>
+                    mod.uniqueName === candidate.uniqueName ||
+                    (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                )) continue;
+                enumerate(
+                    [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                    [...ordered, candidate],
+                );
+            }
+        };
+        enumerate(candidates, []);
+
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 3, {
+            targetFaction,
+            targetProfileOverride: target,
+            capacityConfig,
+            slotPolarities: weapon!.polarities.slice(0, 3),
+            defaultSlotPolarities: weapon!.polarities.slice(0, 3),
+            allowForma: false,
+            optimizeExilus: false,
+            optimizeArcane: true,
+            arcaneCandidates,
+            warframeArmor: 1500,
+            ...energyContext,
+            conditionalState,
+        });
+        const resultEffects = result.slots.map((mod, index) => {
+            if (!mod) return null;
+            const rank = result.slotRanks[index] ?? mod.fusionLimit;
+            return mod.effectsByRank[rank] ?? mod.effect;
+        });
+        const resultArcaneEffect = result.arcane
+            ? getArcaneEffectAtRank(result.arcane, result.arcaneRank, 1500, true, energyContext)
+            : null;
+        const optimizedScore = score(resultEffects, resultArcaneEffect);
+
+        expect(result.capacityValid).toBe(true);
+        expect(optimizedScore.timeToKillSeconds).toBe(exhaustiveBest.timeToKillSeconds);
+        if (exhaustiveBest.timeToKillSeconds === null) {
+            expect(optimizedScore.damagePerSecond).toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
+        }
+    });
+
     it("keeps a legal War build and avoids frozen-only arcanes when no Exilus improves its objective", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find(w => w.name === "War");
         expect(weapon).toBeTruthy();
