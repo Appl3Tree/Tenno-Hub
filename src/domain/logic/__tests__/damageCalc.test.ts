@@ -2158,3 +2158,4 @@ describe("melee combo-scaled mod calculations", () => {
         expect(normalAtEight.forcedProcsPerShot).toEqual({});
     });
 });
+

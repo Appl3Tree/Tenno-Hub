@@ -2636,47 +2636,6 @@ function buildDropDataRuntimeSrcSources(): RawSource[] {
 }
 
 // Exported catalog lists
-function supplementSourcePrerequisites(source: RawSource): RawSource {
-    const label = source.label;
-    const additions: string[] = [];
-    let prereqIds = [...(source.prereqIds ?? [])];
-
-    if (/^Transient Reward:\s*Faceoff:/i.test(label)) additions.push(PR.THE_HEX);
-    if (/Kuva (?:Flood|Siphon)/i.test(label)) {
-        prereqIds = [PR.WAR_WITHIN, PR.MR_5];
-    }
-    if (/Nightmare Granum Void/i.test(label)) additions.push(PR.DEADLOCK_PROTOCOL);
-    if (/Arbitration Shield Drone/i.test(label)) additions.push(PR.ACTIVITY_ARBITRATIONS);
-    if (/Void Storm\s*\(Veil Proxima\)/i.test(label)) {
-        prereqIds = [PR.SYSTEM_PROXIMA_VEIL_ACCESS];
-    }
-
-    if (/Duviri/i.test(label) && /(?:Steel Path|\bHard\b)/i.test(label)) {
-        const replacedDuviriGates = new Set<string>([
-            PR.DUVIRI_PARADOX,
-            PR.ACTIVITY_STEEL_PATH,
-            PR.ACTIVITY_CIRCUIT_STEEL_PATH,
-        ]);
-        prereqIds = prereqIds.filter((id) => !replacedDuviriGates.has(id));
-        additions.push(PR.ACTIVITY_DUVIRI_STEEL_PATH);
-    } else if (/^Transient Reward:\s*Duviri Circuit$/i.test(label)
-        || /^Transient Reward:\s*Duviri Full Experience$/i.test(label)
-        || /Duviri Murmur Invasion Rewards/i.test(label)) {
-        additions.push(PR.DUVIRI_PARADOX);
-    }
-
-    if (/\bSteel Path\b/i.test(label) && !/Duviri/i.test(label)) additions.push(PR.ACTIVITY_STEEL_PATH);
-
-    const originalPrereqs = source.prereqIds ?? [];
-    if (additions.length === 0
-        && prereqIds.length === originalPrereqs.length
-        && prereqIds.every((id, index) => id === originalPrereqs[index])) return source;
-    return {
-        ...source,
-        prereqIds: Array.from(new Set([...prereqIds, ...additions])),
-    };
-}
-
 export const SOURCE_CATALOG: RawSource[] = [
     ...(CURATED_SOURCES as unknown as RawSource[]),
     ...buildWfcdDropSources(),
@@ -2688,7 +2647,7 @@ export const SOURCE_CATALOG: RawSource[] = [
     ...buildWfItemsLocSources(),
     ...buildDropDataSupplementSources(),
     ...buildDropDataRuntimeSrcSources(),
-].map(supplementSourcePrerequisites);
+];
 
 export const SOURCE_INDEX: Record<SourceId, Source> = (() => {
     const index = {} as Record<SourceId, Source>;

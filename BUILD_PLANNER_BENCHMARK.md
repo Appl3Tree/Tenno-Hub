@@ -4,6 +4,34 @@ Run date: 2026-11-14; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Source-backed weapon augment parser and full-width refresh (2026-11-14)
+
+The current source parser handles additive Final Status Chance percentage points for Entropy Burst and Napalm Grenades, plus compound conditional Gas / Viral-and-Magnetic damage with Status Chance for Leaded Gas and Biotic Rounds. This follow-up did not change optimizer search. The standard `npm run benchmark:build-planner` corpus ran 36 cases / 180 optimizations. Every output was legal under slot capacity and the three-Forma limit. Case medians ranged from 0.654s to 5.869s; maximum-of-five observations ranged from 0.668s to 5.898s. These five-run maxima are observations, not statistically robust population p95 estimates.
+
+Lex Prime Burst is the clear latency exception: the full corpus recorded a 5.869s median / 5.898s maximum-of-five. An isolated five-run check measured 4.854s / 5.505s, and disabling Arcane plus Exilus search still measured 4.918s / 5.400s with the same legal mods, so those search dimensions do not explain the delay. Lex Prime Expected TTK measured 4.671s / 4.917s in the corpus and 3.826s / 3.976s isolated; its target dies at time zero under that fixture. The Lex Burst path needs profiling and further optimization without reducing candidate quality.
+
+The current-source production Worker is 107,171 bytes. This Node-core corpus does not measure cold or packaged browser Workers, mobile devices, or production UI responsiveness. Full build-quality and objective-equivalent Underframe evidence remain open.
+
+## Shattering Impact and Perigale picker follow-up (2026-11-14)
+
+Shattering Impact now contributes its rank-scaled 1–6 flat base-Armor removal on each melee hit with nonzero quantized Impact damage, without requiring an Impact status proc. The target models permanent unscaled base-Armor removal before Heat and Corrosive percentage strips, using expected multishot as a mean-field number of hits. Charged/heavy Glaive throws are excluded; Melee Duplicate doubling and Archon/commandeered Prime immunity exceptions are not modeled. The rule follows the [WARFRAME Wiki Armor reference](https://wiki.warframe.com/w/Armor) and its Damage 3.0 quantization guidance.
+
+Focused regressions cover ranks, low-Impact quantization, persistent armor reduction, percentage-strip order, and source attribution. The latest clean release checks pass at 602 tests / 49 files, production TypeScript/Vite build, source validation, and focused ESLint. The catalog-independent Worker is 105,901 bytes. A port-80 screenshot verified the weapon selector no longer collapses and is 360px wide. On the post-merge production build, in-app-browser QA selected Perigale Prime and verified that Owned Mods and the manual picker both show standard Serration beside Serration (Flawed). The reported only-Flawed state did not reproduce; the live page is left on Owned Mods filtered to Serration for manual review. This confirms current production behavior but does not identify why the earlier user profile differed. Desktop Node timings are not production-browser Worker measurements; cold/mobile timing, full-catalog optimality, and broad quality evidence remain open.
+
+## Synth Charge optimizer corpus (2026-11-14)
+
+The repeatable optimizer corpus now includes Lex Prime for Burst and Expected TTK. With the full 107-mod pool, five Burst runs returned the same legal 57/60 build using three Forma; median latency was 4.282 s and the maximum-of-five observation was 4.672 s. Synth Charge was screened but not selected over the stronger candidates in this fixture. Five Expected TTK runs returned the same legal 59/60 build using three Forma and evaluated 77 exact encounter candidates; median latency was 3.100 s and the maximum was 3.762 s. The default Corpus target dies on the first attack at time zero, so this is an optimizer latency sample, not a multi-shot final-shot kill-time comparison.
+
+Separate regressions cover all Synth Charge ranks, one-hit distribution across multishot, the magazine requirement and excluded attack types, finite direct damage, and selection when Synth Charge is the only candidate. The coverage audit reports 468 parsed effects and 88 review candidates (17 partial, 71 fully unparsed) among 598 eligible mod records; no weapon pool lacks a parsed effect. Local release checks pass at 599 tests / 49 files, production TypeScript/Vite build, source validation, focused ESLint, and CRLF-aware diff checking. The catalog-independent Worker is 104,883 bytes. These are Windows x64 Node-core results, not browser Worker latency; production/cold/mobile measurements and full-catalog optimality remain open.
+
+## Critical Focus aiming-condition parser (2026-11-14)
+
+The parser now splits Critical Focus's combined critical-chance-and-damage line into equal rank-scaled critical chance and critical multiplier bonuses; its “when aiming” suffix maps to whileAiming. Tests cover all ranks for Corvas Prime, state assumptions, zero unmodeled damage lines, and the optimizer's ability to select it.
+
+The five-run desktop Node benchmark used Initial conditional state for Burst and Expected TTK. Burst median was 1.723 s and the maximum observation was 2.036 s. Expected TTK median was 1.100 s and maximum 1.178 s; the returned build modeled 0.263 s across 78 exact encounter candidates. These measurements do not represent production-browser Worker latency or a statistically robust p95.
+
+The source coverage audit reports 467 parsed records, 89 review candidates, 17 partial records and 72 fully unparsed flagged records from 598 eligible mods across 694 weapons. No eligible weapon pool lacks a parsed damage effect. The assignment remains open for broader mechanic and quality coverage, global optimality, and cold/mobile/cross-device Worker timing.
+
 ## Expected TTK refinement coverage and production baseline (2026-11-14)
 
 The single-replacement Expected TTK shortlist now reserves an exact finite-encounter evaluation for each available effect family before taking a second candidate from any family. The cap increased from 24 to 40 to preserve elemental, tempo, critical, multishot, faction, status, and base-damage alternatives in the same pass. This remains a bounded heuristic; family labels choose which candidates receive the exact evaluator and do not guarantee a global optimum.
@@ -1149,6 +1177,265 @@ The Heat tooltip now describes enemy-dependent panic duration (about four second
 `npm run audit:incarnon-path-search` runs a reproducible 81-path Laetum / Normal Attack / Expected TTK comparison. The fixed pool has Barrel Diffusion, Frostbite, Hornet Strike, and Pistol Pestilence; compatible Arcane candidates are Secondary Deadhead and Secondary Merciless. The custom Grineer target has 83,818 Health, 2,700 Armor, no Shields, and no Overguard. Every run is limited to three mod slots and three Forma.
 
 The full path sweep took 8.38 ms after the baseline run; the first no-evolution optimization took 108.24 ms. The best full-sweep path used Pistol Pestilence R3, Frostbite R3, and Hornet Strike R10, with no Arcane and no Forma. It modeled 6.3333 seconds Expected TTK. The two-path refinement shortlist selected that same winner and a structurally different runner-up; its winning TTK and score gap to the exhaustive 81-path result were both zero. The no-evolution baseline used Secondary Merciless R5 and modeled 54.7077 seconds. This fixture shows that the current bounded shortlist finds the exhaustive winner for one candidate pool; it does not validate the source damage model independently or establish full-catalog optimality.
+
+Release checks after the implementation pass: `npm test` passes 583 tests across 49 files; production build, source validation, planner-focused ESLint, and CRLF-aware diff checks pass. The catalog-independent production optimizer Worker is 91,326 bytes. Port-80 in-app-browser QA selected Devouring Attrition, verified the expected-value disclosure and legal 30/30 result, and showed a 0.15 s modeled Expected TTK against the Balanced synthetic target. The fixed-pool 81-path audit remains separate from broader catalog, global-optimality, stochastic-history, and device-latency evidence.
+
+## Overwhelming Attrition finite-ramp browser fixture (2026-11-13)
+
+Port-80 QA selected Laetum Incarnon Form, Evolution V Overwhelming Attrition, Realistic conditional state, and Expected TTK. The selected build used Pistol Pestilence R3, Frostbite R3, Accelerated Isotope R3, Magnetic Might R3, and Spry Sights R3 in an uncatalyzed 30/30 setup. The full math trace reported 22.0% crit, 48.4% status, one projectile per attack group, and a 40.248% chance that the whole group qualified. The finite encounter started at zero stacks and reached modeled Expected TTK in 0.75 seconds / 8 expected attacks against the Balanced synthetic pools (21,000 total); the steady-state DPS estimate continued to show its separate three-stack average. This UI observation is a single scenario and does not measure a repeatable browser p95 or a device population.
+
+Current release checks: `npm test` passes 588 tests across 49 files; `npm run build`, `npm run validate:sources`, focused planner ESLint, and `git -c core.whitespace=cr-at-eol diff --check` pass. The catalog-independent optimizer Worker is 97,784 bytes. The current UI encounter is mean-field and does not simulate random crit/status streaks; no equivalent selected-Overwhelming-Attrition Underframe result was available for a matched comparison.
+
+## Pairwise Expected TTK refinement and 14-case refresh (2026-11-14)
+
+A fully stacked Braton Prime / Grineer comparison exposed a local-search trap in the Expected TTK path. Under the same finite evaluator, target pools (83,818 Health / 2,700 Armor / no Shields or Overguard), Primary Overcharge assumption (1,000 Max Energy at 100%), and three-Forma cap, the prior single-mod refinement returned 0.895 s. A legal two-mod change from its own candidate neighborhood modeled 0.670 s, showing that neither swap improved the starting list alone. The new refinement keeps distinct mod-effect families in the single-mod shortlist, then, only when that shortlist stalls, screens legal two-mod replacements from a 12-mod family-diverse pool and finite-scores up to 24 proxy-ranked pair candidates. Capacity, Forma, duplicate-mod, and incompatibility constraints still apply.
+
+The revised optimizer returned a legal 59/60 three-Forma Braton build at 0.6561 s. The captured Underframe list modeled 0.7691 s under the same expected evaluator; this is a 14.7% lower modeled TTK. A controlled no-pair ablation returned 0.6696 s, supporting that the pair step accounts for the improvement on this fixture. This is one candidate pool and shared-model comparison, not a random-time Underframe parity claim or a proof of global optimality.
+
+The full five-run Expected TTK corpus covered 14 weapon/attack cases (70 optimizations). Every returned build fit capacity and stayed within three Forma. The table reports each median and maximum-of-five observation; the latter is sometimes called the corpus's coarse “p95 observation” in the benchmark harness, but five runs are not enough to estimate a population p95.
+
+| Weapon / attack | Median | Maximum of five |
+|---|---:|---:|
+| Perigale Prime / Normal Attack | 3.936 s | 4.510 s |
+| Braton Prime / Normal Attack | 4.118 s | 4.201 s |
+| Cedo / Glaive Radial Attack | 3.332 s | 3.740 s |
+| Phantasma Prime / Plasma Bomb Explosion | 3.660 s | 3.751 s |
+| Laetum / Incarnon Auto Radial Attack | 4.291 s | 4.470 s |
+| Cinta / Perfect Shot | 4.382 s | 4.406 s |
+| Kuva Hek / Quadruple Tap | 2.786 s | 2.835 s |
+| Torid / Incarnon Form | 3.546 s | 3.904 s |
+| Broken War / Normal Attack | 3.106 s | 3.152 s |
+| Corvas Prime / Charged Shot | 1.176 s | 1.245 s |
+| Verglas Prime / Normal Attack | 4.483 s | 4.643 s |
+| Epitaph / Charged Shot | 4.455 s | 4.613 s |
+| Nataruk / Perfect Shot | 3.267 s | 3.302 s |
+| Gram Prime / Heavy Slam Attack | 4.227 s | 4.266 s |
+
+All 14 maximum observations were below five seconds on this desktop Node run, though several are close to the target. This does not measure cold app startup, a production Worker, mobile, or cross-device latency. The fixed Braton quality fixture also remains separate from broad objective-equivalent Underframe coverage.
+
+Release checks after the change: `npm test` passes 588 tests across 49 files; the TypeScript and production Vite build, `npm run validate:sources`, focused ESLint for `buildOptimizerCore.ts` and its regression file, and CRLF-aware diff check pass. The production optimizer Worker is 102,287 bytes. Vite continues to report the existing large lazy chunks.
+
+## Deployed production-browser follow-up (2026-11-14)
+
+After PR #25 merged as `277ffc3`, a fresh cache-busted tab loaded the deployed `version=277ffc3` app in the Codex in-app browser. One Braton Prime / Expected TTK run at MR 0, uncatalyzed, and the Balanced synthetic target returned the same legal four-mod 30/30 build shown by the earlier dev-browser check. The selected-model explanation reported 4.21 s / 64 attacks against the 21,000-point synthetic pools and disclosed the bounded one- and two-mod search. Click-to-result through accessibility-state polling measured 1,265 ms. This is a single end-to-end production-browser observation; it includes UI and accessibility polling, and is not a pure Worker timing or a population p95. The temporary build was reset, and the clean live planner tab was left available for manual testing.
+
+The walkthrough also found that Spring-Loaded Chamber improved the modeled Expected TTK score by 39.4%, but its leave-one-out explanation said “Effect not summarized by the active model.” The optimizer did include its conditional fire-rate effect; only the explanation formatter omitted conditional stats. The follow-up now reports the trigger, duration, aiming/status requirements, stack cap, and supported conditional stats, with a Braton regression. This correction improves explanation accuracy but does not change candidate scoring or build selection.
+
+Port-80 in-app-browser QA then optimized the same uncatalyzed Braton Prime and opened Why This Build. The selected four-mod build remained at 30/30; the Spring-Loaded Chamber row now reads `on reload (9s, while aiming): +75% fr` and retains its +39.4% leave-one-out contribution. The click-to-result observation was 1,226 ms including accessibility polling. The local test build was reset afterward. This confirms the local dev Worker/UI path; it does not substitute for a deployed follow-up after the explanation patch is merged.
+
+## Parser coverage and four-pass Expected TTK refresh (2026-11-14)
+
+Command: `node --import tsx/esm scripts/benchmarkBuildOptimizer.ts --runs=5`
+
+The five-run Node corpus covered 34 cases (170 optimizer results) after the finite Expected TTK refinement budget increased to four passes of up to 24 legal one-mod replacements, with the bounded pairwise fallback retained. Every returned build passed capacity, duplicate-name, incompatibility-group, and three-Forma checks. Per-case medians ranged from 1.476 to 5.037 seconds; the maximum-of-five observations ranged from 1.526 to 5.256 seconds. These five-run maxima are coarse observations, not population p95 estimates.
+
+| Weapon / attack | Goal | Median | Maximum of five | Forma | Legal |
+|---|---|---:|---:|---:|---|
+| Braton Prime / Normal Attack | Burst | 4.103 s | 4.232 s | 3 | Yes |
+| Cedo / Normal Attack | Burst | 3.615 s | 3.647 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Burst | 4.071 s | 4.187 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Burst | 3.190 s | 3.510 s | 2 | Yes |
+| Laetum / Normal Attack | Burst | 4.214 s | 4.349 s | 3 | Yes |
+| Cinta / Normal Attack | Burst | 3.740 s | 3.878 s | 3 | Yes |
+| Kuva Hek / Normal Attack | Scaling | 3.193 s | 3.491 s | 2 | Yes |
+| Torid / base mode | Scaling | 4.145 s | 4.453 s | 3 | Yes |
+| Broken War / Normal Attack | Burst | 3.829 s | 4.200 s | 3 | Yes |
+| Corvas Prime / Normal Attack | Burst | 1.642 s | 1.691 s | 3 | Yes |
+| Verglas Prime / Normal Attack | Burst | 3.558 s | 3.745 s | 3 | Yes |
+| Phantasma Prime / Beam | Scaling | 3.552 s | 3.746 s | 3 | Yes |
+| Rubico Prime / Normal Attack | Burst | 3.629 s | 3.658 s | 3 | Yes |
+| Perigale Prime / Normal Attack | Expected TTK | 3.736 s | 3.880 s | 2 | Yes |
+| Epitaph / Charged Shot | Burst | 5.037 s | 5.256 s | 3 | Yes |
+| Acrid / Normal Attack | Scaling | 3.622 s | 3.720 s | 3 | Yes |
+| Hystrix Prime / Fire Quill | Scaling | 4.005 s | 4.396 s | 2 | Yes |
+| Nukor / Normal Attack | Burst | 4.551 s | 4.672 s | 3 | Yes |
+| Nataruk / Perfect Shot | Burst | 3.395 s | 3.912 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | Burst | 3.388 s | 3.417 s | 3 | Yes |
+| Braton Prime / Normal Attack, Primary Overcharge at 100% energy | Burst | 3.969 s | 4.227 s | 3 | Yes |
+| Braton Prime / Normal Attack | Expected TTK | 3.495 s | 3.633 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Expected TTK | 3.462 s | 3.810 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Expected TTK | 3.067 s | 3.408 s | 3 | Yes |
+| Laetum / Normal Attack | Expected TTK | 4.257 s | 4.280 s | 3 | Yes |
+| Cinta / Normal Attack | Expected TTK | 3.546 s | 3.722 s | 3 | Yes |
+| Kuva Hek / Normal Attack | Expected TTK | 1.794 s | 2.216 s | 1 | Yes |
+| Torid / base mode | Expected TTK | 3.448 s | 3.550 s | 3 | Yes |
+| Broken War / Normal Attack | Expected TTK | 2.037 s | 2.204 s | 2 | Yes |
+| Corvas Prime / Normal Attack | Expected TTK | 1.476 s | 1.526 s | 3 | Yes |
+| Verglas Prime / Normal Attack | Expected TTK | 2.893 s | 3.373 s | 3 | Yes |
+| Epitaph / Charged Shot | Expected TTK | 2.950 s | 3.401 s | 3 | Yes |
+| Nataruk / Perfect Shot | Expected TTK | 2.481 s | 2.844 s | 2 | Yes |
+| Gram Prime / Heavy Slam Attack | Expected TTK | 2.643 s | 2.769 s | 3 | Yes |
+
+Epitaph Charged Shot / Burst is the performance exception. An isolated five-run repeat measured 5.004 s median / 5.938 s maximum; disabling Arcane optimization measured 4.941 / 5.636 s, so Arcane candidate evaluation does not explain the cost. A single-run CPU profile samples repeated `calculateBuild` calls and scoring as the main optimizer hot path. The four-pass increase is limited to Expected TTK; the Epitaph burst case is still slower than the five-second target and remains open for profiling and improvement.
+
+The catalog-coverage audit checked 694 weapons and 598 unique builder-eligible mod records: 466 have a parsed damage/performance effect, 132 have no parsed effect at maximum rank, and 90 records have unmatched lines conservatively flagged for review (17 partially parsed, 73 fully unparsed). The keyword screen includes utility false positives; this is a review list, not 90 confirmed missing damage models. Affected ranks stay manually selectable with an explanation and are omitted from auto-optimization until their combat effects are modeled.
+
+The production optimizer Worker is 104,038 bytes after moving the review helper out of the catalog's runtime module. This prevents the catalog JSON from being duplicated inside the Worker. Release checks pass at 595 tests / 49 files, TypeScript and production build, `npm run validate:sources`, focused ESLint, and CRLF-aware diff checking. The production Worker remains unmeasured for cold-start and mobile devices.
+
+## Seismic Wave slam-damage and trace follow-up (2026-11-14)
+
+The current Seismic Wave reference (https://wiki.warframe.com/w/Seismic_Wave) lists rank bonuses of +50%, +100%, +150%, and +200% Slam Attack Damage, multiplicative with ordinary melee damage bonuses; it also says the mod affects stance-combo slams. The Melee reference (https://wiki.warframe.com/w/Melee) distinguishes the Slam Damage multiplier from the Update 35 aerial ground-slam rewrite. The calculator now parses the four ranks and applies the Slam Damage multiplier to catalog rows named Slam Attack, Heavy Slam Attack, and stance-combo slam attacks. Normal melee attacks do not receive it.
+
+The calculator trace now uses the same selected-attack multiplier as damage calculation when it shows the quantization base. It includes the Slam Damage multiplier and, where applicable, the heavy-attack combo multiplier; this fixes the previous explanation where scaled damage was divided by a scale based on unscaled damage.
+
+Port-80 Codex in-app-browser QA selected Gram Prime / Slam Attack, equipped max-rank Seismic Wave, and observed modeled damage increase from 600 to 1,800. The trace showed a ×3 Slam Damage multiplier, a quantization base of 1,800, a scale of 56.25, and a final quantized result of 1,800. Reset restored the zero-mod Normal Attack planner.
+
+Current Korumm notes (https://wiki.warframe.com/w/Korumm) confirm that its Tactical Combo Slam hit benefits from Seismic Wave. A calculator regression covers that multiplier, but the full Korumm multi-hit combo, its forced effects, and its restrictions on other mods and conditional effects are not represented. Other stance-combo rows are treated as selected single attacks; Slam radius, falloff, geometry, Nira's Set, Riven Slam Damage, and weapon-specific Slam effects remain unsupported.
+
+Release gates pass: 604 tests across 49 files, TypeScript plus production Vite build, source validation, focused planner ESLint, and the mod-effect coverage audit. The catalog-independent production Worker is 106,165 bytes. The audit covers 694 weapons and 598 eligible mod records; 86 records remain conservatively flagged for review (17 partial and 69 fully unparsed), including utility false positives. Vite still reports existing large lazy chunks. This change does not close global/joint optimizer optimality, broad objective-equivalent Underframe coverage, stochastic history modeling, the Epitaph Burst latency exception, or cold/mobile/cross-device Worker measurements.
+
+
+
+## Epitaph Burst shared scoring cache (2026-11-14)
+
+A bounded per-optimization cache now reuses exact proxy scores from the final beam states during the initial single-mod and combo refinement passes. It keeps the score function, candidate neighborhood, and capacity checks unchanged. The cache is shared only while those inputs remain fixed; later finite Expected TTK and Arcane-refinement stages keep their own scoring paths.
+
+Five cache-on runs and five cache-off runs returned the identical legal Epitaph Charged Shot build: Lethal Torrent R5, Primed Target Cracker R10, Pathogen Rounds R5, Pistol Pestilence R3, Hornet Strike R10, Barrel Diffusion R5, Primed Expel Corpus R10, and Creeping Bullseye R5. It scored 241,624.7363 at 60/60 capacity with three Forma in both batches. Cache-on measured 5.140 s median and 5.809 s maximum; cache-off measured 5.558 s median and 5.930 s maximum. This five-run result shows a small improvement but remains above the 5 s latency target and does not establish a stable p95 gain.
+
+The port-80 in-app browser returned a legal four-mod 28/30 build, but the browser click-to-result interval was not captured reliably. Node measurements still do not cover production-browser cold starts, mobile devices, or cross-device performance. The Epitaph case remains an open latency exception.
+
+## Full desktop Node benchmark refresh after the shared-score cache (2026-11-14)
+
+Command: `node --import tsx/esm scripts/benchmarkBuildOptimizer.ts --runs=5`
+
+The 36-case corpus covered 180 optimizations. Every case returned a capacity-legal result within the three-Forma limit. Per-case medians ranged from 0.653 to 3.350 seconds; maximum-of-five observations ranged from 0.668 to 3.440 seconds. Five runs provide a coarse maximum, not a statistically reliable population p95.
+
+| Case | Median | Maximum of five |
+|---|---:|---:|
+| Corvas Prime / Normal Attack / Expected TTK | 0.653 s | 0.668 s |
+| Epitaph / Charged Shot / Burst | 3.350 s | 3.440 s |
+
+Three additional isolated five-run Epitaph Charged Shot / Burst batches returned the same legal build and score (241,624.7363): 3.068 s median / 3.499 s maximum; 3.013 s / 3.321 s; and 3.189 s / 3.493 s. This does not reproduce the earlier cache-on 5.140 s / 5.809 s sample. Treat the older timing as workload-sensitive; the samples do not establish that the cache alone explains the difference.
+
+The 36-case corpus ran before the narrow Prototype Shock Coils parser addition; that weapon-specific change does not affect these cases. The production Worker after that addition is 106,820 bytes. This Node benchmark does not measure production-browser cold start, mobile devices, or cross-device latency.
+
+Warning: truncated output (original token count: 42508)
+Total output lines: 1293
+
+Epitaph Charged Shot / Burst returned the same eight-mod list and score (241,624.7363) in all five runs, with 3.204 s median and 3.241 s maximum. This current-source result removes the earlier five-second exception in this Node sample. It does not measure the packaged Worker, cold startup, mobile/cross-device latency, custom target profiles, or global build quality. A bounded benchmark corpus cannot prove full-catalog optimality; broad objective-equivalent Underframe comparisons, weapon/status coverage, and exhaustive oracles remain open. The production optimizer Worker built for this release is 107,171 bytes; the existing Vite large-chunk warning remains.
+# Build Planner Optimizer Benchmark
+
+Run date: 2026-11-14; current full-width refresh: 2026-11-13
+Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
+Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
+
+## Expected TTK refinement coverage and production baseline (2026-11-14)
+
+The single-replacement Expected TTK shortlist now reserves an exact finite-encounter evaluation for each available effect family before taking a second candidate from any family. The cap increased from 24 to 40 to preserve elemental, tempo, critical, multishot, faction, status, and base-damage alternatives in the same pass. This remains a bounded heuristic; family labels choose which candidates receive the exact evaluator and do not guarantee a global optimum.
+
+This change corrected a reproducible Braton Prime quality miss. Under the same fully stacked state, level-100 Grineer pools (83,818 Health / 2,700 Armor), rank-5 Primary Overcharge cap (350% multishot), and three-Forma limit, the prior optimizer list modeled 0.65613 s Expected TTK. A legal one-mod replacement, Bladed Rounds → Vile Acceleration, modeled 0.59085 s and was previously missed by the exact-evaluation shortlist. After balanced family coverage, the optimizer returns the 0.59085 s list directly. The captured Underframe Auto Build list models 0.76915 s under Tenno-Hub's same finite model; both displayed lists can be assigned legally at 59/60 capacity and three Forma. Tenno-Hub is 23.2% faster on this common expected model, not a claim about Underframe's native stochastic simulator. A bounded 1–4-mod substitution audit over the Underframe-only mods found no legal candidate faster than 0.59085 s. This remains one target/build fixture and a small competitor-neighborhood comparison.
+
+Follow-up against the deployed 396107c code found that the family loop could spend a second candidate on early families before reaching tempo candidates. The shortlist now makes a first pass across all families before any second pass. On the fixture above this preserves Vile Acceleration in the exact-refinement set and returns the 0.59085 s build. The regression requires that mod and a result under 0.60 s. This changes ordering within a bounded shortlist; it does not prove the full candidate space optimal.
+
+After the shortlist change, the 14-case Expected TTK corpus ran five times per case (70 optimizations). All results were deterministic and legal within three Forma. Medians ranged from 1.445 to 4.173 s; maximum-of-five observations ranged from 1.465 to 4.199 s. These maxima are coarse observations from five runs, not statistically robust population p95 estimates.
+
+| Weapon / selected attack | Median | Max-of-five | Expected TTK | Forma | Legal |
+|---|---:|---:|---:|---:|---|
+| Perigale Prime / Normal Attack | 3.813 s | 3.942 s | 0.144 s | 3 | Yes |
+| Braton Prime / Normal Attack | 3.595 s | 3.686 s | 1.593 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | 3.726 s | 3.855 s | 5.105 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | 3.265 s | 3.555 s | 2.490 s | 3 | Yes |
+| Laetum / Normal Attack | 4.173 s | 4.199 s | 0.138 s | 3 | Yes |
+| Cinta / Normal Attack | 3.536 s | 3.677 s | 1.059 s | 3 | Yes |
+| Kuva Hek / Normal Attack | 2.950 s | 3.369 s | 0.200 s | 1 | Yes |
+| Torid / Normal Attack | 3.323 s | 3.491 s | 1.333 s | 3 | Yes |
+| Broken War / Normal Attack | 2.358 s | 2.555 s | 4.000 s | 2 | Yes |
+| Corvas Prime / Normal Attack | 1.445 s | 1.465 s | 0.000 s | 3 | Yes |
+| Verglas Prime / Normal Attack | 3.384 s | 3.506 s | 1.316 s | 3 | Yes |
+| Epitaph / Charged Shot | 3.252 s | 3.303 s | 0.000 s | 3 | Yes |
+| Nataruk / Perfect Shot | 2.511 s | 2.857 s | 0.000 s | 2 | Yes |
+| Gram Prime / Heavy Slam Attack | 2.702 s | 2.731 s | 1.613 s | 3 | Yes |
+
+As a separate production baseline at merge `396107c`, four warmed, blank-start Epitaph / Charged Shot runs at MR 0 with no Catalyst completed at 767, 789, 801, and 830 ms (795 ms median). Each returned the same legal four-mod 28/30 build. This is a narrow UI-to-result sample from the earlier shortlist version; it is neither a production measurement of the new 40-candidate refinement nor comparable to the MR 30 Node corpus above.
+
+## Production UI and Incarnon path-search audit (2026-11-14)
+
+The production app at merge commit `07e75a6` was exercised in the Codex in-app browser after deployment. Braton Prime / Normal Attack / Expected TTK used the uncatalyzed MR 0 setup, blank starting mod slots, and the Balanced synthetic target. Fifteen warmed optimize/reset runs completed. The observed result was a legal four-mod 30/30 build. Measured click-to-"Optimize Build"-enabled observations were 1,110, 921, 1,109, 1,063, 1,109, 920, 1,064, 950, 1,109, 1,032, 1,025, 1,041, 1,079, 942, and 952 ms (1,041 ms median; 1,110 ms maximum observation). Timing includes browser action and accessibility-state polling, so it is a UI-to-result observation, not a pure Worker duration or population p95. The production tab used for this measurement was temporary; the separate live manual-testing tab remained blank.
+
+The reproducible `npx tsx scripts/auditIncarnonPathSearch.ts --weapon=...` audit now compares the current-path baseline as well as every evolved path. For Laetum Normal Attack, it compared 81 evolution paths plus the baseline with four max-rank mod candidates, three slots, two compatible Arcane families, and the Grineer 83,818 Health / 2,700 Armor target. The two-path shortlist found the same 6.3333 s Expected TTK winner as the full sweep (zero measured gap); the candidate-pool winner used zero Forma. The full 81-path optimizer sweep took 7.440 s on this Node run. For Torid Incarnon Form, the 18 evolution paths plus baseline used four max-rank mod candidates, three slots, two Arcane families, and the same target. Both searches retained the unevolved baseline at 217.6 s, with zero gap; the full 18-path sweep took 7.803 s. These checks measure shortlist quality only within these fixed candidate pools and target assumptions; they do not establish full-catalog mod-rank, path, Arcane, or global optimality. The multi-path full sweeps also exceed the five-second target, supporting the current bounded-refinement tradeoff.
+
+The latest release gates pass at 588 tests across 49 files; `npm run build`, `npm run validate:sources`, focused planner ESLint, and CRLF-aware diff checking pass. The production optimizer Worker is 97,784 bytes. Vite retains its existing large lazy-chunk warning. Production cold-start, physical mobile-device, cross-device, and population-tail latency remain unmeasured.
+
+## HiGHS runtime prototype and deployed production UI sample (2026-11-14)
+
+The `highs@1.15.4` WebAssembly package was installed in a disposable temporary folder, without changing project dependencies. A 12-binary-variable additive surrogate enforced a four-slot count, capacity, and exclusivity groups. HiGHS reported an optimal objective of 799, equal to exhaustive enumeration of all 4,096 subsets. Solver initialization took 18.0 ms; the first solve took 53.5 ms and four warm solves had a 5.36 ms median. The ESM loader plus WASM measured 3,699,489 bytes raw / 1,258,610 bytes gzip. This prototype tests the binding and linear constraints only: it does not score real weapon damage or compare build quality. No solver dependency was added to the app.
+
+The deployed production page at commit `f62362f` was also exercised in a real browser. Five warmed Braton Prime / Expected TTK optimizations at MR 0, uncatalyzed, and the Balanced synthetic target returned one legal 30/30 four-mod build with 4.21 s modeled TTK. Click-to-result times were 519, 417, 422, 415, and 420 ms (420 ms median, 519 ms maximum). Reset and reload restored the blank planner. This is a single desktop/browser UI measurement, not cold app startup, mobile latency, or a statistically robust tail estimate.
+
+Release checks for this follow-up: `npm test` passes 577 tests across 49 files; `npm run build`, `npm run validate:sources`, planner ESLint, and CRLF-aware diff checking pass. The production optimizer Worker is 90,717 bytes.
+
+## Joint Expected TTK quality oracle (2026-11-14)
+
+The bounded exhaustive Expected TTK oracle now jointly searches legal mod sets and every rank of two compatible Arcanes across five attack profiles: Perigale Prime burst, Cedo glaive radial, Phantasma Prime charged explosion, Acrid forced-Toxin secondary, and Gram Prime heavy slam. Each case searches up to three max-rank mods drawn from four candidates, with actual slot capacity and ordered evaluation. The optimizer matches both the finite TTK and DPS values of the exhaustive winner in all five pools. A separate Braton Prime test includes Primary Bulwark and energy-gated Primary Overcharge. These exact results apply only to the stated small candidate sets; they do not validate evaluator assumptions independently or establish full-catalog/global optimality.
+
+## Joint Arcane refinement full-width refresh (2026-11-13)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5`
+
+Five repetitions were run for each of 34 cases (170 optimizations) after Arcane/mod refinement was made iterative. The corpus spans Burst and Scaling proxy objectives, 13 Expected TTK cases, and Primary Overcharge with energy inputs. All 170 results were capacity-, uniqueness-, incompatibility-, and three-Forma-legal. Per-case medians ranged from 0.551 to 3.633 seconds; max-of-five p95 observations ranged from 0.641 to 3.855 seconds. Each p95 is the maximum of five observations, not a statistically stable tail estimate.
+
+| Weapon / selected attack | Goal | Median | Max-of-five p95 | Forma | Legal |
+|---|---|---:|---:|---:|---|
+| Braton Prime | Burst | 2.830 s | 2.929 s | 3 | Yes |
+| Cedo | Burst | 2.312 s | 2.457 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Burst | 2.710 s | 2.813 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Burst | 2.311 s | 2.466 s | 2 | Yes |
+| Laetum | Burst | 2.956 s | 3.089 s | 3 | Yes |
+| Cinta | Burst | 2.533 s | 2.665 s | 3 | Yes |
+| Kuva Hek | Scaling | 2.229 s | 2.300 s | 2 | Yes |
+| Torid | Scaling | 3.223 s | 3.338 s | 3 | Yes |
+| Broken War | Burst | 2.729 s | 2.920 s | 3 | Yes |
+| Corvas Prime | Burst | 1.101 s | 1.129 s | 3 | Yes |
+| Verglas Prime | Burst | 2.624 s | 2.653 s | 3 | Yes |
+| Phantasma Prime / Beam | Scaling | 2.390 s | 2.528 s | 3 | Yes |
+| Rubico Prime | Burst | 2.431 s | 2.578 s | 3 | Yes |
+| Perigale Prime | Burst | 1.968 s | 1.993 s | 3 | Yes |
+| Epitaph / Charged Shot | Burst | 3.633 s | 3.855 s | 3 | Yes |
+| Acrid | Scaling | 2.604 s | 2.657 s | 3 | Yes |
+| Hystrix Prime / Fire Quill | Scaling | 2.940 s | 3.030 s | 2 | Yes |
+| Nukor | Burst | 3.180 s | 3.453 s | 3 | Yes |
+| Nataruk / Perfect Shot | Burst | 2.624 s | 2.703 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | Burst | 2.281 s | 2.352 s | 3 | Yes |
+| Braton Prime / Primary Overcharge at 1,000 Max Energy, 100% Energy | Burst | 2.915 s | 3.157 s | 3 | Yes |
+| Braton Prime | Expected TTK | 1.993 s | 2.073 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Expected TTK | 1.768 s | 1.820 s | 2 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Expected TTK | 1.861 s | 1.925 s | 3 | Yes |
+| Laetum | Expected TTK | 2.061 s | 2.144 s | 2 | Yes |
+| Cinta | Expected TTK | 2.027 s | 2.180 s | 3 | Yes |
+| Kuva Hek | Expected TTK | 1.097 s | 1.200 s | 1 | Yes |
+| Torid | Expected TTK | 1.883 s | 1.936 s | 3 | Yes |
+| Broken War | Expected TTK | 1.304 s | 1.379 s | 2 | Yes |
+| Corvas Prime | Expected TTK | 0.551 s | 0.641 s | 3 | Yes |
+| Verglas Prime | Expected TTK | 2.088 s | 2.104 s | 3 | Yes |
+| Epitaph / Charged Shot | Expected TTK | 2.230 s | 2.285 s | 3 | Yes |
+| Nataruk / Perfect Shot | Expected TTK | 1.416 s | 1.514 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | Expected TTK | 1.653 s | 1.711 s | 3 | Yes |
+
+A separate `--runs=1 --verify-arcane-selection` pass audited each returned fixed mod list against the supplied Arcane ranks. All 34 cases selected a best Arcane for the final returned list, with zero measured gap. This is conditional-on-build evidence, not proof of joint or global mod/Arcane optimality. The production build emits a 90,717-byte catalog-independent optimizer Worker; Vite continues to report existing large lazy chunks. Packaged Worker, cold-start, mobile, and cross-device latency remain unmeasured.
+
+## Expected TTK objective, targeted Braton Prime run (2026-11-12)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --weapon=Braton Prime --runs=5 --goal=timeToKill`
+
+The Expected TTK objective screens builds with the fast sustained proxy, then applies up to two bounded passes of finite-encounter one-mod replacement ranking. The isolated five-run Braton refresh returned the same legal 60/60 build, three Forma, Primary Merciless R5, and 1.5932 s expected TTK at 15,691.38 expected encounter damage/s. It evaluated 61 encounter candidates on each run. The proxy score (39,301.33) remains separately reported and is not used as the final finite-kill ranking. Optimizer time was 3.006 s median and 3.219 s max-of-five p95; observations ranged from 2.883 to 3.219 s.
+
+The target uses the Grineer faction preset, MR 30, max-rank mods, Catalyst, Exilus and Arcane optimization, Initial conditional state, and a three-Forma cap. Port-80 QA saved a named temporary Expected TTK build, reloaded the page, loaded the save, and verified that its objective and target explanation restored; the temporary save was then removed and the planner returned to its empty state. A separate uncatalyzed MR 0 Braton run on the Balanced synthetic target completed five port-80 dev-Worker clicks in 497–622 ms (504 ms median; 622 ms max-of-five p95), with the same legal 30/30 four-mod build and 4.21 s finite TTK. This is one desktop Node scenario plus a warmed dev-server browser scenario; neither establishes global optimality or broad objective parity with Underframe. It also does not measure production-packaged Worker, cold-start, or mobile latency. Use `--weapon=Braton Prime --goal=timeToKill` to isolate the Node case and `--runs=N` to change repetitions.
+
+## Expected TTK 13-case weapon/attack refresh (2026-11-12)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5 --goal=timeToKill`
+
+All cases used MR 30, max-rank mods, Catalyst, Exilus and Arcane optimization, Initial conditional state, and up to three Forma. Targets used the script's Grineer or Corpus faction presets, without a custom target profile. Each row returned the same build in all five runs, and every build passed capacity, incompatibility, unique-mod, and Forma-limit checks. Timings are optimizer-core Node measurements; they do not represent a browser Worker or device-independent performance.
+
+| Weapon / selected attack | Median | Max-of-five p95 | Expected TTK | Forma | Legal |
+|---|---:|---:|---:|---:|---|
+| Braton Prime | 3.254 s | 3.580 s | 1.593 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | 2.921 s | 3.104 s | 6.842 s | 2 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | 2.772 s | 2.857 s | 2.490 s | 3 | Yes |
+| Laetum | 3.357 s | 3.515 s | 0.160 s | 2 | Yes |
+| Cinta | 2.766 s | 2.884 s | 1.059 s | 3 | Yes |
+| Kuva Hek | 2.358 s | 2.489 s | 0.288 s | 1 | Yes |
+| Torid | 3.664 s | 3.786 s | 1.000 s…34508 tokens truncated…ferent runner-up; its winning TTK and score gap to the exhaustive 81-path result were both zero. The no-evolution baseline used Secondary Merciless R5 and modeled 54.7077 seconds. This fixture shows that the current bounded shortlist finds the exhaustive winner for one candidate pool; it does not validate the source damage model independently or establish full-catalog optimality.
 
 Release checks after the implementation pass: `npm test` passes 583 tests across 49 files; production build, source validation, planner-focused ESLint, and CRLF-aware diff checks pass. The catalog-independent production optimizer Worker is 91,326 bytes. Port-80 in-app-browser QA selected Devouring Attrition, verified the expected-value disclosure and legal 30/30 result, and showed a 0.15 s modeled Expected TTK against the Balanced synthetic target. The fixed-pool 81-path audit remains separate from broader catalog, global-optimality, stochastic-history, and device-latency evidence.
 
