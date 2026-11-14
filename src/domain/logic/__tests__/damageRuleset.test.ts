@@ -89,6 +89,7 @@ describe("Damage 3.0 shared rules", () => {
     it("keeps True damage out of proc weights and records current stack/timing limits", () => {
         expect(STATUS_DAMAGE_TYPES).not.toContain("true");
         expect(STATUS_EFFECT_RULES.impact.maxStacks).toBe(5);
+        expect(STATUS_EFFECT_RULES.puncture).toMatchObject({ durationSeconds: 10, maxStacks: 5 });
         expect(STATUS_EFFECT_RULES.corrosive.maxStacks).toBe(10);
         expect(STATUS_EFFECT_RULES.slash.firstTickSeconds).toBe(1);
         expect(STATUS_EFFECT_RULES.electricity.firstTickSeconds).toBe(0);
