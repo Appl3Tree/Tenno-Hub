@@ -1,6 +1,6 @@
 import INCARNON_RAW from "../../data/_generated/incarnon-evolutions.auto.json";
 import { selectedAttackUsesIncarnonForm, type WeaponAttack, type WeaponDamage, type WeaponEntry } from "./weaponCatalog";
-import { emptyEffect, type ConditionalEffect, type ModEffect } from "./modCatalog";
+import { emptyEffect, type ConditionalEffect, type ModEffect, type NonCriticalHitDamageProc } from "./modCatalog";
 
 export type IncarnonTier = 1 | 2 | 3 | 4 | 5;
 export type IncarnonAttackScope = "all" | "normal" | "incarnon";
@@ -77,6 +77,7 @@ export type IncarnonCandidateConfig = IncarnonBuildConfig;
 export interface IncarnonScoredCandidate {
     signature: string;
     score: number;
+    path?: Partial<Record<IncarnonTier, string>>;
 }
 
 export interface ResolvedIncarnonState {
@@ -190,7 +191,10 @@ function pushEffect(target: ScopedEffect[], scope: IncarnonAttackScope, patch: P
             if (typeof value === "number") {
                 addNumericEffectValue(existing.effect, key as NumericModEffectKey, value);
             } else if (key === "conditionalEffects" && Array.isArray(value)) {
-                existing.effect.conditionalEffects.push(...value);
+                existing.effect.conditionalEffects.push(...(value as ConditionalEffect[]));
+            } else if (key === "nonCriticalHitDamageProcs" && Array.isArray(value)) {
+                existing.effect.nonCriticalHitDamageProcs ??= [];
+                existing.effect.nonCriticalHitDamageProcs.push(...(value as NonCriticalHitDamageProc[]));
             } else if (key === "targetFaction" && typeof value === "string") {
                 existing.effect.targetFaction = value;
             }
@@ -302,6 +306,24 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
             pushAdjustment(adjustments, scope, patch);
             modeledLineCount += 1;
         };
+
+        const nonCriticalHitDamageMatch = statsLine.match(/([\d.]+)%\s*chance to deal\s*\+?([\d.]+)%\s*damage on non-critical hits/i);
+        if (nonCriticalHitDamageMatch) {
+            addStaticEffect({
+                nonCriticalHitDamageProcs: [{
+                    chance: parsePercent(nonCriticalHitDamageMatch[1]),
+                    damageBonus: parsePercent(nonCriticalHitDamageMatch[2]),
+                }],
+            });
+            continue;
+        }
+        if (
+            /^affects both (?:forms|modes)\.?$/i.test(line) ||
+            /^(?:damage bonus is )?multiplicative to base damage (?:sources|bonuses)\b/i.test(line)
+        ) {
+            modeledLineCount += 1;
+            continue;
+        }
 
         let matched = true;
         const multishotDamageMatch = statsLine.match(/multishot consumes ammo[^.]*?\+([\d.]+)%\s*damage/i);
@@ -507,7 +529,7 @@ export function buildIncarnonCandidateConfigs(
     return candidates;
 }
 
-/** Selects a small stable shortlist for full optimizer refinement. */
+/** Selects a small, stable, score-ranked, path-diverse shortlist for full optimizer refinement. */
 export function selectIncarnonSearchShortlist<T extends IncarnonScoredCandidate>(
     candidates: readonly T[],
     baselineSignatures: readonly string[],
@@ -518,15 +540,53 @@ export function selectIncarnonSearchShortlist<T extends IncarnonScoredCandidate>
 
     const excluded = new Set(baselineSignatures);
     const seen = new Set<string>();
-    const shortlist: T[] = [];
     const ranked = [...candidates]
         .filter((candidate) => Number.isFinite(candidate.score))
         .sort((left, right) => right.score - left.score);
+    const uniqueRanked: T[] = [];
     for (const candidate of ranked) {
         if (excluded.has(candidate.signature) || seen.has(candidate.signature)) continue;
         seen.add(candidate.signature);
-        shortlist.push(candidate);
-        if (shortlist.length >= maximum) break;
+        uniqueRanked.push(candidate);
+    }
+
+    const pathDistance = (left: T, right: T) => {
+        const tiers = new Set([
+            ...Object.keys(left.path ?? {}),
+            ...Object.keys(right.path ?? {}),
+        ]);
+        let distance = 0;
+        for (const tier of tiers) {
+            if (left.path?.[Number(tier) as IncarnonTier] !== right.path?.[Number(tier) as IncarnonTier]) distance += 1;
+        }
+        return distance;
+    };
+    const shortlist: T[] = [];
+    while (shortlist.length < maximum && shortlist.length < uniqueRanked.length) {
+        const remaining = uniqueRanked.filter((candidate) => !shortlist.includes(candidate));
+        if (shortlist.length === 0) {
+            shortlist.push(remaining[0]);
+            continue;
+        }
+
+        // Score units differ between DPS and finite-TTK goals; rank the diversity pool by percentile.
+        const diversityPoolSize = Math.min(
+            remaining.length,
+            Math.max(3, Math.ceil(remaining.length * 0.1)),
+        );
+        const nearBest = remaining.slice(0, diversityPoolSize);
+        const diverseCandidates = nearBest.filter((candidate) => candidate.path && shortlist.some((selected) => selected.path));
+        if (diverseCandidates.length === 0) {
+            shortlist.push(remaining[0]);
+            continue;
+        }
+
+        diverseCandidates.sort((left, right) => {
+            const leftDistance = Math.min(...shortlist.map((selected) => pathDistance(left, selected)));
+            const rightDistance = Math.min(...shortlist.map((selected) => pathDistance(right, selected)));
+            return rightDistance - leftDistance || right.score - left.score;
+        });
+        shortlist.push(diverseCandidates[0]);
     }
     return shortlist;
 }

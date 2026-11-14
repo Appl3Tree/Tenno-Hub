@@ -10,7 +10,7 @@ import {
     getInitialMeleeComboMultiplier,
     usesMeleeDamageModel,
 } from "../catalog/weaponRules";
-import type { ConditionalEffect, ModEffect } from "../catalog/modCatalog";
+import type { ConditionalEffect, ModEffect, NonCriticalHitDamageProc } from "../catalog/modCatalog";
 import {
     DAMAGE_TYPES,
     STATUS_DAMAGE_TYPES,
@@ -139,6 +139,7 @@ export interface ModdedWeaponStats {
     quantizedBaseCritMultiplier: number;
     critChance: number;
     critMultiplier: number;
+    nonCriticalHitDamageProcs?: NonCriticalHitDamageProc[];
     averageCritTier: number;
     meleeComboMultiplier: number;
     /** Combo multiplier applied to this selected heavy melee attack, or 1 for other attacks. */
@@ -278,7 +279,7 @@ export interface MeleeAverageDpsParameters {
 export interface MeleeAverageDpsResult {
     averageHit: number;
     averageDps: number;
-    expectedCritMultiplier: number;
+    expectedHitDamageMultiplier: number;
 }
 
 export interface DamageCalculationOptions {
@@ -322,13 +323,30 @@ export function avgCritMultiplier(critChance: number, critMult: number): number 
     return 1 + critChance * (critMult - 1);
 }
 
+/** Expected per-hit multiplier across critical tiers and independent noncritical-hit proc events. */
+export function avgHitDamageMultiplier(
+    critChance: number,
+    critMult: number,
+    nonCriticalHitDamageProcs: readonly NonCriticalHitDamageProc[] = [],
+): number {
+    const normalizedCritChance = Math.max(0, Number.isFinite(critChance) ? critChance : 0);
+    const critDamage = avgCritMultiplier(normalizedCritChance, critMult);
+    const nonCriticalChance = Math.max(0, 1 - Math.min(1, normalizedCritChance));
+    const expectedProcMultiplier = nonCriticalHitDamageProcs.reduce((multiplier, proc) => {
+        const chance = Math.max(0, Math.min(1, Number.isFinite(proc.chance) ? proc.chance : 0));
+        const bonus = Math.max(0, Number.isFinite(proc.damageBonus) ? proc.damageBonus : 0);
+        return multiplier * (1 + chance * bonus);
+    }, 1);
+    return critDamage + nonCriticalChance * (expectedProcMultiplier - 1);
+}
+
 /**
  * Wiki stance-comparison DPS formula using the build's quantized, pre-target hit
- * damage and expected critical damage. Stance values are explicit inputs because
+ * damage and expected per-hit damage multiplier. Stance values are explicit inputs because
  * this project does not yet have a coverage-verified stance timing catalog.
  */
 export function calculateMeleeAverageDps(
-    stats: Pick<ModdedWeaponStats, "totalDamage" | "critChance" | "critMultiplier" | "fireRate">,
+    stats: Pick<ModdedWeaponStats, "totalDamage" | "critChance" | "critMultiplier" | "fireRate" | "nonCriticalHitDamageProcs">,
     parameters: MeleeAverageDpsParameters,
 ): MeleeAverageDpsResult | null {
     const values = [
@@ -345,15 +363,19 @@ export function calculateMeleeAverageDps(
         parameters.averageComboDamageMultiplier <= 0 || parameters.baseComboLengthSeconds <= 0
     ) return null;
 
-    const expectedCritMultiplier = avgCritMultiplier(stats.critChance, stats.critMultiplier);
+    const expectedHitDamageMultiplier = avgHitDamageMultiplier(
+        stats.critChance,
+        stats.critMultiplier,
+        stats.nonCriticalHitDamageProcs,
+    );
     const averageHit =
         parameters.averageComboDamageMultiplier *
         stats.totalDamage *
-        expectedCritMultiplier;
+        expectedHitDamageMultiplier;
     return {
         averageHit,
         averageDps: averageHit * stats.fireRate / parameters.baseComboLengthSeconds,
-        expectedCritMultiplier,
+        expectedHitDamageMultiplier,
     };
 }
 
@@ -546,6 +568,7 @@ export function calculateBuild(
     let finalCritChanceBonus = 0;
     let critMultBonus = 0;
     let finalCritMultiplierBonus = 0;
+    const nonCriticalHitDamageProcs: NonCriticalHitDamageProc[] = [];
     let statusChanceBonus = 0;
     let comboStatusChanceBonus = 0;
     let finalStatusChanceBonus = 0;
@@ -592,6 +615,7 @@ export function calculateBuild(
         punctureBonus += e.punctureBonus ?? 0;
         slashBonus += e.slashBonus ?? 0;
         critChanceBonus += e.critChanceBonus ?? 0;
+        nonCriticalHitDamageProcs.push(...(e.nonCriticalHitDamageProcs ?? []));
         comboCritChanceBonus += e.comboCritChanceBonus ?? 0;
         finalCritChanceBonus += e.finalCritChanceBonus ?? 0;
         critMultBonus += e.critMultBonus ?? 0;
@@ -1071,7 +1095,7 @@ export function calculateBuild(
     const conditionOverloadDamageMultiplier = conditionOverloadDamageBracket / damageBracket;
     const conditionOverloadTotalBase = Math.max(0, totalBase * conditionOverloadDamageMultiplier);
 
-    const critAverageMultiplier = avgCritMultiplier(critChance, critMultiplier);
+    const critAverageMultiplier = avgHitDamageMultiplier(critChance, critMultiplier, nonCriticalHitDamageProcs);
     // The first faction multiplier belongs in each stored proc seed. The second
     // is applied with the remaining DoT multipliers after the accumulator and status coefficient.
     const dotSeedPerProcBeforeConditionOverload =
@@ -1275,7 +1299,11 @@ export function calculateBuild(
 
     const totalDamage = totalDamageOf(damageBreakdown);
     const arsenalDamage = totalDamageOf(directRawBreakdown) * damageWeightedMultishot;
-    const averageShotDamage = totalDamage * damageWeightedMultishot * avgCritMultiplier(critChance, critMultiplier);
+    const averageShotDamage = totalDamage * damageWeightedMultishot * avgHitDamageMultiplier(
+        critChance,
+        critMultiplier,
+        nonCriticalHitDamageProcs,
+    );
 
     const coldStacks = expectedStacksByType.cold ?? 0;
     const heatStacks = expectedStacksByType.heat ?? 0;
@@ -1344,6 +1372,7 @@ export function calculateBuild(
         quantizedBaseCritMultiplier,
         critChance,
         critMultiplier,
+        nonCriticalHitDamageProcs,
         averageCritTier,
         meleeComboMultiplier,
         meleeAttackComboDamageMultiplier,

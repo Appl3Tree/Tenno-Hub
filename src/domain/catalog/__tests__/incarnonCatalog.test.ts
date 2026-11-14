@@ -68,6 +68,24 @@ describe("incarnonCatalog", () => {
         expect(resolved.activeEffects.some((effect) => effect.fireRateBonus === 0.2)).toBe(true);
     });
 
+    it("models Devouring Attrition as a probabilistic noncritical damage bonus", () => {
+        for (const weaponName of ["Laetum", "Phenmor"]) {
+            const option = getIncarnonRecordForWeapon(weaponName)?.tiers
+                .find((tier) => tier.tier === 5)?.options
+                .find((candidate) => candidate.id === "tier-5-devouring-attrition");
+
+            expect(option?.model.effects.flatMap((entry) => entry.effect.nonCriticalHitDamageProcs ?? [])).toEqual([
+                { chance: 0.5, damageBonus: 20 },
+            ]);
+            expect(option?.model.unsupportedLines).toEqual([]);
+        }
+
+        const laetumOption = getIncarnonRecordForWeapon("Laetum")?.tiers
+            .find((tier) => tier.tier === 5)?.options
+            .find((candidate) => candidate.id === "tier-5-devouring-attrition");
+        expect(laetumOption?.descriptionLines).not.toContain("Bosses ignore this perk.");
+    });
+
     it("models Braton Prime Munitions Grit extra-projectile damage in both forms", () => {
         const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(bratonPrime).toBeTruthy();
@@ -171,5 +189,19 @@ describe("incarnonCatalog", () => {
             "path B",
         ]);
         expect(selectIncarnonSearchShortlist(candidates, ["baseline"], 0)).toEqual([]);
+    });
+
+    it("uses path diversity to refine a near-tied Incarnon screen", () => {
+        const candidates = [
+            { signature: "first", score: 100, path: { 1: "a", 2: "a", 3: "a" } },
+            { signature: "nearby", score: 100, path: { 1: "b", 2: "a", 3: "a" } },
+            { signature: "diverse", score: 100, path: { 1: "b", 2: "b", 3: "b" } },
+            { signature: "outside-score-window", score: 90, path: { 1: "c", 2: "c", 3: "c" } },
+        ];
+
+        expect(selectIncarnonSearchShortlist(candidates, [], 2).map((candidate) => candidate.signature)).toEqual([
+            "first",
+            "diverse",
+        ]);
     });
 });

@@ -83,6 +83,8 @@ export interface ModEffect {
     tauBonus: number;
     trueBonus: number;
     critChanceBonus: number;
+    /** Independent damage procs that trigger on a non-critical hit. `damageBonus` is additive, so 20 means 21x damage when triggered. */
+    nonCriticalHitDamageProcs?: NonCriticalHitDamageProc[];
     /** Critical chance per combo tier above 1x (e.g. Blood Rush). */
     comboCritChanceBonus: number;
     finalCritChanceBonus: number;
@@ -151,6 +153,11 @@ export interface ModEffect {
     factionDamageBonus: number;
     /** Which faction this mod targets, e.g. "Grineer". Empty string if not a faction mod. */
     targetFaction: string;
+}
+
+export interface NonCriticalHitDamageProc {
+    chance: number;
+    damageBonus: number;
 }
 
 const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment";

@@ -28,6 +28,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "benchmark:build-planner": "tsx scripts/benchmarkBuildOptimizer.ts",
+    "audit:incarnon-path-search": "tsx scripts/auditIncarnonPathSearch.ts",
     "benchmark:planner-comparison": "tsx scripts/comparePlannerBuilds.ts",
     "benchmark:torid-comparison": "tsx scripts/compareToridUnderframe.ts"
   },
@@ -55,6 +56,7 @@
     "test": "Run the Vitest suite once.",
     "test:watch": "Run Vitest in watch mode.",
     "benchmark:build-planner": "Measure optimizer latency, build legality, Forma use, score consistency, and deterministic build selection across a representative weapon corpus; the --verify-arcane-selection flag checks arcane rank optimality for each returned fixed mod set.",
+    "audit:incarnon-path-search": "Compare bounded Incarnon-path refinement with an exhaustive Laetum finite-TTK sweep on a fixed candidate pool.",
     "benchmark:planner-comparison": "Re-score the captured Braton Prime Tenno-Hub and Underframe builds with identical target pools and the same finite expected encounter model.",
     "benchmark:torid-comparison": "Compare the saved Underframe Torid QA build with Tenno-Hub's Scaling optimizer on the captured Corpus target."
   },

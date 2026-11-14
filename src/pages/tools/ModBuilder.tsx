@@ -29,7 +29,7 @@ import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, typ
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
-import { avgCritMultiplier, calculateBuild, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
 import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
@@ -1276,7 +1276,7 @@ function buildMathBreakdown(
     const quantScale = (moddedBaseDamage / 32) * (stats.directDamagePerStatusMultiplier || 1);
     const fireRateBonus = usesMeleeDamageModel(weapon.category) ? totals.attackSpeedBonus : totals.fireRateBonus;
     const quantizedShotDamage = stats.totalDamage * stats.damageWeightedMultishot;
-    const avgCritMultiplier = quantizedShotDamage > 0 ? stats.averageShotDamage / quantizedShotDamage : 1;
+    const avgHitMultiplier = quantizedShotDamage > 0 ? stats.averageShotDamage / quantizedShotDamage : 1;
     const hasConditionalBonuses = effects.some(effect => (effect?.conditionalEffects?.length ?? 0) > 0);
     const damageUnit = actionUnitLabel(weapon.category);
     const avgDamageLabel = averageDamageLabel(weapon.category);
@@ -1438,9 +1438,9 @@ function buildMathBreakdown(
                 `Arsenal Total Damage = unquantized damage construction × damage-weighted multishot = ${fmt(stats.arsenalDamage, 5)}`,
                 `Expected projectile count = ${fmt(stats.multishot, 5)} per ${damageUnit}; damage-weighted multiplier = ${fmt(stats.damageWeightedMultishot, 5)} (unique extra-projectile damage bonus ${fmt(stats.multishotDamageBonus * 100, 3)}%)`,
                 `Quantized direct damage per ${damageUnit} = ${fmt(stats.totalDamage, 5)} × damage-weighted multiplier ${fmt(stats.damageWeightedMultishot, 5)} = ${fmt(quantizedShotDamage, 5)}`,
-                `Average crit multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgCritMultiplier, 6)}`,
+                `Average hit damage multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgHitMultiplier, 6)}`,
                 `Average crit multiplier cross-check = 1 + crit chance × (crit multiplier - 1) = 1 + ${fmt(stats.critChance, 5)} × (${fmt(stats.critMultiplier, 5)} - 1) = ${fmt(1 + stats.critChance * (stats.critMultiplier - 1), 6)}`,
-                `Average direct damage per ${damageUnit} = quantized damage ${fmt(quantizedShotDamage, 5)} × average crit multiplier ${fmt(avgCritMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
+                `Average direct damage per ${damageUnit} = quantized damage ${fmt(quantizedShotDamage, 5)} × average hit damage multiplier ${fmt(avgHitMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
                 ...(stats.firstShotMagazineDamageBonus > 0
                     ? [
                         `First ammo-consuming shot after reload = ${fmt(stats.averageShotDamage, 5)} × ${fmt(stats.firstShotMagazineDamageMultiplier, 6)} = ${fmt(stats.averageShotDamage * stats.firstShotMagazineDamageMultiplier, 5)}`,
@@ -1456,7 +1456,7 @@ function buildMathBreakdown(
                 ...(usesMeleeDamageModel(weapon.category)
                     ? meleeAverageDps && meleeDpsInputs?.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
                         ? [
-                            `Stance average hit = average combo damage multiplier ${fmt(meleeDpsInputs.averageComboDamageMultiplier, 5)} × initial-state quantized damage ${fmt(meleeDpsBaseline?.totalDamage ?? 0, 5)} × expected crit multiplier ${fmt(meleeAverageDps.expectedCritMultiplier, 6)} = ${fmt(meleeAverageDps.averageHit, 5)}`,
+                            `Stance average hit = average combo damage multiplier ${fmt(meleeDpsInputs.averageComboDamageMultiplier, 5)} × initial-state quantized damage ${fmt(meleeDpsBaseline?.totalDamage ?? 0, 5)} × expected hit damage multiplier ${fmt(meleeAverageDps.expectedHitDamageMultiplier, 6)} = ${fmt(meleeAverageDps.averageHit, 5)}`,
                             `Stance average DPS = average hit ${fmt(meleeAverageDps.averageHit, 5)} × modded attack speed ${fmt(meleeDpsBaseline?.fireRate ?? 0, 5)} ÷ base combo length ${fmt(meleeDpsInputs.baseComboLengthSeconds, 5)}s = ${fmt(meleeAverageDps.averageDps, 5)}`,
                             "Stance DPS inputs are user-entered from the stance reference table. The estimate excludes status effects, target defenses, and follow-through.",
                         ]
@@ -3623,6 +3623,9 @@ export default function ModBuilder() {
         ) ?? [],
         [activeWeaponState],
     );
+    const activeIncarnonHasExpectedHitProcs = activeWeaponState?.activeIncarnonEffects.some(
+        (effect) => (effect.nonCriticalHitDamageProcs?.length ?? 0) > 0,
+    ) ?? false;
     const displayedMath = (reasoningContextAtOptimization === currentReasoningContextKey ? reasoningMath : null) ?? currentBuildExport?.math ?? null;
     async function handleCopyBuildExport() {
         if (!currentBuildExport) return;
@@ -3925,9 +3928,10 @@ export default function ModBuilder() {
             magneticDefenseDamageBonus: stats.magneticShieldDamageBonus,
             toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
             damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
-            expectedCritMultiplier: avgCritMultiplier(
+            expectedHitDamageMultiplier: avgHitDamageMultiplier(
                 stats.critChance + stats.punctureCritChanceBonus,
                 stats.critMultiplier + stats.coldCritDamageBonus,
+                stats.nonCriticalHitDamageProcs,
             ),
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
@@ -3998,6 +4002,7 @@ export default function ModBuilder() {
             damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
             critChance: stats.critChance,
             critMultiplier: stats.critMultiplier,
+            nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
@@ -4310,6 +4315,7 @@ export default function ModBuilder() {
                     valenceElement: ValenceElement;
                     incarnonCandidate: IncarnonCandidateConfig;
                     score: number;
+                    path?: IncarnonCandidateConfig["selectedOptionsByTier"];
                 }> = [];
 
                 for (const baselineRun of baselineRuns) {
@@ -4331,6 +4337,7 @@ export default function ModBuilder() {
                             signature: configSignature(baselineRun.valenceElement, incarnonCandidate),
                             valenceElement: baselineRun.valenceElement,
                             incarnonCandidate,
+                            path: incarnonCandidate.selectedOptionsByTier,
                             score: scoreOptimizerResult(
                                 candidateWeaponState.weaponWithIntrinsicOptions,
                                 selectedAttackIdx,
@@ -5680,6 +5687,11 @@ export default function ModBuilder() {
                                                                 {activeIncarnonUnsupportedLines.length > 0 && (
                                                                     <div className="sm:col-span-2 text-amber-200">
                                                                         <span className="font-semibold">Incarnon effects excluded from this score:</span> {activeIncarnonUnsupportedLines.join(" · ")}
+                                                                    </div>
+                                                                )}
+                                                                {activeIncarnonHasExpectedHitProcs && (
+                                                                    <div className="sm:col-span-2">
+                                                                        <span className="text-slate-500">Stochastic Incarnon effect:</span> damage uses its probability-weighted mean; individual per-shot proc streaks are not simulated.
                                                                     </div>
                                                                 )}
                                                                 <div><span className="text-slate-500">Conditional state:</span> {conditionalState.mode}</div>

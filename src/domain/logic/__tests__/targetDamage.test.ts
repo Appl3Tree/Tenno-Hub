@@ -15,6 +15,41 @@ const phantasmaRamp: WeaponDamageRampRule = {
 };
 
 describe("target damage progress across defense pools", () => {
+    it("includes noncritical-hit procs in an initial-pool damage estimate", () => {
+        const result = calculateDirectDamageToInitialPools({
+            damageByType: { impact: 100 },
+            health: 2_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0,
+            critMultiplier: 2,
+            nonCriticalHitDamageProcs: [{ chance: 0.5, damageBonus: 20 }],
+        });
+
+        expect(result.uncappedDamageByPool.health).toBeCloseTo(1_100, 8);
+    });
+
+    it("uses expected noncritical damage procs in finite encounter scoring", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 1_100,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0,
+            critMultiplier: 2,
+            nonCriticalHitDamageProcs: [{ chance: 0.5, damageBonus: 20 }],
+            attackIntervalSeconds: 1,
+            maxAttacks: 1,
+        });
+
+        expect(result.timeToKillSeconds).toBe(0);
+        expect(result.directDamageByPool.health).toBeCloseTo(1_100, 8);
+    });
+
     it("applies Condition Overload only from statuses active before each hit and scales proc seeds", () => {
         const direct = simulateExpectedWeaponEncounter({
             damageByType: { impact: 100 },
@@ -173,7 +208,7 @@ describe("single-attack damage against the target's current pools", () => {
             faction: "Grineer",
             viralHealthDamageBonus: 1,
             magneticDefenseDamageBonus: 1,
-            expectedCritMultiplier: 2,
+            expectedHitDamageMultiplier: 2,
             expectedProjectiles: 2,
         });
 
@@ -293,7 +328,7 @@ describe("single-attack damage against the target's current pools", () => {
             overguard: 0,
             armor: 0,
             faction: "",
-            expectedCritMultiplier: 1,
+            expectedHitDamageMultiplier: 1,
             attackIntervalSeconds: 1,
             heavyAttackCombo: {
                 startingPoints: 80,
@@ -325,7 +360,7 @@ describe("single-attack damage against the target's current pools", () => {
             overguard: 0,
             armor: 0,
             faction: "",
-            expectedCritMultiplier: 1.5,
+            expectedHitDamageMultiplier: 1.5,
             attackIntervalSeconds: 1,
             heavyAttackCombo: {
                 startingPoints: 80,
@@ -355,7 +390,7 @@ describe("single-attack damage against the target's current pools", () => {
             overguard: 0,
             armor: 0,
             faction: "",
-            expectedCritMultiplier: 1,
+            expectedHitDamageMultiplier: 1,
             attackIntervalSeconds: 1,
             heavyAttackCombo: {
                 startingPoints: 80,
@@ -382,7 +417,7 @@ describe("single-attack damage against the target's current pools", () => {
             overguard: 0,
             armor: 0,
             faction: "",
-            expectedCritMultiplier: 1.5,
+            expectedHitDamageMultiplier: 1.5,
             attackIntervalSeconds: 1,
             heavyAttackCombo: {
                 startingPoints: 80,
