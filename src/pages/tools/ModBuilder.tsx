@@ -26,6 +26,7 @@ import {
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
+import { getUnmodeledScoringEffectLines } from "../../domain/catalog/modEffectUtils";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
@@ -2235,6 +2236,9 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
 
     // Current stats at rank
     const statAtRank = arcane ? normalizeArcaneDisplayText(arcane.statsByRank[rank] ?? arcane.statsLabel) : null;
+    const unmodeledSelectedEffectLines = arcane
+        ? getUnmodeledScoringEffectLines(arcane.optimizerEffectByRank[rank] ?? arcane.permanentEffectByRank[rank])
+        : [];
 
     return (
         <div className="relative" ref={panelRef}>
@@ -2307,6 +2311,12 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
                 )}
             </div>
 
+            {arcane && unmodeledSelectedEffectLines.length > 0 && (
+                <p role="note" className="px-3 pb-2 text-[9px] leading-relaxed text-amber-300">
+                    Not included in damage scoring: {unmodeledSelectedEffectLines.join(" · ")} Auto Optimize skips this Arcane until hit-location context is modeled.
+                </p>
+            )}
+
             {open && (
                 <div className="absolute z-50 mt-1 w-80 rounded-xl border border-slate-700 bg-slate-900 shadow-xl">
                     <div className="p-2 border-b border-slate-800">
@@ -2328,6 +2338,9 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
                                     <span className="text-[9px] px-1 rounded border border-violet-700/50 bg-violet-950/30 text-violet-400 shrink-0">{a.rarity}</span>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-0.5 truncate">{a.statsLabel}</div>
+                                {getUnmodeledScoringEffectLines(a.optimizerEffectByRank[a.maxRank] ?? a.permanentEffectByRank[a.maxRank]).length > 0 && (
+                                    <div className="text-[9px] text-amber-300 mt-0.5">Contains a parsed headshot/weak-point effect not included in scoring; Auto Optimize skips it.</div>
+                                )}
                             </button>
                         ))}
                     </div>

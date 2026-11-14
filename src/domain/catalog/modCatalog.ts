@@ -1515,6 +1515,7 @@ export function sortBuilderModsForDisplay(pool: ModEntry[]): ModEntry[] {
         return flawedOrder || left.name.localeCompare(right.name);
     });
 }
+
 export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     if (!supportsStanceLikeMods(weapon)) return [];
     const { byStanceCompat, byFixedStanceWeapon } = getCaches();

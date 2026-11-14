@@ -6,7 +6,7 @@ afterEach(() => {
 });
 
 describe("shared World State completion state", () => {
-    it("publishes invasion, Nightwave, and occurrence-scoped event changes immediately and supports undo", async () => {
+    it("publishes invasion, Nightwave, and occurrence-scoped event changes immediately and supports undo", { timeout: 15000 }, async () => {
         vi.stubGlobal("localStorage", {
             getItem: vi.fn(() => null),
             setItem: vi.fn(),

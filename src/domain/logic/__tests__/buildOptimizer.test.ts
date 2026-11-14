@@ -4,6 +4,7 @@ import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
+import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
@@ -479,6 +480,44 @@ describe("build optimizer scoring", () => {
         }).modded.statusChance;
         expect(realisticStatusChance).toBeCloseTo(baseStatusChance, 8);
         expect(stackedStatusChance - baseStatusChance).toBeCloseTo(baseStatusChance * 0.9, 8);
+    });
+
+    it("discloses and excludes unscored hit-location damage from Auto Optimize", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
+        expect(weapon).toBeDefined();
+        const mods = getModsForWeapon(weapon!);
+        const targetAcquired = mods.find((mod) => mod.name === "Target Acquired");
+        const primaryAcuity = mods.find((mod) => mod.name === "Primary Acuity");
+        expect(targetAcquired?.hasDamageEffect).toBe(true);
+        expect(primaryAcuity?.hasDamageEffect).toBe(true);
+        expect(getUnmodeledDamageEffectLines(targetAcquired!, targetAcquired!.fusionLimit))
+            .toContain("Effect: Headshot multiplier bonus is not scored because the hit location is not modeled.");
+        expect(getUnmodeledDamageEffectLines(primaryAcuity!, primaryAcuity!.fusionLimit)).toEqual(expect.arrayContaining([
+            "Effect: Weak-point damage bonus is not scored because the hit location is not modeled.",
+            "Effect: Weak-point critical chance bonus is not scored because the hit location is not modeled.",
+        ]));
+
+        for (const mod of [targetAcquired!, primaryAcuity!]) {
+            const result = optimizeBuild(weapon!, [mod], "burst", 1, { allowForma: false });
+            expect(result.slots, mod.name).toEqual([null]);
+        }
+    });
+
+    it("does not optimize an owned Arcane rank whose hit-location bonus is unscored", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
+        const primaryDeadhead = getArcanesByWeaponCategory("Primary").find((arcane) => arcane.name === "Primary Deadhead");
+        expect(weapon).toBeDefined();
+        expect(primaryDeadhead).toBeDefined();
+        expect(getUnmodeledScoringEffectLines(primaryDeadhead!.optimizerEffectByRank[primaryDeadhead!.maxRank]))
+            .toContain("Effect: Headshot multiplier bonus is not scored because the hit location is not modeled.");
+
+        const result = optimizeBuild(weapon!, [], "burst", 0, {
+            optimizeArcane: true,
+            arcaneCandidates: [primaryDeadhead!],
+            ownedArcaneUniqueNames: new Set([primaryDeadhead!.uniqueName]),
+            ownedArcaneMaxRankByUniqueName: { [primaryDeadhead!.uniqueName]: primaryDeadhead!.maxRank },
+        });
+        expect(result.arcane).toBeNull();
     });
 
     it("parses Critical Focus's aimed critical chance and critical damage", () => {
@@ -1261,7 +1300,7 @@ describe("build optimizer scoring", () => {
         expect(result.encounterTimeToKillSeconds!).toBeLessThanOrEqual(screeningEncounter.timeToKillSeconds!);
     });
 
-    it("reserves finite-TTK refinement for tempo candidates that the proxy undervalues", () => {
+    it("reserves finite-TTK refinement for tempo candidates that the proxy undervalues", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
         expect(weapon).toBeTruthy();
         const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));

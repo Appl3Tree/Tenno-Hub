@@ -2,9 +2,43 @@ import type { ModEffect } from "./modCatalog";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
+const UNSCORED_HIT_LOCATION_EFFECTS = [
+    ["headshotMultiplierBonus", "Headshot multiplier bonus"],
+    ["weakPointDamageBonus", "Weak-point damage bonus"],
+    ["weakPointCritChanceBonus", "Weak-point critical chance bonus"],
+] as const;
+
+/** Parsed effects that the current damage and optimizer models cannot apply without hit-location assumptions. */
+export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | null): string[] {
+    if (!effect) return [];
+    const lines: string[] = [];
+    const sources: Array<{ label: string; stats: Record<string, unknown> }> = [
+        { label: "Effect", stats: effect as Record<string, unknown> },
+        ...(effect.conditionalEffects ?? []).map((conditional, index) => ({
+            label: `Conditional effect ${index + 1}`,
+            stats: conditional.stats as Record<string, unknown>,
+        })),
+    ];
+
+    for (const source of sources) {
+        for (const [key, label] of UNSCORED_HIT_LOCATION_EFFECTS) {
+            const value = source.stats[key];
+            if (typeof value === "number" && Number.isFinite(value) && value !== 0) {
+                lines.push(`${source.label}: ${label} is not scored because the hit location is not modeled.`);
+            }
+        }
+    }
+
+    return [...new Set(lines)];
+}
+
 /** Raw lines that a conservative keyword screen flags for parser review at this rank. */
 export function getUnmodeledDamageEffectLines(
-    mod: { unparsedStatsByRank?: string[][] },
+    mod: {
+        unparsedStatsByRank?: string[][];
+        effectsByRank?: Partial<ModEffect>[];
+        effect?: Partial<ModEffect>;
+    },
     rank: number,
 ): string[] {
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
@@ -12,7 +46,8 @@ export function getUnmodeledDamageEffectLines(
     if (lines.some((line) => /\bentropy\b/i.test(line))) {
         lines.push("Entropy syndicate side effect is not modeled.");
     }
-    return [...new Set(lines)];
+    const effect = mod.effectsByRank?.[rank] ?? mod.effect;
+    return [...new Set([...lines, ...getUnmodeledScoringEffectLines(effect)])];
 }
 
 export function emptyEffect(): ModEffect {
@@ -24,7 +59,8 @@ export function emptyEffect(): ModEffect {
         heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
         blastBonus: 0, gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
         voidBonus: 0, tauBonus: 0, trueBonus: 0,
-        critChanceBonus: 0, slideAttackCritChanceBonus: 0, nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0, finalCritMultiplierBonus: 0,
+        critChanceBonus: 0, slideAttackCritChanceBonus: 0,
+        nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0, finalCritMultiplierBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, magazineBonus: 0,
         reloadSpeedBonus: 0, attackSpeedBonus: 0,
