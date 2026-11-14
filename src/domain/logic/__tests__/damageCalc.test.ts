@@ -677,6 +677,16 @@ describe("damage calculation status eligibility", () => {
         expect(result.expectedStacksByType.slash).toBeCloseTo(2.4, 12);
     });
 
+    it("reuses read-only immunity sets without changing their contents", () => {
+        const weapon = makeWeapon({ impact: 10, slash: 30 });
+        const immunitySet = new Set(["impact"] as const);
+        const fromSet = calculateBuild(weapon, [], "", { statusImmuneTypes: immunitySet }).modded;
+        const fromIterable = calculateBuild(weapon, [], "", { statusImmuneTypes: ["impact"] }).modded;
+
+        expect(fromSet).toEqual(fromIterable);
+        expect(immunitySet).toEqual(new Set(["impact"]));
+    });
+
     it("suppresses status output when the target is immune to every status type", () => {
         const weapon = makeWeapon({ impact: 10, slash: 30, heat: 60 });
         const statusTypes = [
