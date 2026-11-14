@@ -465,6 +465,46 @@ describe("build optimizer scoring", () => {
         expect(stackedStatusChance - baseStatusChance).toBeCloseTo(baseStatusChance * 0.9, 8);
     });
 
+    it("parses Critical Focus's aimed critical chance and critical damage", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Corvas Prime");
+        expect(weapon).toBeTruthy();
+        const criticalFocus = getModsForWeapon(weapon!).find((entry) => entry.name === "Critical Focus");
+        expect(criticalFocus).toBeTruthy();
+        expect(criticalFocus!.hasDamageEffect).toBe(true);
+        for (let rank = 0; rank <= criticalFocus!.fusionLimit; rank++) {
+            const rankBonus = (rank + 1) / 10;
+            expect(criticalFocus!.effectsByRank[rank].conditionalEffects).toContainEqual(expect.objectContaining({
+                trigger: "whileAiming",
+                stats: { critChanceBonus: rankBonus, critMultBonus: rankBonus },
+            }));
+            expect(getUnmodeledDamageEffectLines(criticalFocus!, rank)).toEqual([]);
+        }
+        const effect = criticalFocus!.effectsByRank[criticalFocus!.fusionLimit];
+
+        expect(effect.conditionalEffects).toContainEqual(expect.objectContaining({
+            trigger: "whileAiming",
+            stats: { critChanceBonus: 0.6, critMultBonus: 0.6 },
+        }));
+        expect(getUnmodeledDamageEffectLines(criticalFocus!, criticalFocus!.fusionLimit)).toEqual([]);
+
+        const base = calculateBuild(weapon!, []).modded;
+        const initial = calculateBuild(weapon!, [effect], "", { conditionalState: { mode: "initial" } }).modded;
+        const realistic = calculateBuild(weapon!, [effect], "", { conditionalState: { mode: "realistic" } }).modded;
+        const fullyStacked = calculateBuild(weapon!, [effect], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        const optimized = optimizeBuild(weapon!, [criticalFocus!], "burst", weapon!.baseSlotCount, {
+            targetFaction: "Corpus",
+            conditionalState: { mode: "fullyStacked" },
+        });
+
+        expect(initial.critChance).toBeCloseTo(base.critChance, 8);
+        expect(initial.critMultiplier).toBeCloseTo(base.critMultiplier, 8);
+        expect(realistic.critChance).toBeCloseTo(base.critChance * 1.45, 8);
+        expect(realistic.critMultiplier).toBeCloseTo(base.critMultiplier * 1.45, 8);
+        expect(fullyStacked.critChance).toBeCloseTo(base.critChance * 1.6, 8);
+        expect(fullyStacked.critMultiplier).toBeCloseTo(base.critMultiplier * 1.6, 8);
+        expect(optimized.slots).toContain(criticalFocus);
+    });
+
     it("scores Galvanized Reflex Initial Combo stacks for heavy attacks", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
         expect(weapon).toBeDefined();
