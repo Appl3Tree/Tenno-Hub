@@ -2643,6 +2643,23 @@ describe("build optimizer scoring", () => {
         expect(explanation.steps[1].why).toContain("+100% status duration");
     });
 
+    it("summarizes conditional effects that contribute to the modeled build", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime")!;
+        expect(weapon).toBeTruthy();
+        const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Spring-Loaded Chamber");
+        expect(mod).toBeTruthy();
+        const rank = mod!.fusionLimit;
+        const effect = mod!.effectsByRank[rank] ?? mod!.effect;
+        expect(effect.conditionalEffects?.some((conditional) =>
+            conditional.trigger === "onReload" && conditional.requiresAiming && conditional.durationSeconds === 9,
+        )).toBe(true);
+
+        const explanation = explainBuild(weapon, [mod!], [rank], "burst");
+
+        expect(explanation.steps[0].why).toContain("on reload (9s, while aiming): +75% fr");
+        expect(explanation.steps[0].why).not.toContain("Effect not summarized by the active model");
+    });
+
     it("uses entered target pools and immunities when scoring a custom profile", () => {
         const weapon = makeWeapon({
             damage: {
@@ -3764,3 +3781,4 @@ describe("damage calculation ramp interactions", () => {
         expect(quickdrawBuild.sustainedDPS).toBeCloseTo(noReloadBuild.sustainedDPS, 6);
     });
 });
+

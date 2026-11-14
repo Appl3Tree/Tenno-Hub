@@ -3788,6 +3788,44 @@ function goalLabel(goal: OptimizeGoal): string {
     }
 }
 
+function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
+    const value = (key: keyof ModEffect) => Number(effect[key] ?? 0);
+    const parts: string[] = [];
+    if (value("damageBonus") > 0) parts.push(`+${(value("damageBonus") * 100).toFixed(0)}% dmg`);
+    if (value("critChanceBonus") > 0) parts.push(`+${(value("critChanceBonus") * 100).toFixed(0)}% cc`);
+    if (value("critMultBonus") > 0) parts.push(`+${(value("critMultBonus") * 100).toFixed(0)}% cd`);
+    if (value("statusChanceBonus") > 0) parts.push(`+${(value("statusChanceBonus") * 100).toFixed(0)}% sc`);
+    if (value("multishotBonus") > 0) parts.push(`+${(value("multishotBonus") * 100).toFixed(0)}% ms`);
+    if (value("fireRateBonus") > 0) parts.push(`+${(value("fireRateBonus") * 100).toFixed(0)}% fr`);
+    if (value("statusDamageBonus") > 0) parts.push(`+${(value("statusDamageBonus") * 100).toFixed(0)}% status damage`);
+    if (value("statusDurationBonus") > 0) parts.push(`+${(value("statusDurationBonus") * 100).toFixed(0)}% status duration`);
+    if (value("punchThrough") > 0) parts.push(`+${value("punchThrough").toFixed(1)} punch-through`);
+    const elementalBonus = [
+        "heatBonus", "coldBonus", "electricityBonus", "toxinBonus", "magneticBonus", "radiationBonus",
+        "gasBonus", "viralBonus", "corrosiveBonus", "blastBonus", "voidBonus", "tauBonus", "trueBonus",
+    ].reduce((sum, key) => sum + value(key as keyof ModEffect), 0);
+    if (elementalBonus > 0) parts.push(`+${(elementalBonus * 100).toFixed(0)}% elem`);
+    if (value("factionDamageBonus") > 0) {
+        parts.push(`×${(1 + value("factionDamageBonus")).toFixed(2)} ${effect.targetFaction ?? "faction"}`);
+    }
+    return parts;
+}
+
+function summarizeConditionalEffect(
+    conditional: NonNullable<ModEffect["conditionalEffects"]>[number],
+): string {
+    const trigger = conditional.trigger.replace(/([A-Z])/g, " $1").toLowerCase();
+    const qualifiers = [
+        conditional.durationSeconds > 0 ? `${conditional.durationSeconds}s` : "",
+        conditional.requiresAiming ? "while aiming" : "",
+        conditional.maxStacks > 1 ? `up to ${conditional.maxStacks} stacks` : "",
+        conditional.requiredStatusType ? `requires ${conditional.requiredStatusType} status` : "",
+    ].filter(Boolean);
+    const stats = summarizeEffectStats(conditional.stats);
+    const details = stats.length > 0 ? stats.join(", ") : "conditional effect";
+    return `${trigger}${qualifiers.length > 0 ? ` (${qualifiers.join(", ")})` : ""}: ${details}`;
+}
+
 export function explainBuild(
     weapon: WeaponEntry,
     chosenMods: ModEntry[],
@@ -3833,21 +3871,12 @@ export function explainBuild(
         const pctGain = scoreWithout > 0 ? (delta / scoreWithout) * 100 : 0;
         const rank = chosenRanks[index] ?? mod.fusionLimit;
         const e    = mod.effectsByRank[rank] ?? mod.effect;
-        const parts: string[] = [];
-        if (e.damageBonus > 0)       parts.push(`+${(e.damageBonus * 100).toFixed(0)}% dmg`);
-        if (e.critChanceBonus > 0)   parts.push(`+${(e.critChanceBonus * 100).toFixed(0)}% cc`);
-        if (e.critMultBonus > 0)     parts.push(`+${(e.critMultBonus * 100).toFixed(0)}% cd`);
-        if (e.statusChanceBonus > 0) parts.push(`+${(e.statusChanceBonus * 100).toFixed(0)}% sc`);
-        if (e.multishotBonus > 0)    parts.push(`+${(e.multishotBonus * 100).toFixed(0)}% ms`);
-        if (e.fireRateBonus > 0)     parts.push(`+${(e.fireRateBonus * 100).toFixed(0)}% fr`);
-        if (e.statusDamageBonus > 0) parts.push(`+${(e.statusDamageBonus * 100).toFixed(0)}% status damage`);
-        if (e.statusDurationBonus > 0) parts.push(`+${(e.statusDurationBonus * 100).toFixed(0)}% status duration`);
-        if (e.punchThrough > 0)      parts.push(`+${e.punchThrough.toFixed(1)} punch-through`);
-        const eleSum = e.heatBonus + e.coldBonus + e.electricityBonus + e.toxinBonus + e.magneticBonus + e.radiationBonus;
-        if (eleSum > 0)              parts.push(`+${(eleSum * 100).toFixed(0)}% elem`);
-        if (e.factionDamageBonus > 0) parts.push(`×${(1 + e.factionDamageBonus).toFixed(2)} ${e.targetFaction}`);
+        const parts = summarizeEffectStats(e);
+        for (const conditional of e.conditionalEffects ?? []) {
+            parts.push(summarizeConditionalEffect(conditional));
+        }
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
-        const effectSummary = parts.length > 0 ? parts.join(", ") : "Effect not summarized by the active model";
+        const effectSummary = parts.length > 0 ? parts.join(", ") : "Effect details not summarized in this explanation";
         const contribution = delta >= 0
             ? `Keeping it adds ${pctGain >= 0 ? "+" : ""}${pctGain.toFixed(1)}% to ${goalLabel(goal)} versus the same build without it.`
             : `Keeping it lowers ${goalLabel(goal)} by ${Math.abs(pctGain).toFixed(1)}% versus the same build without it.`;
@@ -3918,3 +3947,4 @@ export function explainBuild(
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
+
