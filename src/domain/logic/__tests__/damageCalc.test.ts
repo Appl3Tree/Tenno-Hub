@@ -102,6 +102,41 @@ describe("damage calculation status eligibility", () => {
         checkThreefoldDamage(stanceSlam);
     });
 
+    it("models Prototype Shock Coils as an independent Status Chance-scaled Electricity roll", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Efv-8 Mars");
+        expect(weapon).toBeDefined();
+        const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Prototype Shock Coils");
+        expect(mod).toBeDefined();
+        expect(mod!.hasDamageEffect).toBe(true);
+        expect(mod!.effectsByRank.map((effect) => effect.electricityBonus)).toEqual([0.15, 0.3, 0.45, 0.6, 0.75, 0.9]);
+        expect(mod!.effectsByRank.map((effect) => effect.independentStatusProcChanceByType?.electricity)).toEqual([0.2, 0.2, 0.2, 0.2, 0.2, 0.2]);
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+        }
+
+        const rankEffect = mod!.effectsByRank[mod!.fusionLimit];
+        const normalIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const normalWeapon = withSelectedAttack(weapon!, normalIndex);
+        const normal = calculateBuild(normalWeapon, [rankEffect]).modded;
+        expect(normal.extraProcsPerShot.electricity).toBeCloseTo(normal.multishot * 0.2, 10);
+        expect(normal.unfilteredExtraProcsPerShot.electricity).toBeCloseTo(normal.multishot * 0.2, 10);
+        expect(normal.damageBreakdownBeforePerStatus.electricity).toBeGreaterThan(0);
+
+        const statusChanceBoost = emptyEffect();
+        statusChanceBoost.statusChanceBonus = 1;
+        const boosted = calculateBuild(normalWeapon, [rankEffect, statusChanceBoost]).modded;
+        expect(boosted.extraProcsPerShot.electricity).toBeCloseTo(boosted.multishot * 0.4, 10);
+
+        const altFireIndex = weapon!.attacks.findIndex((attack) => attack.name === "Alt-Fire");
+        const altFire = calculateBuild(withSelectedAttack(weapon!, altFireIndex), [rankEffect]).modded;
+        expect(altFire.extraProcsPerShot.electricity).toBeCloseTo(altFire.multishot * 0.2, 10);
+
+        const immune = calculateBuild(normalWeapon, [rankEffect], "Corpus", { statusImmuneTypes: ["electricity"] }).modded;
+        expect(immune.extraProcsPerShot.electricity).toBeUndefined();
+        expect(immune.procRatePerSecondByType.electricity).toBeUndefined();
+        expect(immune.unfilteredExtraProcsPerShot.electricity).toBeCloseTo(immune.multishot * 0.2, 10);
+    });
+
     it("parses and applies Shattering Impact only to quantized Impact melee hits", () => {
         const skana = getWeaponCatalog().find((candidate) => candidate.name === "Skana");
         expect(skana).toBeDefined();
@@ -2026,3 +2061,4 @@ describe("melee combo-scaled mod calculations", () => {
         expect(normalAtEight.forcedProcsPerShot).toEqual({});
     });
 });
+
