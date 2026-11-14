@@ -3,7 +3,7 @@ import { getArcanesByWeaponCategory, getArcanesForWeapon } from "../../catalog/a
 import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
-import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
 import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
@@ -662,6 +662,45 @@ describe("build optimizer scoring", () => {
             incompatibilityTags: [],
         };
         const result = optimizeBuild(weapon, [unsupported], "burst", 1, { allowForma: false });
+
+        expect(result.mods).toEqual([]);
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
+    it("marks fully unparsed damage mods and excludes them from automatic candidates", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeDefined();
+        const shiveringContagion = filterBuilderExpertVariants(getModsForWeapon(weapon!))
+            .find((entry) => entry.name === "Shivering Contagion");
+        expect(shiveringContagion).toBeDefined();
+        expect(shiveringContagion!.hasDamageEffect).toBe(false);
+        expect(getUnmodeledDamageEffectLines(shiveringContagion!, shiveringContagion!.fusionLimit))
+            .toContain("On Cold Status Effect: 100% chance to spread that status to other enemies within 6m.");
+
+        const result = optimizeBuild(
+            withSelectedAttack(weapon!, weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack")),
+            [shiveringContagion!],
+            "burst",
+            1,
+            { allowForma: false },
+        );
+
+        expect(result.mods).toEqual([]);
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
+    it("excludes partially parsed mods when a remaining damage-related line is unsupported", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const corruptCharge = filterBuilderExpertVariants(getModsForWeapon(weapon!))
+            .find((entry) => entry.name === "Corrupt Charge");
+        expect(corruptCharge).toBeDefined();
+        expect(corruptCharge!.hasDamageEffect).toBe(true);
+        expect(corruptCharge!.effect.initialComboBonus).toBe(30);
+        expect(getUnmodeledDamageEffectLines(corruptCharge!, corruptCharge!.fusionLimit))
+            .toContain("-50% Combo Duration");
+
+        const result = optimizeBuild(weapon!, [corruptCharge!], "burst", 1, { allowForma: false });
 
         expect(result.mods).toEqual([]);
         expect(result.slots.filter(Boolean)).toHaveLength(0);
@@ -3781,4 +3820,3 @@ describe("damage calculation ramp interactions", () => {
         expect(quickdrawBuild.sustainedDPS).toBeCloseTo(noReloadBuild.sustainedDPS, 6);
     });
 });
-

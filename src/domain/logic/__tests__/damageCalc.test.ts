@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
-import { emptyEffect, getModsForWeapon } from "../../catalog/modCatalog";
+import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES } from "../damageRuleset";
 
@@ -1752,6 +1752,34 @@ describe("melee combo-scaled mod calculations", () => {
             glaiveAt1x.dotDamagePerApplicationSeedByType.slash! * 5,
             2,
         );
+    });
+
+    it("parses Killing Blow's additive damage bonus only for selected heavy attacks", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const killingBlow = getModsForWeapon(weapon!).find((entry) => entry.name === "Killing Blow");
+        expect(killingBlow).toBeDefined();
+        expect(killingBlow!.effect.heavyAttackDamageBonus).toBeCloseTo(1.2, 10);
+        expect(getUnmodeledDamageEffectLines(killingBlow!, killingBlow!.fusionLimit)).toEqual([]);
+
+        const normalAttack = withSelectedAttack(
+            weapon!,
+            weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+        );
+        const heavySlamAttack = withSelectedAttack(
+            weapon!,
+            weapon!.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack"),
+        );
+        const totalDamage = (selectedWeapon: WeaponEntry, effects: ModEffect[]) =>
+            Object.values(calculateBuild(selectedWeapon, effects).modded.damageBreakdown)
+                .reduce((sum, amount) => sum + amount, 0);
+        const normalBase = totalDamage(normalAttack, []);
+        const normalWithMod = totalDamage(normalAttack, [killingBlow!.effect]);
+        const heavyBase = totalDamage(heavySlamAttack, []);
+        const heavyWithMod = totalDamage(heavySlamAttack, [killingBlow!.effect]);
+
+        expect(normalWithMod).toBeCloseTo(normalBase, 10);
+        expect(heavyWithMod).toBeCloseTo(heavyBase * 2.2, 10);
     });
 
     it("estimates one heavy attack's retained combo using efficiency and innate initial combo", () => {

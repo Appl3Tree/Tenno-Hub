@@ -1025,7 +1025,7 @@ The production build was rerun for this follow-up and passed (`tsc -b` plus Vite
 
 ## Expected TTK refinement, Arcane audit, and metric consistency (2026-11-12)
 
-For Expected TTK, the optimizer skips repeated proxy-only refinement after beam search. It evaluates up to 12 effect-diverse legal beam finalists with the finite encounter model, then tests up to two passes of up to 24 legal one-mod replacements. The TTK comparator prefers a kill within 600 seconds, minimizes kill time, and uses finite encounter DPS only if both candidates reach the safety cap. A candidate already killing at the first attack's 0-second origin short-circuits further local refinement.
+For Expected TTK, the optimizer skips repeated proxy-only refinement after beam search. It evaluates up to 12 effect-diverse legal beam finalists with the finite encounter model, then tests up to four passes of up to 24 legal one-mod replacements. The additional passes let a later legal replacement revisit choices that an earlier pass moved away from. The TTK comparator prefers a kill within 600 seconds, minimizes kill time, and uses finite encounter DPS only if both candidates reach the safety cap. A candidate already killing at the first attack's 0-second origin short-circuits further local refinement.
 
 When ownership is unrestricted, Arcane selection scores every parsed rank of each eligible candidate against the finite encounter on the final mod list. If inventory filtering is active, the selected Arcane stays at the one highest owned rank recorded by the current inventory model; lower ranks are not assumed to be owned. If the Arcane changes after mod search, one legal finite-encounter mod pass runs and the Arcane is rechecked. The independent fixed-list audit checks every rank. On the 13-case corpus below, each of five runs matched the audited best Arcane for its returned mod list with zero modeled gap. This is conditional-on-build evidence, not joint Arcane/mod or global optimality.
 
@@ -1166,3 +1166,51 @@ The walkthrough also found that Spring-Loaded Chamber improved the modeled Expec
 
 Port-80 in-app-browser QA then optimized the same uncatalyzed Braton Prime and opened Why This Build. The selected four-mod build remained at 30/30; the Spring-Loaded Chamber row now reads `on reload (9s, while aiming): +75% fr` and retains its +39.4% leave-one-out contribution. The click-to-result observation was 1,226 ms including accessibility polling. The local test build was reset afterward. This confirms the local dev Worker/UI path; it does not substitute for a deployed follow-up after the explanation patch is merged.
 
+## Parser coverage and four-pass Expected TTK refresh (2026-11-14)
+
+Command: `node --import tsx/esm scripts/benchmarkBuildOptimizer.ts --runs=5`
+
+The five-run Node corpus covered 34 cases (170 optimizer results) after the finite Expected TTK refinement budget increased to four passes of up to 24 legal one-mod replacements, with the bounded pairwise fallback retained. Every returned build passed capacity, duplicate-name, incompatibility-group, and three-Forma checks. Per-case medians ranged from 1.476 to 5.037 seconds; the maximum-of-five observations ranged from 1.526 to 5.256 seconds. These five-run maxima are coarse observations, not population p95 estimates.
+
+| Weapon / attack | Goal | Median | Maximum of five | Forma | Legal |
+|---|---|---:|---:|---:|---|
+| Braton Prime / Normal Attack | Burst | 4.103 s | 4.232 s | 3 | Yes |
+| Cedo / Normal Attack | Burst | 3.615 s | 3.647 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Burst | 4.071 s | 4.187 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Burst | 3.190 s | 3.510 s | 2 | Yes |
+| Laetum / Normal Attack | Burst | 4.214 s | 4.349 s | 3 | Yes |
+| Cinta / Normal Attack | Burst | 3.740 s | 3.878 s | 3 | Yes |
+| Kuva Hek / Normal Attack | Scaling | 3.193 s | 3.491 s | 2 | Yes |
+| Torid / base mode | Scaling | 4.145 s | 4.453 s | 3 | Yes |
+| Broken War / Normal Attack | Burst | 3.829 s | 4.200 s | 3 | Yes |
+| Corvas Prime / Normal Attack | Burst | 1.642 s | 1.691 s | 3 | Yes |
+| Verglas Prime / Normal Attack | Burst | 3.558 s | 3.745 s | 3 | Yes |
+| Phantasma Prime / Beam | Scaling | 3.552 s | 3.746 s | 3 | Yes |
+| Rubico Prime / Normal Attack | Burst | 3.629 s | 3.658 s | 3 | Yes |
+| Perigale Prime / Normal Attack | Expected TTK | 3.736 s | 3.880 s | 2 | Yes |
+| Epitaph / Charged Shot | Burst | 5.037 s | 5.256 s | 3 | Yes |
+| Acrid / Normal Attack | Scaling | 3.622 s | 3.720 s | 3 | Yes |
+| Hystrix Prime / Fire Quill | Scaling | 4.005 s | 4.396 s | 2 | Yes |
+| Nukor / Normal Attack | Burst | 4.551 s | 4.672 s | 3 | Yes |
+| Nataruk / Perfect Shot | Burst | 3.395 s | 3.912 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | Burst | 3.388 s | 3.417 s | 3 | Yes |
+| Braton Prime / Normal Attack, Primary Overcharge at 100% energy | Burst | 3.969 s | 4.227 s | 3 | Yes |
+| Braton Prime / Normal Attack | Expected TTK | 3.495 s | 3.633 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Expected TTK | 3.462 s | 3.810 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Expected TTK | 3.067 s | 3.408 s | 3 | Yes |
+| Laetum / Normal Attack | Expected TTK | 4.257 s | 4.280 s | 3 | Yes |
+| Cinta / Normal Attack | Expected TTK | 3.546 s | 3.722 s | 3 | Yes |
+| Kuva Hek / Normal Attack | Expected TTK | 1.794 s | 2.216 s | 1 | Yes |
+| Torid / base mode | Expected TTK | 3.448 s | 3.550 s | 3 | Yes |
+| Broken War / Normal Attack | Expected TTK | 2.037 s | 2.204 s | 2 | Yes |
+| Corvas Prime / Normal Attack | Expected TTK | 1.476 s | 1.526 s | 3 | Yes |
+| Verglas Prime / Normal Attack | Expected TTK | 2.893 s | 3.373 s | 3 | Yes |
+| Epitaph / Charged Shot | Expected TTK | 2.950 s | 3.401 s | 3 | Yes |
+| Nataruk / Perfect Shot | Expected TTK | 2.481 s | 2.844 s | 2 | Yes |
+| Gram Prime / Heavy Slam Attack | Expected TTK | 2.643 s | 2.769 s | 3 | Yes |
+
+Epitaph Charged Shot / Burst is the performance exception. An isolated five-run repeat measured 5.004 s median / 5.938 s maximum; disabling Arcane optimization measured 4.941 / 5.636 s, so Arcane candidate evaluation does not explain the cost. A single-run CPU profile samples repeated `calculateBuild` calls and scoring as the main optimizer hot path. The four-pass increase is limited to Expected TTK; the Epitaph burst case is still slower than the five-second target and remains open for profiling and improvement.
+
+The catalog-coverage audit checked 694 weapons and 598 unique builder-eligible mod records: 466 have a parsed damage/performance effect, 132 have no parsed effect at maximum rank, and 90 records have unmatched lines conservatively flagged for review (17 partially parsed, 73 fully unparsed). The keyword screen includes utility false positives; this is a review list, not 90 confirmed missing damage models. Affected ranks stay manually selectable with an explanation and are omitted from auto-optimization until their combat effects are modeled.
+
+The production optimizer Worker is 103,969 bytes after moving the review helper out of the catalog's runtime module. This prevents the catalog JSON from being duplicated inside the Worker. Release checks pass at 595 tests / 49 files, TypeScript and production build, `npm run validate:sources`, focused ESLint, and CRLF-aware diff checking. The production Worker remains unmeasured for cold-start and mobile devices.

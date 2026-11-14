@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
 import type { ModEntry, ModEffect } from "../catalog/modCatalog";
-import { emptyEffect } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
 import {
@@ -1027,9 +1027,20 @@ function getOptimizerVariantTier(path: string): "flawed" | "standard" {
 
 function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate[] {
     const { ownedModUniqueNames, ownedModMaxRankByUniqueName, excludedModUniqueNames, allowNonMaxRank, targetFaction = "", lockedIncompatibilityGroups, lockedUniqueNames } = opts;
+    const allowedRanks = (mod: ModEntry): number[] => {
+        const maxRank = Math.max(0, Math.min(
+            mod.fusionLimit,
+            ownedModMaxRankByUniqueName?.[mod.uniqueName] ?? mod.fusionLimit,
+        ));
+        return allowNonMaxRank
+            ? Array.from({ length: maxRank + 1 }, (_, rank) => rank)
+            : [maxRank];
+    };
+    const hasSupportedDamageRank = (mod: ModEntry): boolean =>
+        mod.hasDamageEffect && allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank).length === 0);
     const familyHasStandard = new Set<string>();
     for (const mod of allMods) {
-        if (!mod.hasDamageEffect) continue;
+        if (!hasSupportedDamageRank(mod)) continue;
         if (mod.isAura) continue;
         if (excludedModUniqueNames?.has(mod.uniqueName)) continue;
         if (ownedModUniqueNames && !ownedModUniqueNames.has(mod.uniqueName)) continue;
@@ -1056,17 +1067,9 @@ function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate
             mod.effect.targetFaction.toLowerCase() !== targetFaction.toLowerCase()) continue;
         const familyKey = normalizeOptimizerVariantPath(mod.path);
         if (getOptimizerVariantTier(mod.path) === "flawed" && familyHasStandard.has(familyKey)) continue;
-        const maxAllowedRank = Math.max(
-            0,
-            Math.min(
-                mod.fusionLimit,
-                ownedModMaxRankByUniqueName?.[mod.uniqueName] ?? mod.fusionLimit,
-            ),
-        );
-        if (allowNonMaxRank) {
-            for (let r = maxAllowedRank; r >= 0; r--) out.push({ mod, rank: r });
-        } else {
-            out.push({ mod, rank: maxAllowedRank });
+        for (const rank of allowedRanks(mod).sort((a, b) => b - a)) {
+            if (getUnmodeledDamageEffectLines(mod, rank).length > 0) continue;
+            out.push({ mod, rank });
         }
     }
     return out;
@@ -1458,6 +1461,7 @@ function getCapacityAwarePolarities(
 const BEAM_WIDTH = 512;
 const BEAM_WIDTH_PER_FILLED_COUNT = 128;
 const BEAM_WIDTH_PER_THEME = 48;
+const EXPECTED_ENCOUNTER_SEED_LIMIT = 12;
 const COMBO_REFINE_SHORTLIST = 10;
 const COMBO_REFINE_MAX_SWAPS = 3;
 
@@ -1840,12 +1844,12 @@ function beamSearch(
             if (seenThemes.has(theme)) continue;
             seenThemes.add(theme);
             takeFinalist(state);
-            if (expectedEncounterSeeds.length >= 12) break;
+            if (expectedEncounterSeeds.length >= EXPECTED_ENCOUNTER_SEED_LIMIT) break;
         }
-        if (expectedEncounterSeeds.length < 12) {
+        if (expectedEncounterSeeds.length < EXPECTED_ENCOUNTER_SEED_LIMIT) {
             for (const state of finalists) {
                 takeFinalist(state);
-                if (expectedEncounterSeeds.length >= 12) break;
+                if (expectedEncounterSeeds.length >= EXPECTED_ENCOUNTER_SEED_LIMIT) break;
             }
         }
     }
@@ -2030,7 +2034,7 @@ const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 24;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
-const ENCOUNTER_REFINE_PASSES = 2;
+const ENCOUNTER_REFINE_PASSES = 4;
 const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 12;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
 const ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT = 24;
@@ -2141,6 +2145,22 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         "heatBonus", "coldBonus", "electricityBonus", "toxinBonus", "blastBonus", "gasBonus",
         "magneticBonus", "viralBonus", "corrosiveBonus", "radiationBonus", "voidBonus", "tauBonus",
     )) families.push("elemental");
+    const statusRelevant = has(
+        "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
+        "impactStatusAppliesMagneticChance", "impactStatusAppliesSlashChance", "critAppliesSlashChance",
+    );
+    const primaryElementKeys = [
+        ["heat", "heatBonus"],
+        ["cold", "coldBonus"],
+        ["electricity", "electricityBonus"],
+        ["toxin", "toxinBonus"],
+    ] as const;
+    for (const [element, key] of primaryElementKeys) {
+        if (!has(key)) continue;
+        families.push(`elemental-${element}`);
+        if (statusRelevant) families.push(`elemental-${element}-status`);
+    }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("critChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
         families.push("critical");
@@ -2523,10 +2543,16 @@ function refineBuildByExpectedEncounter(
         const shortlist = sortedProposals.slice(0, ENCOUNTER_REFINE_PROXY_SHORTLIST);
         const shortlistedSignatures = new Set(shortlist.map((proposal) => proposal.elementTheme));
         const shortlistedTransitions = new Set<string>();
+        const shortlistedTransitionCandidates = new Set(shortlist.flatMap((proposal) => proposal.candidates.map((candidate) =>
+            `${candidate.mod.uniqueName}@${candidate.rank}`,
+        )));
         for (const proposal of sortedProposals) {
             if (shortlist.length >= ENCOUNTER_REFINE_PROXY_SHORTLIST + ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT) break;
             if (!proposal.elementTransition || shortlistedTransitions.has(proposal.elementTransition)) continue;
+            const candidateKey = `${proposal.candidates[0]?.mod.uniqueName}@${proposal.candidates[0]?.rank}`;
+            if (shortlistedTransitionCandidates.has(candidateKey)) continue;
             shortlistedTransitions.add(proposal.elementTransition);
+            shortlistedTransitionCandidates.add(candidateKey);
             shortlist.push(proposal);
         }
         for (const proposal of sortedProposals) {
@@ -2539,9 +2565,15 @@ function refineBuildByExpectedEncounter(
         const singleCandidateKeys = new Set(shortlist.flatMap((proposal) => proposal.candidates.map((candidate) =>
             `${candidate.mod.uniqueName}@${candidate.rank}`,
         )));
+        // Exact encounter TTK is especially sensitive to elemental transitions;
+        // reserve this family before proxy-adjacent base-damage/tempo alternatives
+        // can consume the bounded single-replacement shortlist.
         for (const family of [
-            "fire-rate", "critical", "base-damage", "elemental", "multishot",
-            "faction-damage", "status", "weapon-tempo", "other",
+            "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
+            "elemental-electricity-status", "elemental-cold", "elemental-toxin",
+            "elemental-heat", "elemental-electricity", "elemental",
+            "multishot", "faction-damage", "critical", "fire-rate",
+            "base-damage", "status", "weapon-tempo", "other",
         ]) {
             let addedForFamily = 0;
             for (const proposal of sortedProposals) {
@@ -2578,10 +2610,8 @@ function refineBuildByExpectedEncounter(
         }
 
         // A useful TTK build can require a pair of mutually reinforcing swaps:
-        // neither move may win alone, so a one-mod neighborhood cannot reach it.
-        // Search a small family-diverse pool of incoming mods only after the
-        // single-mod shortlist has stalled, then rank legal pairs by the proxy
-        // before spending finite-encounter evaluations.
+        // neither move may win alone, so search pairs after the single-mod
+        // neighborhood stalls.
         if (!bestProposal) {
             const candidateMoves = new Map<string, { candidate: Candidate; proxyScore: number }>();
             for (const proposal of sortedProposals) {
@@ -2608,6 +2638,9 @@ function refineBuildByExpectedEncounter(
                 pairCandidatePool.push(entry.candidate);
             };
             const familyOrder = [
+                "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
+                "elemental-electricity-status", "elemental-cold", "elemental-toxin",
+                "elemental-heat", "elemental-electricity",
                 "elemental", "multishot", "critical", "fire-rate", "base-damage",
                 "faction-damage", "status", "weapon-tempo", "other",
             ];
@@ -2993,6 +3026,7 @@ function optimizeExilusSlot(
     for (const mod of eligibleExilus) {
         const minRank = opts.allowNonMaxRank ? 0 : mod.fusionLimit;
         for (let r = mod.fusionLimit; r >= minRank; r--) {
+            if (getUnmodeledDamageEffectLines(mod, r).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
             if (opts.capacityConfig) {
                 const capSlots = mainSlots;
@@ -3947,4 +3981,3 @@ export function explainBuild(
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
-
