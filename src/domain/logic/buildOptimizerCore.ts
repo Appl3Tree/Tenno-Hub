@@ -882,13 +882,21 @@ function scoreSlots(
     baseEffects: (ModEffect | null)[] = [],
     conditionalState?: ConditionalState,
     targetProfileOverride?: TargetProfileOverride,
+    effectsScratch?: (ModEffect | null)[],
 ): number {
-    const effects = slots.map((m, i) => {
-        if (!m) return null;
+    const effects = effectsScratch ?? [];
+    effects.length = 0;
+    for (const effect of baseEffects) effects.push(effect);
+    for (let i = 0; i < slots.length; i++) {
+        const m = slots[i];
+        if (!m) {
+            effects.push(null);
+            continue;
+        }
         const r = ranks[i] ?? m.fusionLimit;
-        return m.effectsByRank[r] ?? m.effect;
-    });
-    return scoreEffects(weapon, [...baseEffects, ...effects], goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState);
+        effects.push(m.effectsByRank[r] ?? m.effect);
+    }
+    return scoreEffects(weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState);
 }
 
 export function debugScoreBuild(
@@ -1599,6 +1607,7 @@ function beamSearch(
     const fixedExtraCapacity = capacityConfig
         ? extraCapacitySlots.reduce((total, extra) => total + effectiveDrain(extra.mod, extra.polarity, extra.rank), 0)
         : 0;
+    const scoreEffectsScratch: (ModEffect | null)[] = [];
 
     const insertFormaSaving = (savings: number[], saving: number): number[] => {
         let insertAt = 0;
@@ -1653,6 +1662,7 @@ function beamSearch(
             preEquippedEffects,
             opts.conditionalState,
             opts.targetProfileOverride,
+            scoreEffectsScratch,
         ),
         filledCount: lockedSlots.filter(Boolean).length,
         capacityUsed: initialCapacityUsed,
@@ -1766,6 +1776,7 @@ function beamSearch(
                     preEquippedEffects,
                     opts.conditionalState,
                     opts.targetProfileOverride,
+                    scoreEffectsScratch,
                 );
             }
             deduped.set(signature, candidate);
