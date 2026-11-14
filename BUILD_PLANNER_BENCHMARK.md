@@ -1,8 +1,53 @@
 # Build Planner Optimizer Benchmark
 
-Run date: 2026-11-11; current full-width refresh: 2026-11-12  
+Run date: 2026-11-13; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
+
+## Joint Arcane refinement full-width refresh (2026-11-13)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5`
+
+Five repetitions were run for each of 34 cases (170 optimizations) after Arcane/mod refinement was made iterative. The corpus spans Burst and Scaling proxy objectives, 13 Expected TTK cases, and Primary Overcharge with energy inputs. All 170 results were capacity-, uniqueness-, incompatibility-, and three-Forma-legal. Per-case medians ranged from 0.551 to 3.633 seconds; max-of-five p95 observations ranged from 0.641 to 3.855 seconds. Each p95 is the maximum of five observations, not a statistically stable tail estimate.
+
+| Weapon / selected attack | Goal | Median | Max-of-five p95 | Forma | Legal |
+|---|---|---:|---:|---:|---|
+| Braton Prime | Burst | 2.830 s | 2.929 s | 3 | Yes |
+| Cedo | Burst | 2.312 s | 2.457 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Burst | 2.710 s | 2.813 s | 3 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Burst | 2.311 s | 2.466 s | 2 | Yes |
+| Laetum | Burst | 2.956 s | 3.089 s | 3 | Yes |
+| Cinta | Burst | 2.533 s | 2.665 s | 3 | Yes |
+| Kuva Hek | Scaling | 2.229 s | 2.300 s | 2 | Yes |
+| Torid | Scaling | 3.223 s | 3.338 s | 3 | Yes |
+| Broken War | Burst | 2.729 s | 2.920 s | 3 | Yes |
+| Corvas Prime | Burst | 1.101 s | 1.129 s | 3 | Yes |
+| Verglas Prime | Burst | 2.624 s | 2.653 s | 3 | Yes |
+| Phantasma Prime / Beam | Scaling | 2.390 s | 2.528 s | 3 | Yes |
+| Rubico Prime | Burst | 2.431 s | 2.578 s | 3 | Yes |
+| Perigale Prime | Burst | 1.968 s | 1.993 s | 3 | Yes |
+| Epitaph / Charged Shot | Burst | 3.633 s | 3.855 s | 3 | Yes |
+| Acrid | Scaling | 2.604 s | 2.657 s | 3 | Yes |
+| Hystrix Prime / Fire Quill | Scaling | 2.940 s | 3.030 s | 2 | Yes |
+| Nukor | Burst | 3.180 s | 3.453 s | 3 | Yes |
+| Nataruk / Perfect Shot | Burst | 2.624 s | 2.703 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | Burst | 2.281 s | 2.352 s | 3 | Yes |
+| Braton Prime / Primary Overcharge at 1,000 Max Energy, 100% Energy | Burst | 2.915 s | 3.157 s | 3 | Yes |
+| Braton Prime | Expected TTK | 1.993 s | 2.073 s | 3 | Yes |
+| Cedo / Glaive Radial Attack | Expected TTK | 1.768 s | 1.820 s | 2 | Yes |
+| Phantasma Prime / Plasma Bomb Explosion | Expected TTK | 1.861 s | 1.925 s | 3 | Yes |
+| Laetum | Expected TTK | 2.061 s | 2.144 s | 2 | Yes |
+| Cinta | Expected TTK | 2.027 s | 2.180 s | 3 | Yes |
+| Kuva Hek | Expected TTK | 1.097 s | 1.200 s | 1 | Yes |
+| Torid | Expected TTK | 1.883 s | 1.936 s | 3 | Yes |
+| Broken War | Expected TTK | 1.304 s | 1.379 s | 2 | Yes |
+| Corvas Prime | Expected TTK | 0.551 s | 0.641 s | 3 | Yes |
+| Verglas Prime | Expected TTK | 2.088 s | 2.104 s | 3 | Yes |
+| Epitaph / Charged Shot | Expected TTK | 2.230 s | 2.285 s | 3 | Yes |
+| Nataruk / Perfect Shot | Expected TTK | 1.416 s | 1.514 s | 1 | Yes |
+| Gram Prime / Heavy Slam Attack | Expected TTK | 1.653 s | 1.711 s | 3 | Yes |
+
+A separate `--runs=1 --verify-arcane-selection` pass audited each returned fixed mod list against the supplied Arcane ranks. All 34 cases selected a best Arcane for the final returned list, with zero measured gap. This is conditional-on-build evidence, not proof of joint or global mod/Arcane optimality. The production build emits a 90,717-byte catalog-independent optimizer Worker; Vite continues to report existing large lazy chunks. Packaged Worker, cold-start, mobile, and cross-device latency remain unmeasured.
 
 ## Expected TTK objective, targeted Braton Prime run (2026-11-12)
 

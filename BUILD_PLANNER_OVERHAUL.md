@@ -1,8 +1,14 @@
 # Build Planner Overhaul — Research and Progress
 
-Last updated: 2026-11-12. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
+Last updated: 2026-11-13. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
-## Latest follow-up (2026-11-12)
+## Latest follow-up (2026-11-13)
+
+### Joint mod and Arcane refinement (2026-11-13)
+
+Arcane and mod selection now alternate after the final slot-placement/fill step for Burst and Scaling, and during finite-encounter refinement for Expected TTK. Each pass keeps capacity and Forma constraints active. The optimizer stops when the selected Arcane is stable or after three bounded passes; it then rechecks the Arcane against the exact returned mod list. Expected TTK uses its finite encounter evaluator for both Arcane ranking and mod refinement, while Burst/Scaling use their existing shared proxy. This reduces the earlier selection-order gap but remains coordinate refinement over a bounded candidate neighborhood, not a global joint optimum.
+
+Regression coverage independently checks every Primary Overcharge rank against the final Braton Prime Expected TTK list; the existing bounded joint mod/Arcane oracle remains in place. `npm test` passes 576 tests across 49 files; `npm run build`, `npm run validate:sources`, focused ESLint, and `git diff --check` pass. The 34-case, five-run full-width Node benchmark returned legal results within three Forma for all 170 runs; medians ranged from 0.551 to 3.633 s, and max-of-five p95 observations ranged from 0.641 to 3.855 s. A separate one-run audit found zero Arcane score gap on the returned mod lists in all 34 cases. These are desktop Node timings and fixed-list Arcane checks; global joint optimality, broader objective-equivalent Underframe comparisons, stochastic histories, and production/cold/mobile/cross-device Worker performance remain open.
 
 ### Current game-source cutoff (2026-11-12)
 
