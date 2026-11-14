@@ -137,6 +137,38 @@ describe("damage calculation status eligibility", () => {
         expect(immune.unfilteredExtraProcsPerShot.electricity).toBeCloseTo(immune.multishot * 0.2, 10);
     });
 
+    it("applies Maiming Strike critical chance only to selected slide attacks", () => {
+        const telosBoltace = getWeaponCatalog().find((candidate) => candidate.name === "Telos Boltace");
+        expect(telosBoltace).toBeDefined();
+        const slideAttackIndex = telosBoltace!.attacks.findIndex((attack) => attack.name === "Stormpath Slide Attack");
+        const normalAttackIndex = telosBoltace!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(slideAttackIndex).toBeGreaterThanOrEqual(0);
+        expect(normalAttackIndex).toBeGreaterThanOrEqual(0);
+        const slideAttack = withSelectedAttack(telosBoltace!, slideAttackIndex);
+        const normalAttack = withSelectedAttack(telosBoltace!, normalAttackIndex);
+        expect(slideAttack.selectedAttackIsSlideAttack).toBe(true);
+        expect(normalAttack.selectedAttackIsSlideAttack).toBe(false);
+
+        const maimingStrike = getModsForWeapon(telosBoltace!).find((mod) => mod.name === "Maiming Strike");
+        expect(maimingStrike).toBeDefined();
+        expect(maimingStrike!.hasDamageEffect).toBe(true);
+        expect(maimingStrike!.effectsByRank.map((effect) => effect.slideAttackCritChanceBonus))
+            .toEqual([0.25, 0.5, 0.75, 1, 1.25, 1.5]);
+        for (let rank = 0; rank <= maimingStrike!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(maimingStrike!, rank)).toEqual([]);
+        }
+
+        const baseline = calculateBuild(slideAttack, []).modded;
+        const maxRank = maimingStrike!.effectsByRank[maimingStrike!.fusionLimit];
+        const moddedSlide = calculateBuild(slideAttack, [maxRank]).modded;
+        expect(moddedSlide.critChance).toBeCloseTo(
+            baseline.critChance + slideAttack.critChance * maxRank.slideAttackCritChanceBonus,
+            12,
+        );
+        const moddedNormal = calculateBuild(normalAttack, [maxRank]).modded;
+        expect(moddedNormal.critChance).toBeCloseTo(normalAttack.critChance, 12);
+    });
+
     it("parses and applies Shattering Impact only to quantized Impact melee hits", () => {
         const skana = getWeaponCatalog().find((candidate) => candidate.name === "Skana");
         expect(skana).toBeDefined();
