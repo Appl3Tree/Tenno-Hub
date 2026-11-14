@@ -22,6 +22,7 @@ describe("Damage 3.0 shared rules", () => {
     it("records the current Impact source and review date", () => {
         expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-14");
         expect(DAMAGE_RULESET.sources.impact).toBe("https://wiki.warframe.com/w/Damage/Impact_Damage");
+        expect(DAMAGE_RULESET.sources.shatteringImpact).toBe("https://wiki.warframe.com/w/Shattering_Impact");
     });
 
     it("uses signed 1/32 round-half-up quantization relative to modded base damage", () => {
