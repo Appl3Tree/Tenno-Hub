@@ -25,7 +25,7 @@ import {
     type IncarnonCandidateConfig,
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
-import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
@@ -1930,6 +1930,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
         });
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
+    const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank) : [];
 
     const polMatch    = !!(mod && slotPolarity && slotPolarity === mod.polarity);
     const polMismatch = !!(mod && slotPolarity && slotPolarity !== mod.polarity && slotPolarity !== "");
@@ -2003,11 +2004,20 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                     {currentStatsLabel}
                                     {rank < mod.fusionLimit && <span className="text-slate-600 ml-1">@{rank}/{mod.fusionLimit}</span>}
                                 </div>
+                                {currentUnmodeledDamageLines.length > 0 && (
+                                    <div
+                                        className="mt-1 text-[9px] leading-tight text-amber-300"
+                                        title={currentUnmodeledDamageLines.join(" · ")}
+                                    >
+                                        Damage effect not modeled; excluded from automatic optimization
+                                    </div>
+                                )}
                                 {showDetails && (
                                     <div className="wf-popover pointer-events-none absolute left-0 top-full z-[70] mt-2 w-64 rounded-lg border px-3 py-2">
                                         <div className="text-xs font-semibold leading-tight text-slate-100">{getBuilderDisplayModName(mod)}</div>
                                         <div className="mt-1 text-[11px] leading-relaxed text-slate-300">{currentStatsLabel}</div>
-                                        {!mod.hasDamageEffect && !mod.isBuiltIn && <div className="mt-1 text-[10px] leading-relaxed text-amber-300">Effect not modeled; automatic optimization excludes this mod.</div>}
+                                        {currentUnmodeledDamageLines.length > 0 && <div className="mt-1 text-[10px] leading-relaxed text-amber-300">Not included: {currentUnmodeledDamageLines.join(" · ")}</div>}
+                                        {!mod.hasDamageEffect && !mod.isBuiltIn && currentUnmodeledDamageLines.length === 0 && <div className="mt-1 text-[10px] leading-relaxed text-amber-300">No parsed damage effect; automatic optimization excludes this mod.</div>}
                                     </div>
                                 )}
                             </div>
@@ -2098,6 +2108,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                             const match    = !!(slotPolarity && slotPolarity === m.polarity);
                             const mismatch = !!(slotPolarity && slotPolarity !== m.polarity && slotPolarity !== "");
                             const owned    = ownedUniqueNames.size === 0 || ownedUniqueNames.has(m.uniqueName);
+                            const unmodeledDamageLines = getUnmodeledDamageEffectLines(m, m.fusionLimit);
                             return (
                                 <button key={m.uniqueName}
                                     className={["w-full px-3 py-2 text-left hover:bg-slate-800/50 transition-colors",
@@ -2138,7 +2149,8 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                     <div className="text-[10px] text-slate-500 mt-0.5 pl-5">
                                         {m.statsLabel || "—"}
                                         <span className="text-slate-700 ml-1">{m.rarity}</span>
-                                        {!m.hasDamageEffect && !m.isBuiltIn && <span className="ml-1 text-amber-500">Effect not modeled</span>}
+                                        {unmodeledDamageLines.length > 0 && <span className="ml-1 text-amber-400" title={unmodeledDamageLines.join(" · ")}>Damage effect not modeled; optimizer excludes</span>}
+                                        {!m.hasDamageEffect && !m.isBuiltIn && unmodeledDamageLines.length === 0 && <span className="ml-1 text-amber-500">Effect not modeled</span>}
                                     </div>
                                 </button>
                             );

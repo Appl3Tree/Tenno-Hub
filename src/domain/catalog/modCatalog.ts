@@ -13,7 +13,7 @@
 // when the selected weapon's name matches the compat name.
 
 import { emptyEffect } from "./modEffectUtils";
-export { emptyEffect } from "./modEffectUtils";
+export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
 import OVERFRAME_MODS_RAW from "../../../external/overframe-gg/mods.json";
@@ -69,6 +69,8 @@ export interface ModEffect {
     impactBonus: number;
     punctureBonus: number;
     slashBonus: number;
+    /** Additive base-damage bonus that applies only to a selected heavy attack. */
+    heavyAttackDamageBonus: number;
     heatBonus: number;
     coldBonus: number;
     electricityBonus: number;
@@ -247,6 +249,8 @@ export interface ModEntry {
     statsLabel: string;
     /** Raw display text for each rank index 0..fusionLimit */
     statsTextByRank: string[];
+    /** Source stat lines that none of the known effect parsers recognized, by rank. */
+    unparsedStatsByRank?: string[][];
     /** Effects at each rank index 0..fusionLimit */
     effectsByRank: ModEffect[];
     /** Max-rank effect (= effectsByRank[fusionLimit]) */
@@ -478,6 +482,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     );
 
     if (rest === "damage" || rest === "melee damage") return { damageBonus: scaled };
+    if (rest === "melee damage on heavy attack") return { heavyAttackDamageBonus: scaled };
     if (rest === "damage on first shot in magazine") return { firstShotMagazineDamageBonus: scaled };
     if (rest === "melee damage per status type affecting the target") {
         return { conditionOverloadDamagePerStatusBonus: scaled };
@@ -623,9 +628,13 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
 }
 
 function hasDamageEffect(e: ModEffect): boolean {
-    return Object.entries(e).some(([k, v]) =>
-        k !== "targetFaction" && (k === "conditionalEffects" ? Array.isArray(v) && v.length > 0 : v !== 0)
-    );
+    return Object.entries(e).some(([k, v]) => {
+        if (k === "targetFaction" || v == null || v === false) return false;
+        if (Array.isArray(v)) return v.length > 0;
+        if (typeof v === "number") return Number.isFinite(v) && v !== 0;
+        if (typeof v === "string") return v.length > 0;
+        return Boolean(v);
+    });
 }
 
 /** Detect trigger restriction from mod name (e.g. "Semi-Rifle Cannonade" → "Semi") */
@@ -1102,19 +1111,30 @@ function buildCaches(): ModCaches {
 
         // Build effects at every rank 0..fusionLimit
         const parsedLevelStats = levelStats ?? [];
+        const unparsedStatsByRank: string[][] = [];
         const effectsByRank: ModEffect[] = parsedLevelStats.map(ls => {
             let e = emptyEffect();
+            const unparsedStats = new Set<string>();
             for (const rawStat of (ls.stats ?? [])) {
                 for (const s of explodeStatLines(rawStat)) {
-                    e = mergeEffect(e, parseRampingLine(s));
-                    e = mergeEffect(e, parseComboScaledLine(s));
-                    e = mergeEffect(e, parseTriggeredStatLine(s));
-                    e = mergeEffect(e, parseStatLine(s));
-                    e = mergeEffect(e, parseFlatNumericLine(s));
-                    e = mergeEffect(e, parseConditionalStatusLine(s));
-                    e = mergeEffect(e, parseFactionLine(s));
+                    const parsedEffects = [
+                        parseRampingLine(s),
+                        parseComboScaledLine(s),
+                        parseTriggeredStatLine(s),
+                        parseStatLine(s),
+                        parseFlatNumericLine(s),
+                        parseConditionalStatusLine(s),
+                        parseFactionLine(s),
+                    ];
+                    let recognized = false;
+                    for (const partial of parsedEffects) {
+                        if (Object.keys(partial).length > 0) recognized = true;
+                        e = mergeEffect(e, partial);
+                    }
+                    if (!recognized) unparsedStats.add(s);
                 }
             }
+            unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
         // The upstream plain-text export omits Hunter Munitions' linked Slash
@@ -1128,6 +1148,9 @@ function buildCaches(): ModCaches {
                     const match = text.match(/([+-]?\d+(?:\.\d+)?)\s*%\s*chance to apply\s+(?:slash\s+)?on critical\b/i);
                     if (match && effectsByRank[rank]) {
                         effectsByRank[rank].critAppliesSlashChance = Number(match[1]) / 100;
+                        unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                            !/chance to apply\s+(?:slash\s+)?on critical\b/i.test(line),
+                        );
                         break;
                     }
                 }
@@ -1193,6 +1216,7 @@ function buildCaches(): ModCaches {
             fusionLimit: fl,
             statsLabel,
             statsTextByRank,
+            unparsedStatsByRank,
             effectsByRank,
             effect,
             hasDamageEffect: hasDamageEffect(effect),

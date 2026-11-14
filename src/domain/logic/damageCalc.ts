@@ -737,6 +737,9 @@ export function calculateBuild(
         const e = mods[index];
         if (!e) continue;
         damageBonus += e.damageBonus ?? 0;
+        if (weapon.selectedAttackUsesMeleeComboMultiplier === true) {
+            damageBonus += e.heavyAttackDamageBonus ?? 0;
+        }
         firstShotMagazineDamageBonus += e.firstShotMagazineDamageBonus ?? 0;
         impactBonus += e.impactBonus ?? 0;
         punctureBonus += e.punctureBonus ?? 0;
