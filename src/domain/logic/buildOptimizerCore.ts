@@ -3863,6 +3863,9 @@ function goalLabel(goal: OptimizeGoal): string {
 function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     const value = (key: keyof ModEffect) => Number(effect[key] ?? 0);
     const parts: string[] = [];
+    if (value("slideAttackCritChanceBonus") > 0) {
+        parts.push("+" + (value("slideAttackCritChanceBonus") * 100).toFixed(0) + "% slide-attack cc");
+    }
     if (value("damageBonus") > 0) parts.push(`+${(value("damageBonus") * 100).toFixed(0)}% dmg`);
     if (value("critChanceBonus") > 0) parts.push(`+${(value("critChanceBonus") * 100).toFixed(0)}% cc`);
     if (value("critMultBonus") > 0) parts.push(`+${(value("critMultBonus") * 100).toFixed(0)}% cd`);
