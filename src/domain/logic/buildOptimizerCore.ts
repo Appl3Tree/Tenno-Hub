@@ -2027,9 +2027,13 @@ function fillEmptySlots(
 }
 
 const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 24;
-const ENCOUNTER_REFINE_PROXY_SHORTLIST = 12;
-const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 12;
+const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
+const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
+const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
 const ENCOUNTER_REFINE_PASSES = 2;
+const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 12;
+const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
+const ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT = 24;
 const ARCANE_MOD_JOINT_REFINE_PASSES = 3;
 
 const ENCOUNTER_PRIMARY_ELEMENT_COMBINATIONS: Record<string, string> = {
@@ -2124,6 +2128,36 @@ function expectedEncounterElementTransition(
     const incomingType = getSinglePrimaryType(incoming, incomingRank);
     const outgoingType = getSinglePrimaryType(outgoing, outgoingRank);
     return incomingType && outgoingType ? `${incomingType}>${outgoingType}` : "";
+}
+
+function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
+    const effect = candidate.mod.effectsByRank[candidate.rank] ?? candidate.mod.effect;
+    const effects: Array<Partial<ModEffect>> = [effect, ...(effect.conditionalEffects ?? []).map((entry) => entry.stats)];
+    const has = (...keys: Array<keyof ModEffect>) => effects.some((entry) => keys.some((key) =>
+        Number(entry[key] ?? 0) !== 0,
+    ));
+    const families: string[] = [];
+    if (has(
+        "heatBonus", "coldBonus", "electricityBonus", "toxinBonus", "blastBonus", "gasBonus",
+        "magneticBonus", "viralBonus", "corrosiveBonus", "radiationBonus", "voidBonus", "tauBonus",
+    )) families.push("elemental");
+    if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
+    if (has("critChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
+        families.push("critical");
+    }
+    if (has("fireRateBonus", "attackSpeedBonus")) families.push("fire-rate");
+    if (has("damageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs")) families.push("base-damage");
+    if (has("factionDamageBonus")) families.push("faction-damage");
+    if (has(
+        "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
+        "impactStatusAppliesMagneticChance", "impactStatusAppliesSlashChance", "critAppliesSlashChance",
+    )) families.push("status");
+    if (has("magazineBonus", "reloadSpeedBonus", "ammoEfficiencyBonus", "nextMagazineMultishotPerShot")) {
+        families.push("weapon-tempo");
+    }
+    if (!families.length) families.push("other");
+    return families;
 }
 
 function expectedEncounterScoreForEffects(
@@ -2396,14 +2430,16 @@ function refineBuildByExpectedEncounter(
     }
 
     for (let pass = 0; pass < ENCOUNTER_REFINE_PASSES; pass++) {
-        const proposals = new Map<string, {
+        type EncounterReplacementProposal = {
             slots: (ModEntry | null)[];
             ranks: number[];
             polarities: string[];
             proxyScore: number;
             elementTheme: string;
             elementTransition: string;
-        }>();
+            candidates: Candidate[];
+        };
+        const proposals = new Map<string, EncounterReplacementProposal>();
         const existing = slots.flatMap((mod, index) => mod ? [{ mod, rank: ranks[index] ?? mod.fusionLimit, index }] : []);
 
         for (const candidate of candidates) {
@@ -2477,6 +2513,7 @@ function refineBuildByExpectedEncounter(
                         replaced?.mod ?? null,
                         replaced?.rank,
                     ),
+                    candidates: [candidate],
                 });
             }
         }
@@ -2493,10 +2530,31 @@ function refineBuildByExpectedEncounter(
             shortlist.push(proposal);
         }
         for (const proposal of sortedProposals) {
-            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+            if (shortlist.length >= ENCOUNTER_REFINE_PROXY_SHORTLIST +
+                ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT + ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT) break;
             if (!proposal.elementTheme || shortlistedSignatures.has(proposal.elementTheme)) continue;
             shortlistedSignatures.add(proposal.elementTheme);
             shortlist.push(proposal);
+        }
+        const singleCandidateKeys = new Set(shortlist.flatMap((proposal) => proposal.candidates.map((candidate) =>
+            `${candidate.mod.uniqueName}@${candidate.rank}`,
+        )));
+        for (const family of [
+            "fire-rate", "critical", "base-damage", "elemental", "multishot",
+            "faction-damage", "status", "weapon-tempo", "other",
+        ]) {
+            let addedForFamily = 0;
+            for (const proposal of sortedProposals) {
+                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                    addedForFamily >= ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY) break;
+                const candidate = proposal.candidates[0];
+                if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
+                const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+                if (singleCandidateKeys.has(candidateKey)) continue;
+                singleCandidateKeys.add(candidateKey);
+                if (!shortlist.includes(proposal)) shortlist.push(proposal);
+                addedForFamily++;
+            }
         }
         if (shortlist.length < ENCOUNTER_REFINE_CANDIDATE_LIMIT) {
             const shortlistedProposals = new Set(shortlist);
@@ -2516,6 +2574,193 @@ function refineBuildByExpectedEncounter(
             if (isExpectedEncounterBetter(evaluated, best)) {
                 best = evaluated;
                 bestProposal = proposal;
+            }
+        }
+
+        // A useful TTK build can require a pair of mutually reinforcing swaps:
+        // neither move may win alone, so a one-mod neighborhood cannot reach it.
+        // Search a small family-diverse pool of incoming mods only after the
+        // single-mod shortlist has stalled, then rank legal pairs by the proxy
+        // before spending finite-encounter evaluations.
+        if (!bestProposal) {
+            const candidateMoves = new Map<string, { candidate: Candidate; proxyScore: number }>();
+            for (const proposal of sortedProposals) {
+                const candidate = proposal.candidates[0];
+                if (!candidate) continue;
+                const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+                const currentContainsCandidate = existing.some((entry) =>
+                    entry.mod.uniqueName === candidate.mod.uniqueName && entry.rank === candidate.rank,
+                );
+                if (currentContainsCandidate) continue;
+                const prior = candidateMoves.get(candidateKey);
+                if (!prior || proposal.proxyScore > prior.proxyScore) {
+                    candidateMoves.set(candidateKey, { candidate, proxyScore: proposal.proxyScore });
+                }
+            }
+            const rankedCandidateMoves = [...candidateMoves.values()]
+                .sort((left, right) => right.proxyScore - left.proxyScore);
+            const pairCandidatePool: Candidate[] = [];
+            const pairCandidateKeys = new Set<string>();
+            const addPairCandidate = (entry: { candidate: Candidate }) => {
+                const key = `${entry.candidate.mod.uniqueName}@${entry.candidate.rank}`;
+                if (pairCandidateKeys.has(key) || pairCandidatePool.length >= ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT) return;
+                pairCandidateKeys.add(key);
+                pairCandidatePool.push(entry.candidate);
+            };
+            const familyOrder = [
+                "elemental", "multishot", "critical", "fire-rate", "base-damage",
+                "faction-damage", "status", "weapon-tempo", "other",
+            ];
+            for (const family of familyOrder) {
+                let addedForFamily = 0;
+                for (const entry of rankedCandidateMoves) {
+                    if (addedForFamily >= ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY) break;
+                    if (!expectedEncounterCandidateFamilies(entry.candidate).includes(family)) continue;
+                    const key = `${entry.candidate.mod.uniqueName}@${entry.candidate.rank}`;
+                    if (pairCandidateKeys.has(key)) continue;
+                    addPairCandidate(entry);
+                    if (pairCandidateKeys.has(key)) addedForFamily++;
+                }
+            }
+            for (const entry of rankedCandidateMoves) {
+                if (pairCandidatePool.length >= ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT) break;
+                addPairCandidate(entry);
+            }
+
+            if (pairCandidatePool.length >= 2) {
+                const mutableSlots = slots.flatMap((mod, index) => lockedSlots[index]
+                    ? []
+                    : [{ index, mod, rank: ranks[index] ?? (mod?.fusionLimit ?? 0) }],
+                );
+                const pairProposals = new Map<string, EncounterReplacementProposal>();
+                const pairTrialSignatures = new Set<string>();
+                for (let leftSlot = 0; leftSlot < mutableSlots.length; leftSlot++) {
+                    for (let rightSlot = leftSlot + 1; rightSlot < mutableSlots.length; rightSlot++) {
+                        for (let leftCandidate = 0; leftCandidate < pairCandidatePool.length; leftCandidate++) {
+                            for (let rightCandidate = leftCandidate + 1; rightCandidate < pairCandidatePool.length; rightCandidate++) {
+                                const incoming = [pairCandidatePool[leftCandidate], pairCandidatePool[rightCandidate]];
+                                const incomingHasElements = incoming.some((candidate) =>
+                                    expectedEncounterCandidateFamilies(candidate).includes("elemental"),
+                                );
+                                if (allowForma && !incomingHasElements && (leftSlot !== 0 || rightSlot !== 1)) continue;
+                                const trialSlots = [...slots];
+                                const trialRanks = [...ranks];
+                                trialSlots[mutableSlots[leftSlot].index] = incoming[0].mod;
+                                trialRanks[mutableSlots[leftSlot].index] = incoming[0].rank;
+                                trialSlots[mutableSlots[rightSlot].index] = incoming[1].mod;
+                                trialRanks[mutableSlots[rightSlot].index] = incoming[1].rank;
+                                const selectedMods = trialSlots.filter((mod): mod is ModEntry => !!mod);
+                                const uniqueNames = selectedMods.map((mod) => mod.uniqueName);
+                                const incompatibilityGroups = selectedMods
+                                    .map((mod) => mod.incompatibilityGroup)
+                                    .filter(Boolean);
+                                if (new Set(uniqueNames).size !== uniqueNames.length ||
+                                    new Set(incompatibilityGroups).size !== incompatibilityGroups.length) continue;
+                                const trialSignature = getBeamStateSignature(trialSlots, trialRanks, true);
+                                if (pairTrialSignatures.has(trialSignature)) continue;
+                                pairTrialSignatures.add(trialSignature);
+
+                                const selectedRanks = trialSlots.flatMap((mod, index) => mod
+                                    ? [trialRanks[index] ?? mod.fusionLimit]
+                                    : [],
+                                );
+                                const assigned = assignModsToSlots(
+                                    selectedMods,
+                                    selectedRanks,
+                                    assignmentPolarities,
+                                    slots.length,
+                                    allowForma,
+                                    opts.maxFormaCount,
+                                );
+                                const trialPolarities = allowForma
+                                    ? minimizePolaritiesByCapacity(
+                                        defaultPolarities,
+                                        assigned.slotMods,
+                                        assigned.slotRanks,
+                                        capacityConfig,
+                                        capacitySlots,
+                                        undefined,
+                                        opts.maxFormaCount,
+                                        opts.lockedSlotMask ?? [],
+                                    ).mainPolarities
+                                    : assigned.resultPolarities;
+                                if (capacityConfig && !fitsCapacity(
+                                    assigned.slotMods,
+                                    assigned.slotRanks,
+                                    capacityConfig,
+                                    trialPolarities,
+                                    capacitySlots,
+                                )) continue;
+
+                                const signature = getBeamStateSignature(
+                                    assigned.slotMods,
+                                    assigned.slotRanks,
+                                    true,
+                                );
+                                if (pairProposals.has(signature)) continue;
+                                pairProposals.set(signature, {
+                                    slots: assigned.slotMods,
+                                    ranks: assigned.slotRanks,
+                                    polarities: trialPolarities,
+                                    proxyScore: scoreSlots(
+                                        weapon,
+                                        assigned.slotMods,
+                                        assigned.slotRanks,
+                                        goal === "timeToKill" ? "scaling" : goal,
+                                        targetFaction,
+                                        arcaneEffect,
+                                        [...preEquippedEffects, ...extraEffects],
+                                        opts.conditionalState,
+                                        opts.targetProfileOverride,
+                                    ),
+                                    elementTheme: expectedEncounterElementTheme(weapon, assigned.slotMods, assigned.slotRanks),
+                                    elementTransition: "",
+                                    candidates: incoming,
+                                });
+                            }
+                        }
+                    }
+                }
+
+                const sortedPairProposals = [...pairProposals.values()]
+                    .sort((left, right) => right.proxyScore - left.proxyScore);
+                const pairShortlist = sortedPairProposals.slice(0, ENCOUNTER_REFINE_PROXY_SHORTLIST);
+                const pairThemes = new Set(pairShortlist.map((proposal) => proposal.elementTheme));
+                const pairFamilies = new Set(pairShortlist.map((proposal) => proposal.candidates
+                    .flatMap(expectedEncounterCandidateFamilies)
+                    .sort()
+                    .join("+"),
+                ));
+                for (const proposal of sortedPairProposals) {
+                    if (pairShortlist.length >= ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) break;
+                    if (!proposal.elementTheme || pairThemes.has(proposal.elementTheme)) continue;
+                    pairThemes.add(proposal.elementTheme);
+                    pairShortlist.push(proposal);
+                }
+                for (const proposal of sortedPairProposals) {
+                    if (pairShortlist.length >= ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) break;
+                    const family = proposal.candidates.flatMap(expectedEncounterCandidateFamilies).sort().join("+");
+                    if (!family || pairFamilies.has(family)) continue;
+                    pairFamilies.add(family);
+                    pairShortlist.push(proposal);
+                }
+                if (pairShortlist.length < ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) {
+                    const included = new Set(pairShortlist);
+                    for (const proposal of sortedPairProposals) {
+                        if (pairShortlist.length >= ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) break;
+                        if (included.has(proposal)) continue;
+                        included.add(proposal);
+                        pairShortlist.push(proposal);
+                    }
+                }
+                for (const proposal of pairShortlist) {
+                    const evaluated = exactScore(proposal.slots, proposal.ranks);
+                    candidatesEvaluated++;
+                    if (isExpectedEncounterBetter(evaluated, best)) {
+                        best = evaluated;
+                        bestProposal = proposal;
+                    }
+                }
             }
         }
         if (!bestProposal) break;
@@ -3669,7 +3914,7 @@ export function explainBuild(
         summary,
         winningEdge,
         comparisonNote: goal === "timeToKill"
-            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to two passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders and uses the remaining places for distinct single-element substitutions and elemental output families before filling by proxy score. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter, alternating Arcane choice and legal mod refinement for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
+            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls, the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter, alternating Arcane choice and legal mod refinement for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }

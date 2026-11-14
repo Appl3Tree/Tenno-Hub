@@ -1113,25 +1113,10 @@ describe("build optimizer scoring", () => {
         expect(result.encounterTimeToKillSeconds!).toBeLessThanOrEqual(screeningEncounter.timeToKillSeconds!);
     });
 
-    it("retains elemental alternatives that a sustained-damage proxy would prune", () => {
+    it("uses pairwise finite-TTK refinement to escape a weak proxy build", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
         expect(weapon).toBeTruthy();
-        const trackedNames = new Set([
-            "Malignant Force",
-            "Rime Rounds",
-            "Thermite Rounds",
-            "Primed Bane Of Grineer",
-            "Spectral Serration",
-            "Galvanized Aptitude",
-            "Vile Acceleration",
-            "Bladed Rounds",
-            "High Voltage",
-            "Galvanized Scope",
-        ].map((name) => name.toLowerCase()));
-        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!)).filter((mod) =>
-            trackedNames.has(mod.name.toLowerCase()),
-        );
-        expect(new Set(candidates.map((mod) => mod.name.toLowerCase()))).toEqual(trackedNames);
+        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
 
         const arcane = getArcanesForWeapon(weapon!).find((entry) => entry.name === "Primary Overcharge");
         expect(arcane).toBeTruthy();
@@ -1209,7 +1194,7 @@ describe("build optimizer scoring", () => {
         expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
         expect(selectedNames).toContain("High Voltage");
         expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
-        expect(result.encounterTimeToKillSeconds).toBeLessThan(0.77);
+        expect(result.encounterTimeToKillSeconds).toBeLessThan(0.66);
         expect(selectedFinalListArcaneScore).toBeCloseTo(bestFinalListArcaneScore, 12);
     });
 
