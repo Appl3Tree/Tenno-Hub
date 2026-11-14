@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon } from "../catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon, sortBuilderModsForDisplay } from "../catalog/modCatalog";
 import { getWeaponCatalog } from "../catalog/weaponCatalog";
 import { effectiveDrain } from "../logic/capacityCalc";
 import ITEMS_RAW from "../../data/_generated/items-lean.auto.json";
@@ -121,6 +121,12 @@ describe("weapon catalog stance inference", () => {
         expect(mods.some((mod) => mod.name === "Target Acquired")).toBe(true);
         // Missing ancestry must not widen a family-specific restriction.
         expect(mods.some((mod) => mod.name === "Deft Tempo")).toBe(false);
+        const serrationDisplayOrder = sortBuilderModsForDisplay(mods)
+            .filter((mod) => mod.name === "Serration")
+            .map((mod) => /\/beginner\//i.test(mod.path) || /Beginner$/i.test(mod.path)
+                ? `${mod.name} (Flawed)`
+                : mod.name);
+        expect(serrationDisplayOrder).toEqual(["Serration", "Serration (Flawed)"]);
 
         const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(getModsForWeapon(bratonPrime!).some((mod) => mod.name === "Primed Chamber")).toBe(false);
