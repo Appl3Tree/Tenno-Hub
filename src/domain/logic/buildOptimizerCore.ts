@@ -2234,6 +2234,7 @@ function expectedEncounterScoreForEffects(
         shotsPerMagazine: stats.shotsPerMag,
         infiniteAmmoActive: stats.infiniteAmmoActive,
         firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
+        lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
         reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
         ...getEncounterBurstTiming(weapon, stats.fireRate),
         statusDurationMultiplier: stats.statusDurationMultiplier,
