@@ -318,8 +318,10 @@ describe("damage calculation status eligibility", () => {
         }, []).modded;
 
         expect(direct.expectedStacksByType.puncture).toBe(5);
+        expect(direct.punctureEnemyDamageReduction).toBeCloseTo(0.8, 10);
         expect(direct.punctureCritChanceBonus).toBeCloseTo(0.25, 10);
         expect(area.expectedStacksByType.puncture).toBe(5);
+        expect(area.punctureEnemyDamageReduction).toBeCloseTo(0.8, 10);
         expect(area.punctureCritChanceBonus).toBe(0);
     });
 
