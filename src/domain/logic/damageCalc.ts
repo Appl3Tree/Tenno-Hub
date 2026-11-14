@@ -135,8 +135,16 @@ export interface ModdedWeaponStats {
     averageShotDamage: number;
     /** Additive multiplicative bonus for the first ammo-consuming shot after each magazine reload. */
     firstShotMagazineDamageBonus: number;
+    /** One-hit bonus for the final ammo-consuming attack in an eligible magazine. */
+    lastShotMagazineDamageBonus: number;
+    /** Aggregate final-shot multiplier, allocating the bonus to one hit among multishot. */
+    lastShotMagazineDamageMultiplier: number;
+    /** Rank-summed bonus requested by selected mods, even if inactive for this attack. */
+    lastShotMagazineRequestedDamageBonus: number;
+    /** Why the selected last-shot bonus is inactive, when one is present. */
+    lastShotMagazineInactiveReason: "base-magazine-under-six" | "continuous-weapon" | "unmodeled-reload-grenade" | "incarnon-attack" | "exalted-weapon" | "infinite-ammo" | "one-attack-per-magazine" | null;
     firstShotMagazineDamageMultiplier: number;
-    /** Average direct damage multiplier over a magazine after first-shot-only bonuses. */
+    /** Average direct damage multiplier over a magazine after first- and final-shot bonuses. */
     magazineAverageDamageMultiplier: number;
     quantizedBaseCritMultiplier: number;
     critChance: number;
@@ -687,6 +695,7 @@ export function calculateBuild(
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
     let damageBonus = 0;
     let firstShotMagazineDamageBonus = 0;
+    let lastShotMagazineDamageBonus = 0;
     let impactBonus = 0;
     let punctureBonus = 0;
     let slashBonus = 0;
@@ -741,6 +750,7 @@ export function calculateBuild(
             damageBonus += e.heavyAttackDamageBonus ?? 0;
         }
         firstShotMagazineDamageBonus += e.firstShotMagazineDamageBonus ?? 0;
+        lastShotMagazineDamageBonus += e.lastShotMagazineDamageBonus ?? 0;
         impactBonus += e.impactBonus ?? 0;
         punctureBonus += e.punctureBonus ?? 0;
         slashBonus += e.slashBonus ?? 0;
@@ -1207,9 +1217,32 @@ export function calculateBuild(
     const activeFirstShotMagazineDamageBonus = ignoresReloadAndMagazine || infiniteAmmoActive
         ? 0
         : Math.max(0, firstShotMagazineDamageBonus);
+    const requestedLastShotMagazineDamageBonus = Math.max(0, lastShotMagazineDamageBonus);
+    const lastShotMagazineInactiveReason = requestedLastShotMagazineDamageBonus <= 0
+        ? null
+        : weapon.isExalted
+            ? "exalted-weapon"
+            : weapon.selectedAttackIsIncarnon
+                ? "incarnon-attack"
+                : infiniteAmmoActive
+                    ? "infinite-ammo"
+                    : weapon.magazineSize < 6
+                        ? "base-magazine-under-six"
+                        : /catabolyst/i.test(weapon.name) && /reload.*explosion/i.test(weapon.selectedAttackName ?? "")
+                            ? "unmodeled-reload-grenade"
+                            : weapon.tags.includes("BEAM")
+                                ? "continuous-weapon"
+                                : Math.floor(calculatedShotsPerMag) < 2
+                                    ? "one-attack-per-magazine"
+                                    : null;
+    const activeLastShotMagazineDamageBonus = lastShotMagazineInactiveReason === null
+        ? requestedLastShotMagazineDamageBonus
+        : 0;
     const firstShotMagazineDamageMultiplier = 1 + activeFirstShotMagazineDamageBonus;
+    const lastShotMagazineDamageMultiplier = 1 +
+        activeLastShotMagazineDamageBonus / Math.max(1, damageWeightedMultishot);
     const magazineAverageDamageMultiplier = shotsPerMag > 0
-        ? 1 + activeFirstShotMagazineDamageBonus / shotsPerMag
+        ? 1 + (activeFirstShotMagazineDamageBonus + activeLastShotMagazineDamageBonus / Math.max(1, damageWeightedMultishot)) / shotsPerMag
         : 1;
     const damageRampMultipliers = calculateDamageRampMultipliers(
         weapon.selectedAttackDamageRamp,
@@ -1654,6 +1687,10 @@ export function calculateBuild(
         averageShotDamage,
         firstShotMagazineDamageBonus: activeFirstShotMagazineDamageBonus,
         firstShotMagazineDamageMultiplier,
+        lastShotMagazineDamageBonus: activeLastShotMagazineDamageBonus,
+        lastShotMagazineDamageMultiplier,
+        lastShotMagazineRequestedDamageBonus: requestedLastShotMagazineDamageBonus,
+        lastShotMagazineInactiveReason,
         magazineAverageDamageMultiplier,
         quantizedBaseCritMultiplier,
         critChance,
