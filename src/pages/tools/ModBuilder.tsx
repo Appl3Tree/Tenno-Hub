@@ -25,7 +25,7 @@ import {
     type IncarnonCandidateConfig,
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
-import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
@@ -1962,13 +1962,13 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
 
     const filtered = useMemo(() => {
         const q = query.toLowerCase();
-        return compatMods.filter(m => {
+        return sortBuilderModsForDisplay(compatMods.filter(m => {
             if (isExilusSlot && !m.isExilus) return false;
             if (usedGroups.has(m.incompatibilityGroup) && m.incompatibilityGroup !== mod?.incompatibilityGroup) return false;
             if (onlyOwned && ownedUniqueNames.size > 0 && !ownedUniqueNames.has(m.uniqueName)) return false;
             if (q && !getBuilderDisplayModName(m).toLowerCase().includes(q) && !m.statsLabel.toLowerCase().includes(q)) return false;
             return true;
-        });
+        }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank) : [];
@@ -2830,7 +2830,7 @@ function OwnedModsPanel({ availableMods }: { availableMods: ModEntry[] }) {
     const setCount = useTrackerStore(s => s.setCount);
     const setModRank = useTrackerStore(s => s.setModRank);
     const [query, setQuery] = useState("");
-    const allMods = useMemo(() => availableMods.filter(m => m.compatBucket !== "Riven"), [availableMods]);
+    const allMods = useMemo(() => sortBuilderModsForDisplay(availableMods.filter(m => m.compatBucket !== "Riven")), [availableMods]);
     const ownedCountForMod = (path: string) => inventoryCounts[`mods:${path}`] ?? inventoryCounts[path] ?? 0;
     const filtered = useMemo(() => {
         const q = query.toLowerCase();
