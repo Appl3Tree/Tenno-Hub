@@ -524,7 +524,9 @@ export function calculateBuild(
     targetFaction = "",
     options: DamageCalculationOptions = {},
 ): DamageMetrics {
-    const statusImmuneTypes = new Set(options.statusImmuneTypes ?? []);
+    const statusImmuneTypes = options.statusImmuneTypes instanceof Set
+        ? options.statusImmuneTypes
+        : new Set(options.statusImmuneTypes ?? []);
     const conditionalState = options.conditionalState ?? DEFAULT_CONDITIONAL_STATE;
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
