@@ -221,6 +221,7 @@ export interface ConditionalEffect {
         | "trueBonus"
         | "ammoEfficiencyBonus"
         | "directDamagePerStatusBonus"
+        | "initialComboBonus"
     >>;
 }
 
@@ -288,7 +289,7 @@ const CONDITIONAL_STAT_KEYS: (keyof ConditionalEffect["stats"])[] = [
     "statusDamageBonus", "punchThrough", "headshotMultiplierBonus", "weakPointDamageBonus",
     "blastBonus", "heatBonus", "coldBonus", "electricityBonus", "toxinBonus",
     "radiationBonus", "magneticBonus", "gasBonus", "viralBonus", "corrosiveBonus",
-    "voidBonus", "tauBonus", "trueBonus", "ammoEfficiencyBonus", "directDamagePerStatusBonus",
+    "voidBonus", "tauBonus", "trueBonus", "ammoEfficiencyBonus", "directDamagePerStatusBonus", "initialComboBonus",
 ];
 
 function extractConditionalStats(stats: Partial<ModEffect>): ConditionalEffect["stats"] {
@@ -356,7 +357,10 @@ function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
         .replace(/[.]\s*$/g, "")
         .replace(/\s+/g, " ")
         .trim();
-    const stats = parseStatLine(bodyForParsing, { applyStackMultiplier: false });
+    const stats = {
+        ...parseStatLine(bodyForParsing, { applyStackMultiplier: false }),
+        ...parseFlatNumericLine(bodyForParsing),
+    };
     const extractedStats = extractConditionalStats(stats);
     if (Object.keys(extractedStats).length === 0) return {};
 
@@ -833,6 +837,32 @@ function matchesHiddenTags(weapon: WeaponEntry, mod: ModEntry): boolean {
 }
 
 /**
+ * Training variants share the standard card's item restrictions, but the
+ * generated item feed omits those restrictions on several Beginner,
+ * Intermediate, and Expert records. Copy missing compatibility metadata from
+ * the same-name standard card so a flawed variant cannot bypass the standard
+ * card's compatibility rules.
+ */
+function inheritTrainingVariantCompatibility(byBucket: Map<string, ModEntry[]>): void {
+    for (const mods of byBucket.values()) {
+        const standardByName = new Map(
+            mods
+                .filter((mod) => !isTrainingVariant(mod.path))
+                .map((mod) => [mod.name.trim().toLowerCase(), mod]),
+        );
+        for (const mod of mods) {
+            if (!isTrainingVariant(mod.path)) continue;
+            const standard = standardByName.get(mod.name.trim().toLowerCase());
+            if (!standard) continue;
+
+            mod.compatibilityTags = [...new Set([...mod.compatibilityTags, ...standard.compatibilityTags])];
+            mod.incompatibilityTags = [...new Set([...mod.incompatibilityTags, ...standard.incompatibilityTags])];
+            mod.itemCompatibilityPath ??= standard.itemCompatibilityPath;
+        }
+    }
+}
+
+/**
  * WFCD's weapon feed includes some weapons whose full ancestry is missing from
  * our lean items catalog. For those records, preserve the broad native class
  * restrictions carried by a mod's ItemCompatibility path instead of silently
@@ -854,6 +884,8 @@ function matchesKnownWeaponFamilyPath(weapon: WeaponEntry, itemCompatibilityPath
             return weapon.category === "Primary" && weapon.modCompat === "Sniper";
         case "/Lotus/Weapons/Tenno/Rifle/LotusAssaultRifle":
             return weapon.tags.includes("ASSAULT_RIFLE");
+        case "/Lotus/Weapons/Tenno/Pistol/LotusPistol":
+            return weapon.category === "Secondary" && weapon.modCompat === "Pistol";
         case "/Lotus/Types/Game/LotusWeapon":
             return weapon.category !== "Companion";
         default:
@@ -882,7 +914,10 @@ function weaponMatchesItemCompatibility(weapon: WeaponEntry, itemCompatibilityPa
         return matchesKnownWeaponFamilyPath(weapon, itemCompatibilityPath);
     }
     if (raw?.parent === itemCompatibilityPath) return true;
-    return (raw?.parents ?? []).includes(itemCompatibilityPath);
+    if ((raw?.parents ?? []).includes(itemCompatibilityPath)) return true;
+    // Exalted weapons are catalogued under their Warframe power rather than
+    // the normal weapon tree, but they use the mod class of their weapon type.
+    return weapon.isExalted === true && matchesKnownWeaponFamilyPath(weapon, itemCompatibilityPath);
 }
 
 function beastCompatKeysForWeapon(weapon: WeaponEntry): string[] {
@@ -1209,6 +1244,9 @@ function buildCaches(): ModCaches {
         if (existing.some((mod) => mod.uniqueName === manual.uniqueName)) continue;
         existing.push(buildManualBuiltInStance(manual));
     }
+
+    inheritTrainingVariantCompatibility(byBucket);
+    inheritTrainingVariantCompatibility(byWeaponName);
 
     // Sort each list alphabetically
     for (const list of byBucket.values()) list.sort((a, b) => a.name.localeCompare(b.name));

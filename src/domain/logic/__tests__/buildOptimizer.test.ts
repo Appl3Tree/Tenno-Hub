@@ -464,6 +464,25 @@ describe("build optimizer scoring", () => {
         expect(stackedStatusChance - baseStatusChance).toBeCloseTo(baseStatusChance * 0.9, 8);
     });
 
+    it("scores Galvanized Reflex Initial Combo stacks for heavy attacks", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const heavySlam = withSelectedAttack(weapon!, attackIndex);
+        const galvanizedReflex = getModsForWeapon(weapon!).find((entry) => entry.name === "Galvanized Reflex");
+        expect(galvanizedReflex).toBeDefined();
+
+        const initial = debugScoreBuild(heavySlam, [galvanizedReflex!.effect], "burst", "", null, null, {
+            mode: "initial",
+        });
+        const fullyStacked = debugScoreBuild(heavySlam, [galvanizedReflex!.effect], "burst", "", null, null, {
+            mode: "fullyStacked",
+        });
+
+        expect(fullyStacked).toBeGreaterThan(initial);
+    });
+
     it("parses Condition Overload as an additive per-status melee damage effect", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
         expect(weapon).toBeTruthy();
