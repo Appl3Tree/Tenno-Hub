@@ -43,8 +43,10 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          # TypeScript's default heap limit is too small for the current project graph.
+          NODE_OPTIONS: --max-old-space-size=4096
           # Repository variable — safe to expose, not a secret.
-          # See the comment at the top of this file for setup instructions.
+          # See the comment at the top of the file for setup instructions.
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Upload Pages artifact
