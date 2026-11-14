@@ -169,6 +169,71 @@ describe("damage calculation status eligibility", () => {
         expect(moddedNormal.critChance).toBeCloseTo(normalAttack.critChance, 12);
     });
 
+    it("models additive final Status Chance and triggered weapon augment effects", () => {
+        const supra = getWeaponCatalog().find((candidate) => candidate.name === "Supra");
+        const entropyBurst = supra && getModsForWeapon(supra).find((mod) => mod.name === "Entropy Burst");
+        expect(entropyBurst).toBeDefined();
+        expect(entropyBurst!.effectsByRank.map((effect) => effect.finalStatusChanceBonus))
+            .toEqual([0.05, 0.1, 0.15, 0.2]);
+        expect(getUnmodeledDamageEffectLines(entropyBurst!, entropyBurst!.fusionLimit))
+            .toContain("Entropy syndicate side effect is not modeled.");
+        const supraBase = calculateBuild(supra!, []).modded;
+        const supraModded = calculateBuild(supra!, [entropyBurst!.effect]).modded;
+        expect(supraModded.statusChance).toBeCloseTo(supraBase.statusChance + 0.2, 12);
+
+        const carminePenta = getWeaponCatalog().find((candidate) => candidate.name === "Carmine Penta");
+        const napalmGrenades = carminePenta && getModsForWeapon(carminePenta).find((mod) => mod.name === "Napalm Grenades");
+        expect(napalmGrenades).toBeDefined();
+        expect(napalmGrenades!.effectsByRank.map((effect) => effect.finalStatusChanceBonus))
+            .toEqual([0.05, 0.1, 0.15, 0.2, 0.25, 0.3]);
+        expect(getUnmodeledDamageEffectLines(napalmGrenades!, napalmGrenades!.fusionLimit))
+            .toContain("Penta explosion damage conversion and lingering fire patch are not modeled.");
+        expect(napalmGrenades!.hasDamageEffect).toBe(true);
+        const pentaBase = calculateBuild(carminePenta!, []).modded;
+        const pentaModded = calculateBuild(carminePenta!, [napalmGrenades!.effect]).modded;
+        expect(pentaModded.statusChance).toBeCloseTo(pentaBase.statusChance + 0.3, 12);
+
+        const vesper = getWeaponCatalog().find((candidate) => candidate.name === "Vesper 77");
+        const leadedGas = vesper && getModsForWeapon(vesper).find((mod) => mod.name === "Leaded Gas");
+        expect(leadedGas).toBeDefined();
+        expect(leadedGas!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.stats))
+            .toEqual([0.5, 1, 1.5, 2, 2.5, 3].map((bonus) => ({ gasBonus: bonus, statusChanceBonus: bonus })));
+        expect(leadedGas!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.durationSeconds))
+            .toEqual([1, 2, 3, 4, 5, 6]);
+        for (let rank = 0; rank <= leadedGas!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(leadedGas!, rank)).toEqual([]);
+        }
+        const leadedInitial = calculateBuild(vesper!, [leadedGas!.effect], "", { conditionalState: { mode: "initial" } }).modded;
+        const leadedStacked = calculateBuild(vesper!, [leadedGas!.effect], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        expect(leadedInitial.statusChance).toBeCloseTo(vesper!.statusChance, 12);
+        expect(leadedStacked.statusChance).toBeCloseTo(vesper!.statusChance * 4, 12);
+        expect(leadedStacked.damageBreakdownBeforePerStatus.gas).toBeGreaterThan(0);
+
+        const ax52 = getWeaponCatalog().find((candidate) => candidate.name === "Ax-52");
+        const bioticRounds = ax52 && getModsForWeapon(ax52).find((mod) => mod.name === "Biotic Rounds");
+        expect(bioticRounds).toBeDefined();
+        expect(bioticRounds!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.trigger))
+            .toEqual(Array(6).fill("onWeakPointKill"));
+        expect(bioticRounds!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.durationSeconds))
+            .toEqual(Array(6).fill(15));
+        expect(bioticRounds!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.stats))
+            .toEqual([0.25, 0.5, 0.75, 1, 1.25, 1.5].map((bonus) => ({
+                viralBonus: bonus,
+                magneticBonus: bonus,
+                statusChanceBonus: bonus,
+            })));
+        for (let rank = 0; rank <= bioticRounds!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(bioticRounds!, rank)).toEqual([]);
+        }
+        const bioticInitial = calculateBuild(ax52!, [bioticRounds!.effect], "", { conditionalState: { mode: "initial" } }).modded;
+        const bioticStacked = calculateBuild(ax52!, [bioticRounds!.effect], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        expect(bioticInitial.damageBreakdownBeforePerStatus.viral).toBe(0);
+        expect(bioticInitial.damageBreakdownBeforePerStatus.magnetic).toBe(0);
+        expect(bioticStacked.damageBreakdownBeforePerStatus.viral).toBeGreaterThan(0);
+        expect(bioticStacked.damageBreakdownBeforePerStatus.magnetic).toBeGreaterThan(0);
+        expect(bioticStacked.statusChance).toBeGreaterThan(bioticInitial.statusChance);
+    });
+
     it("parses and applies Shattering Impact only to quantized Impact melee hits", () => {
         const skana = getWeaponCatalog().find((candidate) => candidate.name === "Skana");
         expect(skana).toBeDefined();

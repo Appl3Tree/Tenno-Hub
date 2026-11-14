@@ -4,6 +4,14 @@ Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Buil
 
 ## Latest follow-up (2026-11-14)
 
+### Source-backed weapon augment parsing and Perigale check (2026-11-14)
+
+The mod parser now interprets flat `+N Final Status Chance` as percentage points (`+20` means `+0.20`), and splits the shared conditional percentages on Gas damage + Status Chance and Viral + Magnetic damage + Status Chance for Leaded Gas and Biotic Rounds. Entropy Burst's syndicate side effect is reported as not modeled. Napalm Grenades' flat status bonus remains available for manual builds, while its Penta explosion Heat conversion and lingering ground patch are explicitly reported as unsupported and block Auto Optimize. Regression tests cover ranks, initial versus fully stacked conditional states, resulting damage channels, status totals, and warnings.
+
+Port-80 in-app-browser QA verified Supra Entropy Burst at `+20` final Status Chance (30% to 50%), the Vesper 77 Leaded Gas and Ax-52 Biotic Rounds picker entries, and Carmine Penta Napalm Grenades at `+30` with the unmodeled-effect warning. The temporary build was reset; the planner was left on Perigale Prime with zero mods. The clean local profile did not reproduce “flawed mods only”: Owned Mods reported 0/106 owned and the Perigale manual picker showed standard mods as well as Flawed variants. No Perigale compatibility change was warranted from this evidence; the user's profile-specific report remains unconfirmed.
+
+Release gates pass: 608 tests across 49 files, `npm run build`, `npm run validate:sources`, focused ESLint, and a CRLF-aware diff check. The optimizer Worker is 107,171 bytes. The latest full-width 36-case / five-run Node refresh returned 180 legal builds within three Forma, but Lex Prime Burst remains above five seconds (5.869s median / 5.898s maximum-of-five in the corpus; 4.854s / 5.505s in isolation). This maximum-of-five is not a stable p95 estimate. The parser change does not close the broader assignment: full-catalog mechanics and optimality, broad Underframe winner comparisons, stochastic status histories, and cold/mobile/production Worker latency remain open.
+
 ### Epitaph Burst shared-score reuse
 
 Initial single-mod and combo refinement now reuse a bounded cache of exact proxy scores populated by the final beam states. This changes only reuse, not the score or candidate neighborhood. On five-run Epitaph Charged Shot batches, cache-on measured 5.140 s median / 5.809 s maximum versus 5.558 s / 5.930 s cache-off; both returned the same legal 60/60 three-Forma build and score. This is a small sampled improvement, still above the 5 s target, with no stable p95 or production/mobile result. See BUILD_PLANNER_BENCHMARK.md. Overall assignment remains open.
