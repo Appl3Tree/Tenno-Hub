@@ -1500,6 +1500,21 @@ export function filterBuilderExpertVariants(pool: ModEntry[]): ModEntry[] {
     );
 }
 
+/**
+ * Keep regular mods ahead of their Flawed versions in builder-facing lists.
+ * This is a display-only copy; optimizer candidate order and catalog data stay unchanged.
+ */
+export function sortBuilderModsForDisplay(pool: ModEntry[]): ModEntry[] {
+    const isFlawed = (path: string) => /\/beginner\//i.test(path) || /Beginner$/i.test(path);
+
+    return [...pool].sort((left, right) => {
+        const baseNameOrder = left.name.localeCompare(right.name);
+        if (baseNameOrder !== 0) return baseNameOrder;
+
+        const flawedOrder = Number(isFlawed(left.path)) - Number(isFlawed(right.path));
+        return flawedOrder || left.name.localeCompare(right.name);
+    });
+}
 export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     if (!supportsStanceLikeMods(weapon)) return [];
     const { byStanceCompat, byFixedStanceWeapon } = getCaches();
