@@ -1,13 +1,18 @@
 import type { ModEffect } from "./modCatalog";
 
-const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
+const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
 /** Raw lines that a conservative keyword screen flags for parser review at this rank. */
 export function getUnmodeledDamageEffectLines(
     mod: { unparsedStatsByRank?: string[][] },
     rank: number,
 ): string[] {
-    return (mod.unparsedStatsByRank?.[rank] ?? []).filter((line) => DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
+        .filter((line) => DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    if (lines.some((line) => /\bentropy\b/i.test(line))) {
+        lines.push("Entropy syndicate side effect is not modeled.");
+    }
+    return [...new Set(lines)];
 }
 
 export function emptyEffect(): ModEffect {

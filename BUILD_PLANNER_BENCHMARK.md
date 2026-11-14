@@ -4,6 +4,14 @@ Run date: 2026-11-14; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Source-backed weapon augment parser and full-width refresh (2026-11-14)
+
+The current source parser handles additive Final Status Chance percentage points for Entropy Burst and Napalm Grenades, plus compound conditional Gas / Viral-and-Magnetic damage with Status Chance for Leaded Gas and Biotic Rounds. This follow-up did not change optimizer search. The standard `npm run benchmark:build-planner` corpus ran 36 cases / 180 optimizations. Every output was legal under slot capacity and the three-Forma limit. Case medians ranged from 0.654s to 5.869s; maximum-of-five observations ranged from 0.668s to 5.898s. These five-run maxima are observations, not statistically robust population p95 estimates.
+
+Lex Prime Burst is the clear latency exception: the full corpus recorded a 5.869s median / 5.898s maximum-of-five. An isolated five-run check measured 4.854s / 5.505s, and disabling Arcane plus Exilus search still measured 4.918s / 5.400s with the same legal mods, so those search dimensions do not explain the delay. Lex Prime Expected TTK measured 4.671s / 4.917s in the corpus and 3.826s / 3.976s isolated; its target dies at time zero under that fixture. The Lex Burst path needs profiling and further optimization without reducing candidate quality.
+
+The current-source production Worker is 107,171 bytes. This Node-core corpus does not measure cold or packaged browser Workers, mobile devices, or production UI responsiveness. Full build-quality and objective-equivalent Underframe evidence remain open.
+
 ## Shattering Impact and Perigale picker follow-up (2026-11-14)
 
 Shattering Impact now contributes its rank-scaled 1–6 flat base-Armor removal on each melee hit with nonzero quantized Impact damage, without requiring an Impact status proc. The target models permanent unscaled base-Armor removal before Heat and Corrosive percentage strips, using expected multishot as a mean-field number of hits. Charged/heavy Glaive throws are excluded; Melee Duplicate doubling and Archon/commandeered Prime immunity exceptions are not modeled. The rule follows the [WARFRAME Wiki Armor reference](https://wiki.warframe.com/w/Armor) and its Damage 3.0 quantization guidance.

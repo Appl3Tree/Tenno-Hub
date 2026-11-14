@@ -176,6 +176,7 @@ const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/Shri
 const SHATTERING_IMPACT_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeArmorShatterMod";
 const MAIMING_STRIKE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/SlideAttackCritChanceMod";
 const PROTOTYPE_SHOCK_COILS_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
+const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjectileMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
     "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
@@ -382,9 +383,21 @@ function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
         .replace(/[.]\s*$/g, "")
         .replace(/\s+/g, " ")
         .trim();
+    // These weapon augments apply one percentage to named damage types and
+    // Status Chance; the generic parser cannot split this compound value.
+    const compoundMatch = bodyForParsing.match(
+        /^([+-]?\d+(?:\.\d+)?)%\s+(Gas|Viral and Magnetic) Damage and Status Chance$/i,
+    );
+    const compoundBonus = compoundMatch ? Number(compoundMatch[1]) / 100 : 0;
+    const compoundStats: Partial<ModEffect> = compoundMatch
+        ? compoundMatch[2].toLowerCase() === "gas"
+            ? { gasBonus: compoundBonus, statusChanceBonus: compoundBonus }
+            : { viralBonus: compoundBonus, magneticBonus: compoundBonus, statusChanceBonus: compoundBonus }
+        : {};
     const stats = {
         ...parseStatLine(bodyForParsing, { applyStackMultiplier: false }),
         ...parseFlatNumericLine(bodyForParsing),
+        ...compoundStats,
     };
     const extractedStats = extractConditionalStats(stats);
     if (Object.keys(extractedStats).length === 0) return {};
@@ -487,12 +500,17 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
         : (stackMatch ? Math.max(1, Number(stackMatch[1])) : 1);
     const withoutPrefix = clean.replace(/^[^+-\d]*([+-]?\d)/, "$1");
     const value = extractPercent(withoutPrefix);
-    if (value === null) return {};
+    // Entropy Burst and Napalm Grenades publish their additive final Status
+    // Chance as percentage points without a % sign (+20 means +0.20 chance).
+    const flatFinalStatusChance = withoutPrefix.match(/^([+-]?\d+(?:\.\d+)?)\s+Final Status Chance\.?$/i);
+    if (value === null && !flatFinalStatusChance) return {};
 
-    const scaled = value * stackMult;
-    const rest = normalizeStatDescriptor(
-        stripParens(withoutPrefix.replace(/^[+-]?\d+(?:\.\d+)?%\s*/, "").trim()).toLowerCase()
-    );
+    const scaled = (value ?? Number(flatFinalStatusChance![1]) / 100) * stackMult;
+    const rest = flatFinalStatusChance
+        ? "final status chance"
+        : normalizeStatDescriptor(
+            stripParens(withoutPrefix.replace(/^[+-]?\d+(?:\.\d+)?%\s*/, "").trim()).toLowerCase()
+        );
 
     if (rest === "damage" || rest === "melee damage") return { damageBonus: scaled };
     if (rest === "critical chance and damage") {
@@ -1195,6 +1213,18 @@ function buildCaches(): ModCaches {
                     break;
                 }
             });
+        }
+        if (path === NAPALM_GRENADES_PATH) {
+            // The current Penta augment also converts its explosion to Heat and
+            // leaves a damaging ground patch; those weapon-specific effects are
+            // not represented by the selected attack rows. Keep its parsed flat
+            // status bonus available for manual builds, but block auto-selection.
+            // https://wiki.warframe.com/w/Napalm_Grenades
+            for (let rank = 0; rank < unparsedStatsByRank.length; rank++) {
+                unparsedStatsByRank[rank].push(
+                    "Penta explosion damage conversion and lingering fire patch are not modeled.",
+                );
+            }
         }
         // The upstream plain-text export omits Hunter Munitions' linked Slash
         // type, leaving "chance to apply on Critical". The current Wiki confirms
