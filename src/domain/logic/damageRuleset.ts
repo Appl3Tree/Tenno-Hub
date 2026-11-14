@@ -1,14 +1,16 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The official patch index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4
- * were checked on 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11. Damage quantization follows the
+ * The Impact and Puncture status pages were checked on 2026-11-14. The official patch
+ * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
+ * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
+ * Damage quantization follows the
  * current Damage/Calculation and Damage Quantization pages; encounter and weapon-
  * specific details that remain approximate are recorded rather than inferred.
  */
 export const DAMAGE_RULESET = Object.freeze({
     id: "damage-3.0",
-    lastVerified: "2026-11-13",
+    lastVerified: "2026-11-14",
     gameUpdate: "Update 36.0 onward; checked through Update 44.1.4.1",
     sources: Object.freeze({
         damage: "https://wiki.warframe.com/w/Damage/Calculation",

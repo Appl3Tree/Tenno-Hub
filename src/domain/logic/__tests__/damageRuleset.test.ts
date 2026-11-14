@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    DAMAGE_RULESET,
     DAMAGE_QUANTIZATION_DENOMINATOR,
     STATUS_DAMAGE_TYPES,
     STATUS_EFFECT_RULES,
@@ -18,6 +19,11 @@ import {
 } from "../damageRuleset";
 
 describe("Damage 3.0 shared rules", () => {
+    it("records the current Impact source and review date", () => {
+        expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-14");
+        expect(DAMAGE_RULESET.sources.impact).toBe("https://wiki.warframe.com/w/Damage/Impact_Damage");
+    });
+
     it("uses signed 1/32 round-half-up quantization relative to modded base damage", () => {
         const base = 96;
         const quantum = base / DAMAGE_QUANTIZATION_DENOMINATOR;
