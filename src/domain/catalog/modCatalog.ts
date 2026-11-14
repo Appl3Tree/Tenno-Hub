@@ -490,9 +490,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "critical chance and damage") {
         return { critChanceBonus: scaled, critMultBonus: scaled };
     }
-    if (/^bonus damage on final shot\.?\s*requires magazine \d+ or higher\.?$/.test(rest)) {
-        return { lastShotMagazineDamageBonus: scaled };
-    }
+    if (/^bonus damage on final shot\.?\s*requires magazine \d+ or higher\.?$/.test(rest)) return { lastShotMagazineDamageBonus: scaled };
     if (rest === "melee damage on heavy attack") return { heavyAttackDamageBonus: scaled };
     if (rest === "damage on first shot in magazine") return { firstShotMagazineDamageBonus: scaled };
     if (rest === "melee damage per status type affecting the target") {
@@ -1161,7 +1159,6 @@ function buildCaches(): ModCaches {
                     break;
                 }
             });
-        }
         // The upstream plain-text export omits Hunter Munitions' linked Slash
         // type, leaving "chance to apply on Critical". The current Wiki confirms
         // that this independent chance applies Slash; recover the percentage
