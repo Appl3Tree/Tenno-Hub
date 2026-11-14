@@ -4,6 +4,14 @@ Run date: 2026-11-14; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Critical Focus aiming-condition parser (2026-11-14)
+
+The parser now splits Critical Focus's combined critical-chance-and-damage line into equal rank-scaled critical chance and critical multiplier bonuses; its “when aiming” suffix maps to whileAiming. Tests cover all ranks for Corvas Prime, state assumptions, zero unmodeled damage lines, and the optimizer's ability to select it.
+
+The five-run desktop Node benchmark used Initial conditional state for Burst and Expected TTK. Burst median was 1.723 s and the maximum observation was 2.036 s. Expected TTK median was 1.100 s and maximum 1.178 s; the returned build modeled 0.263 s across 78 exact encounter candidates. These measurements do not represent production-browser Worker latency or a statistically robust p95.
+
+The source coverage audit reports 467 parsed records, 89 review candidates, 17 partial records and 72 fully unparsed flagged records from 598 eligible mods across 694 weapons. No eligible weapon pool lacks a parsed damage effect. The assignment remains open for broader mechanic and quality coverage, global optimality, and cold/mobile/cross-device Worker timing.
+
 ## Expected TTK refinement coverage and production baseline (2026-11-14)
 
 The single-replacement Expected TTK shortlist now reserves an exact finite-encounter evaluation for each available effect family before taking a second candidate from any family. The cap increased from 24 to 40 to preserve elemental, tempo, critical, multishot, faction, status, and base-damage alternatives in the same pass. This remains a bounded heuristic; family labels choose which candidates receive the exact evaluator and do not guarantee a global optimum.
