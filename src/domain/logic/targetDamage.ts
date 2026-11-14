@@ -168,10 +168,12 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attack events available before each reload-like interruption. */
     shotsPerMagazine?: number;
-    /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
+    /** Treat ammunition as infinite and suppress both first- and final-shot magazine bonuses. */
     infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
     firstShotMagazineDamageBonus?: number;
+    /** One-hit bonus on the final ammo-consuming attack in each magazine. */
+    lastShotMagazineDamageBonus?: number;
     /** Reload time added after a full magazine, before the next attack interval. */
     reloadDurationSeconds?: number;
     /** Number of damage events in each burst, when this attack has burst metadata. */
@@ -221,10 +223,12 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attacks before a reload-like interruption. */
     shotsPerMagazine?: number;
-    /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
+    /** Treat ammunition as infinite and suppress both first- and final-shot magazine bonuses. */
     infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
     firstShotMagazineDamageBonus?: number;
+    /** One-hit bonus on the final ammo-consuming attack in each magazine. */
+    lastShotMagazineDamageBonus?: number;
     /** Reload time after each full magazine. */
     reloadDurationSeconds?: number;
     /** Number of damage events in each burst, when this attack has burst metadata. */
@@ -1190,7 +1194,11 @@ export function simulateExpectedWeaponEncounter(
             const firstShotMagazineDamageMultiplier = !input.infiniteAmmoActive && attackIndex % shotsPerMagazine === 0
                 ? 1 + finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0)
                 : 1;
-            const attackDamageMultiplier = attackDamageRampMultiplier * firstShotMagazineDamageMultiplier;
+            const lastShotMagazineDamageMultiplier = !input.infiniteAmmoActive && attackIndex % shotsPerMagazine === shotsPerMagazine - 1
+                ? 1 + finiteNonNegative(input.lastShotMagazineDamageBonus ?? 0) /
+                    Math.max(1, finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ?? 1))
+                : 1;
+            const attackDamageMultiplier = attackDamageRampMultiplier * firstShotMagazineDamageMultiplier * lastShotMagazineDamageMultiplier;
             const timedDamageBonus = timedDamageStacks.reduce(
                 (sum, runtime) => sum +
                     advanceTimedDamageStackRuntime(runtime, now) * runtime.rule.damageBonusPerStack,
@@ -1423,7 +1431,14 @@ export function simulateDirectAttackSequence(
     const firstShotMagazineDamageBonus = input.infiniteAmmoActive
         ? 0
         : finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0);
-    if (input.damageRampRule || input.heavyAttackCombo || firstShotMagazineDamageBonus > 0) {
+    const lastShotMagazineDamageBonus = input.infiniteAmmoActive
+        ? 0
+        : finiteNonNegative(input.lastShotMagazineDamageBonus ?? 0);
+    const expectedProjectiles = Math.max(
+        1,
+        finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ?? 1),
+    );
+    if (input.damageRampRule || input.heavyAttackCombo || firstShotMagazineDamageBonus > 0 || lastShotMagazineDamageBonus > 0) {
         const damageByPool = zeroPools();
         const combo = input.heavyAttackCombo;
         let rampMultiplier = input.damageRampRule ? getInitialDamageRampMultiplier(input.damageRampRule) : 1;
@@ -1507,9 +1522,11 @@ export function simulateDirectAttackSequence(
                 ...input,
                 damageByType,
                 expectedHitDamageMultiplier,
-                damageRampMultiplier: rampMultiplier * (index % shotsPerMagazine === 0
-                    ? 1 + firstShotMagazineDamageBonus
-                    : 1),
+                damageRampMultiplier: rampMultiplier *
+                    (index % shotsPerMagazine === 0 ? 1 + firstShotMagazineDamageBonus : 1) *
+                    (index % shotsPerMagazine === shotsPerMagazine - 1
+                        ? 1 + lastShotMagazineDamageBonus / expectedProjectiles
+                        : 1),
                 health: remainingPools.health,
                 shields: remainingPools.shields,
                 overguard: remainingPools.overguard,
