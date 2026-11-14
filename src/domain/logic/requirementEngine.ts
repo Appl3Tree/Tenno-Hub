@@ -14,6 +14,7 @@ import {
 import type { SourceId } from "../ids/sourceIds";
 import { SOURCE_INDEX } from "../../catalog/sources/sourceCatalog";
 import { getAcquisitionByCatalogId } from "../../catalog/items/itemAcquisition";
+import { evaluateSourcePrerequisiteAccess } from "./sourcePrerequisiteAccess";
 
 import type { PrereqId } from "../ids/prereqIds";
 
@@ -558,33 +559,18 @@ function isDirectGoalFarmScope(catalogId: CatalogId): boolean {
 function canAccessSource(sourceId: SourceId, completedPrereqs: Record<string, boolean>): boolean {
     const sidStr = String(sourceId);
 
-    // Drop-table sources are actionable locations by default.
-    if (sidStr.startsWith("data:drop:")) {
-        return true;
-    }
-
     // "data:*" synthetic sources are allowed by default unless SOURCE_INDEX explicitly gates them.
     if (sidStr.startsWith("data:")) {
         const def = SOURCE_INDEX[sourceId];
         if (!def) return true;
-
-        const prereqs = Array.isArray(def.prereqIds) ? def.prereqIds : [];
-        for (const pr of prereqs) {
-            if (!completedPrereqs[String(pr)]) return false;
-        }
-        return true;
+        return evaluateSourcePrerequisiteAccess(sourceId, completedPrereqs).accessible;
     }
 
     // Curated sources: fail-closed if missing from SOURCE_INDEX.
     const def = SOURCE_INDEX[sourceId];
     if (!def) return false;
 
-    const prereqs = Array.isArray(def.prereqIds) ? def.prereqIds : [];
-    for (const pr of prereqs) {
-        if (!completedPrereqs[String(pr)]) return false;
-    }
-
-    return true;
+    return evaluateSourcePrerequisiteAccess(sourceId, completedPrereqs).accessible;
 }
 
 function getMissingPrereqsForSources(args: {
@@ -600,26 +586,15 @@ function getMissingPrereqsForSources(args: {
     for (const sid of sourceIds) {
         const sidStr = String(sid);
 
-        // Drop sources never gate by prereq in Phase 1 (locations are actionable by default).
-        if (sidStr.startsWith("data:drop:")) {
-            continue;
-        }
-
         // Synthetic sources ("data:*") do NOT count as uncurated gates when missing from SOURCE_INDEX.
         // If SOURCE_INDEX defines them, we respect prereqIds.
         if (sidStr.startsWith("data:")) {
             const def = SOURCE_INDEX[sid];
             if (!def) continue;
 
-            const prereqs = Array.isArray(def.prereqIds) ? def.prereqIds : [];
-            let thisSourceBlocked = false;
-
-            for (const pr of prereqs) {
-                if (!completedPrereqs[String(pr)]) {
-                    missing.add(String(pr) as PrereqId);
-                    thisSourceBlocked = true;
-                }
-            }
+            const access = evaluateSourcePrerequisiteAccess(sid, completedPrereqs);
+            const thisSourceBlocked = !access.accessible;
+            access.missingPrereqs.forEach((pr) => missing.add(pr as PrereqId));
 
             if (thisSourceBlocked) {
                 blockedSources.push(sid);
@@ -636,15 +611,9 @@ function getMissingPrereqsForSources(args: {
             continue;
         }
 
-        const prereqs = Array.isArray(def.prereqIds) ? def.prereqIds : [];
-        let thisSourceBlocked = false;
-
-        for (const pr of prereqs) {
-            if (!completedPrereqs[String(pr)]) {
-                missing.add(String(pr) as PrereqId);
-                thisSourceBlocked = true;
-            }
-        }
+        const access = evaluateSourcePrerequisiteAccess(sid, completedPrereqs);
+        const thisSourceBlocked = !access.accessible;
+        access.missingPrereqs.forEach((pr) => missing.add(pr as PrereqId));
 
         if (thisSourceBlocked) {
             blockedSources.push(sid);

@@ -222,6 +222,22 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         };
     }
 
+    if (/^Transient Reward:\s*Duviri Circuit$/i.test(quantityNormalized)) {
+        return {
+            label: raw,
+            prereqIds: [PR.DUVIRI_PARADOX],
+            type: "drop",
+        };
+    }
+
+    if (/^Transient Reward:\s*Duviri Full Experience$/i.test(quantityNormalized)) {
+        return {
+            label: raw,
+            prereqIds: [PR.DUVIRI_PARADOX],
+            type: "drop",
+        };
+    }
+
     if (/^Key Rewards:\s*(Another Betrayer|Family Reunion|Hot Mess|Recover the Orokin Archive|Sunkiller|Table for Two|The Aftermath|Time'?s Up|Faceoff)/i.test(quantityNormalized)) {
         const prereqIds: string[] = [PR.THE_HEX];
         if (/Steel Path/i.test(quantityNormalized)) prereqIds.push(PR.ACTIVITY_STEEL_PATH);
@@ -1014,9 +1030,11 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
             new RegExp(`^(Mission Reward|Caches):\\s*${escapedPrefix}\\s*/\\s*`, "i").test(quantityNormalized) ||
             new RegExp(`^WFItems Location(?: \\(Legacy\\))?:\\s*${escapedPrefix}\\s*/\\s*`, "i").test(quantityNormalized)
         ) {
+            const sourcePrereqIds = [...prereqIds];
+            if (/Steel Path/i.test(quantityNormalized)) sourcePrereqIds.push(PR.ACTIVITY_STEEL_PATH);
             return {
                 label: raw,
-                prereqIds,
+                prereqIds: Array.from(new Set(sourcePrereqIds)),
                 type: "drop",
             };
         }
@@ -1806,6 +1824,12 @@ function buildMissionDropNodeAliasSources(): RawSource[] {
 
     for (const rawSourceId of sourcePool) {
         if (typeof rawSourceId !== "string" || !rawSourceId.startsWith("data:drop:node:")) continue;
+
+        // The mission-rewards pass above already emitted canonical node IDs.
+        // Do not pass duplicate IDs through pushUnique: the metadata assignment
+        // below targets the last inserted row, not the duplicate's original
+        // row, and used to leak a later node's region gate onto another source.
+        if (seen.has(rawSourceId)) continue;
 
         const match = rawSourceId.match(/^data:drop:node:([^:]+):(.+)$/);
         if (!match) continue;

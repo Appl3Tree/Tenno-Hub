@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
 import type { ModEntry, ModEffect } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
 import {
@@ -1568,7 +1568,11 @@ function beamThemeSignature(state: BeamState): string {
         if ((effect.factionDamageBonus ?? 0) > 0 && effect.targetFaction) tags.add(`faction:${effect.targetFaction.toLowerCase()}`);
         if ((effect.directDamagePerStatusBonus ?? 0) > 0) tags.add("per-status");
         if ((effect.conditionOverloadDamagePerStatusBonus ?? 0) > 0) tags.add("per-status");
-        if ((effect.critChanceBonus ?? 0) > 0 || (effect.slideAttackCritChanceBonus ?? 0) > 0 || (effect.critMultBonus ?? 0) > 0) tags.add("crit");
+        if (
+            (effect.critChanceBonus ?? 0) > 0 ||
+            (effect.slideAttackCritChanceBonus ?? 0) > 0 ||
+            (effect.critMultBonus ?? 0) > 0
+        ) tags.add("crit");
     }
     return [...tags].sort().join("|");
 }
@@ -3145,6 +3149,7 @@ function optimizeArcaneSlot(
                     warframeEnergyPercent: opts.warframeEnergyPercent,
                 });
                 if (!effect || !Object.keys(effect).length) continue;
+                if (getUnmodeledScoringEffectLines(effect).length > 0) continue;
                 ttkCandidates.push({ arcane: arc, rank, effect });
             }
         }
@@ -3154,12 +3159,16 @@ function optimizeArcaneSlot(
         if (goal === "timeToKill") continue;
         const ownedMaxRank = opts.ownedArcaneMaxRankByUniqueName?.[arc.uniqueName];
         const rankCap = ownedMaxRank == null ? arc.maxRank : Math.min(arc.maxRank, ownedMaxRank);
-        for (let rank = rankCap; rank >= 0; rank--) {
+        const ranks = opts.ownedArcaneUniqueNames
+            ? [rankCap]
+            : Array.from({ length: rankCap + 1 }, (_, index) => rankCap - index);
+        for (const rank of ranks) {
             const e = getArcaneEffectAtRank(arc, rank, opts.warframeArmor, true, {
                 warframeMaxEnergy: opts.warframeMaxEnergy,
                 warframeEnergyPercent: opts.warframeEnergyPercent,
             });
             if (!e || !Object.keys(e).length) continue;
+            if (getUnmodeledScoringEffectLines(e).length > 0) continue;
             const s = scoreEffects(weapon, mainBuildEffects, goal, targetFaction, e, opts.targetProfileOverride, opts.conditionalState);
             // An arcane slot is optional. Keep it empty when its parsed effect
             // is unsupported or inactive under the selected conditional state;
@@ -4030,4 +4039,3 @@ export function explainBuild(
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
-

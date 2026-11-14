@@ -121,6 +121,7 @@ describe("weapon catalog stance inference", () => {
         expect(mods.some((mod) => mod.name === "Target Acquired")).toBe(true);
         // Missing ancestry must not widen a family-specific restriction.
         expect(mods.some((mod) => mod.name === "Deft Tempo")).toBe(false);
+
         const serrationDisplayOrder = sortBuilderModsForDisplay(mods)
             .filter((mod) => mod.name === "Serration")
             .map((mod) => /\/beginner\//i.test(mod.path) || /Beginner$/i.test(mod.path)

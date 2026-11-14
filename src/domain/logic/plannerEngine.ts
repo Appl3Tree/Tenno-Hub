@@ -11,6 +11,7 @@ import { isAutoTrackedPrereq } from "./syndicatePrereqs";
 import { FULL_CATALOG, type CatalogId } from "../catalog/loadFullCatalog";
 import { SOURCE_INDEX } from "../../catalog/sources/sourceCatalog";
 import { getAcquisitionByCatalogId } from "../../catalog/items/itemAcquisition";
+import { evaluateSourcePrerequisiteAccess } from "./sourcePrerequisiteAccess";
 import type { SourceId } from "../ids/sourceIds";
 import { normalizeSourceId } from "../ids/sourceIds";
 
@@ -278,27 +279,22 @@ function isSourceAccessible(
     const sidStr = String(sourceId);
 
     {
-        // Drop-table sources are actionable locations by default.
-        if (sidStr.startsWith("data:drop:")) {
-            return { ok: true, missing: [], missingMr: null };
-        }
-
         const src = SOURCE_INDEX[sourceId];
         if (!src) {
+            // Preserve the existing fallback for unregistered synthetic drop
+            // routes. Registered routes must honor their explicit prereqs.
+            if (sidStr.startsWith("data:drop:")) {
+                return { ok: true, missing: [], missingMr: null };
+            }
             return { ok: false, missing: [], missingMr: null, reason: `Unknown source (${sourceId})` };
         }
-
-        const prereqs = Array.isArray(src.prereqIds) ? (src.prereqIds as PrereqId[]) : [];
 
         // Explicit “unknown” placeholder should never be considered accessible.
         if (sidStr === "data:unknown" || sidStr === "src:unknown") {
             return { ok: false, missing: [], missingMr: null, reason: "Unknown source placeholder" };
         }
 
-        const missing: PrereqId[] = [];
-        for (const p of prereqs) {
-            if (completedMap[String(p)] !== true) missing.push(p);
-        }
+        const missing = evaluateSourcePrerequisiteAccess(sourceId, completedMap).missingPrereqs as PrereqId[];
 
         const mrReq =
             typeof (src as any).mrRequired === "number"
