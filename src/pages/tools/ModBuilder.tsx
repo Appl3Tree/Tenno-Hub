@@ -32,7 +32,7 @@ import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
-import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
+import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, enemyStatLevelMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
 import { calculateDirectDamageToInitialPools, simulateDirectAttackSequence, simulateExpectedWeaponEncounter, type DirectTargetDamageInput } from "../../domain/logic/targetDamage";
 import { buildCustomRivenEntry, customRivenSupportsWeapon, type CustomRivenRecord } from "../../domain/rivens";
 import {
@@ -291,14 +291,22 @@ function fmt(n: number, d = 0) {
 }
 function describeLastShotMagazineInactiveReason(reason: string): string {
     switch (reason) {
-        case "base-magazine-under-six": return "the weapon's base magazine capacity is below 6";
-        case "continuous-weapon": return "Synth Charge does not affect continuous attacks in this model";
-        case "unmodeled-reload-grenade": return "the Catabolyst reload-grenade exception is not modeled";
-        case "incarnon-attack": return "Synth Charge does not affect Incarnon attacks";
-        case "exalted-weapon": return "Synth Charge does not affect Exalted weapons";
-        case "infinite-ammo": return "the selected condition assumes the magazine never empties";
-        case "one-attack-per-magazine": return "this attack consumes the whole magazine in one attack";
-        default: return "the selected attack does not meet the modeled requirements";
+        case "base-magazine-under-six":
+            return "the weapon's base magazine capacity is below 6";
+        case "continuous-weapon":
+            return "Synth Charge does not affect continuous attacks in this model";
+        case "unmodeled-reload-grenade":
+            return "the Catabolyst reload-grenade exception is not modeled";
+        case "incarnon-attack":
+            return "Synth Charge does not affect Incarnon attacks";
+        case "exalted-weapon":
+            return "Synth Charge does not affect Exalted weapons";
+        case "infinite-ammo":
+            return "the selected condition assumes the magazine never empties";
+        case "one-attack-per-magazine":
+            return "this attack consumes the whole magazine in one attack";
+        default:
+            return "the selected attack does not meet the modeled requirements";
     }
 }
 function uid() { return Math.random().toString(36).slice(2, 10); }
@@ -3116,6 +3124,15 @@ export default function ModBuilder() {
         const hasActiveOverguard = resolvedCustomTargetStats.overguard > 0;
         return {
             ...resolvedCustomTargetStats,
+            armorBaseValue: customTargetStats.armor,
+            armorLevelMultiplier: scaleCustomTargetByLevel
+                ? enemyStatLevelMultiplier(
+                    "armor",
+                    enemyScalingFaction,
+                    enemyBaseLevel,
+                    getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath),
+                )
+                : 1,
             description: isSteelPath
                 ? `Steel Path: mission level ${enemyCurrentLevel} becomes ${getSteelPathEnemyLevel(enemyCurrentLevel, true)}; Health and Shields ×2.5, with no separate Armor multiplier.`
                 : undefined,
@@ -3130,7 +3147,7 @@ export default function ModBuilder() {
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: bossBlastStackCap ? { blast: 4 } : undefined,
         };
-    }, [useCustomTargetStats, resolvedCustomTargetStats, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, isSteelPath, enemyCurrentLevel]);
+    }, [useCustomTargetStats, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, isSteelPath, enemyCurrentLevel]);
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
     const [maxFormaAllowed, setMaxFormaAllowed] = useState(9);
@@ -3983,7 +4000,11 @@ export default function ModBuilder() {
             health: activeTargetAssumptions.health,
             shields: activeTargetAssumptions.shields,
             overguard: activeTargetAssumptions.overguard,
-            armor: activeTargetAssumptions.armor * Math.max(0, 1 - combinedArmorStrip),
+            armor: activeTargetAssumptions.armor,
+            armorDamageReductionMultiplier: Math.max(0, 1 - combinedArmorStrip),
+            baseArmorValue: targetProfileOverride?.armorBaseValue ?? activeTargetAssumptions.armor,
+            armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+            shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
             faction: factionOn ? faction : "",
             factionDamageBonus,
             viralHealthDamageBonus: stats.viralHealthDamageBonus,
@@ -3998,7 +4019,7 @@ export default function ModBuilder() {
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
         };
-    }, [activeMetrics, activeBuildEffects, activeTargetAssumptions, activeCalcWeapon, factionOn, faction]);
+    }, [activeMetrics, activeBuildEffects, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
     const activeTargetAttackDamage = useMemo(() => {
         if (!activeTargetAttackInput || !activeMetrics) return null;
         const stats = activeMetrics.modded;
@@ -4058,6 +4079,9 @@ export default function ModBuilder() {
             maxShields: activeTargetAssumptions.shields,
             maxOverguard: activeTargetAssumptions.overguard,
             armor: activeTargetAssumptions.armor,
+            baseArmorValue: targetProfileOverride?.armorBaseValue ?? activeTargetAssumptions.armor,
+            armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+            shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
             faction: factionOn ? faction : "",
             factionDamageBonus,
             toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
@@ -4771,7 +4795,7 @@ export default function ModBuilder() {
                             <div className="rounded-[28px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] shadow-[var(--wf-shadow-panel)] overflow-visible">
                                 <div className="border-b border-slate-800/80 bg-slate-950/70 px-4 py-3">
                                     <div className="flex flex-wrap items-start gap-3 justify-between">
-                                        <div className="min-w-0 flex-1">
+                                        <div className="min-w-[min(100%,360px)] flex-1">
                                             <div className="text-[11px] uppercase tracking-[0.24em] text-[color:var(--wf-warning)]">Arsenal Modding</div>
                                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                                     <div className="w-[360px] max-w-full">
@@ -5784,7 +5808,10 @@ export default function ModBuilder() {
                                                                                     ? "not killable with the current direct-hit damage"
                                                                                     : `${fmt(activeTargetAttackSequence.attacksToKill, 0)} attacks · ${fmt(activeTargetAttackSequence.timeToKillSeconds ?? 0, 2)}s from first attack`}{" "}
                                                                                 {activeTargetAttackSequence.comboMultiplierAtStart !== undefined && activeTargetAttackSequence.comboMultiplierAtKill !== undefined
-                                                                                    ? `· heavy-attack combo ${fmt(activeTargetAttackSequence.comboMultiplierAtStart, 0)}× → ${fmt(activeTargetAttackSequence.comboMultiplierAtKill, 0)}× · `
+                                                                                    ? `· heavy-attack combo ${fmt(activeTargetAttackSequence.comboMultiplierAtStart, 0)}× → ${fmt(activeTargetAttackSequence.comboMultiplierAtKill, 0)}× `
+                                                                                    : ""}
+                                                                                {activeMetrics?.modded.shatteringImpactBaseArmorPerHit
+                                                                                    ? `· base Armor after Shattering Impact ${fmt(activeTargetAttackSequence.remainingArmorAfterBaseStrip, 0)} (before percentage strips) `
                                                                                     : ""}
                                                                                 (mean damage per attack, ordered pool depletion, static target defenses; applies the selected enemy Shield Gate mode after Shields break, but excludes status ticks and shield regeneration)
                                                                             </div>
@@ -5795,7 +5822,7 @@ export default function ModBuilder() {
                                                                                 {activeTargetEncounter.timeToKillSeconds === null
                                                                                     ? "not defeated within " + fmt(activeTargetEncounter.evaluatedDurationSeconds, 1) + "s / " + fmt(activeTargetEncounter.attacks, 0) + " attacks"
                                                                                     : fmt(activeTargetEncounter.timeToKillSeconds, 2) + "s · " + fmt(activeTargetEncounter.attacks, 0) + " attacks"}{" "}
-                                                                                · {fmt(activeTargetEncounter.damagePerSecond)} damage/s · direct {fmt(activeTargetEncounter.directDamageByPool.health + activeTargetEncounter.directDamageByPool.shields + activeTargetEncounter.directDamageByPool.overguard)} + status {fmt(activeTargetEncounter.statusDamageByPool.health + activeTargetEncounter.statusDamageByPool.shields + activeTargetEncounter.statusDamageByPool.overguard)} damage
+                                                                                · {fmt(activeTargetEncounter.damagePerSecond)} damage/s · direct {fmt(activeTargetEncounter.directDamageByPool.health + activeTargetEncounter.directDamageByPool.shields + activeTargetEncounter.directDamageByPool.overguard)} + status {fmt(activeTargetEncounter.statusDamageByPool.health + activeTargetEncounter.statusDamageByPool.shields + activeTargetEncounter.statusDamageByPool.overguard)} damage{(encounterTargetMetrics?.modded.shatteringImpactBaseArmorPerHit ?? 0) > 0 ? ` · remaining base-stripped Armor ${fmt(activeTargetEncounter.remainingArmorAfterBaseStrip, 0)}` : ""}
                                                                             </div>
                                                                         )}
                                                                         {activeTargetEncounter && activeTargetEncounter.blastCollateralEnemyCount > 0 && (
@@ -6310,6 +6337,7 @@ export default function ModBuilder() {
                                         { label: "Viral Health", value: fmt(stats.viralHealthDamageBonus * 100, 0) + "%", sub: "health damage", tooltip: "Extra damage dealt to health from current Viral stacks." },
                                         { label: "Heat Armor Strip", value: fmt(stats.heatArmorStrip * 100, 0) + "%", sub: "armor removed", tooltip: "Armor removed by Heat status effects." },
                                         { label: "Corrosive Strip", value: fmt(stats.corrosiveArmorStrip * 100, 0) + "%", sub: "armor removed", tooltip: "Armor removed by Corrosive status stacks." },
+                                        ...(stats.shatteringImpactBaseArmorPerHit > 0 ? [{ label: "Shattering Impact", value: `-${fmt(stats.shatteringImpactBaseArmorPerHit, 0)}`, sub: "base Armor / Impact hit", tooltip: "Permanently removes this much base Armor per melee hit with nonzero quantized Impact damage. It does not require an Impact status proc; level scaling applies, then percentage Heat/Corrosive strips." }] : []),
                                         { label: "Magnetic Shield", value: fmt(stats.magneticShieldDamageBonus * 100, 0) + "%", sub: "shield damage", tooltip: "Extra damage dealt to shields and overguard from Magnetic stacks." },
                                         { label: "Radiation Ally Dmg", value: fmt(stats.radiationAllyDamageBonus * 100, 0) + "%", sub: "friendly fire bonus", tooltip: "Damage amplification enemies receive from allies while affected by Radiation." },
                                         { label: "Cold Slow", value: fmt(stats.coldSlow * 100, 0) + "%", sub: "move/attack slow", tooltip: "Movement and attack speed slow applied by Cold stacks." },
