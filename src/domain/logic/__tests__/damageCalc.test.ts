@@ -40,6 +40,68 @@ function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
 }
 
 describe("damage calculation status eligibility", () => {
+    it("models Seismic Wave on aerial and stance-combo slam attacks", () => {
+        const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");
+        expect(gramPrime).toBeDefined();
+        const seismicWave = getModsForWeapon(gramPrime!).find((mod) => mod.name === "Seismic Wave");
+        expect(seismicWave).toBeDefined();
+        expect(seismicWave!.hasDamageEffect).toBe(true);
+        expect(seismicWave!.effectsByRank.map((effect) => effect.slamAttackDamageBonus))
+            .toEqual([0.5, 1, 1.5, 2]);
+        for (let rank = 0; rank <= seismicWave!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(seismicWave!, rank)).toEqual([]);
+        }
+
+        const selected = (name: string) => {
+            const index = gramPrime!.attacks.findIndex((attack) => attack.name === name);
+            expect(index, name).toBeGreaterThanOrEqual(0);
+            return withSelectedAttack(gramPrime!, index);
+        };
+        const slamWeapon = selected("Slam Attack");
+        const heavySlamWeapon = selected("Heavy Slam Attack");
+        const normalWeapon = selected("Normal Attack");
+        expect(slamWeapon.selectedAttackUsesSlamDamageBonus).toBe(true);
+        expect(heavySlamWeapon.selectedAttackUsesSlamDamageBonus).toBe(true);
+        expect(normalWeapon.selectedAttackUsesSlamDamageBonus).toBe(false);
+
+        const maxRankEffect = seismicWave!.effectsByRank[seismicWave!.fusionLimit];
+        const checkThreefoldDamage = (weapon: WeaponEntry) => {
+            const baseline = calculateBuild(weapon, []).modded;
+            const modded = calculateBuild(weapon, [maxRankEffect]).modded;
+            expect(modded.slamAttackDamageMultiplier).toBe(3);
+            expect(modded.baseDamageTotal).toBeCloseTo(baseline.baseDamageTotal * 3, 10);
+            for (const type of Object.keys(baseline.rawDamageBreakdownBeforePerStatus) as Array<keyof typeof baseline.rawDamageBreakdownBeforePerStatus>) {
+                expect(modded.rawDamageBreakdownBeforePerStatus[type]).toBeCloseTo(
+                    baseline.rawDamageBreakdownBeforePerStatus[type] * 3,
+                    10,
+                );
+            }
+            const seededTypes = Object.keys(baseline.dotDamagePerApplicationSeedByType) as Array<keyof typeof baseline.dotDamagePerApplicationSeedByType>;
+            for (const type of seededTypes) {
+                expect(modded.dotDamagePerApplicationSeedByType[type]).toBeCloseTo(
+                    (baseline.dotDamagePerApplicationSeedByType[type] ?? 0) * 3,
+                    8,
+                );
+            }
+        };
+        checkThreefoldDamage(slamWeapon);
+        checkThreefoldDamage(heavySlamWeapon);
+
+        const normalBaseline = calculateBuild(normalWeapon, []).modded;
+        const normalWithSeismic = calculateBuild(normalWeapon, [maxRankEffect]).modded;
+        expect(normalWithSeismic.slamAttackDamageMultiplier).toBe(1);
+        expect(normalWithSeismic.baseDamageTotal).toBeCloseTo(normalBaseline.baseDamageTotal, 10);
+        expect(normalWithSeismic.damageBreakdown).toEqual(normalBaseline.damageBreakdown);
+
+        const korumm = getWeaponCatalog().find((candidate) => candidate.name === "Korumm");
+        expect(korumm).toBeDefined();
+        const stanceSlamIndex = korumm!.attacks.findIndex((attack) => attack.name === "Tactical Combo Slam Attack");
+        expect(stanceSlamIndex).toBeGreaterThanOrEqual(0);
+        const stanceSlam = withSelectedAttack(korumm!, stanceSlamIndex);
+        expect(stanceSlam.selectedAttackUsesSlamDamageBonus).toBe(true);
+        checkThreefoldDamage(stanceSlam);
+    });
+
     it("parses and applies Shattering Impact only to quantized Impact melee hits", () => {
         const skana = getWeaponCatalog().find((candidate) => candidate.name === "Skana");
         expect(skana).toBeDefined();
