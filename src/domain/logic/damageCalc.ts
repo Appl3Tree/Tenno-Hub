@@ -688,6 +688,7 @@ export function calculateBuild(
     let conditionalReloadSpeedBonus = 0;
     let conditionalAmmoEfficiencyBonus = 0;
     let conditionalDirectDamagePerStatusBonus = 0;
+    let conditionalInitialComboBonus = 0;
     const conditionalDirectBonusBreakdown = emptyBreakdown();
     for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
         const factor =
@@ -708,6 +709,7 @@ export function calculateBuild(
             conditionalAmmoEfficiencyBonus += (conditional.stats.ammoEfficiencyBonus ?? 0) * factor;
         }
         conditionalDirectDamagePerStatusBonus += (conditional.stats.directDamagePerStatusBonus ?? 0) * factor;
+        conditionalInitialComboBonus += (conditional.stats.initialComboBonus ?? 0) * factor;
         if (!ignoresReloadAndMagazine) {
             conditionalReloadSpeedBonus += (conditional.stats.reloadSpeedBonus ?? 0) * factor;
         }
@@ -820,7 +822,8 @@ export function calculateBuild(
 
     const initialComboCount = usesMeleeDamageModel(weapon.category)
         ? getMeleeInnateInitialComboPoints(weapon) +
-            mods.reduce((sum, effect) => sum + (effect?.initialComboBonus ?? 0), 0)
+            mods.reduce((sum, effect) => sum + (effect?.initialComboBonus ?? 0), 0) +
+            conditionalInitialComboBonus
         : 0;
     const initialComboMultiplier = getInitialMeleeComboMultiplier(weapon, initialComboCount);
     const requestedComboMultiplier = Number.isFinite(conditionalState.meleeComboMultiplier)

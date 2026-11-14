@@ -19,6 +19,20 @@ const PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES = new Set([
     "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
 ]);
 
+// The Coda variant inherits Bubonico's shotgun class, although WFCD's weapon
+// row labels it as a rifle. Keep its available mod family aligned with the
+// current weapon class listed by the Warframe Wiki.
+const PRIMARY_SHOTGUN_MOD_COMPAT_OVERRIDES = new Set([
+    "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon",
+]);
+
+// Sirocco is an Amp, not a rifle. The upstream All.json snapshot also includes
+// a stale Primary-profile row, which would otherwise enter the generic weapon
+// planner without its Amp-specific damage and upgrade rules.
+const UNSUPPORTED_AMP_WEAPON_UNIQUE_NAMES = new Set([
+    "/Lotus/Weapons/Operator/Pistols/DrifterPistol/DrifterPistolPlayerWeapon",
+]);
+
 const PERIGALE_GALE_FORCE_UNIQUE_NAMES = new Set([
     "/Lotus/Weapons/Tenno/LongGuns/TnQuadSniper/TnQuadSniper",
     "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
@@ -476,6 +490,9 @@ function resolveWeaponFamily(category: WeaponCategory, item: Record<string, unkn
     if (category === "Melee") return { weaponType: weaponType || "Melee", modCompat: "Melee" };
     if (category === "Primary" && PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES.has(String(item.uniqueName ?? ""))) {
         return { weaponType: "Sniper", modCompat: "Sniper" };
+    }
+    if (category === "Primary" && PRIMARY_SHOTGUN_MOD_COMPAT_OVERRIDES.has(String(item.uniqueName ?? ""))) {
+        return { weaponType: "Shotgun", modCompat: "Shotgun" };
     }
     const t = (weaponType ?? "").toLowerCase();
     if (t === "shotgun") return { weaponType: "Shotgun", modCompat: "Shotgun" };
@@ -1260,6 +1277,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
         const cat = resolveCategory(item, exaltedClass?.category ?? null);
         if (!cat) continue;
         if (!item.name) continue;
+        if (UNSUPPORTED_AMP_WEAPON_UNIQUE_NAMES.has(String(item.uniqueName ?? ""))) continue;
         // Must have some damage or be masterable to count as a real weapon
         if (!item.masterable && !item.wikiaUrl) continue;
 

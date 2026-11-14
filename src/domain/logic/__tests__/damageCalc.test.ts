@@ -1540,6 +1540,46 @@ describe("melee combo-scaled mod calculations", () => {
         expect(ranged.critChance).toBeCloseTo(0, 10);
     });
 
+    it("applies Galvanized Reflex melee-kill stacks as Initial Combo", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const galvanizedReflex = getModsForWeapon(weapon!).find((entry) => entry.name === "Galvanized Reflex");
+        expect(galvanizedReflex).toBeDefined();
+        const effect = galvanizedReflex!.effectsByRank[galvanizedReflex!.fusionLimit];
+        expect(effect.heavyAttackEfficiencyBonus).toBeCloseTo(0.5, 10);
+        expect(effect.conditionalEffects).toContainEqual(expect.objectContaining({
+            trigger: "onMeleeKill",
+            durationSeconds: 20,
+            maxStacks: 4,
+            stats: { initialComboBonus: 20 },
+        }));
+
+        const heavyAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        expect(heavyAttackIndex).toBeGreaterThanOrEqual(0);
+        const heavyAttack = withSelectedAttack(weapon!, heavyAttackIndex);
+        const initial = calculateBuild(heavyAttack, [effect], "", {
+            conditionalState: { mode: "initial" },
+        }).modded;
+        const customTwoStacks = calculateBuild(heavyAttack, [effect], "", {
+            conditionalState: { mode: "custom", externalStacks: 2 },
+        }).modded;
+        const realistic = calculateBuild(heavyAttack, [effect], "", {
+            conditionalState: { mode: "realistic" },
+        }).modded;
+        const fullyStacked = calculateBuild(heavyAttack, [effect], "", {
+            conditionalState: { mode: "fullyStacked" },
+        }).modded;
+
+        expect(initial.meleeComboPointsBeforeHeavyAttack).toBe(0);
+        expect(customTwoStacks.meleeComboPointsBeforeHeavyAttack).toBe(40);
+        expect(customTwoStacks.meleeComboMultiplier).toBe(3);
+        expect(realistic.meleeComboPointsBeforeHeavyAttack).toBeCloseTo(33.6, 8);
+        expect(fullyStacked.meleeComboPointsBeforeHeavyAttack).toBe(80);
+        expect(fullyStacked.meleeComboMultiplier).toBe(5);
+        expect(fullyStacked.heavyAttackEfficiency).toBeCloseTo(0.5, 10);
+        expect(fullyStacked.baseDamageTotal).toBeCloseTo(initial.baseDamageTotal * 5, 8);
+    });
+
     it("uses the Dex Nikana and Venka Prime combo-tier exceptions", () => {
         const bloodRush = { ...emptyEffect(), comboCritChanceBonus: 0.4 };
         const dexNikana = {

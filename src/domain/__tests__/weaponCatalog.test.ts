@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon } from "../catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon } from "../catalog/modCatalog";
 import { getWeaponCatalog } from "../catalog/weaponCatalog";
 import { effectiveDrain } from "../logic/capacityCalc";
 import ITEMS_RAW from "../../data/_generated/items-lean.auto.json";
@@ -124,6 +124,61 @@ describe("weapon catalog stance inference", () => {
 
         const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(getModsForWeapon(bratonPrime!).some((mod) => mod.name === "Primed Chamber")).toBe(false);
+    });
+
+    it("keeps secondary pistol mods visible when the lean item ancestry is missing", () => {
+        const standardPistolNames = new Set(["Aksondol", "Athodai Prime", "Regulators", "Regulators Prime"]);
+        const standardPistolMods = getModsForCompat("Pistol");
+        const standardPathFor = (name: string) => standardPistolMods.find((mod) =>
+            mod.name === name && !/(?:^|\/)(?:Beginner|Intermediate|Expert)(?:\/|$)/i.test(mod.path),
+        );
+
+        for (const weapon of getWeaponCatalog().filter((entry) => standardPistolNames.has(entry.name))) {
+            const mods = getModsForWeapon(weapon);
+            expect(weapon.modCompat).toBe("Pistol");
+            expect(mods.some((mod) => mod.name === "Hornet Strike" && mod.uniqueName === standardPathFor("Hornet Strike")?.uniqueName))
+                .toBe(true);
+            expect(mods.some((mod) => mod.name === "Barrel Diffusion" && mod.uniqueName === standardPathFor("Barrel Diffusion")?.uniqueName))
+                .toBe(true);
+        }
+    });
+
+    it("classifies Coda Bubonico as a shotgun and offers its standard shotgun mods", () => {
+        const codaBubonico = getWeaponCatalog().find((weapon) => weapon.name === "Coda Bubonico");
+        expect(codaBubonico).toBeTruthy();
+        expect(codaBubonico?.weaponType).toBe("Shotgun");
+        expect(codaBubonico?.modCompat).toBe("Shotgun");
+
+        const mods = getModsForWeapon(codaBubonico!);
+        expect(mods.some((mod) => mod.name === "Hell's Chamber" && !/(?:^|\/)(?:Beginner|Intermediate|Expert)(?:\/|$)/i.test(mod.path)))
+            .toBe(true);
+        expect(mods.some((mod) => mod.name === "Serration")).toBe(false);
+    });
+
+    it("keeps the Amp-class Sirocco out of the standard weapon build catalog", () => {
+        expect(getWeaponCatalog().some((weapon) => weapon.name === "Sirocco")).toBe(false);
+    });
+
+    it("does not expose a training variant when its standard counterpart is incompatible", () => {
+        const isTrainingVariant = (path: string) => /(?:^|\/)(?:Beginner|Intermediate|Expert)(?:\/|$)/i.test(path)
+            || /(?:Beginner|Intermediate|Expert)$/i.test(path);
+        const failures: Array<{ weapon: string; mod: string; trainingPath: string }> = [];
+        const pools = getWeaponCatalog().map((weapon) => ({ weapon, mods: getModsForWeapon(weapon) }));
+        const standardFamilies = new Set(pools.flatMap(({ mods }) => mods
+            .filter((mod) => !isTrainingVariant(mod.path))
+            .map((mod) => mod.compatBucket.toLowerCase() + "||" + mod.name.trim().toLowerCase())));
+
+        for (const { weapon, mods } of pools) {
+            const weaponStandardFamilies = new Set(mods.filter((mod) => !isTrainingVariant(mod.path))
+                .map((mod) => mod.compatBucket.toLowerCase() + "||" + mod.name.trim().toLowerCase()));
+            for (const mod of mods) {
+                const family = mod.compatBucket.toLowerCase() + "||" + mod.name.trim().toLowerCase();
+                if (!isTrainingVariant(mod.path) || !standardFamilies.has(family) || weaponStandardFamilies.has(family)) continue;
+                failures.push({ weapon: weapon.name, mod: mod.name, trainingPath: mod.path });
+            }
+        }
+
+        expect(failures).toEqual([]);
     });
 
     it("classifies companion weapons by their actual mod family", () => {
