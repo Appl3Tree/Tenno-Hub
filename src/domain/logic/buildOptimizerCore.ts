@@ -15,7 +15,7 @@ import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
 import {
     calculateBuild,
-    avgCritMultiplier,
+    avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
     type ConditionalState,
 } from "./damageCalc";
@@ -792,9 +792,10 @@ function scoreEffects(
     const viralMultiplier = Math.max(0, 1 + modded.viralHealthDamageBonus);
     const armorMultiplier = enemyArmorDamageMultiplier(pools.armor *
         (1 - modded.heatArmorStrip) * (1 - modded.corrosiveArmorStrip));
-    const critMultiplier = avgCritMultiplier(
+    const critMultiplier = avgHitDamageMultiplier(
         Math.max(0, modded.critChance + modded.punctureCritChanceBonus),
         Math.max(0, modded.critMultiplier + modded.coldCritDamageBonus),
+        modded.nonCriticalHitDamageProcs,
     );
     const objectiveAttackRate = goal === "burst" ? modded.burstFireRate : modded.fireRate;
     const burstAttackRate = modded.damageWeightedMultishot * critMultiplier * objectiveAttackRate;
@@ -2170,6 +2171,7 @@ function expectedEncounterScoreForEffects(
         damageRampRule: weapon.selectedAttackDamageRamp,
         critChance: stats.critChance,
         critMultiplier: stats.critMultiplier,
+        nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
         expectedProjectiles: stats.multishot,
         expectedDamageMultiplier: stats.damageWeightedMultishot,
         attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),

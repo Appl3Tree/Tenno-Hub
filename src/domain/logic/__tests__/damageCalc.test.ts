@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon } from "../../catalog/modCatalog";
-import { calculateBuild, calculateMeleeAverageDps, estimateFiniteIndependentDotDps } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateMeleeAverageDps, estimateFiniteIndependentDotDps } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -277,7 +277,7 @@ describe("damage calculation status eligibility", () => {
         });
 
         // Avg Hit = 2 × 100 × (1 + .5 × (2 − 1)) = 300; DPS = 300 × 1.5 / .75.
-        expect(result).toEqual({ averageHit: 300, averageDps: 600, expectedCritMultiplier: 1.5 });
+        expect(result).toEqual({ averageHit: 300, averageDps: 600, expectedHitDamageMultiplier: 1.5 });
     });
 
     it("rejects missing or invalid stance timing inputs instead of filling in defaults", () => {
@@ -435,6 +435,26 @@ describe("damage calculation status eligibility", () => {
         expect(result.quantizedBaseCritMultiplier).toBeCloseTo(256 * 32 / 4095, 6);
         expect(result.critMultiplier).toBeCloseTo((256 * 32 / 4095) * 2, 6);
         expect(result.averageShotDamage).toBeCloseTo(100 * result.critMultiplier, 6);
+    });
+
+    it("weights Devouring Attrition by its chance on noncritical hits", () => {
+        const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0.12, critMultiplier: 2.2 };
+        const effect = {
+            ...emptyEffect(),
+            nonCriticalHitDamageProcs: [{ chance: 0.5, damageBonus: 20 }],
+        };
+        const stats = calculateBuild(weapon, [effect]).modded;
+
+        expect(avgHitDamageMultiplier(0.12, 2.2, effect.nonCriticalHitDamageProcs)).toBeCloseTo(9.944, 8);
+        expect(stats.averageShotDamage).toBeCloseTo(
+            stats.totalDamage * stats.damageWeightedMultishot * avgHitDamageMultiplier(
+                stats.critChance,
+                stats.critMultiplier,
+                stats.nonCriticalHitDamageProcs,
+            ),
+            8,
+        );
+        expect(avgHitDamageMultiplier(1.5, 2, effect.nonCriticalHitDamageProcs)).toBeCloseTo(2.5, 8);
     });
 
     it("computes Blast stack hit damage from modded base damage with faction double-dip and Status Damage", () => {

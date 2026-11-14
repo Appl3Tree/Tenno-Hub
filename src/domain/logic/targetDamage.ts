@@ -21,6 +21,8 @@ import {
     INITIAL_COMBO_REGEN_POINTS_PER_SECOND,
 } from "../catalog/weaponRules";
 import { advanceDamageRampMultiplier, getInitialDamageRampMultiplier } from "./weaponDamageRamp";
+import { avgHitDamageMultiplier } from "./damageCalc";
+import type { NonCriticalHitDamageProc } from "../catalog/modCatalog";
 
 export type TargetDamagePool = "overguard" | "shields" | "health";
 
@@ -47,11 +49,12 @@ export interface DirectTargetDamageInput {
     damageRampRule?: WeaponDamageRampRule;
     /** Per-event override used by timed attack and encounter simulations. */
     damageRampMultiplier?: number;
-    /** Expected critical multiplier after any supported target-state bonuses. */
-    expectedCritMultiplier?: number;
+    /** Expected per-hit multiplier after crit tiers and supported noncritical-hit procs. */
+    expectedHitDamageMultiplier?: number;
     /** Base post-mod critical chance/multiplier for encounter status-state updates. */
     critChance?: number;
     critMultiplier?: number;
+    nonCriticalHitDamageProcs?: readonly NonCriticalHitDamageProc[];
     expectedProjectiles?: number;
     /** Expected direct-damage multiplier per attack; defaults to expectedProjectiles. */
     expectedDamageMultiplier?: number;
@@ -83,7 +86,11 @@ export function calculateDirectDamageToInitialPools(
     const armor = finiteNonNegative(input.armor);
     const projectileCount = finiteNonNegative(input.expectedProjectiles ?? 1);
     const expectedDamageMultiplier = finiteNonNegative(input.expectedDamageMultiplier ?? projectileCount);
-    const critMultiplier = finiteNonNegative(input.expectedCritMultiplier ?? 1);
+    const hitDamageMultiplier = finiteNonNegative(input.expectedHitDamageMultiplier ?? (
+        input.critChance !== undefined && input.critMultiplier !== undefined
+            ? avgHitDamageMultiplier(input.critChance, input.critMultiplier, input.nonCriticalHitDamageProcs)
+            : 1
+    ));
     const damageRampMultiplier = finiteNonNegative(
         input.damageRampMultiplier ?? getInitialDamageRampMultiplier(input.damageRampRule),
     );
@@ -127,7 +134,7 @@ export function calculateDirectDamageToInitialPools(
         uncappedDamageByPool.health += healthDamageAfterArmor * factionMultiplier;
     }
 
-    const expectedScale = expectedDamageMultiplier * critMultiplier;
+    const expectedScale = expectedDamageMultiplier * hitDamageMultiplier;
     for (const pool of TARGET_POOLS) {
         uncappedDamageByPool[pool] *= expectedScale;
     }
@@ -939,14 +946,18 @@ export function simulateExpectedWeaponEncounter(
         const directDamagePerStatusMultiplier =
             (damageBracketWithIntrinsicBonus + directDamagePerStatusWeight) /
             conditionOverloadDamageBracket;
-        const critMultiplier = input.critChance !== undefined && input.critMultiplier !== undefined
-            ? expectedCritMultiplier(input.critChance + punctureCritBonus, input.critMultiplier + coldCritBonus)
-            : finiteNonNegative(input.expectedCritMultiplier ?? 1);
+        const hitDamageMultiplier = input.critChance !== undefined && input.critMultiplier !== undefined
+            ? avgHitDamageMultiplier(
+                input.critChance + punctureCritBonus,
+                input.critMultiplier + coldCritBonus,
+                input.nonCriticalHitDamageProcs,
+            )
+            : finiteNonNegative(input.expectedHitDamageMultiplier ?? 1);
         return {
             armor: finiteNonNegative(input.armor) * (1 - corrosiveStrip) * (1 - heatArmorStrip),
             viralHealthDamageBonus: finiteNonNegative(input.viralHealthDamageBonus ?? 0) + viralBonus,
             magneticDefenseDamageBonus: finiteNonNegative(input.magneticDefenseDamageBonus ?? 0) + magneticBonus,
-            expectedCritMultiplier: critMultiplier,
+            expectedHitDamageMultiplier: hitDamageMultiplier,
             conditionOverloadDamageMultiplier,
             directDamagePerStatusMultiplier,
         };
@@ -1364,7 +1375,7 @@ export function simulateDirectAttackSequence(
             }
             previousAttackTime = attackTime;
             let currentComboMultiplier = combo?.startingMultiplier ?? 1;
-            let expectedCritMultiplier = input.expectedCritMultiplier;
+            let expectedHitDamageMultiplier = input.expectedHitDamageMultiplier;
             let damageByType = input.damageByType;
             if (combo) {
                 currentComboMultiplier = Math.min(
@@ -1384,12 +1395,16 @@ export function simulateDirectAttackSequence(
                     0,
                     baseCritChance + (currentComboMultiplier - 1) * combo.critChancePerTier,
                 );
-                expectedCritMultiplier = 1 + currentCritChance * (combo.critDamageMultiplier - 1);
+                expectedHitDamageMultiplier = avgHitDamageMultiplier(
+                    currentCritChance,
+                    combo.critDamageMultiplier,
+                    input.nonCriticalHitDamageProcs,
+                );
             }
             const result = calculateDirectDamageToInitialPools({
                 ...input,
                 damageByType,
-                expectedCritMultiplier,
+                expectedHitDamageMultiplier,
                 damageRampMultiplier: rampMultiplier * (index % shotsPerMagazine === 0
                     ? 1 + firstShotMagazineDamageBonus
                     : 1),
@@ -1741,11 +1756,6 @@ function scaleStatusStacks(stacks: number, first: number, additional: number, ca
     if (stacks <= 0) return 0;
     if (stacks <= 1) return first * stacks;
     return Math.min(cap, first + additional * (stacks - 1));
-}
-
-function expectedCritMultiplier(critChance: number, critMultiplier: number): number {
-    if (critChance <= 0) return 1;
-    return 1 + critChance * (critMultiplier - 1);
 }
 
 function getHeatArmorStripAtTime(

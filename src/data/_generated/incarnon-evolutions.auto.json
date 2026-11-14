@@ -4153,10 +4153,9 @@
             "id": "tier-5-devouring-attrition",
             "name": "Devouring Attrition",
             "descriptionLines": [
-              "50% chance to deal 2000% damage on non-critical hits.",
+              "50% chance to deal +2000% damage on non-critical hits.",
               "Affects both modes.",
-              "Multiplicative to base damage sources such as Hornet Strike.",
-              "Bosses ignore this perk."
+              "Damage bonus is multiplicative to base damage bonuses such as Hornet Strike."
             ],
             "notes": []
           },
