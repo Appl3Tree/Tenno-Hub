@@ -4,6 +4,12 @@ Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Buil
 
 ## Latest follow-up (2026-11-14)
 
+### Shattering Impact base-armor removal
+
+The mod parser now reads the rank-scaled 1–6 base-Armor removal and passes it through selected-build and Expected TTK calculations. It activates only for melee hits with nonzero Damage 3.0-quantized Impact, does not require a status proc, persists across attacks, and applies before Heat/Corrosive percentage strips. Expected multishot is treated as a mean-field number of hits. Charged/heavy Glaive throws are excluded. Melee Duplicate critical-hit doubling and Archon/commandeered Prime immunity exceptions are not modeled. See the [WARFRAME Wiki Armor reference](https://wiki.warframe.com/w/Armor).
+
+Regressions cover ranks, quantization, persistent base-armor removal, percentage-strip ordering, and source attribution. The release build passes all 602 tests / 49 files, `npm run build`, `npm run validate:sources`, and focused ESLint; the Worker is 105,901 bytes. The port-80 Arsenal header layout now keeps the selector at 360px when space allows and caps it to the available width. The in-app browser showed this layout but did not activate its controls, so Perigale Prime's reported visible picker state still needs a successful browser interaction. The catalog regression and a previous production check include standard and Flawed Rifle/Sniper mods. Overall assignment remains open.
+
 ### Synth Charge final-shot model
 
 The parser now recognizes Synth Charge's rank-scaled final-shot bonus. Eligible discrete attacks receive its multiplicative bonus on one hit of the last ammo-consuming attack in each magazine; the expected contribution is divided across multishot projectiles, and Burst / Sustained output averages the bonus over the magazine. The finite encounter and direct-hit sequence apply it only on the final magazine attack. The base-magazine-six gate, continuous attacks, Incarnon attacks, Exalted weapons, maintained infinite-ammo state, and attacks that consume the whole magazine at once are screened and explained. The Catabolyst reload-grenade exception is explicitly reported as unmodeled rather than treated as a continuous attack.
