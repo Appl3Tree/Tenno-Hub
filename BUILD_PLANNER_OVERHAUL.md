@@ -757,3 +757,12 @@ Korumm's Tactical Combo Slam hit is regression-tested for the Seismic bonus, but
 
 The release build passes 604 tests / 49 files, npm run build, npm run validate:sources, focused planner ESLint, and npm run audit:mod-effect-coverage. The production optimizer Worker is 106,165 bytes. The broader assignment remains open for full mechanic coverage, expanded equivalent Underframe comparisons, global/joint optimality evidence, and cold/mobile/cross-device performance. See the detailed measurements in BUILD_PLANNER_BENCHMARK.md.
 
+## EFV-8 Mars Prototype Shock Coils (2026-11-14)
+
+The current [Prototype Shock Coils Wiki page](https://wiki.warframe.com/w/Prototype_Shock_Coils) documents +15–90% Electricity damage and a separate 20% base chance per shot to apply an extra Electricity status, independent of modded damage types. Its note says the separate roll scales with Status Chance bonuses.
+
+The parser now covers all six ranks. The damage model adds the Electricity bonus and treats the extra status as a separate per-hit roll, scaling it with additive/final Status Chance and the configured target's Tau amplification. It accounts for multishot, contributes expected Electricity applications to status/DoT scoring, computes the probability of at least one extra proc for finite DoT seeds, and suppresses the proc against Electricity-immune targets. The Mod Builder reports the additional expected procs separately from the ordinary damage-weighted proc mix.
+
+Regressions cover every rank, Normal Attack and Alt-Fire, Status Chance scaling, immunity, and parser warnings. Port-80 in-app-browser QA selected Efv-8 Mars, equipped rank-5 Prototype Shock Coils, and showed 0.20 additional Electricity procs per shot; reset and reload restored the blank planner.
+
+The mod-coverage audit now reports 471 parsed-effect records and 85 conservatively flagged unmatched records among 598 eligible mods across 694 weapons; the keyword screen includes utility false positives. The production Worker is 106,820 bytes. This focused augment addition does not close the wider weapon/status audit, global or joint optimality, broad Underframe coverage, or cold/mobile/cross-device performance.
