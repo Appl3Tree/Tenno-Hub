@@ -4,6 +4,14 @@ Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Buil
 
 ## Latest follow-up (2026-11-14)
 
+### Critical Focus aiming-condition parser
+
+The parser now recognizes the combined “Critical Chance and Damage” descriptor and assigns the same rank-scaled value to critical chance and critical multiplier. The existing trailing “when aiming” condition becomes whileAiming. The current [Critical Focus reference](https://wiki.warframe.com/w/Critical_Focus) lists six ranks from +10% to +60%.
+
+A Corvas Prime regression covers all six ranks, checks every damage line is modeled, verifies Initial / Realistic / Fully stacked aiming assumptions, and confirms Auto Optimize can select the mod when it is the only candidate. The five-run Node sample returned 1.723 s median / 2.036 s max for Burst Initial, and 1.100 s median / 1.178 s max for Expected TTK (0.263 s modeled time; 78 exact encounter candidates). These are desktop-core timings, not production Worker measurements.
+
+The coverage audit now finds 467 parsed damage/performance records, 89 review candidates, 17 partially parsed records, and 72 fully unparsed flagged records across 598 eligible records / 694 weapons; no weapon pool lacks a parsed damage effect. Local release checks pass: 596 tests / 49 files, production build, source validation, focused ESLint, and CRLF-aware diff check. The catalog-independent production Worker is 104,038 bytes. Full-catalog optimality, other catalog gaps, and cold/mobile/cross-device performance remain open. A fresh exact-URL Underframe copy still ignored visible controls in the in-app browser, so no new native comparison was recorded.
+
 ### Expected TTK family coverage and matched Underframe refresh
 
 The finite-encounter refinement now reserves an exact evaluation for one candidate from each effect family before using remaining slots on a second candidate from an already-covered family. A Braton Prime / fully stacked / Primary Overcharge fixture exposed why this matters: the previous result modeled 0.65613 s Expected TTK while the legal one-mod swap Bladed Rounds → Vile Acceleration modeled 0.59085 s. After family-balanced coverage, the optimizer returns the 0.59085 s build. It remains a shortlist heuristic; the independent substitution audit only establishes that no legal 1–4-mod substitution from the captured Underframe-only set beats this result.
