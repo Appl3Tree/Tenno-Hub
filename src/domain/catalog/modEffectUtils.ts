@@ -12,7 +12,7 @@ export function getUnmodeledDamageEffectLines(
 
 export function emptyEffect(): ModEffect {
     return {
-        damageBonus: 0, firstShotMagazineDamageBonus: 0, impactBonus: 0, punctureBonus: 0, slashBonus: 0,
+        damageBonus: 0, firstShotMagazineDamageBonus: 0, lastShotMagazineDamageBonus: 0, impactBonus: 0, punctureBonus: 0, slashBonus: 0,
         heavyAttackDamageBonus: 0,
         heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
         blastBonus: 0, gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
