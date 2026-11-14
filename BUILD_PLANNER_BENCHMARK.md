@@ -1285,3 +1285,18 @@ A bounded per-optimization cache now reuses exact proxy scores from the final be
 Five cache-on runs and five cache-off runs returned the identical legal Epitaph Charged Shot build: Lethal Torrent R5, Primed Target Cracker R10, Pathogen Rounds R5, Pistol Pestilence R3, Hornet Strike R10, Barrel Diffusion R5, Primed Expel Corpus R10, and Creeping Bullseye R5. It scored 241,624.7363 at 60/60 capacity with three Forma in both batches. Cache-on measured 5.140 s median and 5.809 s maximum; cache-off measured 5.558 s median and 5.930 s maximum. This five-run result shows a small improvement but remains above the 5 s latency target and does not establish a stable p95 gain.
 
 The port-80 in-app browser returned a legal four-mod 28/30 build, but the browser click-to-result interval was not captured reliably. Node measurements still do not cover production-browser cold starts, mobile devices, or cross-device performance. The Epitaph case remains an open latency exception.
+
+## Full desktop Node benchmark refresh after the shared-score cache (2026-11-14)
+
+Command: `node --import tsx/esm scripts/benchmarkBuildOptimizer.ts --runs=5`
+
+The 36-case corpus covered 180 optimizations. Every case returned a capacity-legal result within the three-Forma limit. Per-case medians ranged from 0.653 to 3.350 seconds; maximum-of-five observations ranged from 0.668 to 3.440 seconds. Five runs provide a coarse maximum, not a statistically reliable population p95.
+
+| Case | Median | Maximum of five |
+|---|---:|---:|
+| Corvas Prime / Normal Attack / Expected TTK | 0.653 s | 0.668 s |
+| Epitaph / Charged Shot / Burst | 3.350 s | 3.440 s |
+
+Three additional isolated five-run Epitaph Charged Shot / Burst batches returned the same legal build and score (241,624.7363): 3.068 s median / 3.499 s maximum; 3.013 s / 3.321 s; and 3.189 s / 3.493 s. This does not reproduce the earlier cache-on 5.140 s / 5.809 s sample. Treat the older timing as workload-sensitive; the samples do not establish that the cache alone explains the difference.
+
+The 36-case corpus ran before the narrow Prototype Shock Coils parser addition; that weapon-specific change does not affect these cases. The production Worker after that addition is 106,820 bytes. This Node benchmark does not measure production-browser cold start, mobile devices, or cross-device latency.

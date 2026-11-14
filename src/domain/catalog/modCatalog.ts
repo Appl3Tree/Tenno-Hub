@@ -148,6 +148,8 @@ export interface ModEffect {
     impactStatusExtraProcLowFireRateMultiplier: number;
     /** Chance for a critical hit to also apply Slash. */
     critAppliesSlashChance: number;
+    /** Separate per-hit chance to add a status proc, independent of damage weighting and scaled by Status Chance bonuses. */
+    independentStatusProcChanceByType?: Partial<Record<WeaponForcedProcType, number>>;
     /**
      * AoE elemental status spread chance (0–1). On Electricity proc, spreads all elemental
      * melee status effects to enemies within aoeElementalStatusSpreadRadius metres.
@@ -170,6 +172,7 @@ export interface NonCriticalHitDamageProc {
 
 const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment";
 const SHATTERING_IMPACT_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeArmorShatterMod";
+const PROTOTYPE_SHOCK_COILS_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
     "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
@@ -630,6 +633,12 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             // Keep the non-empty faction name
             const v = partial[k];
             if (v) out[k] = v;
+        } else if (k === "independentStatusProcChanceByType") {
+            const merged = { ...(out.independentStatusProcChanceByType ?? {}) };
+            for (const [type, chance] of Object.entries(partial.independentStatusProcChanceByType ?? {}) as Array<[WeaponForcedProcType, number]>) {
+                merged[type] = (merged[type] ?? 0) + chance;
+            }
+            out.independentStatusProcChanceByType = merged;
         } else if (k === "conditionalEffects") {
             out.conditionalEffects = [...(out.conditionalEffects ?? []), ...((partial.conditionalEffects ?? []) as ConditionalEffect[])];
         } else if (k === "impactStatusExtraProcLowFireRateThreshold" || k === "impactStatusExtraProcLowFireRateMultiplier") {
@@ -647,6 +656,7 @@ function hasDamageEffect(e: ModEffect): boolean {
         if (Array.isArray(v)) return v.length > 0;
         if (typeof v === "number") return Number.isFinite(v) && v !== 0;
         if (typeof v === "string") return v.length > 0;
+        if (typeof v === "object") return Object.keys(v as Record<string, unknown>).length > 0;
         return Boolean(v);
     });
 }
@@ -1181,6 +1191,21 @@ function buildCaches(): ModCaches {
                         );
                         break;
                     }
+                }
+            });
+        }
+        if (path === PROTOTYPE_SHOCK_COILS_PATH) {
+            parsedLevelStats.forEach((levelStat, rank) => {
+                for (const rawStat of levelStat.stats ?? []) {
+                    const text = stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    const match = text.match(/^Adds \+?(\d+(?:\.\d+)?)% Electric damage, and shots have a (\d+(?:\.\d+)?)% base chance to apply extra Electric status independent of modded damage types\.?$/i);
+                    if (!match || !effectsByRank[rank]) continue;
+                    effectsByRank[rank].electricityBonus = Number(match[1]) / 100;
+                    effectsByRank[rank].independentStatusProcChanceByType = { electricity: Number(match[2]) / 100 };
+                    unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim() !== text,
+                    );
+                    break;
                 }
             });
         }
