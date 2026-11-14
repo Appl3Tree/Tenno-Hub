@@ -289,6 +289,18 @@ const EMPTY_CUSTOM_RIVENS: CustomRivenRecord[] = [];
 function fmt(n: number, d = 0) {
     return n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
 }
+function describeLastShotMagazineInactiveReason(reason: string): string {
+    switch (reason) {
+        case "base-magazine-under-six": return "the weapon's base magazine capacity is below 6";
+        case "continuous-weapon": return "Synth Charge does not affect continuous attacks in this model";
+        case "unmodeled-reload-grenade": return "the Catabolyst reload-grenade exception is not modeled";
+        case "incarnon-attack": return "Synth Charge does not affect Incarnon attacks";
+        case "exalted-weapon": return "Synth Charge does not affect Exalted weapons";
+        case "infinite-ammo": return "the selected condition assumes the magazine never empties";
+        case "one-attack-per-magazine": return "this attack consumes the whole magazine in one attack";
+        default: return "the selected attack does not meet the modeled requirements";
+    }
+}
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function displayMagazineValue(weapon: WeaponEntry, magazineSize: number) {
     return weapon.hasExplicitMagazineSize ? String(magazineSize) : "∞";
@@ -1470,6 +1482,19 @@ function buildMathBreakdown(
                     ? [
                         `First ammo-consuming shot after reload = ${fmt(stats.averageShotDamage, 5)} × ${fmt(stats.firstShotMagazineDamageMultiplier, 6)} = ${fmt(stats.averageShotDamage * stats.firstShotMagazineDamageMultiplier, 5)}`,
                         `Average magazine damage multiplier = 1 + first-shot bonus ${fmt(stats.firstShotMagazineDamageBonus, 5)} ÷ ${fmt(stats.shotsPerMag, 5)} shots = ${fmt(stats.magazineAverageDamageMultiplier, 6)}`,
+                    ]
+                    : []),
+                ...(stats.lastShotMagazineRequestedDamageBonus > 0
+                    ? stats.lastShotMagazineInactiveReason
+                        ? [`Final-shot magazine bonus is inactive because ${describeLastShotMagazineInactiveReason(stats.lastShotMagazineInactiveReason)}.`]
+                        : [
+                            `Final ammo-consuming shot, one-hit bonus = ${fmt(stats.averageShotDamage, 5)} × ${fmt(stats.lastShotMagazineDamageMultiplier, 6)} = ${fmt(stats.averageShotDamage * stats.lastShotMagazineDamageMultiplier, 5)}`,
+                            `The final-shot bonus is distributed over ${fmt(stats.damageWeightedMultishot, 5)} expected projectiles because only one hit receives it.`,
+                        ]
+                    : []),
+                ...(stats.firstShotMagazineDamageBonus > 0 || stats.lastShotMagazineDamageBonus > 0
+                    ? [
+                        `Average magazine damage multiplier = 1 + (first-shot bonus ${fmt(stats.firstShotMagazineDamageBonus, 5)} + one-hit final-shot bonus ${fmt(stats.lastShotMagazineDamageMultiplier - 1, 5)}) ÷ ${fmt(stats.shotsPerMag, 5)} attacks = ${fmt(stats.magazineAverageDamageMultiplier, 6)}`,
                     ]
                     : []),
                 ...fireRateExplanation,
@@ -3992,6 +4017,7 @@ export default function ModBuilder() {
             shotsPerMagazine: stats.shotsPerMag,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
+            lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             critChance: stats.critChance + stats.punctureCritChanceBonus,
             critMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
@@ -4046,6 +4072,7 @@ export default function ModBuilder() {
             shotsPerMagazine: stats.shotsPerMag,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
+            lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
             statusDurationMultiplier: stats.statusDurationMultiplier,
@@ -6192,6 +6219,20 @@ export default function ModBuilder() {
                                         { label: avgDamageLabel, value: fmt(stats.averageShotDamage), sub: "crit-weighted", tooltip: `Expected damage per ${damageUnit} after weighting in crit chance and crit multiplier.` },
                                         ...(stats.firstShotMagazineDamageBonus > 0
                                             ? [{ label: "First shot", value: fmt(stats.averageShotDamage * stats.firstShotMagazineDamageMultiplier), sub: "after reload", tooltip: `Expected direct damage for the first ammo-consuming shot in a fresh magazine, including first-shot Chamber mods and crit weighting. Later shots use the ordinary per-${damageUnit} damage above.` }]
+                                            : []),
+                                        ...(stats.lastShotMagazineRequestedDamageBonus > 0
+                                            ? [{
+                                                label: "Final shot",
+                                                value: stats.lastShotMagazineInactiveReason
+                                                    ? "Inactive"
+                                                    : fmt(stats.averageShotDamage * stats.lastShotMagazineDamageMultiplier),
+                                                sub: stats.lastShotMagazineInactiveReason
+                                                    ? "Synth Charge requirement"
+                                                    : "one hit in a fresh magazine",
+                                                tooltip: stats.lastShotMagazineInactiveReason
+                                                    ? `Synth Charge is inactive because ${describeLastShotMagazineInactiveReason(stats.lastShotMagazineInactiveReason)}.`
+                                                    : `Synth Charge adds its bonus to one hit on the final ammo-consuming attack. This value spreads that hit's bonus across the expected projectiles for the attack.`,
+                                            }]
                                             : []),
                                         { label: "Burst DPS", value: fmt(result.burstDPS), sub: "fresh magazine", tooltip: "Damage per second while attacking through a fresh magazine without reload downtime. Verified attack ramps are averaged across that magazine." },
                                         { label: "Sustained DPS", value: fmt(result.sustainedDPS), sub: stats.infiniteAmmoActive ? "Gale Force maintained" : "with reload", tooltip: stats.infiniteAmmoActive ? "Damage per second assumes Gale Force stays active, so no reload downtime or recurring first-shot Chamber bonus is applied." : "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable." },

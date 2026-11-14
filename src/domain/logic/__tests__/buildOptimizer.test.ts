@@ -505,6 +505,24 @@ describe("build optimizer scoring", () => {
         expect(optimized.slots).toContain(criticalFocus);
     });
 
+    it("uses Synth Charge's final-magazine-hit damage while optimizing eligible pistols", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Lex Prime");
+        expect(weapon).toBeDefined();
+        const synthCharge = getModsForWeapon(weapon!).find((entry) => entry.name === "Synth Charge");
+        expect(synthCharge).toBeDefined();
+
+        const optimized = optimizeBuild(weapon!, [synthCharge!], "burst", weapon!.baseSlotCount, {
+            targetFaction: "Corpus",
+        });
+        expect(optimized.slots).toContain(synthCharge);
+
+        const shortMagazineWeapon = { ...weapon!, magazineSize: 5 };
+        const shortMagazine = optimizeBuild(shortMagazineWeapon, [synthCharge!], "burst", weapon!.baseSlotCount, {
+            targetFaction: "Corpus",
+        });
+        expect(shortMagazine.slots).not.toContain(synthCharge);
+    });
+
     it("scores Galvanized Reflex Initial Combo stacks for heavy attacks", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
         expect(weapon).toBeDefined();

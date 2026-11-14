@@ -912,6 +912,33 @@ describe("finite expected-value weapon encounters", () => {
         expect(encounter.directDamageByPool.health).toBeCloseTo(250, 10);
     });
 
+    it("applies a final-shot magazine bonus to one hit among multishot projectiles", () => {
+        const common = {
+            damageByType: { impact: 100 },
+            health: 2_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            expectedDamageMultiplier: 3,
+            shotsPerMagazine: 4,
+            lastShotMagazineDamageBonus: 2,
+            reloadDurationSeconds: 2,
+        };
+
+        const encounter = simulateExpectedWeaponEncounter({ ...common, maxAttacks: 4 });
+        const sequence = simulateDirectAttackSequence({ ...common, health: 1_400 });
+
+        // The final 3-projectile attack adds a 200% bonus to one hit (200
+        // damage), not to the complete volley (600 damage).
+        expect(encounter.attacks).toBe(4);
+        expect(encounter.directDamageByPool.health).toBeCloseTo(1_400, 10);
+        expect(sequence.attacksToKill).toBe(4);
+        expect(sequence.timeToKillSeconds).toBeCloseTo(3, 10);
+        expect(sequence.damageByPool.health).toBeCloseTo(1_400, 10);
+    });
+
     it("applies a first-shot Chamber multiplier to the DoT seeded by that attack", () => {
         const encounter = simulateExpectedWeaponEncounter({
             damageByType: {},

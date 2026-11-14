@@ -4,6 +4,12 @@ Run date: 2026-11-14; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Synth Charge optimizer corpus (2026-11-14)
+
+The repeatable optimizer corpus now includes Lex Prime for Burst and Expected TTK. With the full 107-mod pool, five Burst runs returned the same legal 57/60 build using three Forma; median latency was 4.282 s and the maximum-of-five observation was 4.672 s. Synth Charge was screened but not selected over the stronger candidates in this fixture. Five Expected TTK runs returned the same legal 59/60 build using three Forma and evaluated 77 exact encounter candidates; median latency was 3.100 s and the maximum was 3.762 s. The default Corpus target dies on the first attack at time zero, so this is an optimizer latency sample, not a multi-shot final-shot kill-time comparison.
+
+Separate regressions cover all Synth Charge ranks, one-hit distribution across multishot, the magazine requirement and excluded attack types, finite direct damage, and selection when Synth Charge is the only candidate. The coverage audit reports 468 parsed effects and 88 review candidates (17 partial, 71 fully unparsed) among 598 eligible mod records; no weapon pool lacks a parsed effect. Local release checks pass at 599 tests / 49 files, production TypeScript/Vite build, source validation, focused ESLint, and CRLF-aware diff checking. The catalog-independent Worker is 104,883 bytes. These are Windows x64 Node-core results, not browser Worker latency; production/cold/mobile measurements and full-catalog optimality remain open.
+
 ## Critical Focus aiming-condition parser (2026-11-14)
 
 The parser now splits Critical Focus's combined critical-chance-and-damage line into equal rank-scaled critical chance and critical multiplier bonuses; its “when aiming” suffix maps to whileAiming. Tests cover all ranks for Corvas Prime, state assumptions, zero unmodeled damage lines, and the optimizer's ability to select it.
