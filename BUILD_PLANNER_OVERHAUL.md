@@ -4,6 +4,12 @@ Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Buil
 
 ## Latest follow-up (2026-11-14)
 
+### Synth Charge final-shot model
+
+The parser now recognizes Synth Charge's rank-scaled final-shot bonus. Eligible discrete attacks receive its multiplicative bonus on one hit of the last ammo-consuming attack in each magazine; the expected contribution is divided across multishot projectiles, and Burst / Sustained output averages the bonus over the magazine. The finite encounter and direct-hit sequence apply it only on the final magazine attack. The base-magazine-six gate, continuous attacks, Incarnon attacks, Exalted weapons, maintained infinite-ammo state, and attacks that consume the whole magazine at once are screened and explained. The Catabolyst reload-grenade exception is explicitly reported as unmodeled rather than treated as a continuous attack.
+
+Regressions cover all four mod ranks, standard and multishot math, the magazine requirement, continuous and Incarnon exclusions, the Catabolyst exception, finite-encounter damage, and optimizer selection. Current Wiki references: [Synth Charge](https://wiki.warframe.com/w/Synth_Charge), [Catabolyst](https://wiki.warframe.com/w/Catabolyst), and [Weapons/Passives](https://wiki.warframe.com/w/Weapons/Passives).
+
 ### Critical Focus aiming-condition parser
 
 The parser now recognizes the combined “Critical Chance and Damage” descriptor and assigns the same rank-scaled value to critical chance and critical multiplier. The existing trailing “when aiming” condition becomes whileAiming. The current [Critical Focus reference](https://wiki.warframe.com/w/Critical_Focus) lists six ranks from +10% to +60%.
