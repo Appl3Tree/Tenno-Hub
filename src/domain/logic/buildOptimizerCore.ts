@@ -2030,7 +2030,7 @@ function fillEmptySlots(
     return { mods, ranks };
 }
 
-const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 24;
+const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 40;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
@@ -2568,24 +2568,31 @@ function refineBuildByExpectedEncounter(
         // Exact encounter TTK is especially sensitive to elemental transitions;
         // reserve this family before proxy-adjacent base-damage/tempo alternatives
         // can consume the bounded single-replacement shortlist.
-        for (const family of [
+        const singleCandidateFamilies = [
             "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
             "elemental-electricity-status", "elemental-cold", "elemental-toxin",
             "elemental-heat", "elemental-electricity", "elemental",
             "multishot", "faction-damage", "critical", "fire-rate",
             "base-damage", "status", "weapon-tempo", "other",
-        ]) {
-            let addedForFamily = 0;
-            for (const proposal of sortedProposals) {
-                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
-                    addedForFamily >= ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY) break;
-                const candidate = proposal.candidates[0];
-                if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
-                const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
-                if (singleCandidateKeys.has(candidateKey)) continue;
-                singleCandidateKeys.add(candidateKey);
-                if (!shortlist.includes(proposal)) shortlist.push(proposal);
-                addedForFamily++;
+        ];
+        // Reserve one exact TTK evaluation for every distinct effect family
+        // before spending the remaining shortlist on second choices from early
+        // families. Proxy order alone can underrank a tempo alternative (for
+        // example Vile Acceleration under a short, high-health encounter).
+        for (const familyPass of [1, 2]) {
+            for (const family of singleCandidateFamilies) {
+                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+                let addedForFamily = 0;
+                for (const proposal of sortedProposals) {
+                    if (addedForFamily >= familyPass) break;
+                    const candidate = proposal.candidates[0];
+                    if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
+                    const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+                    if (singleCandidateKeys.has(candidateKey)) continue;
+                    singleCandidateKeys.add(candidateKey);
+                    if (!shortlist.includes(proposal)) shortlist.push(proposal);
+                    addedForFamily++;
+                }
             }
         }
         if (shortlist.length < ENCOUNTER_REFINE_CANDIDATE_LIMIT) {
