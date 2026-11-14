@@ -75,6 +75,77 @@ describe("damage calculation status eligibility", () => {
         expect(both.modded.dotDps).toBeCloseTo(base.modded.dotDps * 1.0875, 10);
     });
 
+    it("models Synth Charge on one hit of the final shot in eligible magazines", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Lex Prime");
+        expect(weapon).toBeDefined();
+        expect(weapon!.magazineSize).toBeGreaterThanOrEqual(6);
+        const synthCharge = getModsForWeapon(weapon!).find((mod) => mod.name === "Synth Charge");
+        expect(synthCharge).toBeDefined();
+        expect(synthCharge!.hasDamageEffect).toBe(true);
+        expect(synthCharge!.effectsByRank.map((effect) => effect.lastShotMagazineDamageBonus))
+            .toEqual([0.5, 1, 1.5, 2]);
+        for (let rank = 0; rank <= synthCharge!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(synthCharge!, rank)).toEqual([]);
+        }
+
+        const effect = synthCharge!.effectsByRank[synthCharge!.fusionLimit];
+        const base = calculateBuild(weapon!, []);
+        const charged = calculateBuild(weapon!, [effect]);
+        const lethalTorrent = getModsForWeapon(weapon!).find((mod) => mod.name === "Lethal Torrent");
+        expect(lethalTorrent).toBeDefined();
+        const multishotBuild = calculateBuild(weapon!, [
+            effect,
+            lethalTorrent!.effectsByRank[lethalTorrent!.fusionLimit],
+        ]).modded;
+
+        expect(base.modded.shotsPerMag).toBe(8);
+        expect(charged.modded.lastShotMagazineDamageBonus).toBe(2);
+        expect(charged.modded.lastShotMagazineRequestedDamageBonus).toBe(2);
+        expect(charged.modded.lastShotMagazineDamageMultiplier).toBeCloseTo(3, 12);
+        expect(charged.modded.magazineAverageDamageMultiplier).toBeCloseTo(1.25, 12);
+        expect(charged.burstDPS).toBeCloseTo(base.burstDPS * 1.25, 10);
+        expect(charged.sustainedDPS).toBeCloseTo(base.sustainedDPS * 1.25, 10);
+        expect(charged.modded.lastShotMagazineInactiveReason).toBeNull();
+        expect(multishotBuild.damageWeightedMultishot).toBeCloseTo(1.6, 10);
+        expect(multishotBuild.lastShotMagazineDamageMultiplier).toBeCloseTo(2.25, 10);
+        expect(multishotBuild.magazineAverageDamageMultiplier).toBeCloseTo(1.15625, 10);
+
+        const shortMagazine = calculateBuild({ ...weapon!, magazineSize: 5 }, [effect]).modded;
+        expect(shortMagazine.lastShotMagazineInactiveReason).toBe("base-magazine-under-six");
+        expect(shortMagazine.lastShotMagazineDamageBonus).toBe(0);
+        expect(shortMagazine.lastShotMagazineRequestedDamageBonus).toBe(2);
+
+        const continuousWeapon = calculateBuild({
+            ...weapon!,
+            tags: [...weapon!.tags, "BEAM"],
+        }, [effect]).modded;
+        expect(continuousWeapon.lastShotMagazineInactiveReason).toBe("continuous-weapon");
+        expect(continuousWeapon.lastShotMagazineDamageBonus).toBe(0);
+
+        const catabolyst = getWeaponCatalog().find((candidate) => candidate.name === "Catabolyst");
+        const emptyReloadExplosion = catabolyst?.attacks.findIndex((attack) => attack.name === "Reload From Empty Explosion") ?? -1;
+        expect(emptyReloadExplosion).toBeGreaterThanOrEqual(0);
+        const unsupportedReloadGrenade = calculateBuild(
+            withSelectedAttack(catabolyst!, emptyReloadExplosion),
+            [effect],
+        ).modded;
+        expect(unsupportedReloadGrenade.lastShotMagazineInactiveReason).toBe("unmodeled-reload-grenade");
+
+        const incarnonAttack = calculateBuild({
+            ...weapon!,
+            selectedAttackIsIncarnon: true,
+        }, [effect]).modded;
+        expect(incarnonAttack.lastShotMagazineInactiveReason).toBe("incarnon-attack");
+        expect(incarnonAttack.lastShotMagazineDamageBonus).toBe(0);
+
+        const oneAttackPerMagazine = calculateBuild({
+            ...weapon!,
+            ammoCostPerShot: weapon!.magazineSize,
+        }, [effect]).modded;
+        expect(oneAttackPerMagazine.lastShotMagazineInactiveReason).toBe("one-attack-per-magazine");
+        expect(oneAttackPerMagazine.lastShotMagazineDamageBonus).toBe(0);
+    });
+
     it("models maintained Gale Force as infinite ammo and suppresses Chamber bonuses", () => {
         const catalog = getWeaponCatalog();
         const perigale = catalog.find((candidate) => candidate.name === "Perigale");
