@@ -30,7 +30,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { avgCritMultiplier, calculateBuild, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
-import { optimizeBuild, explainBuild, debugScoreBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, rankExpectedEncounter, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
+import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
 import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
 import { calculateDirectDamageToInitialPools, simulateDirectAttackSequence, simulateExpectedWeaponEncounter, type DirectTargetDamageInput } from "../../domain/logic/targetDamage";
@@ -4175,27 +4175,21 @@ export default function ModBuilder() {
                 preEquippedEffects: ModEffect[],
                 useFiniteEncounterResult = true,
             ) => {
-                const scoringWeapon = makeSelectedAttackWeapon(candidateWeapon, candidateAttackIdx);
-                const effects: (ModEffect | null)[] = [
-                    ...preEquippedEffects,
-                    ...candidateResult.slots.map((mod, index) => {
-                    if (!mod) return null;
-                    const rank = candidateResult.slotRanks[index] ?? mod.fusionLimit;
-                    return mod.effectsByRank[rank] ?? mod.effect;
-                    }),
-                ];
-                if (optExilus && candidateResult.exilusMod) {
-                    effects.push(candidateResult.exilusMod.effectsByRank[candidateResult.exilusRank] ?? candidateResult.exilusMod.effect);
-                }
-                const arcaneEffect = candidateResult.arcane
-                    ? getArcaneEffectAtRank(candidateResult.arcane, candidateResult.arcaneRank, warframeArmor, true, arcaneEnergyContext)
-                    : null;
-                return goal === "timeToKill" && useFiniteEncounterResult && candidateResult.encounterScore !== undefined
-                    ? rankExpectedEncounter(
-                        candidateResult.encounterTimeToKillSeconds,
-                        candidateResult.encounterScore,
-                    )
-                    : debugScoreBuild(scoringWeapon, effects, goal, factionOn ? faction : "", arcaneEffect, targetProfileOverride, conditionalState);
+                return scoreOptimizerResultForConfiguration({
+                    weapon: candidateWeapon,
+                    result: candidateResult,
+                    goal,
+                    targetFaction: factionOn ? faction : "",
+                    selectedAttackIdx: candidateAttackIdx,
+                    targetProfileOverride,
+                    conditionalState,
+                    preEquippedEffects,
+                    includeExilus: optExilus,
+                    warframeArmor,
+                    warframeMaxEnergy,
+                    warframeEnergyPercent,
+                    useFiniteEncounterResult,
+                });
             };
 
             const runOptimizeForConfig = async (
