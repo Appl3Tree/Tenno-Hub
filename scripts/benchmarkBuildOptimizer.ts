@@ -94,6 +94,8 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Epitaph", attackName: "Charged Shot", category: "Expected TTK charged secondary", goal: "timeToKill", targetFaction: "Corpus" },
     { weaponName: "Nataruk", attackName: "Perfect Shot", category: "Expected TTK precision bow", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Gram Prime", attackName: "Heavy Slam Attack", category: "Expected TTK melee heavy-attack proxy", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Lex Prime", category: "Synth Charge precision pistol", goal: "burst", targetFaction: "Corpus" },
+    { weaponName: "Lex Prime", category: "Expected TTK Synth Charge secondary", goal: "timeToKill", targetFaction: "Corpus" },
 ];
 const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9).trim().toLowerCase();
 const requestedAttack = process.argv.find((arg) => arg.startsWith("--attack="))?.slice(9).trim().toLowerCase();
