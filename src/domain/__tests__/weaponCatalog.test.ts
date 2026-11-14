@@ -126,6 +126,21 @@ describe("weapon catalog stance inference", () => {
         expect(getModsForWeapon(bratonPrime!).some((mod) => mod.name === "Primed Chamber")).toBe(false);
     });
 
+    it("keeps standard compatible mods available to every weapon in the builder catalog", () => {
+        const isTrainingVariant = (path: string) => /(?:^|\/)(?:Beginner|Intermediate|Expert)(?:\/|$)/i.test(path)
+            || /(?:Beginner|Intermediate|Expert)$/i.test(path);
+        const failures: Array<{ weapon: string; modCompat: string; builderModCount: number }> = [];
+
+        for (const weapon of getWeaponCatalog()) {
+            // Owned Mods and the manual picker use this same filtered catalog pool.
+            const builderMods = filterBuilderExpertVariants(getModsForWeapon(weapon));
+            if (builderMods.some((mod) => !isTrainingVariant(mod.path))) continue;
+            failures.push({ weapon: weapon.name, modCompat: weapon.modCompat, builderModCount: builderMods.length });
+        }
+
+        expect(failures).toEqual([]);
+    });
+
     it("keeps secondary pistol mods visible when the lean item ancestry is missing", () => {
         const standardPistolNames = new Set(["Aksondol", "Athodai Prime", "Regulators", "Regulators Prime"]);
         const standardPistolMods = getModsForCompat("Pistol");
