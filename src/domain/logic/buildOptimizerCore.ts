@@ -1568,7 +1568,7 @@ function beamThemeSignature(state: BeamState): string {
         if ((effect.factionDamageBonus ?? 0) > 0 && effect.targetFaction) tags.add(`faction:${effect.targetFaction.toLowerCase()}`);
         if ((effect.directDamagePerStatusBonus ?? 0) > 0) tags.add("per-status");
         if ((effect.conditionOverloadDamagePerStatusBonus ?? 0) > 0) tags.add("per-status");
-        if ((effect.critChanceBonus ?? 0) > 0 || (effect.critMultBonus ?? 0) > 0) tags.add("crit");
+        if ((effect.critChanceBonus ?? 0) > 0 || (effect.slideAttackCritChanceBonus ?? 0) > 0 || (effect.critMultBonus ?? 0) > 0) tags.add("crit");
     }
     return [...tags].sort().join("|");
 }
@@ -2181,7 +2181,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
+    if (has("critChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "attackSpeedBonus")) families.push("fire-rate");
