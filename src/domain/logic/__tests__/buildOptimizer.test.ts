@@ -1152,7 +1152,7 @@ describe("build optimizer scoring", () => {
         expect(result.encounterTimeToKillSeconds!).toBeLessThanOrEqual(screeningEncounter.timeToKillSeconds!);
     });
 
-    it("uses pairwise finite-TTK refinement to escape a weak proxy build", () => {
+    it("reserves finite-TTK refinement for tempo candidates that the proxy undervalues", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
         expect(weapon).toBeTruthy();
         const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
@@ -1232,8 +1232,9 @@ describe("build optimizer scoring", () => {
         expect(result.capacityValid).toBe(true);
         expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
         expect(selectedNames).toContain("High Voltage");
+        expect(selectedNames).toContain("Vile Acceleration");
         expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
-        expect(result.encounterTimeToKillSeconds).toBeLessThan(0.66);
+        expect(result.encounterTimeToKillSeconds).toBeLessThan(0.60);
         expect(selectedFinalListArcaneScore).toBeCloseTo(bestFinalListArcaneScore, 12);
     });
 
