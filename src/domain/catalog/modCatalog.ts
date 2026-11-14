@@ -1159,6 +1159,7 @@ function buildCaches(): ModCaches {
                     break;
                 }
             });
+        }
         // The upstream plain-text export omits Hunter Munitions' linked Slash
         // type, leaving "chance to apply on Critical". The current Wiki confirms
         // that this independent chance applies Slash; recover the percentage
