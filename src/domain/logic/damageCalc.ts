@@ -164,6 +164,8 @@ export interface ModdedWeaponStats {
     meleeComboMultiplier: number;
     /** Combo multiplier applied to this selected heavy melee attack, or 1 for other attacks. */
     meleeAttackComboDamageMultiplier: number;
+    /** Multiplicative Slam Damage bonus applied to the selected eligible slam attack, or 1 otherwise. */
+    slamAttackDamageMultiplier: number;
     /** Critical chance added per active combo tier by combo-scaled effects. */
     comboCritChancePerTier: number;
     /** Initial Combo points available to rebuild after Heavy Attacks. */
@@ -704,6 +706,7 @@ export function calculateBuild(
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
     let damageBonus = 0;
+    let slamAttackDamageBonus = 0;
     let firstShotMagazineDamageBonus = 0;
     let lastShotMagazineDamageBonus = 0;
     let shatteringImpactBaseArmorPerHit = 0;
@@ -757,6 +760,9 @@ export function calculateBuild(
         const e = mods[index];
         if (!e) continue;
         damageBonus += e.damageBonus ?? 0;
+        if (weapon.selectedAttackUsesSlamDamageBonus === true) {
+            slamAttackDamageBonus += e.slamAttackDamageBonus ?? 0;
+        }
         lastShotMagazineDamageBonus += e.lastShotMagazineDamageBonus ?? 0;
         shatteringImpactBaseArmorPerHit += e.shatteringImpactBaseArmorPerHit ?? 0;
         if (weapon.selectedAttackUsesMeleeComboMultiplier === true) {
@@ -1149,6 +1155,14 @@ export function calculateBuild(
 
     for (const key of ["blast", "gas", "magnetic", "radiation", "viral", "corrosive", "void", "tau", "true"] as const) {
         rawBreakdown[key] += totalBase * (directBonusBreakdown[key] + conditionalDirectBonusBreakdown[key]);
+    }
+
+    const slamAttackDamageMultiplier = Math.max(0, 1 + slamAttackDamageBonus);
+    if (slamAttackDamageMultiplier !== 1) {
+        // Slam Damage is a separate multiplicative category that scales the
+        // selected catalog slam hit, including its status seed and quantization scale.
+        for (const key of DAMAGE_KEYS) rawBreakdown[key] *= slamAttackDamageMultiplier;
+        totalBase *= slamAttackDamageMultiplier;
     }
 
     const initialComboCount = usesMeleeDamageModel(weapon.category)
@@ -1704,7 +1718,7 @@ export function calculateBuild(
     const modded: ModdedWeaponStats = {
         rawDamageBreakdown: directRawBreakdown,
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
-        baseDamageTotal: baseDamageTotal * meleeAttackComboDamageMultiplier,
+        baseDamageTotal: baseDamageTotal * slamAttackDamageMultiplier * meleeAttackComboDamageMultiplier,
         arsenalDamage,
         totalDamageBonus: damageBonus,
         timedConditionalDamageStacks,
@@ -1723,6 +1737,7 @@ export function calculateBuild(
         averageCritTier,
         meleeComboMultiplier,
         meleeAttackComboDamageMultiplier,
+        slamAttackDamageMultiplier,
         comboCritChancePerTier,
         meleeInitialComboPoints: initialComboCount,
         heavyAttackEfficiency,
