@@ -1,8 +1,18 @@
 # Build Planner Overhaul — Research and Progress
 
-Last updated: 2026-11-13. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
+Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
-## Latest follow-up (2026-11-13)
+## Latest follow-up (2026-11-14)
+
+### Finite Expected TTK joint Arcane oracle, HiGHS runtime prototype, and live release check
+
+Added a Braton Prime finite-encounter oracle that enumerates legal ordered builds from four max-rank mods and every rank of Primary Bulwark and energy-gated Primary Overcharge. The Expected TTK optimizer returned a capacity-valid build with the same modeled encounter ranking as that exhaustive joint mod/Arcane search. This is bounded evidence for one target and small candidate pool; it does not prove full-catalog, all-rank, or global optimality. `npm test` passes 577 tests across 49 files; the production build, `validate:sources`, planner ESLint, and CRLF-aware diff check also pass. The catalog-independent optimizer Worker is 90,717 bytes.
+
+Rechecked the [official PC patch index](https://www.warframe.com/en/patch-notes/pc) on November 14; Hotfix 44.1.4.1 remains its newest entry. Its listed change is not damage-related; Hotfix 44.1.4's Amanata Pressure Heavy Slam correction is already represented in the model.
+
+HiGHS was evaluated with the current `highs@1.15.4` WebAssembly package, installed in a disposable temporary folder only. The package reports embedded solver version 1.15.1. A 12-binary-variable additive-surrogate model enforced slot count, capacity, and exclusivity groups; HiGHS returned an optimal score of 799, matching exhaustive enumeration of all 4,096 subsets. Initialization took 18.0 ms; the first solve took 53.5 ms and four warm solves had a 5.36 ms median. The ESM loader plus `highs.wasm` measured 3,699,489 bytes raw / 1,258,610 bytes gzip. This confirms the maintained binding works for a small linear feasibility model, but it does not score real Warframe damage or compare actual candidate quality. The game's ordered elements, quantization, status histories, conditional multipliers, and finite TTK are not a linear or convex-quadratic objective. HiGHS remains a possible surrogate shortlist stage, not a replacement for exact domain evaluation. It was not added to the app; a head-to-head browser cost/quality comparison against the current worker-side hybrid remains open. [Package release](https://github.com/lovasoa/highs-js/releases), [HiGHS API](https://lovasoa.github.io/highs-js/docs/), [solver capabilities](https://github.com/lovasoa/highs-js#what-can-it-solve).
+
+PR [#17](https://github.com/Appl3Tree/Tenno-Hub/pull/17) merged as `f62362f` and deployment run 89 succeeded. On the deployed production page, five warmed Braton Prime / Expected TTK optimizations at MR 0, uncatalyzed, and the Balanced synthetic target returned the same legal 30/30 four-mod build; click-to-result observations were 519, 417, 422, 415, and 420 ms (420 ms median, 519 ms maximum). The result showed 4.21 s expected encounter TTK and the explanation exposed the finite-search limits. Reset and reload restored the empty planner. The live tab is left open for manual testing. This is one desktop/browser scenario, not a cold-start, mobile, or population-tail measurement.
 
 ### Joint mod and Arcane refinement (2026-11-13)
 
