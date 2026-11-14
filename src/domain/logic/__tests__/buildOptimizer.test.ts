@@ -1311,13 +1311,14 @@ describe("build optimizer scoring", () => {
         expect(optimizedScore.damagePerSecond).toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
     });
 
-    it("matches exhaustive Expected TTK optima across five weapon attack types", { timeout: 60000 }, () => {
+    it("matches exhaustive joint Expected TTK mod-and-Arcane optima across five weapon attack types", { timeout: 60000 }, () => {
         const scenarios = [
             {
                 weaponName: "Perigale Prime",
                 targetFaction: "Grineer",
                 targetProfileOverride: { health: 50000, shields: 0, overguard: 0, armor: 1800 },
                 modNames: ["Serration", "Split Chamber", "Vital Sense", "Malignant Force"],
+                arcaneNames: ["Primary Merciless", "Primary Deadhead"],
             },
             {
                 weaponName: "Cedo",
@@ -1331,6 +1332,7 @@ describe("build optimizer scoring", () => {
                     statusStackCaps: { cold: 4 },
                 },
                 modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast"],
+                arcaneNames: ["Primary Merciless", "Primary Frostbite"],
             },
             {
                 weaponName: "Phantasma Prime",
@@ -1338,6 +1340,7 @@ describe("build optimizer scoring", () => {
                 targetFaction: "Grineer",
                 targetProfileOverride: { health: 18000, shields: 0, overguard: 0, armor: 1300 },
                 modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast"],
+                arcaneNames: ["Primary Merciless", "Primary Frostbite"],
             },
             {
                 weaponName: "Acrid",
@@ -1351,6 +1354,7 @@ describe("build optimizer scoring", () => {
                     toxinBypassesShields: true,
                 },
                 modNames: ["Hornet Strike", "Barrel Diffusion", "Galvanized Diffusion", "Pistol Pestilence"],
+                arcaneNames: ["Secondary Merciless", "Secondary Encumber"],
             },
             {
                 weaponName: "Gram Prime",
@@ -1364,6 +1368,7 @@ describe("build optimizer scoring", () => {
                     statusStackCaps: { cold: 4 },
                 },
                 modNames: ["Primed Pressure Point", "Blood Rush", "Organ Shatter", "Condition Overload"],
+                arcaneNames: ["Melee Animosity", "Melee Exposure"],
             },
         ] as const;
         const slotCount = 3;
@@ -1385,6 +1390,21 @@ describe("build optimizer scoring", () => {
                 expect(mod, `${scenario.weaponName}: ${name}`).toBeTruthy();
                 return mod!;
             });
+            const arcaneCandidates = scenario.arcaneNames.map((name) => {
+                const arcane = getArcanesForWeapon(weapon!).find((entry) => entry.name === name);
+                expect(arcane, `${scenario.weaponName}: ${name}`).toBeTruthy();
+                return arcane!;
+            });
+            const arcaneOptions = [
+                { arcane: null, rank: 0, effect: null },
+                ...arcaneCandidates.flatMap((arcane) =>
+                    Array.from({ length: arcane.maxRank + 1 }, (_, rank) => ({
+                        arcane,
+                        rank,
+                        effect: getArcaneEffectAtRank(arcane, rank, 1500, true),
+                    })).filter((option) => option.effect),
+                ),
+            ];
             const attack = scenario.attackName
                 ? weapon!.attacks.find((entry) => entry.name === scenario.attackName)
                 : undefined;
@@ -1420,13 +1440,17 @@ describe("build optimizer scoring", () => {
                         const rank = placement.slotRanks[index] ?? mod.fusionLimit;
                         return mod.effectsByRank[rank] ?? mod.effect;
                     });
-                    const score = debugScoreExpectedEncounter(
-                        scoringWeapon,
-                        effects,
-                        scenario.targetFaction,
-                        scenario.targetProfileOverride,
-                    );
-                    if (betterEncounter(score, exhaustiveBest)) exhaustiveBest = score;
+                    for (const option of arcaneOptions) {
+                        const score = debugScoreExpectedEncounter(
+                            scoringWeapon,
+                            effects,
+                            scenario.targetFaction,
+                            scenario.targetProfileOverride,
+                            undefined,
+                            option.effect,
+                        );
+                        if (betterEncounter(score, exhaustiveBest)) exhaustiveBest = score;
+                    }
                 }
                 if (ordered.length >= slotCount) return;
                 for (let index = 0; index < remaining.length; index++) {
@@ -1452,7 +1476,9 @@ describe("build optimizer scoring", () => {
                 defaultSlotPolarities: slotPolarities,
                 allowForma: false,
                 optimizeExilus: false,
-                optimizeArcane: false,
+                optimizeArcane: true,
+                arcaneCandidates,
+                warframeArmor: 1500,
             });
             const optimizedEffects = optimized.slots.map((mod, index) => {
                 if (!mod) return null;
@@ -1464,6 +1490,10 @@ describe("build optimizer scoring", () => {
                 optimizedEffects,
                 scenario.targetFaction,
                 scenario.targetProfileOverride,
+                undefined,
+                optimized.arcane
+                    ? getArcaneEffectAtRank(optimized.arcane, optimized.arcaneRank, 1500, true)
+                    : null,
             );
 
             expect(optimized.capacityValid, scenario.weaponName).toBe(true);

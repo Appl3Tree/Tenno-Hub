@@ -12,6 +12,10 @@ The deployed production page at commit `f62362f` was also exercised in a real br
 
 Release checks for this follow-up: `npm test` passes 577 tests across 49 files; `npm run build`, `npm run validate:sources`, planner ESLint, and CRLF-aware diff checking pass. The production optimizer Worker is 90,717 bytes.
 
+## Joint Expected TTK quality oracle (2026-11-14)
+
+The bounded exhaustive Expected TTK oracle now jointly searches legal mod sets and every rank of two compatible Arcanes across five attack profiles: Perigale Prime burst, Cedo glaive radial, Phantasma Prime charged explosion, Acrid forced-Toxin secondary, and Gram Prime heavy slam. Each case searches up to three max-rank mods drawn from four candidates, with actual slot capacity and ordered evaluation. The optimizer matches both the finite TTK and DPS values of the exhaustive winner in all five pools. A separate Braton Prime test includes Primary Bulwark and energy-gated Primary Overcharge. These exact results apply only to the stated small candidate sets; they do not validate evaluator assumptions independently or establish full-catalog/global optimality.
+
 ## Joint Arcane refinement full-width refresh (2026-11-13)
 
 Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5`
