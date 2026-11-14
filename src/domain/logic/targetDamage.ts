@@ -160,6 +160,8 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attack events available before each reload-like interruption. */
     shotsPerMagazine?: number;
+    /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
+    infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
     firstShotMagazineDamageBonus?: number;
     /** Reload time added after a full magazine, before the next attack interval. */
@@ -211,6 +213,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attacks before a reload-like interruption. */
     shotsPerMagazine?: number;
+    /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
+    infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
     firstShotMagazineDamageBonus?: number;
     /** Reload time after each full magazine. */
@@ -430,10 +434,12 @@ export function simulateExpectedWeaponEncounter(
     }));
     const statusApplicationsByType: Partial<Record<StatusDamageType, number>> = {};
     const attackInterval = finiteNonNegative(input.attackIntervalSeconds);
-    const reloadDuration = finiteNonNegative(input.reloadDurationSeconds ?? 0);
-    const shotsPerMagazine = Number.isFinite(input.shotsPerMagazine)
-        ? Math.max(1, Math.floor(input.shotsPerMagazine ?? 1))
-        : Number.MAX_SAFE_INTEGER;
+    const reloadDuration = input.infiniteAmmoActive ? 0 : finiteNonNegative(input.reloadDurationSeconds ?? 0);
+    const shotsPerMagazine = input.infiniteAmmoActive
+        ? Number.MAX_SAFE_INTEGER
+        : Number.isFinite(input.shotsPerMagazine)
+            ? Math.max(1, Math.floor(input.shotsPerMagazine ?? 1))
+            : Number.MAX_SAFE_INTEGER;
     const maxDurationSeconds = Number.isFinite(input.maxDurationSeconds)
         ? Math.max(0, input.maxDurationSeconds ?? 0)
         : 600;
@@ -1080,7 +1086,7 @@ export function simulateExpectedWeaponEncounter(
             now = attackTime;
             expireStatusStacks(now);
             const attackDamageRampMultiplier = rampMultiplierForAttack(attackTime, attackIndex);
-            const firstShotMagazineDamageMultiplier = attackIndex % shotsPerMagazine === 0
+            const firstShotMagazineDamageMultiplier = !input.infiniteAmmoActive && attackIndex % shotsPerMagazine === 0
                 ? 1 + finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0)
                 : 1;
             const attackDamageMultiplier = attackDamageRampMultiplier * firstShotMagazineDamageMultiplier;
@@ -1294,12 +1300,16 @@ export function simulateDirectAttackSequence(
     const remainingPools = { ...initialPools };
     const damageByPool: Record<TargetDamagePool, number> = { overguard: 0, shields: 0, health: 0 };
     const attackInterval = finiteNonNegative(input.attackIntervalSeconds);
-    const reloadDuration = finiteNonNegative(input.reloadDurationSeconds ?? 0);
-    const shotsPerMagazine = Number.isFinite(input.shotsPerMagazine)
-        ? Math.max(1, Math.floor(input.shotsPerMagazine ?? 1))
-        : Number.MAX_SAFE_INTEGER;
+    const reloadDuration = input.infiniteAmmoActive ? 0 : finiteNonNegative(input.reloadDurationSeconds ?? 0);
+    const shotsPerMagazine = input.infiniteAmmoActive
+        ? Number.MAX_SAFE_INTEGER
+        : Number.isFinite(input.shotsPerMagazine)
+            ? Math.max(1, Math.floor(input.shotsPerMagazine ?? 1))
+            : Number.MAX_SAFE_INTEGER;
 
-    const firstShotMagazineDamageBonus = finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0);
+    const firstShotMagazineDamageBonus = input.infiniteAmmoActive
+        ? 0
+        : finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0);
     if (input.damageRampRule || input.heavyAttackCombo || firstShotMagazineDamageBonus > 0) {
         const damageByPool = zeroPools();
         const combo = input.heavyAttackCombo;

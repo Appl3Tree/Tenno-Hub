@@ -766,6 +766,33 @@ describe("finite expected-value weapon encounters", () => {
         expect(encounter.timeToKillSeconds).toBeCloseTo(5, 10);
     });
 
+    it("suppresses magazine reloads and Chamber bonuses while infinite ammo is active", () => {
+        const common = {
+            damageByType: { impact: 100 },
+            health: 250,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 1,
+            firstShotMagazineDamageBonus: 1,
+            reloadDurationSeconds: 10,
+            infiniteAmmoActive: true,
+        };
+
+        const sequence = simulateDirectAttackSequence(common);
+        const encounter = simulateExpectedWeaponEncounter({ ...common, maxAttacks: 5 });
+
+        // Three unboosted hits land at 0, 1, and 2 seconds. The magazine size,
+        // reload time, and first-shot bonus do not interrupt maintained Gale Force.
+        expect(sequence.attacksToKill).toBe(3);
+        expect(sequence.timeToKillSeconds).toBeCloseTo(2, 10);
+        expect(encounter.attacks).toBe(3);
+        expect(encounter.timeToKillSeconds).toBeCloseTo(2, 10);
+        expect(encounter.directDamageByPool.health).toBeCloseTo(250, 10);
+    });
+
     it("applies a first-shot Chamber multiplier to the DoT seeded by that attack", () => {
         const encounter = simulateExpectedWeaponEncounter({
             damageByType: {},

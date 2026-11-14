@@ -174,6 +174,8 @@ export interface ModdedWeaponStats {
     magazineDutyCycle: number;
     /** Additive ammo efficiency after the ordinary 75% upper cap. Transformed Incarnons ignore it. */
     ammoEfficiencyBonus: number;
+    /** True when the selected scenario assumes Perigale's Gale Force infinite-ammo buff is maintained. */
+    infiniteAmmoActive: boolean;
     /** Expected projectile count used for independent crit/status rolls. */
     multishot: number;
     /** Expected damage multiplier after unique bonuses to extra projectiles. */
@@ -528,6 +530,10 @@ export function calculateBuild(
         ? options.statusImmuneTypes
         : new Set(options.statusImmuneTypes ?? []);
     const conditionalState = options.conditionalState ?? DEFAULT_CONDITIONAL_STATE;
+    const infiniteAmmoActive = !!weapon.hasGaleForceAmmoPassive && (
+        conditionalState.mode === "fullyStacked" ||
+        (conditionalState.mode === "custom" && (conditionalState.externalStacks ?? 0) > 0)
+    );
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
     let damageBonus = 0;
@@ -882,10 +888,11 @@ export function calculateBuild(
     // fraction below one ammo as the next shot. Preserve the historical
     // magazine/cost ratio without efficiency; round up only when efficiency
     // introduces a fractional-ammo remainder.
-    const shotsPerMag = ammoEfficiencyBonus > 0
+    const calculatedShotsPerMag = ammoEfficiencyBonus > 0
         ? Math.max(1, Math.ceil(unroundedShotsPerMag - 1e-9))
         : unroundedShotsPerMag;
-    const activeFirstShotMagazineDamageBonus = ignoresReloadAndMagazine
+    const shotsPerMag = infiniteAmmoActive ? Number.MAX_SAFE_INTEGER : calculatedShotsPerMag;
+    const activeFirstShotMagazineDamageBonus = ignoresReloadAndMagazine || infiniteAmmoActive
         ? 0
         : Math.max(0, firstShotMagazineDamageBonus);
     const firstShotMagazineDamageMultiplier = 1 + activeFirstShotMagazineDamageBonus;
@@ -897,10 +904,10 @@ export function calculateBuild(
         shotsPerMag,
         fireRate,
         reloadTime,
-        ignoresReloadAndMagazine,
+        ignoresReloadAndMagazine || infiniteAmmoActive,
     );
-    const magazineDuration = shotsPerMag / Math.max(0.0001, fireRate);
-    const magazineDutyCycle = ignoresReloadAndMagazine || reloadTime <= 0 || bowIncludesReloadInFireRate
+    const magazineDuration = infiniteAmmoActive ? 0 : shotsPerMag / Math.max(0.0001, fireRate);
+    const magazineDutyCycle = ignoresReloadAndMagazine || infiniteAmmoActive || reloadTime <= 0 || bowIncludesReloadInFireRate
         ? 1
         : magazineDuration / (magazineDuration + reloadTime);
 
@@ -1358,6 +1365,7 @@ export function calculateBuild(
         sustainedDamageMultiplier: damageRampMultipliers.sustainedAverage,
         magazineDutyCycle,
         ammoEfficiencyBonus,
+        infiniteAmmoActive,
         multishot: moddedMultishot,
         damageWeightedMultishot,
         multishotDamageBonus,
