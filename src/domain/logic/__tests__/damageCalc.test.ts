@@ -40,6 +40,34 @@ function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
 }
 
 describe("damage calculation status eligibility", () => {
+    it("parses and applies Shattering Impact only to quantized Impact melee hits", () => {
+        const skana = getWeaponCatalog().find((candidate) => candidate.name === "Skana");
+        expect(skana).toBeDefined();
+        const shatteringImpact = getModsForWeapon(skana!).find((mod) => mod.name === "Shattering Impact");
+        expect(shatteringImpact).toBeDefined();
+        expect(shatteringImpact!.effectsByRank.map((effect) => effect.shatteringImpactBaseArmorPerHit))
+            .toEqual([1, 2, 3, 4, 5, 6]);
+        for (let rank = 0; rank <= shatteringImpact!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(shatteringImpact!, rank)).toEqual([]);
+        }
+
+        const built = calculateBuild(skana!, [shatteringImpact!.effect]).modded;
+        expect(built.shatteringImpactBaseArmorPerHit).toBe(6);
+        expect(built.damageBreakdownBeforePerStatus.impact).toBeGreaterThan(0);
+
+        const fractionalImpactMelee: WeaponEntry = {
+            ...makeWeapon({ impact: 0.001, puncture: 100 }),
+            uniqueName: "/Test/LowQuantizedImpactMelee",
+            name: "Low Quantized Impact Test Melee",
+            category: "Melee",
+            weaponType: "Melee",
+            modCompat: "Melee",
+        };
+        const roundedToZero = calculateBuild(fractionalImpactMelee, [shatteringImpact!.effect]).modded;
+        expect(roundedToZero.damageBreakdownBeforePerStatus.impact).toBe(0);
+        expect(roundedToZero.shatteringImpactBaseArmorPerHit).toBe(0);
+    });
+
     it("models Charged and Primed Chamber on only the first ammo shot in a magazine", () => {
         const perigalePrime = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
         expect(perigalePrime).toBeDefined();
