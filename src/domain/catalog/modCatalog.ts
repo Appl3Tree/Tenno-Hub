@@ -66,6 +66,8 @@ export interface ModEffect {
     damageBonus: number;
     /** Multiplicative weapon damage bonus for the first ammo-consuming shot after each magazine reload. */
     firstShotMagazineDamageBonus: number;
+    /** Bonus damage on one hit of the final ammo-consuming shot in each eligible magazine. */
+    lastShotMagazineDamageBonus: number;
     impactBonus: number;
     punctureBonus: number;
     slashBonus: number;
@@ -485,6 +487,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "critical chance and damage") {
         return { critChanceBonus: scaled, critMultBonus: scaled };
     }
+    if (/^bonus damage on final shot\.?\s*requires magazine \d+ or higher\.?$/.test(rest)) return { lastShotMagazineDamageBonus: scaled };
     if (rest === "melee damage on heavy attack") return { heavyAttackDamageBonus: scaled };
     if (rest === "damage on first shot in magazine") return { firstShotMagazineDamageBonus: scaled };
     if (rest === "melee damage per status type affecting the target") {
