@@ -818,12 +818,37 @@ describe("damage calculation status eligibility", () => {
         expectAreaAttack("Verdilac", "Energy Wave", false);
         expectAreaAttack("Verdilac", "Energy Wave Explosion", true);
 
+        // Current Wiki pages describe the Alternox pulse as damage to nearby
+        // enemies within 6 m; its initial contact remains a separate direct hit.
+        // https://wiki.warframe.com/w/Alternox
+        // https://wiki.warframe.com/w/Alternox_Prime
+        expectAreaAttack("Alternox", "Alt-Fire Contact", false);
+        expectAreaAttack("Alternox", "Alt-Fire Damage over Time", true);
+        expectAreaAttack("Alternox Prime", "Alt-Fire Damage over Time", true);
+
+        // Shooting a Quanta cube triggers a 6 m radial explosion, separate
+        // from the cube's direct contact and ordinary contact explosion rows.
+        // https://wiki.warframe.com/w/Quanta
+        // https://wiki.warframe.com/w/Quanta_Vandal
+        // https://wiki.warframe.com/w/Tenet_Quanta
+        for (const weaponName of ["Quanta", "Quanta Vandal", "Tenet Quanta"]) {
+            expectAreaAttack(weaponName, "Cube (direct hit)", false);
+            expectAreaAttack(weaponName, "Cube (shot by player)", true);
+        }
+
+        // The Zenistar disc's 4 m aura is radial; disc contact is direct.
+        // https://wiki.warframe.com/w/Zenistar
+        expectAreaAttack("Zenistar", "Disc Impact", false);
+        expectAreaAttack("Zenistar", "Disc Aura", true);
+
         // These similarly named impacts are direct hits; their separate radial
         // attacks are already marked as AoE in the current source feed.
         expectAreaAttack("Cortege", "Grenade Impact", false);
         expectAreaAttack("Cortege", "Radial Attack", true);
         expectAreaAttack("Trumna", "Grenade Impact", false);
         expectAreaAttack("Trumna", "Auto AoE", true);
+        expectAreaAttack("Trumna Prime", "Grenade Impact", false);
+        expectAreaAttack("Trumna Prime", "Grenade Bounce AoE", true);
     });
 
     it("separates unquantized Arsenal Total Damage from quantized per-hit damage", () => {
