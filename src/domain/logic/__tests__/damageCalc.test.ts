@@ -800,13 +800,30 @@ describe("damage calculation status eligibility", () => {
         expect(stats.impactMercyThresholdBonus).toBeCloseTo(0.4, 10);
     });
 
-    it("preserves a source AoE attack classification when selecting an attack", () => {
-        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Cortege");
-        expect(weapon).toBeDefined();
-        const radialAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Radial Attack");
-        expect(radialAttackIndex).toBeGreaterThanOrEqual(0);
-        expect(weapon!.attacks[radialAttackIndex].isAreaDamage).toBe(true);
-        expect(withSelectedAttack(weapon!, radialAttackIndex).selectedAttackIsAreaDamage).toBe(true);
+    it("classifies Wiki-confirmed radial attacks without mislabeling direct grenade impacts", () => {
+        const expectAreaAttack = (weaponName: string, attackName: string, isAreaDamage: boolean) => {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon).toBeDefined();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+            expect(attackIndex).toBeGreaterThanOrEqual(0);
+            expect(weapon!.attacks[attackIndex].isAreaDamage).toBe(isAreaDamage);
+            expect(withSelectedAttack(weapon!, attackIndex).selectedAttackIsAreaDamage).toBe(isAreaDamage);
+        };
+
+        // Wiki-verified fallbacks: these source rows omit shot_type.
+        // https://wiki.warframe.com/w/Komorex
+        // https://wiki.warframe.com/w/Verdilac
+        expectAreaAttack("Komorex", "Normal Attack", false);
+        expectAreaAttack("Komorex", "3.5x Zoom Radial Attack", true);
+        expectAreaAttack("Verdilac", "Energy Wave", false);
+        expectAreaAttack("Verdilac", "Energy Wave Explosion", true);
+
+        // These similarly named impacts are direct hits; their separate radial
+        // attacks are already marked as AoE in the current source feed.
+        expectAreaAttack("Cortege", "Grenade Impact", false);
+        expectAreaAttack("Cortege", "Radial Attack", true);
+        expectAreaAttack("Trumna", "Grenade Impact", false);
+        expectAreaAttack("Trumna", "Auto AoE", true);
     });
 
     it("separates unquantized Arsenal Total Damage from quantized per-hit damage", () => {
