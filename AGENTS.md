@@ -384,7 +384,7 @@ Incarnon damage accuracy follow-up (2026-11-11): a unique extra-projectile damag
   - [x] Slash (target-local Bleed procs keep independent six-tick timers, bypass Armor, and resolve against Shields/Health; there is no damage cap at ten stacks—the Wiki's ten-number limit is display-only. Proc rolls remain expected-value/mean-field.)
   - [x] Heat (mean-field armor strip; DoT group refresh remains unmodeled)
   - [ ] Electric
-  - [ ] Toxin
+  - [x] Toxin (target-local Poison procs keep independent six-tick timers, bypass Shields but not Overguard, and resolve through the configured pools; there is no damage cap at ten stacks—the Wiki's ten-number limit is display-only. Proc rolls remain expected-value/mean-field.)
   - [ ] Gas
   - [x] Viral (mean-field stacks and Health amplification)
   - [x] Corrosive (mean-field stacks and armor strip)
