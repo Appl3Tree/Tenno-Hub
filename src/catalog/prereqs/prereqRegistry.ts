@@ -2499,4 +2499,3 @@ for (const def of PREREQ_REGISTRY) {
         note,
     }];
 }
-
