@@ -205,7 +205,7 @@ const POLARITY_OPTS = [
 ];
 const STATUS_TIPS: Record<string, string> = {
     impact:      "Stagger (6s; 5 stacks max): repeat procs lengthen the stagger; Ospreys, bosses, and Tenno are immune to it. On heavy, Mercy-eligible units, each stack adds 8 percentage points to the Mercy health threshold (up to +40% / 80% total; Corpus/Eximus with all Shields removed can reach 100%). The panel reports only the mean-field bonus; it does not identify eligible or immune enemies or simulate Mercy outcomes, and the optimizer does not score this utility.",
-    puncture:    "Weakened (10s; normally 5 stacks): the target's attacks deal 40% less damage at 1 stack, then 10 percentage points less per added stack (80% at 5). Subsequent weapon hits against it gain +5 percentage points Critical Chance per stack (up to +25%), additive after mods; Area-of-Effect damage and Warframe abilities do not get this bonus. The status panel displays the expected enemy-damage reduction, but no enemy attacks or defensive outcome are simulated and the optimizer does not score it. The crit bonus is omitted only for attacks explicitly marked as AoE, so unclassified rows may be uncertain. Overguarded VIPs cap at 3 stacks; that target-specific limit is not configured.",
+    puncture:    "Weakened (10s; normally 5 stacks): the target's attacks deal 40% less damage at 1 stack, then 10 percentage points less per added stack (80% at 5). Subsequent weapon hits against it gain +5 percentage points Critical Chance per stack (up to +25%), additive after mods; Area-of-Effect damage and Warframe abilities do not get this bonus. The status panel displays the expected enemy-damage reduction, but no enemy attacks or defensive outcome are simulated and the optimizer does not score it. The crit bonus is omitted only for attacks explicitly marked as AoE, so unclassified rows may be uncertain. Overguarded VIPs cap at 3 stacks; select the Overguarded VIP option in custom target settings to apply the Wiki-documented 3-stack cap.",
     slash:       "Bleed: Deals 35% base damage/sec over 6s, ignoring armor. Each proc is independent — multiple stacks deal multiple simultaneous DoTs.",
     heat:        "Ignite: Deals 50% base damage/sec as Heat DoT over 6s after a 1s delay and gradually strips up to 50% armor over 2s. Panic duration depends on enemy type (about 4s for humanoids, 3s for most Infested, and 2s for MOAs/Chargers); Ospreys, bosses, Tenno, and enemies with active Overguard are immune to the crowd control. Applying Heat again reapplies panic, and breaking Overguard triggers it even without a new Heat proc. This target-dependent utility is not included in the optimizer score.",
     cold:        "Freeze (10 stacks max): −50% movement/fire/attack speed. Each extra stack adds −5% slow (max −90% at 9 stacks). At 10 stacks: enemy freezes solid for 3s, shields stop recharging, +1.0 crit multiplier bonus.",
@@ -3072,6 +3072,7 @@ export default function ModBuilder() {
     const [nearbyBlastEnemyCount, setNearbyBlastEnemyCount] = useState(0);
     const [isEximus, setIsEximus] = useState(false);
     const [bossBlastStackCap, setBossBlastStackCap] = useState(false);
+    const [punctureVipStackCap, setPunctureVipStackCap] = useState(false);
     const [isSteelPath, setIsSteelPath] = useState(false);
     const [customTargetStats, setCustomTargetStats] = useState({ armor: 2700, health: 25000, shields: 0, overguard: 0 });
     const [scaleCustomTargetByLevel, setScaleCustomTargetByLevel] = useState(false);
@@ -3086,6 +3087,7 @@ export default function ModBuilder() {
         setSelectedEnemyProfileId(profile?.id ?? "");
         setIsEximus(false);
         setBossBlastStackCap(false);
+        setPunctureVipStackCap(false);
         if (!profile) {
             setUseCustomTargetStats(false);
             return;
@@ -3139,6 +3141,10 @@ export default function ModBuilder() {
     const targetProfileOverride = useMemo<TargetProfileOverride | undefined>(() => {
         if (!useCustomTargetStats) return undefined;
         const hasActiveOverguard = resolvedCustomTargetStats.overguard > 0;
+        const statusStackCaps = {
+            ...(bossBlastStackCap ? { blast: 4 } : {}),
+            ...(punctureVipStackCap ? { puncture: 3 } : {}),
+        };
         return {
             ...resolvedCustomTargetStats,
             armorBaseValue: customTargetStats.armor,
@@ -3162,9 +3168,9 @@ export default function ModBuilder() {
             // Cold's four-stack cap and crowd-control immunity follow active
             // Overguard; Radiation can apply but its effects remain suppressed.
             statusImmuneTypes: targetStatusImmunities,
-            statusStackCaps: bossBlastStackCap ? { blast: 4 } : undefined,
+            statusStackCaps,
         };
-    }, [useCustomTargetStats, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, isSteelPath, enemyCurrentLevel]);
+    }, [useCustomTargetStats, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel]);
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
     const [maxFormaAllowed, setMaxFormaAllowed] = useState(9);
@@ -3224,6 +3230,7 @@ export default function ModBuilder() {
             enemyProfileId: selectedEnemyProfileId || undefined,
             isEximus,
             bossBlastStackCap,
+            punctureVipStackCap,
             isSteelPath,
             useCustomStats: useCustomTargetStats,
             baseStats: { ...customTargetStats },
@@ -3277,6 +3284,7 @@ export default function ModBuilder() {
         enemyScalingFaction,
         isEximus,
         bossBlastStackCap,
+        punctureVipStackCap,
         isSteelPath,
         excluded,
         externalConditionalStacks,
@@ -4158,9 +4166,9 @@ export default function ModBuilder() {
             .join(" · ") || "None"
         : "—";
     const activeTargetSummary = selectedEnemyProfile
-        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
         : targetProfileOverride
-        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
         : factionOn
             ? `${faction} synthetic faction estimate`
             : "Balanced synthetic target estimate";
@@ -4714,6 +4722,7 @@ export default function ModBuilder() {
             setUseCustomTargetStats(target?.useCustomStats ?? false);
             setIsEximus(target?.isEximus ?? false);
             setBossBlastStackCap(target?.bossBlastStackCap ?? false);
+            setPunctureVipStackCap(target?.punctureVipStackCap ?? false);
             setIsSteelPath(target?.isSteelPath ?? false);
             if (target?.baseStats) {
                 const safeStat = (value: number, fallback: number) =>
@@ -5302,6 +5311,19 @@ export default function ModBuilder() {
                                                                     {bossBlastStackCap && (
                                                                         <p className="text-[10px] leading-relaxed text-slate-500">
                                                                             Current Damage/Calculation rules use a four-stack Blast detonation threshold for bosses. This sets only that threshold; boss attenuation and other boss-specific defenses are not modeled. <a href="https://wiki.warframe.com/w/Damage/Calculation" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                        </p>
+                                                                    )}
+                                                                    <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={punctureVipStackCap}
+                                                                            onChange={(event) => setPunctureVipStackCap(event.target.checked)}
+                                                                        />
+                                                                        Model an Overguarded VIP (Puncture cap: 3 stacks)
+                                                                    </label>
+                                                                    {punctureVipStackCap && (
+                                                                        <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                            Applies the Wiki's three-stack Puncture limit to this target and its derived Puncture critical-chance support. Select this only for a VIP enemy with Overguard; the planner does not infer VIP identity or model boss-specific attenuation. <a href="https://wiki.warframe.com/w/Overguard" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
                                                                         </p>
                                                                     )}
                                                                     <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">

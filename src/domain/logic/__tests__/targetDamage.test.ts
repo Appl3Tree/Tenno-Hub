@@ -1775,6 +1775,31 @@ describe("finite expected-value weapon encounters", () => {
         expect(result.statusDamageByPool.overguard).toBeCloseTo(290, 10);
     });
 
+    it("limits accumulated Puncture crit support to three stacks for an Overguarded VIP", () => {
+        const common = {
+            damageByType: { impact: 100 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0.2,
+            critMultiplier: 2,
+            attackIntervalSeconds: 0.1,
+            maxAttacks: 5,
+            expectedStatusApplicationsPerAttackByType: { puncture: 1 },
+        };
+        const ordinary = simulateExpectedWeaponEncounter(common);
+        const overguardedVip = simulateExpectedWeaponEncounter({
+            ...common,
+            statusStackCaps: { puncture: 3 },
+        });
+
+        expect(ordinary.directDamageByPool.health).toBeCloseTo(650, 10);
+        expect(overguardedVip.directDamageByPool.health).toBeCloseTo(645, 10);
+        expect(overguardedVip.directDamageByPool.health).toBeLessThan(ordinary.directDamageByPool.health);
+    });
+
     it("freezes at ten Cold stacks, blocks new Cold during freeze, then restores three stacks", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { impact: 1 },
