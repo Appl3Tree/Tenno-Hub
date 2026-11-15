@@ -329,7 +329,7 @@ export interface MeleeAverageDpsResult {
 export interface DamageCalculationOptions {
     /** Status effects the selected enemy cannot receive. Immune proc weights are removed and the rest renormalized. */
     statusImmuneTypes?: Iterable<StatusDamageType>;
-    /** Target-specific stack limits, such as the four Cold stacks accepted by active Overguard. */
+    /** Target-specific stack limits, such as four Cold stacks under Overguard or three Puncture stacks on an Overguarded VIP. */
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
     /** State used for conditional mod effects. Defaults to the documented realistic approximation. */
     conditionalState?: ConditionalState;
