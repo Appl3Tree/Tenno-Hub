@@ -858,6 +858,22 @@ const VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES: Readonly<Record<
 const VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, boolean>>>
 > = Object.freeze({
+    // These Hound weapons have only standard melee attacks, with no slam,
+    // slide, or radial attack mode. Their normal attack is direct contact.
+    // Verified 2026-11-15:
+    // https://wiki.warframe.com/w/Akaten
+    // https://wiki.warframe.com/w/Batoten
+    // https://wiki.warframe.com/w/Lacerten
+    // https://wiki.warframe.com/w/Update_30
+    "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetMeleeWeaponPS": Object.freeze({
+        "normal attack": false,
+    }),
+    "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetMeleeWeaponIP": Object.freeze({
+        "normal attack": false,
+    }),
+    "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetMeleeWeaponIS": Object.freeze({
+        "normal attack": false,
+    }),
     // The max-zoom shot adds a 3.5 m Viral explosion. The feed omits shot_type
     // on this named radial attack, so keep its explosion separate from the
     // direct projectile hit for status bonuses that only affect direct damage.
