@@ -38,6 +38,160 @@ describe("incarnonCatalog", () => {
         expect(resolved.weapon.attacks[0]?.critMultiplier).toBeCloseTo(2.2, 5);
     });
 
+    it("uses current Torid Wiki evolution stats and scopes its magazine bonus to normal form", () => {
+        const torid = getWeaponCatalog().find((weapon) => weapon.name === "Torid");
+        expect(torid).toBeTruthy();
+        const record = getIncarnonRecordForWeapon(torid!);
+        expect(record).toBeTruthy();
+
+        const finalFusillade = record!.tiers.find((tier) => tier.tier === 2)?.options
+            .find((option) => option.id === "tier-2-final-fusillade");
+        expect(finalFusillade?.descriptionLines).toEqual([
+            "Increase Base Damage by +51.",
+            "+3 Multishot on last shot in magazine.",
+        ]);
+        expect(finalFusillade?.model.adjustments).toContainEqual(expect.objectContaining({
+            scope: "all",
+            baseDamageFlat: 51,
+        }));
+        expect(finalFusillade?.model.unsupportedLines).toContain("+3 Multishot on last shot in magazine.");
+
+        const normal = resolveIncarnonState(torid!, 0, {
+            unlockedTier: 4,
+            selectedOptionsByTier: {
+                3: "tier-3-extended-volley",
+                4: "tier-4-commodore-s-fortune",
+            },
+        });
+        const incarnonAttack = torid!.attacks.findIndex((attack) => /incarnon form/i.test(attack.name));
+        expect(incarnonAttack).toBeGreaterThanOrEqual(0);
+        const transformed = resolveIncarnonState(torid!, incarnonAttack, {
+            unlockedTier: 4,
+            selectedOptionsByTier: {
+                3: "tier-3-extended-volley",
+                4: "tier-4-commodore-s-fortune",
+            },
+        });
+
+        expect(normal.weapon.attacks[0]?.damage.total).toBeCloseTo(100, 5);
+        expect(normal.weapon.magazineSize).toBe(14);
+        expect(normal.weapon.attacks[0]?.critChance).toBeCloseTo(0.35, 5);
+        expect(transformed.weapon.magazineSize).toBe(torid!.magazineSize);
+        expect(transformed.weapon.attacks[incarnonAttack]?.critChance).toBeCloseTo(0.49, 5);
+        expect(transformed.weapon.attacks[incarnonAttack]?.damage.total).toBeCloseTo(51, 5);
+
+        const elementalBalance = resolveIncarnonState(torid!, incarnonAttack, {
+            unlockedTier: 4,
+            selectedOptionsByTier: { 4: "tier-4-elemental-balance" },
+        });
+        expect(elementalBalance.weapon.attacks[incarnonAttack]?.statusChance).toBeCloseTo(0.73, 5);
+        expect(elementalBalance.appliedOptions[0]?.model.unsupportedLines).toEqual([]);
+    });
+
+    it("resolves legacy Incarnon stat wording and values for each weapon variant", () => {
+        const boVariants = [
+            { name: "Bo", baseDamage: 110, critChance: 0.12, statusChance: 0.12 },
+            { name: "Mk1-Bo", baseDamage: 90, critChance: 0.15, statusChance: 0.15 },
+            { name: "Bo Prime", baseDamage: 34, critChance: 0.06, statusChance: 0.06 },
+        ];
+
+        for (const expected of boVariants) {
+            const record = getIncarnonRecordForWeapon(expected.name);
+            const baseDamage = record?.tiers.find((tier) => tier.tier === 2)?.options
+                .find((option) => option.id === "tier-2-stalwart-oak");
+            const combinedChance = record?.tiers.find((tier) => tier.tier === 4)?.options
+                .find((option) => option.id === "tier-4-subtle-force");
+
+            expect(baseDamage?.descriptionLines[0]).toContain(`+${expected.baseDamage}.`);
+            expect(baseDamage?.model.adjustments[0]?.baseDamageFlat).toBe(expected.baseDamage);
+            expect(combinedChance?.descriptionLines).toContain(`Increase Base Critical Chance by +${expected.critChance * 100}%.`);
+            expect(combinedChance?.descriptionLines).toContain(`Increase Base Status Chance by +${expected.statusChance * 100}%.`);
+            expect(combinedChance?.model.adjustments[0]?.critChanceFlat).toBe(expected.critChance);
+            expect(combinedChance?.model.adjustments[0]?.statusChanceFlat).toBe(expected.statusChance);
+            expect(baseDamage?.model.unsupportedLines.filter((line) => /increase (?:base )?(?:damage|critical chance|status chance|critical damage multiplier)/i.test(line))).toEqual([]);
+            expect(combinedChance?.model.unsupportedLines.filter((line) => /increase (?:base )?(?:damage|critical chance|status chance|critical damage multiplier)/i.test(line))).toEqual([]);
+        }
+
+        const standardAngstrum = getIncarnonRecordForWeapon("Angstrum")?.tiers
+            .find((tier) => tier.tier === 4)?.options
+            .find((option) => option.id === "tier-4-critical-parallel");
+        const prismaAngstrum = getIncarnonRecordForWeapon("Prisma Angstrum")?.tiers
+            .find((tier) => tier.tier === 4)?.options
+            .find((option) => option.id === "tier-4-critical-parallel");
+
+        expect(standardAngstrum?.model.adjustments[0]?.critChanceFlat).toBe(0.14);
+        expect(prismaAngstrum?.model.adjustments[0]?.critChanceFlat).toBe(0.1);
+        expect(standardAngstrum?.model.adjustments[0]?.critMultiplierFlat).toBe(0.2);
+        expect(prismaAngstrum?.model.adjustments[0]?.critMultiplierFlat).toBe(0.2);
+        expect(standardAngstrum?.model.unsupportedLines.filter((line) => /increase (?:base )?(?:damage|critical chance|status chance|critical damage multiplier)/i.test(line))).toEqual([]);
+        expect(prismaAngstrum?.model.unsupportedLines.filter((line) => /increase (?:base )?(?:damage|critical chance|status chance|critical damage multiplier)/i.test(line))).toEqual([]);
+    });
+
+    it("parses corrected Burston, Gorgon, and Latron Wiki values without leaking form-specific magazine notes", () => {
+        const burstonValues = [
+            { name: "Burston", absoluteDamage: 42, magazine: 21 },
+            { name: "Burston Prime", absoluteDamage: 42, magazine: 21 },
+        ];
+        for (const expected of burstonValues) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === expected.name);
+            const record = getIncarnonRecordForWeapon(expected.name);
+            expect(weapon).toBeTruthy();
+            expect(record).toBeTruthy();
+            const finality = record!.tiers.find((tier) => tier.tier === 2)?.options
+                .find((option) => option.id === "tier-2-forceful-finality");
+            const volley = record!.tiers.find((tier) => tier.tier === 3)?.options
+                .find((option) => option.id === "tier-3-extended-volley");
+            expect(finality?.model.adjustments.find((adjustment) => adjustment.baseDamageFlat !== undefined)?.baseDamageFlat)
+                .toBe(expected.absoluteDamage);
+            expect(finality?.model.unsupportedLines).toContain("+5 Base Multishot on final magazine burst.");
+
+            const incarnonAttack = weapon!.attacks.findIndex((attack) => /incarnon form/i.test(attack.name));
+            expect(incarnonAttack).toBeGreaterThanOrEqual(0);
+            const transformed = resolveIncarnonState(weapon!, incarnonAttack, {
+                unlockedTier: 3,
+                selectedOptionsByTier: {
+                    2: "tier-2-forceful-finality",
+                    3: "tier-3-extended-volley",
+                },
+            });
+            expect(transformed.weapon.attacks[incarnonAttack]?.damage.total)
+                .toBeCloseTo((weapon!.attacks[incarnonAttack]?.damage.total ?? 0) + expected.absoluteDamage, 5);
+            expect(transformed.weapon.magazineSize).toBe(weapon!.magazineSize);
+            if (expected.magazine > 0) {
+                expect(volley?.model.adjustments).toContainEqual(expect.objectContaining({
+                    scope: "normal",
+                    magazineSizeFlat: expected.magazine,
+                }));
+            }
+        }
+
+        for (const [name, damage, critChance, critMultiplier] of [
+            ["Latron", 48, 0.3, 0.6],
+            ["Latron Wraith", 12, 0.24, 0.2],
+            ["Latron Prime", 6, 0.24, 0.2],
+        ] as const) {
+            const record = getIncarnonRecordForWeapon(name);
+            const targetDamage = record?.tiers.find((tier) => tier.tier === 2)?.options
+                .find((option) => option.id === "tier-2-riddled-target");
+            const critical = record?.tiers.find((tier) => tier.tier === 4)?.options
+                .find((option) => option.id === "tier-4-critical-parallel");
+            expect(targetDamage?.model.adjustments[0]?.baseDamageFlat).toBe(damage);
+            expect(critical?.model.adjustments[0]?.critChanceFlat).toBe(critChance);
+            expect(critical?.model.adjustments[0]?.critMultiplierFlat).toBe(critMultiplier);
+        }
+
+        for (const [name, damage] of [["Gorgon", 10], ["Gorgon Wraith", 5], ["Prisma Gorgon", 5]] as const) {
+            const passive = getIncarnonRecordForWeapon(name)?.tiers.find((tier) => tier.tier === 2)?.options
+                .find((option) => option.id === "tier-2-hunter-s-mantra");
+            expect(passive?.model.adjustments[0]?.baseDamageFlat).toBe(damage);
+        }
+
+        const affliction = getIncarnonRecordForWeapon("Angstrum")?.tiers.find((tier) => tier.tier === 4)?.options
+            .find((option) => option.id === "tier-4-fatal-affliction");
+        expect(affliction?.model.effects.flatMap((entry) => entry.effect.directDamagePerStatusBonus)).toContain(0.4);
+        expect(affliction?.model.unsupportedLines).not.toContain("+40% Direct Damage per Status Type affecting the target.");
+    });
+
     it("does not auto-apply an evolution when no tier is selected", () => {
         const weapons = getWeaponCatalog();
         const bratonPrime = weapons.find((weapon) => weapon.name === "Braton Prime");
