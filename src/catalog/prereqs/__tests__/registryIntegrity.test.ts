@@ -371,4 +371,3 @@ describe("prerequisite registry integrity", () => {
         expect(byId.get(PR.COMPANION_HELMINTH_CHARGER)?.prerequisites).not.toContain(PR.SEGMENT_HELMINTH);
     });
 });
-
