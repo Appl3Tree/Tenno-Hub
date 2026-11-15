@@ -2,6 +2,7 @@
 import { useMemo } from "react";
 import { useTrackerStore } from "../store/store";
 import { canAccessCatalogItem } from "../domain/logic/plannerEngine";
+import { deriveCompletedMap } from "../domain/logic/syndicatePrereqs";
 import { FULL_CATALOG, type CatalogId } from "../domain/catalog/loadFullCatalog";
 import { WorkspaceAction, WorkspacePanel } from "./workspace/WorkspaceChrome";
 
@@ -13,6 +14,10 @@ type NeedLine = {
     remaining: number;
     neededFor: Array<{ syndicateName: string; rankTitle: string; need: number }>;
 };
+
+const EMPTY_LIST: never[] = [];
+const EMPTY_BOOLEAN_MAP: Record<string, boolean> = {};
+const EMPTY_NUMBER_MAP: Record<string, number> = {};
 
 function normalize(s: string): string { return s.trim().toLowerCase(); }
 
@@ -26,9 +31,16 @@ function resolveToCatalogId(keyOrName: string): CatalogId | null {
 
 export default function DashboardInventoryPanel() {
     const setActivePage    = useTrackerStore((s) => s.setActivePage);
-    const syndicates       = useTrackerStore((s) => s.state.syndicates ?? []);
-    const completedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed ?? {});
-    const counts           = useTrackerStore((s) => s.state.inventory?.counts ?? {});
+    const syndicates       = useTrackerStore((s) => s.state.syndicates ?? EMPTY_LIST);
+    const completedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed ?? EMPTY_BOOLEAN_MAP);
+    const counts           = useTrackerStore((s) => s.state.inventory?.counts ?? EMPTY_NUMBER_MAP);
+    const masteryRank      = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
+    const nodeCompletedMap = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? EMPTY_BOOLEAN_MAP);
+    const railjackIntrinsics = useTrackerStore((s) => s.state.intrinsics?.railjack ?? EMPTY_NUMBER_MAP);
+    const effectiveCompletedPrereqs = useMemo(
+        () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, counts),
+        [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, counts],
+    );
 
     const accessibleLines = useMemo<NeedLine[]>(() => {
         const needMap: Record<string, {
@@ -48,7 +60,7 @@ export default function DashboardInventoryPanel() {
                 const cid = resolveToCatalogId(labelOrKey);
                 if (!cid) continue;
 
-                const access = canAccessCatalogItem(cid, completedPrereqs);
+                const access = canAccessCatalogItem(cid, effectiveCompletedPrereqs);
                 if (!access.allowed) continue;
 
                 const rec = FULL_CATALOG.recordsById[cid];
@@ -70,7 +82,7 @@ export default function DashboardInventoryPanel() {
 
         out.sort((a, b) => b.remaining - a.remaining || a.itemName.localeCompare(b.itemName));
         return out.filter((l) => l.remaining > 0);
-    }, [syndicates, completedPrereqs, counts]);
+    }, [syndicates, effectiveCompletedPrereqs, counts]);
 
     return (
         <WorkspacePanel className="p-4">

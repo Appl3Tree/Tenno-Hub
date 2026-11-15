@@ -42,8 +42,8 @@ export default function ProgressionNextStepsPanel({ embedded = false }: { embedd
     );
 
     const mergedMap = useMemo(
-        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
-        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics]
+        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts),
+        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts]
     );
 
     const evalContext = useMemo(

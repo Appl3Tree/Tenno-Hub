@@ -218,6 +218,10 @@ export interface ModdedWeaponStats {
     expectedStacksByType: Partial<Record<DamageKey, number>>;
     dotDamagePerShot: number;
     dotDps: number;
+    /** Rank-summed target-side vulnerability from effects such as Burning Hate. */
+    targetStatusDamageVulnerabilityBonus: number;
+    /** Steady-state multiplier used by DoT proxy objectives after a modeled trigger is reachable. */
+    steadyStateTargetStatusDamageMultiplier: number;
     dotDamagePerShotByType: Partial<Record<DamageKey, number>>;
     dotDpsByType: Partial<Record<DamageKey, number>>;
     /** Per-proc DoT tick contribution before the grouped +1 accumulator. */
@@ -337,6 +341,8 @@ export interface ConditionalState {
     externalStacks?: number;
     /** Distinct additional status types already maintained on the target for Condition Overload (including Tau). */
     externalStatusTypeCount?: number;
+    /** Probability that the target starts with an externally applied Heat status. */
+    externalHeatStatusPresenceProbability?: number;
     /** User-entered melee combo tier; selected heavy attacks use it, but post-attack combo consumption/rebuild is not simulated. */
     meleeComboMultiplier?: number;
     /** User-selected ammo consumed by one Phantasma charged alternate-fire attack. */
@@ -759,6 +765,7 @@ export function calculateBuild(
     const conditionalPrimaryElementBonuses: Array<{ type: DamageKey; value: number; order: number }> = [];
     const directBonusBreakdown = emptyBreakdown();
     let statusDamageBonus = 0;
+    let targetStatusDamageVulnerabilityBonus = 0;
     const targetFactionKey = targetFaction.toLowerCase();
 
     for (let index = 0; index < mods.length; index++) {
@@ -818,6 +825,7 @@ export function calculateBuild(
         directDamagePerStatusBonus += e.directDamagePerStatusBonus ?? 0;
         conditionOverloadDamagePerStatusBonus += e.conditionOverloadDamagePerStatusBonus ?? 0;
         statusDamageBonus += e.statusDamageBonus ?? 0;
+        targetStatusDamageVulnerabilityBonus += e.targetStatusDamageVulnerabilityBonus ?? 0;
         const sourceConditionals = e.conditionalEffects;
         if (sourceConditionals) {
             for (let sourceEffectIndex = 0; sourceEffectIndex < sourceConditionals.length; sourceEffectIndex++) {
@@ -1665,6 +1673,24 @@ export function calculateBuild(
         dotDps += dotDpsByType[key] ?? 0;
     }
 
+    // Burning Hate's target-side effect is permanent after Hate damages a
+    // Heat-afflicted target. The steady-state DoT estimate assumes that a
+    // weapon capable of applying Heat has reached that state; finite encounter
+    // scoring instead advances the trigger and proc timing event by event.
+    const steadyStateTargetStatusDamageMultiplier = targetStatusDamageVulnerabilityBonus > 0 &&
+        ((procRatePerSecondByType.heat ?? 0) > 0 ||
+            (options.conditionalState?.externalHeatStatusPresenceProbability ?? 0) > 0)
+        ? 1 + targetStatusDamageVulnerabilityBonus
+        : 1;
+    if (steadyStateTargetStatusDamageMultiplier !== 1) {
+        dotDps = 0;
+        for (const type of STATUS_DAMAGE_TYPES) {
+            if ((dotDpsByType[type] ?? 0) <= 0) continue;
+            dotDpsByType[type] = (dotDpsByType[type] ?? 0) * steadyStateTargetStatusDamageMultiplier;
+            dotDps += dotDpsByType[type] ?? 0;
+        }
+    }
+
     // Status presence is a Poisson mean-field, avoiding a hard threshold on fractional stacks.
     const directDamagePerStatusWeight = directDamagePerStatusBonus * directDamageStatusTypes;
     const intrinsicDamagePerStatusBonus = Math.max(0, weapon.intrinsicDamagePerStatusBonus ?? 0);
@@ -1823,6 +1849,8 @@ export function calculateBuild(
         expectedStacksByType,
         dotDamagePerShot,
         dotDps,
+        targetStatusDamageVulnerabilityBonus,
+        steadyStateTargetStatusDamageMultiplier,
         dotDamagePerShotByType,
         dotDpsByType,
         dotTickDamagePerProcByType,

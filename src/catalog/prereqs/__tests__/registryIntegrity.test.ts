@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PREREQ_REGISTRY } from "../prereqRegistry";
+import { ARCHWING_CATALOG_IDS, PREREQ_REGISTRY } from "../prereqRegistry";
+import { FULL_CATALOG } from "../../../domain/catalog/loadFullCatalog";
 import { SOURCE_INDEX } from "../../sources/sourceCatalog";
 import { PR } from "../../../domain/ids/prereqIds";
 import { MILESTONE_REGISTRY } from "../milestoneRegistry";
@@ -61,6 +62,31 @@ describe("prerequisite registry integrity", () => {
             }),
         );
         expect(missing).toEqual([]);
+    });
+
+    it("keeps item ownership conditions tied to real inventory catalog records", () => {
+        const inventoryIds = new Set(FULL_CATALOG.inventoryItemIds);
+        const invalid = PREREQ_REGISTRY.flatMap((def) => (def.conditions ?? []).flatMap((condition) => {
+            if (condition.type === "item_owned" && !inventoryIds.has(condition.catalogId as (typeof FULL_CATALOG.inventoryItemIds)[number])) {
+                return [`${def.id} -> ${condition.catalogId}`];
+            }
+            if (condition.type === "item_owned_any") {
+                const duplicateIds = condition.catalogIds.filter((id, index) => condition.catalogIds.indexOf(id) !== index);
+                return [
+                    ...(condition.catalogIds.length === 0 ? [`${def.id} -> empty item_owned_any`] : []),
+                    ...duplicateIds.map((id) => `${def.id} -> duplicate ${id}`),
+                    ...condition.catalogIds.filter((id) => !inventoryIds.has(id as (typeof FULL_CATALOG.inventoryItemIds)[number]))
+                        .map((id) => `${def.id} -> ${id}`),
+                ];
+            }
+            if (condition.type === "resource_owned" && !inventoryIds.has(condition.catalogId as (typeof FULL_CATALOG.inventoryItemIds)[number])) {
+                return [`${def.id} -> ${condition.catalogId}`];
+            }
+            return [];
+        }));
+
+        expect(ARCHWING_CATALOG_IDS).toHaveLength(5);
+        expect(invalid).toEqual([]);
     });
 
     it("has unique stable entries and no self or duplicate direct edges", () => {
@@ -354,6 +380,13 @@ describe("prerequisite registry integrity", () => {
 
         expect(PREREQ_REGISTRY.find((def) => def.id === PR.ACTIVITY_KUVA_LICH)?.anyPrerequisites)
             .toEqual([PR.RAILJACK_CONSTRUCTED, PR.RAILJACK_MARKET_ACQUIRED]);
+
+        const codaAtMr0 = computeUnlockGraphSnapshot({
+            [PR.THE_HEX]: true,
+            [PR.SYSTEM_ADVERSARY_SLOT_CLEAR]: true,
+        }, undefined, { masteryRank: 0 }).byId[PR.ACTIVITY_TECHNOCYTE_CODA];
+        expect(codaAtMr0.unlocked).toBe(true);
+        expect(codaAtMr0.missingConditions).not.toContainEqual({ type: "mastery_rank", value: 5 });
 
         const purchasedRailjack = computeUnlockGraphSnapshot({
             [PR.WAR_WITHIN]: true,

@@ -2441,8 +2441,8 @@ export default function Inventory() {
     (s) => s.state.intrinsics?.railjack ?? EMPTY_NUM_RECORD,
   );
   const effectiveCompletedPrereqs = useMemo(
-    () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
-    [completedPrereqs, masteryRank, nodeCompletedMap, railjackIntrinsics, syndicates],
+    () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, counts),
+    [completedPrereqs, masteryRank, nodeCompletedMap, railjackIntrinsics, syndicates, counts],
   );
 
   const goals = useTrackerStore((s) => s.state.goals ?? EMPTY_ARRAY);

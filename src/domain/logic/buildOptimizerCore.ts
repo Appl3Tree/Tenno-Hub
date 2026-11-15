@@ -853,7 +853,8 @@ function scoreEffects(
     // For one target, reaching cap pays the same individual stack damage as
     // natural expiry. The 3×H cap blast affects nearby enemies and is excluded
     // from this single-target objective score.
-    let blastDamageRate = modded.blastExpectedExpiryDamagePerShot * objectiveAttackRate;
+    let blastDamageRate = modded.blastExpectedExpiryDamagePerShot *
+        modded.steadyStateTargetStatusDamageMultiplier * objectiveAttackRate;
     if (goal !== "burst") blastDamageRate *= sustainedDutyCycle;
     blastDamageRate *= damageRampMultiplier;
     if (blastDamageRate > 0) score += blastDamageRate * getPoolProgress("blast", false, false);
@@ -873,6 +874,7 @@ function scoreEffects(
         );
         const radialDamageRate = blastProcRate * capProbability *
             modded.blastStackHitDamagePerProc *
+            modded.steadyStateTargetStatusDamageMultiplier *
             (STATUS_EFFECT_RULES.blast.stackCapDetonationMultiplier ?? 3) *
             nearbyBlastEnemyCount * damageRampMultiplier;
         if (radialDamageRate > 0) score += radialDamageRate * getPoolProgress("blast", false, false);
@@ -2169,6 +2171,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     )) families.push("elemental");
     const statusRelevant = has(
         "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "targetStatusDamageVulnerabilityBonus",
         "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
         "impactStatusAppliesMagneticChance", "impactStatusAppliesSlashChance", "critAppliesSlashChance",
@@ -2194,6 +2197,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     if (has("factionDamageBonus")) families.push("faction-damage");
     if (has(
         "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "targetStatusDamageVulnerabilityBonus",
         "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
         "impactStatusAppliesMagneticChance", "impactStatusAppliesSlashChance", "critAppliesSlashChance",
@@ -2266,6 +2270,8 @@ function expectedEncounterScoreForEffects(
         reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
         ...getEncounterBurstTiming(weapon, stats.fireRate),
         statusDurationMultiplier: stats.statusDurationMultiplier,
+        targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
+        initialHeatStatusPresenceProbability: conditionalState?.externalHeatStatusPresenceProbability,
         dotDamagePerAttackByType: stats.dotDamagePerShotByType,
         dotDamagePerApplicationByType,
         heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
@@ -3886,6 +3892,9 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     if (value("multishotBonus") > 0) parts.push(`+${(value("multishotBonus") * 100).toFixed(0)}% ms`);
     if (value("fireRateBonus") > 0) parts.push(`+${(value("fireRateBonus") * 100).toFixed(0)}% fr`);
     if (value("statusDamageBonus") > 0) parts.push(`+${(value("statusDamageBonus") * 100).toFixed(0)}% status damage`);
+    if (value("targetStatusDamageVulnerabilityBonus") > 0) {
+        parts.push(`+${(value("targetStatusDamageVulnerabilityBonus") * 100).toFixed(0)}% target Status Damage after Hate hits Heat`);
+    }
     for (const [type, chance] of Object.entries(effect.independentStatusProcChanceByType ?? {})) {
         if (typeof chance === "number" && chance > 0) {
             parts.push(`+${(chance * 100).toFixed(0)}% base independent ${type} proc (scales with Status Chance)`);

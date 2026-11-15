@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { useTrackerStore } from "../store/store";
 import { useShallow } from "zustand/react/shallow";
 import { buildRequirementsSnapshot, type SyndicateScopeMode } from "../domain/logic/requirementEngine";
+import { deriveCompletedMap } from "../domain/logic/syndicatePrereqs";
 import { getItemRequirements } from "../catalog/items/itemRequirements";
 import { FULL_CATALOG, type CatalogId } from "../domain/catalog/loadFullCatalog";
 import { EMPTY_OBJ, EMPTY_ARR, type GoalRow, type GoalsTab, safeInt } from "./goals/goalsUtils";
@@ -17,6 +18,8 @@ import { GoalCard } from "./goals/GoalCard";
 import { TreeStyles } from "./goals/GoalsTreeView";
 import { WorkspaceAction, WorkspaceFilterBar, WorkspaceFilterGroup, WorkspacePillButton, WorkspaceSection, WorkspaceSegmented, WorkspaceSegmentedButton } from "../components/workspace/WorkspaceChrome";
 import { getOwnedCountForCatalogId } from "../domain/goals/catalogGoals";
+
+const EMPTY_NUMBER_MAP: Record<string, number> = {};
 
 function Section(props: { title: string; subtitle?: string; children: ReactNode }) {
     return <WorkspaceSection title={props.title} subtitle={props.subtitle}>{props.children}</WorkspaceSection>;
@@ -147,13 +150,21 @@ function ReqItemRow(props: { catalogId: CatalogId; name: string; totalNeed: numb
 export default function Goals() {
     const setActivePage = useTrackerStore((s) => s.setActivePage);
 
-    const { goals, syndicates, completedPrereqs, inventory } = useTrackerStore(
+    const { goals, syndicates, completedPrereqs, inventory, masteryRank, nodeCompletedMap, railjackIntrinsics } = useTrackerStore(
         useShallow((s) => ({
             goals: Array.isArray((s.state as any).goals) ? (s.state as any).goals : EMPTY_ARR,
-            syndicates: s.state.syndicates ?? [],
+            syndicates: s.state.syndicates ?? EMPTY_ARR,
             completedPrereqs: s.state.prereqs?.completed ?? EMPTY_OBJ,
             inventory: s.state.inventory,
+            masteryRank: s.state.player?.masteryRank ?? null,
+            nodeCompletedMap: s.state.missions?.nodeCompleted ?? EMPTY_OBJ,
+            railjackIntrinsics: s.state.intrinsics?.railjack ?? EMPTY_NUMBER_MAP,
         }))
+    );
+    const inventoryCounts = useTrackerStore((s) => s.state.inventory.counts);
+    const effectiveCompletedPrereqs = useMemo(
+        () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts),
+        [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts],
     );
 
     const [tab, setTab] = useState<GoalsTab>("personal");
@@ -174,12 +185,12 @@ export default function Goals() {
         return buildRequirementsSnapshot({
             syndicates,
             goals: [],
-            completedPrereqs,
+            completedPrereqs: effectiveCompletedPrereqs,
             inventory,
             syndicateScope: reqScope
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [needsRequirements, syndicates, completedPrereqs, inventory, reqScope]);
+    }, [needsRequirements, syndicates, effectiveCompletedPrereqs, inventory, reqScope]);
 
     // Sorted + filtered goal IDs — GoalCard fetches its own data from the store
     const { sortedGoalIds, totalGoalCount } = useMemo(() => {

@@ -206,7 +206,6 @@ export default function StarChartMap(props: {
     }, []);
 
     // Inventory ownership — used to decorate loot panel items
-    const inventoryCounts = useTrackerStore((s) => s.state.inventory?.counts ?? EMPTY_NODE_COMPLETED);
     const inventory = useTrackerStore((s) => s.state.inventory);
     const goals = useTrackerStore((s) => s.state.goals ?? []);
     const setCount = useTrackerStore((s) => s.setCount);
@@ -220,10 +219,11 @@ export default function StarChartMap(props: {
     const spNodeCompletedMap     = useTrackerStore((s) => s.state.missions?.steelPathNodeCompleted ?? EMPTY_NODE_COMPLETED);
     const baseCompletedPrereqs  = useTrackerStore((s) => s.state.prereqs?.completed            ?? EMPTY_NODE_COMPLETED);
     const railjackIntrinsics    = useTrackerStore((s) => s.state.intrinsics?.railjack          ?? EMPTY_INTRINSICS);
+    const inventoryCounts       = useTrackerStore((s) => s.state.inventory?.counts             ?? EMPTY_INTRINSICS);
     const masteryRank           = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
     const completedPrereqs      = useMemo(
-        () => deriveCompletedMap(baseCompletedPrereqs, [], masteryRank, nodeCompletedMap, railjackIntrinsics),
-        [baseCompletedPrereqs, masteryRank, nodeCompletedMap, railjackIntrinsics],
+        () => deriveCompletedMap(baseCompletedPrereqs, [], masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts),
+        [baseCompletedPrereqs, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts],
     );
 
     // When in Steel Path mode, setters and raw map point to the SP tracking store.

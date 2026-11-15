@@ -258,6 +258,10 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     enemyShieldGateHitMode?: "body" | "weakspot" | "blockedArea";
     /** Status duration multiplier used when resolving the build's DoT totals. */
     statusDurationMultiplier?: number;
+    /** Permanent target-side Status Damage vulnerability after a Hate hit on a Heat-afflicted target. */
+    targetStatusDamageVulnerabilityBonus?: number;
+    /** Probability that an external Heat status is active before the first attack. */
+    initialHeatStatusPresenceProbability?: number;
     /** Maximum pool values for effects based on the target's starting defenses. */
     maxShields?: number;
     maxOverguard?: number;
@@ -585,11 +589,45 @@ export function simulateExpectedWeaponEncounter(
     let killed = allPoolsEmpty(remainingPools);
     let primaryKilledAt = killed ? 0 : null;
     const durationMultiplier = Math.max(0, finiteNonNegative(input.statusDurationMultiplier ?? 1));
+    const targetStatusDamageVulnerabilityBonus = finiteNonNegative(input.targetStatusDamageVulnerabilityBonus ?? 0);
+    let targetStatusDamageVulnerabilityActiveProbability = 0;
     let previousRampAttackTime: number | null = null;
     let activeDamageRampMultiplier = getInitialDamageRampMultiplier(input.damageRampRule);
     const timedDamageStacks = (input.timedConditionalDamageStacks ?? [])
         .map(createTimedDamageStackRuntime)
         .filter((runtime): runtime is TimedDamageStackRuntime => runtime !== null);
+
+    const initialHeatPresenceProbability = clampProbability(input.initialHeatStatusPresenceProbability ?? 0);
+    if (initialHeatPresenceProbability > 0 && durationMultiplier > 0) {
+        const heatQueue: ExpectedStatusStackQueue = {
+            entries: [{
+                expiresAt: STATUS_EFFECT_RULES.heat.durationSeconds * durationMultiplier,
+                stacks: initialHeatPresenceProbability,
+                presenceProbability: initialHeatPresenceProbability,
+            }],
+            head: 0,
+            totalStacks: initialHeatPresenceProbability,
+            logProbabilityNoneActive: 0,
+            guaranteedPresenceEntries: 0,
+        };
+        addStatusPresence(heatQueue, initialHeatPresenceProbability);
+        statusStackQueues.set("heat", heatQueue);
+    }
+
+    const activeStatusDamageMultiplier = (): number =>
+        1 + targetStatusDamageVulnerabilityBonus * targetStatusDamageVulnerabilityActiveProbability;
+
+    const activateTargetStatusDamageVulnerability = () => {
+        if (targetStatusDamageVulnerabilityBonus <= 0) return;
+        const heatQueue = statusStackQueues.get("heat");
+        if (!heatQueue || heatQueue.totalStacks <= 0) return;
+        const heatPresence = expectedStatusPresence(heatQueue);
+        targetStatusDamageVulnerabilityActiveProbability +=
+            (1 - targetStatusDamageVulnerabilityActiveProbability) * heatPresence;
+        targetStatusDamageVulnerabilityActiveProbability = clampProbability(
+            targetStatusDamageVulnerabilityActiveProbability,
+        );
+    };
 
     const scheduleStatusTick = (time: number, type: StatusDamageType, damage: number) => {
         if (type === "electricity") {
@@ -780,6 +818,7 @@ export function simulateExpectedWeaponEncounter(
         presenceProbabilitiesByType: Partial<Record<StatusDamageType, number>> = {},
         attackDamageRampMultiplier = 1,
         conditionOverloadDamageMultiplier = 1,
+        statusDamageMultiplier = 1,
         gasCloudGroup?: GasCloudTickGroup,
     ) => {
         for (const [type, rawApplications] of Object.entries(applicationsByType) as Array<[StatusDamageType, number]>) {
@@ -827,10 +866,11 @@ export function simulateExpectedWeaponEncounter(
             const hasDynamicStatusApplications = input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
             const hasBlastHitDamage = input.blastStackHitDamagePerProc !== undefined;
             if (type === "blast" && (input.expectedStatusApplicationsPerAttackByType?.blast !== undefined || hasDynamicStatusApplications || hasBlastHitDamage)) {
-                const legacyExpiryDamagePerStack = finiteNonNegative(input.blastDamagePerAttack ?? 0) * attackDamageRampMultiplier / applications;
+                const legacyExpiryDamagePerStack = finiteNonNegative(input.blastDamagePerAttack ?? 0) *
+                    attackDamageRampMultiplier * statusDamageMultiplier / applications;
                 const hitDamagePerStack = hasBlastHitDamage
                     ? finiteNonNegative(input.blastStackHitDamagePerProc ?? 0) *
-                        conditionOverloadDamageMultiplier * attackDamageRampMultiplier
+                        conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier
                     : legacyExpiryDamagePerStack > 0
                         ? legacyExpiryDamagePerStack / (STATUS_EFFECT_RULES.blast.stackExpiryDamageCoefficient ?? 0.3)
                         : 0;
@@ -982,8 +1022,9 @@ export function simulateExpectedWeaponEncounter(
                 const tickCount = countStatusDamageTicks("heat", duration);
                 const seedTickDamage = finiteNonNegative(input.heatDotTickDamagePerProc ??
                     (tickCount > 0 ? perApplicationDamage / tickCount : 0)) *
-                    conditionOverloadDamageMultiplier * attackDamageRampMultiplier;
-                const accumulatorTickDamage = finiteNonNegative(input.heatDotAccumulatorDamagePerTick ?? 0);
+                    conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier;
+                const accumulatorTickDamage = finiteNonNegative(input.heatDotAccumulatorDamagePerTick ?? 0) *
+                    statusDamageMultiplier;
                 if ((seedTickDamage > 0 || accumulatorTickDamage > 0) && tickCount > 0) {
                     const previousHeatDot = heatDotState.current;
                     const remainsActive = previousHeatDot !== null && attackTime <= previousHeatDot.expiresAt + 1e-9;
@@ -1009,14 +1050,18 @@ export function simulateExpectedWeaponEncounter(
         }
     };
 
-    const scheduleMagneticBreakProc = (time: number, pool: "overguard" | "shields") => {
+    const scheduleMagneticBreakProc = (
+        time: number,
+        pool: "overguard" | "shields",
+        statusDamageMultiplier = activeStatusDamageMultiplier(),
+    ) => {
         if (statusImmuneTypes.has("electricity") || durationMultiplier <= 0) return;
         const magneticStacks = stackCount("magnetic");
         if (magneticStacks <= 0) return;
         const poolMaximum = pool === "overguard" ? maximumOverguard : maximumShields;
         const sourceMultiplier = finiteNonNegative(input.magneticBreakElectricSourceMultiplier ?? 1);
         const totalDamage = poolMaximum * MAGNETIC_BREAK_ELECTRIC_DAMAGE_PER_STACK * magneticStacks *
-            sourceMultiplier * durationMultiplier;
+            sourceMultiplier * durationMultiplier * statusDamageMultiplier;
         const duration = MAGNETIC_BREAK_ELECTRIC_DURATION_SECONDS * durationMultiplier;
         const tickCount = countStatusDamageTicks("electricity", duration);
         if (totalDamage <= 0 || tickCount <= 0) return;
@@ -1141,6 +1186,7 @@ export function simulateExpectedWeaponEncounter(
         applicationsByType: Partial<Record<StatusDamageType, number>>,
         attackDamageRampMultiplier = 1,
         conditionOverloadDamageMultiplier = 1,
+        statusDamageMultiplier = 1,
     ): GasCloudTickGroup | undefined => {
         let gasCloudGroup: GasCloudTickGroup | undefined;
         for (const [type, totalDamage] of Object.entries(input.dotDamagePerAttackByType ?? {}) as Array<[StatusDamageType, number]>) {
@@ -1160,11 +1206,11 @@ export function simulateExpectedWeaponEncounter(
                 ? (
                     finiteNonNegative(seedPerApplication) * conditionOverloadDamageMultiplier +
                     finiteNonNegative(accumulatorPerApplication ?? 0)
-                ) * applications * attackDamageRampMultiplier
+                ) * applications * attackDamageRampMultiplier * statusDamageMultiplier
                 : perApplicationDamage !== undefined
                     ? finiteNonNegative(perApplicationDamage) * applications *
-                        conditionOverloadDamageMultiplier * attackDamageRampMultiplier
-                    : finiteNonNegative(totalDamage) * conditionOverloadDamageMultiplier * attackDamageRampMultiplier;
+                        conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier
+                    : finiteNonNegative(totalDamage) * conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier;
             if (dotDamage <= 0) continue;
             const rule = STATUS_EFFECT_RULES[type];
             const duration = rule.durationSeconds * durationMultiplier;
@@ -1200,7 +1246,8 @@ export function simulateExpectedWeaponEncounter(
                 };
             }
         }
-        const blastDamage = finiteNonNegative(input.blastDamagePerAttack ?? 0) * attackDamageRampMultiplier;
+        const blastDamage = finiteNonNegative(input.blastDamagePerAttack ?? 0) *
+            attackDamageRampMultiplier * statusDamageMultiplier;
         const blastDelay = STATUS_EFFECT_RULES.blast.detonationDelaySeconds;
         const expectedBlastStacksProvided = input.expectedStatusApplicationsPerAttackByType?.blast !== undefined ||
             (input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined) ||
@@ -1229,6 +1276,7 @@ export function simulateExpectedWeaponEncounter(
             if (!Number.isFinite(attackTime) || attackTime > maxDurationSeconds + 1e-9 || attackInterval <= 0) break;
             now = attackTime;
             expireStatusStacks(now);
+            const statusDamageMultiplierAtAttackStart = activeStatusDamageMultiplier();
             const attackDamageRampMultiplier = rampMultiplierForAttack(attackTime, attackIndex);
             const firstShotMagazineDamageMultiplier = !input.infiniteAmmoActive && attackIndex % shotsPerMagazine === 0
                 ? 1 + finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0)
@@ -1311,12 +1359,15 @@ export function simulateExpectedWeaponEncounter(
                 );
             }
             if (poolsBeforeAttack.overguard > 0 && remainingPools.overguard <= Number.EPSILON) {
-                scheduleMagneticBreakProc(attackTime, "overguard");
+                scheduleMagneticBreakProc(attackTime, "overguard", statusDamageMultiplierAtAttackStart);
             }
             if (poolsBeforeAttack.shields > 0 && remainingPools.shields <= Number.EPSILON) {
                 enemyShieldGateUntil = attackTime + ENEMY_SHIELD_GATE_DURATION_SECONDS;
-                scheduleMagneticBreakProc(attackTime, "shields");
+                scheduleMagneticBreakProc(attackTime, "shields", statusDamageMultiplierAtAttackStart);
             }
+            // The triggering Hate hit activates the permanent target debuff, but
+            // its own status procs retain the multiplier that was active at hit start.
+            if (sumPools(appliedDirectDamage) > 0) activateTargetStatusDamageVulnerability();
             attacks++;
             attackIndex++;
             const attackStatusState = expectedStatusApplicationsForCurrentPools();
@@ -1325,6 +1376,7 @@ export function simulateExpectedWeaponEncounter(
                 attackStatusState.applications,
                 attackDamageMultiplier * timedDamageBracketMultiplier,
                 conditionOverloadDamageMultiplier,
+                statusDamageMultiplierAtAttackStart,
             );
             applyExpectedStatusApplications(
                 attackTime,
@@ -1332,6 +1384,7 @@ export function simulateExpectedWeaponEncounter(
                 attackStatusState.presenceProbabilities,
                 attackDamageMultiplier * timedDamageBracketMultiplier,
                 conditionOverloadDamageMultiplier,
+                statusDamageMultiplierAtAttackStart,
                 gasCloudGroup,
             );
             for (const runtime of timedDamageStacks) {
@@ -1364,6 +1417,7 @@ export function simulateExpectedWeaponEncounter(
             // Expire older stacks before resolving this event while retaining
             // stacks whose final tick lands exactly at their expiry timestamp.
             expireStatusStacks(now - 2e-9);
+            const statusDamageMultiplierAtTickStart = activeStatusDamageMultiplier();
             if (tick.type === "blast") {
                 for (let index = blastStackEntries.length - 1; index >= 0; index--) {
                     if (blastStackEntries[index].sequence === tick.sequence) blastStackEntries.splice(index, 1);
@@ -1418,12 +1472,15 @@ export function simulateExpectedWeaponEncounter(
                 }
             }
             if (poolsBeforeTick.overguard > 0 && remainingPools.overguard <= Number.EPSILON) {
-                scheduleMagneticBreakProc(now, "overguard");
+                scheduleMagneticBreakProc(now, "overguard", statusDamageMultiplierAtTickStart);
             }
             if (poolsBeforeTick.shields > 0 && remainingPools.shields <= Number.EPSILON) {
                 enemyShieldGateUntil = now + ENEMY_SHIELD_GATE_DURATION_SECONDS;
-                scheduleMagneticBreakProc(now, "shields");
+                scheduleMagneticBreakProc(now, "shields", statusDamageMultiplierAtTickStart);
             }
+            // Existing status ticks were seeded when their procs were applied;
+            // a triggering tick only changes damage for later procs.
+            if (sumPools(dealt) > 0) activateTargetStatusDamageVulnerability();
             killed = isEncounterTargetDefeated(initialHealth, remainingPools);
             if (killed && primaryKilledAt === null) {
                 primaryKilledAt = now;

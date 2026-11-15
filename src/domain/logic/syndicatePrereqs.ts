@@ -8,7 +8,7 @@
 // syndicate-gated prereqs are automatically marked complete when the player's
 // Syndicates tracker already reflects the required rank.
 
-import { PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
+import { ARCHWING_CATALOG_IDS, PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
 import { PR } from "../ids/prereqIds";
 import { SY } from "../ids/syndicateIds";
 import type { SyndicateState } from "../types";
@@ -28,6 +28,7 @@ export function deriveCompletedMap(
     masteryRank?: number | null,
     nodeCompletedMap: Record<string, boolean> = {},
     railjackIntrinsics: Record<string, number> = {},
+    inventoryCounts: Record<string, number> = {},
 ): Record<string, boolean> {
     // Build a fast rank lookup: syndicateId -> current rank
     const rankBySyndicateId: Record<string, number> = {};
@@ -93,6 +94,10 @@ export function deriveCompletedMap(
 
     if (isNightmareUnlockedFromNodeCompletion(nodeCompletedMap)) {
         merged[PR.ACTIVITY_NIGHTMARE] = true;
+    }
+
+    if (ARCHWING_CATALOG_IDS.some((catalogId) => Number(inventoryCounts[catalogId] ?? 0) > 0)) {
+        merged[PR.SYSTEM_ARCHWING_OWNED] = true;
     }
 
     // Completing Pluto → Eris necessarily completes its Focus Lens task,
@@ -165,6 +170,7 @@ export function isValidatedBySyndicate(prereqId: string): boolean {
 
 const COMPLETION_DERIVED_FROM_PROGRESS = new Set<string>([
     PR.DEIMOS_ACCESS,
+    PR.SYSTEM_ARCHWING_OWNED,
     PR.SEGMENT_HELMINTH_SON_ACCESS,
     PR.SEGMENT_HELMINTH_INVIGORATION_SON_ACCESS,
     PR.SYSTEM_PROXIMA_ACCESS,

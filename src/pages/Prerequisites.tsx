@@ -61,8 +61,8 @@ export default function Prerequisites() {
     const [collapsed, setCollapsed]       = useState<Record<string, boolean>>({});
 
     const mergedMap = useMemo(
-        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
-        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics],
+        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts),
+        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts],
     );
 
     const evalContext = useMemo(
@@ -282,7 +282,7 @@ export default function Prerequisites() {
                                                 <div className="shrink-0 mt-0.5">
                                                     {autoTracked ? (
                                                         <div
-                                                            title="Tracked automatically from Star Chart, Syndicate, or Mastery Rank data"
+                                                            title="Tracked automatically from inventory, Star Chart, Syndicate, or Mastery Rank data"
                                                             className={[
                                                                 "w-4 h-4 rounded border flex items-center justify-center",
                                                                 st.completed

@@ -35,8 +35,8 @@ export default function Dashboard() {
     );
 
     const mergedMap = useMemo(
-        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics),
-        [completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics]
+        () => deriveCompletedMap(completedMap, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts),
+        [completedMap, syndicates, masteryRank, nodeCompletedMap, inventoryCounts, railjackIntrinsics]
     );
 
     const progressionSteps = useMemo(() => {

@@ -87,6 +87,11 @@ describe("current Warframe progression gates", () => {
 
         const moteAmpImpliesAnyAmp = deriveCompletedMap({ [PR.AMP_MOTE]: true }, [], 0);
         expect(moteAmpImpliesAnyAmp[PR.SYSTEM_OPERATOR_AMP]).toBe(true);
+        expect(definition(PR.SYSTEM_OPERATOR_AMP).prerequisites).toEqual([PR.SYSTEM_ONKKO_VISITED]);
+        expect(computeUnlockGraphSnapshot({ [PR.SECOND_DREAM]: true }).byId[PR.SYSTEM_OPERATOR_AMP].unlocked)
+            .toBe(false);
+        expect(computeUnlockGraphSnapshot({ [PR.SYSTEM_ONKKO_VISITED]: true }).byId[PR.SYSTEM_OPERATOR_AMP].unlocked)
+            .toBe(true);
     });
 
     it("uses Onkko visit, not Saya's Vigil or Mote Amp ownership, as the current Chains of Harrow gate", () => {
@@ -225,15 +230,39 @@ describe("current Warframe progression gates", () => {
             PR.STOLEN_DREAMS,
             PR.JUNCTION_JUPITER_EUROPA,
         ]);
-        expect(definition(PR.LIMBO_THEOREM).prerequisites).toEqual([
-            PR.ARCHWING,
-            PR.JUNCTION_JUPITER_EUROPA,
-        ]);
+        expect(definition(PR.LIMBO_THEOREM).prerequisites).toEqual([PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_JUPITER_EUROPA]);
+        expect(definition(PR.LIMBO_THEOREM).conditions).toBeUndefined();
+        expect(definition(PR.JORDAS_PRECEPT).prerequisites).toEqual([PR.JUNCTION_PLUTO_SEDNA]);
+        expect(definition(PR.SYSTEM_ARCHWING_OWNED).conditions?.[0]).toMatchObject({
+            type: "item_owned_any",
+            label: "Own any Archwing",
+        });
+        expect(isAutoTrackedPrereq(PR.SYSTEM_ARCHWING_OWNED)).toBe(true);
         expect(definition(PR.CALL_TEMPESTARII).prerequisites).toEqual([PR.DEADLOCK_PROTOCOL]);
         expect(definition(PR.CALL_TEMPESTARII).anyPrerequisites).toEqual([
             PR.RAILJACK_CONSTRUCTED,
             PR.RAILJACK_MARKET_ACQUIRED,
         ]);
+
+        const archwingCondition = definition(PR.SYSTEM_ARCHWING_OWNED).conditions![0];
+        if (archwingCondition.type !== "item_owned_any") throw new Error("Archwing ownership must use an any-owned equipment condition");
+        const archwingCatalogId = archwingCondition.catalogIds[0];
+        const jupiterEuropaUnlocked = { [PR.JUNCTION_JUPITER_EUROPA]: true };
+        const hasArchwing = deriveCompletedMap({}, [], 0, {}, {}, { [archwingCatalogId]: 1 });
+        expect(hasArchwing[PR.SYSTEM_ARCHWING_OWNED]).toBe(true);
+        const questStillInProgress = computeUnlockGraphSnapshot({ ...jupiterEuropaUnlocked, ...hasArchwing })
+            .byId[PR.LIMBO_THEOREM];
+        expect(questStillInProgress.unlocked).toBe(true);
+        expect(questStillInProgress.missing).not.toContain(PR.ARCHWING);
+
+        const noArchwing = computeUnlockGraphSnapshot(jupiterEuropaUnlocked).byId[PR.LIMBO_THEOREM];
+        expect(noArchwing.unlocked).toBe(false);
+        expect(noArchwing.missing).toContain(PR.SYSTEM_ARCHWING_OWNED);
+
+        const noJunction = computeUnlockGraphSnapshot(hasArchwing)
+            .byId[PR.LIMBO_THEOREM];
+        expect(noJunction.unlocked).toBe(false);
+        expect(noJunction.missing).toContain(PR.JUNCTION_JUPITER_EUROPA);
 
         const purchasedRailjack = computeUnlockGraphSnapshot({
             [PR.DEADLOCK_PROTOCOL]: true,
@@ -310,8 +339,13 @@ describe("current Warframe progression gates", () => {
         expect(definition(PR.SEGMENT_VOID_RELIC).prerequisites).toEqual([PR.ONCE_AWAKE]);
         expect(definition(PR.ACTIVITY_VOID_FISSURES).prerequisites).toEqual([PR.VORS_PRIZE]);
         expect(definition(PR.ACTIVITY_VOID_FISSURES).prerequisites).not.toContain(PR.SEGMENT_VOID_RELIC);
-        expect(definition(PR.ACTIVITY_VOID_STORMS).anyPrerequisites).toEqual([PR.ARCHWING, PR.RAILJACK_CONSTRUCTED]);
-        expect(definition(PR.ACTIVITY_VOID_STORMS).prerequisites).toEqual([]);
+        expect(definition(PR.ACTIVITY_VOID_STORMS).prerequisites).toEqual([PR.SYSTEM_PROXIMA_ACCESS]);
+        expect(definition(PR.ACTIVITY_VOID_STORMS).anyPrerequisites).toBeUndefined();
+        const joinVoidStormWithoutRailjack = computeUnlockGraphSnapshot({
+            [PR.SYSTEM_PROXIMA_ACCESS]: true,
+        }).byId[PR.ACTIVITY_VOID_STORMS];
+        expect(joinVoidStormWithoutRailjack.unlocked).toBe(true);
+        expect(joinVoidStormWithoutRailjack.missing).not.toContain(PR.RAILJACK_CONSTRUCTED);
         expect(definition(PR.ACTIVITY_KUVA_SIPHON).conditions).toContainEqual({ type: "mastery_rank", value: 5 });
         expect(definition(PR.ACTIVITY_DEFECTION).anyPrerequisites).toEqual([
             PR.JUNCTION_MARS_PHOBOS,
@@ -354,7 +388,10 @@ describe("current Warframe progression gates", () => {
             PR.ACTIVITY_NETRACELL_COMPLETED,
         ]);
         expect(definition(PR.ACTIVITY_NETRACELL_COMPLETED).prerequisites).toEqual([PR.ACTIVITY_NETRACELLS]);
-        expect(definition(PR.ACTIVITY_TECHNOCYTE_CODA).conditions).toContainEqual({ type: "mastery_rank", value: 5 });
+        expect(definition(PR.ACTIVITY_TECHNOCYTE_CODA).conditions ?? [])
+            .not.toContainEqual({ type: "mastery_rank", value: 5 });
+        expect(definition(PR.ACTIVITY_TECHNOCYTE_CODA).evidence?.find((source) => source.url.endsWith("/Adversary_System")))
+            .toMatchObject({ classification: "conditional" });
         expect(definition(PR.ACTIVITY_TEMPORAL_ARCHIMEDEA).prerequisites).toEqual([PR.THE_HEX, PR.SYNDICATE_HEX_RANK5]);
         expect(definition(PR.ACTIVITY_FABLES_FRONTIERS).prerequisites).toEqual([
             PR.THE_HEX,
@@ -545,6 +582,16 @@ describe("current Warframe progression gates", () => {
             [PR.SYSTEM_ONKKO_VISITED]: true,
         }).byId[PR.SYNDICATE_VOX_RANK1];
         expect(unlocked.unlocked).toBe(true);
+    });
+
+    it("gates each Amp parts tier at its actual syndicate rank", () => {
+        expect(definition(PR.AMP_TIER1).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK1]);
+        expect(definition(PR.AMP_TIER2).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK2]);
+        expect(definition(PR.AMP_TIER3).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK3]);
+        expect(definition(PR.AMP_TIER4).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK4]);
+        expect(definition(PR.AMP_TIER5).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK2]);
+        expect(definition(PR.AMP_TIER6).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK3]);
+        expect(definition(PR.AMP_TIER7).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK4]);
     });
 
     it("keeps recommendations nonblocking", () => {

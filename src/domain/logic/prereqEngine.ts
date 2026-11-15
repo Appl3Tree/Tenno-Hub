@@ -60,6 +60,8 @@ export function isPrereqConditionSatisfied(
             return (context.syndicateRankById?.[cond.syndicateId] ?? -1) >= cond.rank;
         case "item_owned":
             return Number(context.inventoryCounts?.[cond.catalogId] ?? 0) > 0;
+        case "item_owned_any":
+            return cond.catalogIds.some((catalogId) => Number(context.inventoryCounts?.[catalogId] ?? 0) > 0);
         case "resource_owned":
             return Number(context.inventoryCounts?.[cond.catalogId] ?? 0) >= cond.quantity;
         case "star_chart_access":
