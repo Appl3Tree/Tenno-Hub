@@ -221,12 +221,15 @@ export type ConditionalTrigger =
     | "onConsecutiveThrow"
     | "onOcucorTendrilKill"
     | "afterJumpLanding"
+    | "whileNoEnemyWithinRange"
     | "whileWallLatched"
     | "whileTargetHasStatus";
 
 export interface ConditionalEffect {
     trigger: ConditionalTrigger;
     durationSeconds: number;
+    /** Strict player-to-target range threshold for distance-gated effects. */
+    minimumTargetDistanceMeters?: number;
     /** Delay before a timed activation condition becomes available, when defined by the source. */
     activationDelaySeconds?: number;
     requiresAiming: boolean;
@@ -490,6 +493,21 @@ function parseComboScaledLine(raw: string): Partial<ModEffect> {
 
 function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }): Partial<ModEffect> {
     const clean = stripColorTags(raw);
+    const noNearbyEnemyDamage = clean.match(
+        /^([+-]?\d+(?:\.\d+)?)%\s+damage if no enemies are within (\d+(?:\.\d+)?)m\.?$/i,
+    );
+    if (noNearbyEnemyDamage) {
+        return {
+            conditionalEffects: [{
+                trigger: "whileNoEnemyWithinRange",
+                durationSeconds: 0,
+                minimumTargetDistanceMeters: Number(noNearbyEnemyDamage[2]),
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { damageBonus: Number(noNearbyEnemyDamage[1]) / 100 },
+            }],
+        };
+    }
     const jumpLandingMatch = clean.match(
         /^([+-]?\d+(?:\.\d+)?)%\s+Critical and Status Chance for (\d+(?:\.\d+)?)s after landing from a Double or Bullet Jump\.?$/i,
     );

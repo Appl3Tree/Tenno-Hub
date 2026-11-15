@@ -12,6 +12,12 @@ The Daikyu case took a median 2.474s / maximum 2.585s in the corpus. Its selecte
 
 The harness accepts the scenario range on a case-specific basis, and the JSON record includes `targetDistanceMeters` for reproducibility. All 37 cases returned capacity-valid, duplicate-free, incompatibility-group-valid builds within the Forma limit. Lex Prime Burst was the slowest median at 2.947s in this refresh; five-run results are desktop Node observations only.
 
+## Akjagara Prime Range Advantage scenario (2026-11-15)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5 --weapon="Akjagara Prime" --goal=burst`
+
+The benchmark corpus now contains a 38th case: Akjagara Prime / Burst against the Grineer preset at 15m, where Range Advantage is active. Five runs selected the same eight-mod build including max-rank Range Advantage, with 59/60 capacity and two Forma. Median optimization time was 1.859s; the maximum of five was 2.150s. All runs were legal and stable, and no Arcane was selected. This measures one distance-conditional case only; the 37-case full-width corpus above has not yet been rerun with the new case, and the five-run maximum is not a population p95.
+
 ## Saved Underframe Braton comparison (2026-11-15)
 
 The in-app browser's saved `Braton Prime benchmark (Copy)` displayed the captured eight-mod Underframe Auto Build list: Amalgam Serration R10, Bane of Corpus R5, Bane of Grineer R5, Bane of Infested R5, Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, and Vital Sense R5. Its explicit target pools were Grineer Heavy Gunner, 83,818 Health, 2,700 Armor, zero Shields and Overguard. Primary Bulwark was set to 500/500. A five-second Luck Averaged run returned 1,529 raw + 465 DoT damage per shot and 19,461 DPS. No build configuration was saved or changed during this read-only check.

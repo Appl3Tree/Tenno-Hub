@@ -24,12 +24,21 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.sources.impact).toBe("https://wiki.warframe.com/w/Damage/Impact_Damage");
         expect(DAMAGE_RULESET.sources.shatteringImpact).toBe("https://wiki.warframe.com/w/Shattering_Impact");
         expect(DAMAGE_RULESET.sources.seismicWave).toBe("https://wiki.warframe.com/w/Seismic_Wave");
+        expect(DAMAGE_RULESET.sources.rangeAdvantage).toBe("https://wiki.warframe.com/w/Range_Advantage");
         expect(DAMAGE_RULESET.knownLimitations.some((entry) => entry.includes("Seismic Wave"))).toBe(true);
         expect(DAMAGE_RULESET.sources.galvanizedAptitude).toBe("https://wiki.warframe.com/w/Galvanized_Aptitude");
         expect(DAMAGE_RULESET.sources.galvanizedSavvy).toBe("https://wiki.warframe.com/w/Galvanized_Savvy");
         expect(DAMAGE_RULESET.sources.galvanizedShot).toBe("https://wiki.warframe.com/w/Galvanized_Shot");
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
             entry.includes("Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE"),
+        )).toBe(true);
+    });
+
+    it("records Range Advantage's Wiki distance condition and single-target boundary", () => {
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Range Advantage uses the Wiki's rank-scaled +50% to +300% additive Damage") &&
+            entry.includes("only when no enemy is within 10m") &&
+            entry.includes("additional enemy positions inside 10m are not simulated"),
         )).toBe(true);
     });
 
