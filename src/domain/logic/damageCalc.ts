@@ -1142,6 +1142,10 @@ export function calculateBuild(
     reloadSpeedBonus += conditionalReloadSpeedBonus;
     ammoEfficiencyBonus = Math.min(0.75, ammoEfficiencyBonus + conditionalAmmoEfficiencyBonus);
     directDamagePerStatusBonus += conditionalDirectDamagePerStatusBonus;
+    // The Wiki defines Galvanized Aptitude/Savvy/Shot as direct-hit bonuses.
+    // Keep source-marked AoE attack rows from applying them in either the
+    // steady score or the finite encounter inputs derived from these stats.
+    if (weapon.selectedAttackIsAreaDamage === true) directDamagePerStatusBonus = 0;
     statusDamageBonus += conditionalStatusDamageBonus;
     const statusDamageMultiplier = 1 + statusDamageBonus;
 
@@ -1726,7 +1730,9 @@ export function calculateBuild(
 
     // Status presence is a Poisson mean-field, avoiding a hard threshold on fractional stacks.
     const directDamagePerStatusWeight = directDamagePerStatusBonus * directDamageStatusTypes;
-    const intrinsicDamagePerStatusBonus = Math.max(0, weapon.intrinsicDamagePerStatusBonus ?? 0);
+    const intrinsicDamagePerStatusBonus = weapon.selectedAttackIsAreaDamage === true
+        ? 0
+        : Math.max(0, weapon.intrinsicDamagePerStatusBonus ?? 0);
     const intrinsicDamagePerStatusMode = weapon.intrinsicDamagePerStatusMode ?? "additiveBase";
     const intrinsicDamagePerStatusWeight = intrinsicDamagePerStatusBonus * directDamageStatusTypes;
     const damageBracketWithIntrinsicBonus = intrinsicDamagePerStatusMode === "multiplicativeBase"

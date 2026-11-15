@@ -20,11 +20,17 @@ import {
 
 describe("Damage 3.0 shared rules", () => {
     it("records the current Impact source and review date", () => {
-        expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-14");
+        expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-15");
         expect(DAMAGE_RULESET.sources.impact).toBe("https://wiki.warframe.com/w/Damage/Impact_Damage");
         expect(DAMAGE_RULESET.sources.shatteringImpact).toBe("https://wiki.warframe.com/w/Shattering_Impact");
         expect(DAMAGE_RULESET.sources.seismicWave).toBe("https://wiki.warframe.com/w/Seismic_Wave");
         expect(DAMAGE_RULESET.knownLimitations.some((entry) => entry.includes("Seismic Wave"))).toBe(true);
+        expect(DAMAGE_RULESET.sources.galvanizedAptitude).toBe("https://wiki.warframe.com/w/Galvanized_Aptitude");
+        expect(DAMAGE_RULESET.sources.galvanizedSavvy).toBe("https://wiki.warframe.com/w/Galvanized_Savvy");
+        expect(DAMAGE_RULESET.sources.galvanizedShot).toBe("https://wiki.warframe.com/w/Galvanized_Shot");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE"),
+        )).toBe(true);
     });
 
     it("records Burning Hate's Wiki source and proc-timing boundary", () => {

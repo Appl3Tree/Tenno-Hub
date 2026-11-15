@@ -1219,6 +1219,56 @@ describe("damage calculation status eligibility", () => {
         expect(freshTarget.totalDamage).toBeLessThan(steady.totalDamage);
     });
 
+    it("excludes direct-hit per-status mod and passive bonuses from source-marked AoE rows", () => {
+        const baseWeapon = {
+            ...makeWeapon({ viral: 100, heat: 100 }),
+            statusChance: 1,
+            fireRate: 10,
+        };
+        const perStatusEffects = [
+            { ...emptyEffect(), directDamagePerStatusBonus: 0.4 },
+            {
+                ...emptyEffect(),
+                conditionalEffects: [{
+                    trigger: "onKill" as const,
+                    durationSeconds: 20,
+                    requiresAiming: false,
+                    maxStacks: 1,
+                    stats: { directDamagePerStatusBonus: 0.4 },
+                }],
+            },
+        ];
+        const fullyStacked = { conditionalState: { mode: "fullyStacked" as const } };
+        const direct = calculateBuild({
+            ...baseWeapon,
+            selectedAttackIsAreaDamage: false,
+            intrinsicDamagePerStatusBonus: 0.6,
+        }, perStatusEffects, "", fullyStacked).modded;
+        const unclassified = calculateBuild({
+            ...baseWeapon,
+            intrinsicDamagePerStatusBonus: 0.6,
+        }, perStatusEffects, "", fullyStacked).modded;
+        const area = calculateBuild({
+            ...baseWeapon,
+            selectedAttackIsAreaDamage: true,
+            intrinsicDamagePerStatusBonus: 0.6,
+        }, perStatusEffects, "", fullyStacked).modded;
+        const areaWithoutBonus = calculateBuild({
+            ...baseWeapon,
+            selectedAttackIsAreaDamage: true,
+        }, [], "", fullyStacked).modded;
+
+        expect(direct.directDamagePerStatusBonus).toBeCloseTo(0.8, 12);
+        expect(direct.intrinsicDamagePerStatusBonus).toBe(0.6);
+        expect(direct.directDamagePerStatusMultiplier).toBeGreaterThan(1);
+        expect(unclassified.directDamagePerStatusMultiplier).toBe(direct.directDamagePerStatusMultiplier);
+        expect(area.directDamagePerStatusBonus).toBe(0);
+        expect(area.intrinsicDamagePerStatusBonus).toBe(0);
+        expect(area.directDamagePerStatusMultiplier).toBe(1);
+        expect(area.damageBreakdown).toEqual(areaWithoutBonus.damageBreakdown);
+        expect(area.totalDamage).toBe(areaWithoutBonus.totalDamage);
+    });
+
     it("adds Condition Overload to the melee base bracket and leaves a clean target unamplified", () => {
         const melee = {
             ...makeWeapon({ impact: 100, heat: 100 }),

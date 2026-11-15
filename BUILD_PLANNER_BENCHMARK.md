@@ -1539,6 +1539,12 @@ The catalog-coverage audit checked 694 weapons and 598 unique builder-eligible m
 
 The production optimizer Worker is 104,038 bytes after moving the review helper out of the catalog's runtime module. This prevents the catalog JSON from being duplicated inside the Worker. Release checks pass at 595 tests / 49 files, TypeScript and production build, `npm run validate:sources`, focused ESLint, and CRLF-aware diff checking. The production Worker remains unmeasured for cold-start and mobile devices.
 
+## Direct-only per-status AoE regression sample (2026-11-15)
+
+Command: `node --import tsx/esm scripts/benchmarkBuildOptimizer.ts --weapon=Cedo --attack="Glaive Radial Attack" --goal=burst --runs=5`
+
+The five desktop Node runs used Initial state, Grineer, MR 30, Catalyst, Exilus and Arcane search, and up to three Forma. All selected the same legal 59/60 build, with three Forma; median optimizer time was 2.274 s and the maximum-of-five observation was 2.523 s. The result selected Primed Point Blank, Primed Cleanse Grineer, Toxic Barrage, Frigid Blast, Primed Charged Shell, Hell's Chamber, Shotgun Barrage, and Lingering Torment. This confirms a stable legal optimizer result on a source-marked radial attack after direct-only per-status effects were excluded. It is not a before/after quality comparison, a global optimum, a browser Worker measurement, or a population p95.
+
 ## Current-source 36-case benchmark refresh (2026-11-14)
 
 Command: `node --import tsx/esm scripts/benchmarkBuildOptimizer.ts --runs=5`
