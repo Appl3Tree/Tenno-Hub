@@ -1382,6 +1382,19 @@ function buildMathBreakdown(
             " active tendrils; Realistic uses the disclosed 70%-of-four heuristic. Wiki tendrils reset on reload or an empty magazine, but kill cadence/reset timing are not simulated; the finite encounter holds the selected stack estimate constant.",
         );
     }
+    const protonSnapCondition = conditionalEntries.find((conditional) =>
+        conditional.trigger === "whileWallLatched" && (conditional.stats.toxinBonus ?? 0) > 0,
+    );
+    if (conditionalEntries.some((conditional) => conditional.trigger === "whileWallLatched")) {
+        conditionalLines.push(
+            `Wall Latch state = ${conditionalState.mode === "fullyStacked" || (conditionalState.mode === "custom" && (conditionalState.externalStacks ?? 0) > 0) ? "assumed active" : "inactive"}; the planner does not infer movement uptime.`,
+        );
+    }
+    if (protonSnapCondition) {
+        conditionalLines.push(
+            `Proton Snap activation = hold Wall Latch for ${fmt(protonSnapCondition.activationDelaySeconds ?? 2, 2)}s; rank duration ${fmt(protonSnapCondition.durationSeconds, 2)}s. The selected scenario's wall-latch state is held static; latch cadence and expiration are not simulated.`,
+        );
+    }
     const customTargetLines = targetProfileOverride ? [
         `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,
         ...(targetProfileOverride.description ? [targetProfileOverride.description] : []),
@@ -4000,6 +4013,19 @@ export default function ModBuilder() {
             : conditionalMode === "custom"
                 ? Math.max(0, Math.min(4, externalConditionalStacks))
                 : 2.8;
+    const hasActiveProtonJet = activeBuildEffects.some((effect) =>
+        effect?.conditionalEffects.some((conditional) =>
+            conditional.trigger === "whileWallLatched" && (conditional.stats.critChanceBonus ?? 0) > 0,
+        ),
+    );
+    const hasActiveProtonSnap = activeBuildEffects.some((effect) =>
+        effect?.conditionalEffects.some((conditional) =>
+            conditional.trigger === "whileWallLatched" && (conditional.stats.toxinBonus ?? 0) > 0,
+        ),
+    );
+    const activeProtonSnapConditional = activeBuildEffects
+        .flatMap((effect) => effect?.conditionalEffects ?? [])
+        .find((conditional) => conditional.trigger === "whileWallLatched" && (conditional.stats.toxinBonus ?? 0) > 0);
     const activeBuildEffectSourceLabels = useMemo(() => {
         const labels = [
             ...(activeWeaponState?.activeIncarnonEffects ?? []).map((_, index) => `selected Incarnon evolution ${index + 1}`),
@@ -5006,6 +5032,14 @@ export default function ModBuilder() {
                                                     <p role="note" className="basis-full text-[10px] leading-relaxed text-slate-400">
                                                         Sentient Surge uses Wiki-backed rank values automatically: this scenario assumes {sentientSurgeActiveTendrils.toFixed(1)} active tendrils (four maximum). Realistic uses a 70%-of-cap estimate. Tendrils reset on reload or an empty magazine; kill cadence and reset timing are not simulated. The {Math.round(sentientSurgeRefillPerKill * 100)}% kill refill comes from reserve ammo, and extra tendril damage against other targets is outside the single-target score.{" "}
                                                         <a href="https://wiki.warframe.com/w/Sentient_Surge" target="_blank" rel="noreferrer" className="underline decoration-slate-600 underline-offset-2 hover:text-slate-200">WARFRAME Wiki: Sentient Surge</a>
+                                                    </p>
+                                                )}
+                                                {(hasActiveProtonJet || hasActiveProtonSnap) && (
+                                                    <p role="note" className="basis-full text-[10px] leading-relaxed text-slate-400">
+                                                        Proton Jet and Proton Snap use Wiki-backed rank values. Realistic assumes no wall-latch uptime; Fully stacked or Custom with at least one stack assumes the effect is active. {hasActiveProtonSnap ? `Proton Snap requires a ${(activeProtonSnapConditional?.activationDelaySeconds ?? 2).toFixed(0)}-second latch and lasts ${activeProtonSnapConditional?.durationSeconds.toFixed(0) ?? "the selected-rank duration"}; this build holds that state static and does not simulate latch cadence or expiry. ` : ""}
+                                                        {hasActiveProtonJet && <a href="https://wiki.warframe.com/w/Proton_Jet" target="_blank" rel="noreferrer" className="underline decoration-slate-600 underline-offset-2 hover:text-slate-200">WARFRAME Wiki: Proton Jet</a>}
+                                                        {hasActiveProtonJet && hasActiveProtonSnap ? " · " : ""}
+                                                        {hasActiveProtonSnap && <a href="https://wiki.warframe.com/w/Proton_Snap" target="_blank" rel="noreferrer" className="underline decoration-slate-600 underline-offset-2 hover:text-slate-200">WARFRAME Wiki: Proton Snap</a>}
                                                     </p>
                                                 )}
                                                 {conditionalMode === "custom" && (

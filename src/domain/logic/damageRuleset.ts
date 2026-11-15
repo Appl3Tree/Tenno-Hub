@@ -1,7 +1,7 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Sentient Surge, and Ocucor pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
+ * The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Sentient Surge, Ocucor, Proton Jet, and Proton Snap pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
  * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
  * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
  * Damage quantization follows the
@@ -41,6 +41,8 @@ export const DAMAGE_RULESET = Object.freeze({
         korumm: "https://wiki.warframe.com/w/Korumm",
         sentientSurge: "https://wiki.warframe.com/w/Sentient_Surge",
         ocucor: "https://wiki.warframe.com/w/Ocucor",
+        protonJet: "https://wiki.warframe.com/w/Proton_Jet",
+        protonSnap: "https://wiki.warframe.com/w/Proton_Snap",
         melee: "https://wiki.warframe.com/w/Melee",
         meleeUpdate35: "https://wiki.warframe.com/w/Update_35",
         puncture: "https://wiki.warframe.com/w/Damage/Puncture_Damage",
@@ -80,6 +82,7 @@ export const DAMAGE_RULESET = Object.freeze({
         "Magnetic's forced Electricity proc is modeled on a Shield/Overguard break using the active mean-field Magnetic stacks, starting pool maximum, a six-second tick schedule, Status Damage and faction double-dips, and ordinary Electricity mods. Same-hit Magnetic application timing and random status timing are not represented.",
         "Ordinary Ammo Efficiency bonuses are additive to a 75% cap; the calculator uses accumulated fractional ammo for positive efficiency and ignores those bonuses in transformed Incarnon form. Perigale and Perigale Prime's Gale Force is modeled as maintained infinite ammo only in Fully stacked or Custom scenarios with at least one external stack; it suppresses reloads and first-shot Chamber bonuses. Its headshot/kill activation, four-second refresh timing, and uptime are not simulated, so Initial and Realistic scenarios leave it inactive. Aiming effects use the documented 75% uptime assumption; airborne effects default inactive unless the user selects a fully stacked/custom conditional state because a general airborne uptime is not defined. Energized Munitions' multiplicative stacking, Infinite Ammo abilities, external ability state, and other weapon-specific ammo exceptions are not modeled or telemetry-verified.",
         "Sentient Surge uses each catalog rank's Wiki-backed additive Critical Chance and Status Chance bonus per active Ocucor tendril, capped at four. Initial uses zero, Fully stacked uses four, Custom uses the entered stack count capped at four, and Realistic uses a 70%-of-cap heuristic (2.8 tendrils) held static; kill cadence, magazine consumption, and reload/empty resets are not simulated. The rank-scaled kill refill draws from reserve ammo rather than generating ammo and is shown in the math trace but excluded from the single-target damage score. Extra tendril beams, their follow-on target damage, and multi-target kill chains are not simulated.",
+        "Proton Jet's rank-scaled Critical Chance and Status Chance, and Proton Snap's conditional Toxin plus flat additive Status Chance, use their Wiki values. Both are inactive in Initial and Realistic because wall-latch duration is not inferred; Fully stacked or Custom can assume the state active. Proton Snap requires a two-second latch and its selected-rank duration; the planner holds the selected state static and does not simulate latch cadence or buff expiry. Toxin follows Proton Snap's mod-slot order and can change elemental combinations when the latch state activates.",
         "Enemy level-scaling helpers model standard faction curves only; special boss, Steel Path, squad-size, and target-specific exceptions require explicit profiles.",
         "The optional standard Eximus target applies current Eximus base Health/Shield adjustments, standard armor level scaling, base 12 Overguard scaling, Radiation applications while its effects are suppressed under Overguard, and a four-stack Cold limit while Overguard remains. Blast retains its normal ten-stack detonation threshold. It does not model special-unit Eximus variants or evolving post-Overguard Radiation effects.",
         "The finite encounter applies Cold's three-second freeze at ten stacks and restores three residual stacks afterward. The Wiki does not specify the residual stacks' remaining timers, so they are assigned one fresh Cold duration; fractional mean-field applications approximate when the ten-stack threshold is crossed.",

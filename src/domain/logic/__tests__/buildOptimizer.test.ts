@@ -532,6 +532,33 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toContain(sentientSurge);
     });
 
+    it("keeps Wiki-complete Proton Jet and Proton Snap available when their latch state is selected", () => {
+        const rifle = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
+        const melee = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");
+        expect(rifle).toBeDefined();
+        expect(melee).toBeDefined();
+        const protonJet = getModsForWeapon(rifle!).find((candidate) => candidate.name === "Proton Jet");
+        const protonSnap = getModsForWeapon(melee!).find((candidate) => candidate.name === "Proton Snap");
+        expect(protonJet).toBeDefined();
+        expect(protonSnap).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(protonJet!, protonJet!.fusionLimit)).toEqual([]);
+        expect(getUnmodeledDamageEffectLines(protonSnap!, protonSnap!.fusionLimit)).toEqual([]);
+
+        const conditionalState = { mode: "fullyStacked" as const };
+        const jetResult = optimizeBuild(rifle!, [protonJet!], "burst", 1, {
+            allowForma: false,
+            conditionalState,
+        });
+        const snapResult = optimizeBuild(melee!, [protonSnap!], "burst", 1, {
+            allowForma: false,
+            conditionalState,
+        });
+        expect(jetResult.capacityValid).toBe(true);
+        expect(jetResult.slots).toContain(protonJet);
+        expect(snapResult.capacityValid).toBe(true);
+        expect(snapResult.slots).toContain(protonSnap);
+    });
+
     it("parses Critical Focus's aimed critical chance and critical damage", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Corvas Prime");
         expect(weapon).toBeTruthy();

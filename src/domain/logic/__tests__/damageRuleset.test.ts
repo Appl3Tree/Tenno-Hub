@@ -44,6 +44,16 @@ describe("Damage 3.0 shared rules", () => {
         )).toBe(true);
     });
 
+    it("records Proton Jet and Proton Snap's Wiki sources and wall-latch limits", () => {
+        expect(DAMAGE_RULESET.sources.protonJet).toBe("https://wiki.warframe.com/w/Proton_Jet");
+        expect(DAMAGE_RULESET.sources.protonSnap).toBe("https://wiki.warframe.com/w/Proton_Snap");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Proton Jet's rank-scaled Critical Chance and Status Chance") &&
+            entry.includes("Proton Snap requires a two-second latch") &&
+            entry.includes("flat additive Status Chance"),
+        )).toBe(true);
+    });
+
     it("records Burning Hate's Wiki source and proc-timing boundary", () => {
         expect(DAMAGE_RULESET.sources.burningHate).toBe("https://wiki.warframe.com/w/Burning_Hate");
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>

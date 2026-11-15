@@ -185,6 +185,8 @@ const BURNING_HATE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveS
 const PROTOTYPE_SHOCK_COILS_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
 const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjectileMod";
 const SENTIENT_SURGE_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveOcucorAugmentMod";
+const PROTON_JET_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModB";
+const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
     "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
@@ -210,11 +212,14 @@ export type ConditionalTrigger =
     | "onKillOrAssist"
     | "onConsecutiveThrow"
     | "onOcucorTendrilKill"
+    | "whileWallLatched"
     | "whileTargetHasStatus";
 
 export interface ConditionalEffect {
     trigger: ConditionalTrigger;
     durationSeconds: number;
+    /** Delay before a timed activation condition becomes available, when defined by the source. */
+    activationDelaySeconds?: number;
     requiresAiming: boolean;
     maxStacks: number;
     requiredStatusType?: "impact" | "puncture" | "slash" | "heat" | "cold" | "electricity" | "toxin" | "blast" | "radiation" | "gas" | "magnetic" | "viral" | "corrosive" | "void" | "tau" | "true";
@@ -1348,6 +1353,66 @@ function buildCaches(): ModCaches {
                         );
                     }
                 }
+            });
+        }
+        if (path === PROTON_JET_PATH) {
+            // Proton Jet's additive critical and status chance are active only
+            // during a Wall Latch. The planner does not assume a latch cadence.
+            // https://wiki.warframe.com/w/Proton_Jet
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect) return;
+                for (const rawStat of levelStat.stats ?? []) {
+                    const text = stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    const match = text.match(/^During a Wall Latch gain \+?(\d+(?:\.\d+)?)% Status Chance and Critical Chance\.?$/i);
+                    if (!match) continue;
+                    const bonus = Number(match[1]) / 100;
+                    rankEffect.conditionalEffects = [{
+                        trigger: "whileWallLatched",
+                        durationSeconds: 0,
+                        requiresAiming: false,
+                        maxStacks: 1,
+                        stats: { critChanceBonus: bonus, statusChanceBonus: bonus },
+                    }];
+                    unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim() !== text,
+                    );
+                    break;
+                }
+            });
+        }
+        if (path === PROTON_SNAP_PATH) {
+            // Proton Snap's status chance is additive after ordinary Status
+            // Chance mods. Its Toxin is a conditional elemental mod in the
+            // source mod-slot order, activated after a two-second Wall Latch.
+            // https://wiki.warframe.com/w/Proton_Snap
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect) return;
+                const combinedText = (levelStat.stats ?? [])
+                    .map((rawStat) => stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim())
+                    .filter(Boolean)
+                    .join(" ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                const match = combinedText.match(/^Hold Wall Latch for 2s to gain \+?(\d+(?:\.\d+)?)% Toxin Damage\s+and \+?(\d+(?:\.\d+)?)% Status Chance for (\d+(?:\.\d+)?)s\.?$/i);
+                if (!match) return;
+                rankEffect.conditionalEffects = [{
+                    trigger: "whileWallLatched",
+                    durationSeconds: Number(match[3]),
+                    activationDelaySeconds: 2,
+                    requiresAiming: false,
+                    maxStacks: 1,
+                    stats: {
+                        toxinBonus: Number(match[1]) / 100,
+                        finalStatusChanceBonus: Number(match[2]) / 100,
+                    },
+                }];
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) => {
+                    const text = stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    return !/^Hold Wall Latch for 2s to gain \+?\d+(?:\.\d+)?% Toxin Damage\.?$/i.test(text) &&
+                        !/^and \+?\d+(?:\.\d+)?% Status Chance for \d+(?:\.\d+)?s\.?$/i.test(text);
+                });
             });
         }
         if (effectsByRank.length === 0) effectsByRank.push(emptyEffect());

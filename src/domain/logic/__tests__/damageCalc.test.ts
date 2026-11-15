@@ -399,6 +399,91 @@ describe("damage calculation status eligibility", () => {
         expect(additive.statusChance).toBeCloseTo(ocucor!.statusChance * (1 + 1.65 + 2.4), 12);
     });
 
+    it("models Proton Jet's Wiki-ranked latch-only critical and status chance", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
+        expect(weapon).toBeDefined();
+        const protonJet = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Proton Jet");
+        expect(protonJet).toBeDefined();
+        expect(protonJet!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.stats))
+            .toEqual([0.3, 0.6, 0.9, 1.2].map((bonus) => ({ critChanceBonus: bonus, statusChanceBonus: bonus })));
+        for (let rank = 0; rank <= protonJet!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(protonJet!, rank)).toEqual([]);
+            expect(protonJet!.effectsByRank[rank].conditionalEffects[0]).toMatchObject({
+                trigger: "whileWallLatched",
+                durationSeconds: 0,
+                maxStacks: 1,
+            });
+        }
+
+        const base = calculateBuild(weapon!, []).modded;
+        const effect = protonJet!.effect;
+        const initial = calculateBuild(weapon!, [effect], "", { conditionalState: { mode: "initial" } }).modded;
+        const realistic = calculateBuild(weapon!, [effect], "", { conditionalState: { mode: "realistic" } }).modded;
+        const fullyLatched = calculateBuild(weapon!, [effect], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        const customLatched = calculateBuild(weapon!, [effect], "", {
+            conditionalState: { mode: "custom", externalStacks: 1 },
+        }).modded;
+        expect(initial.critChance).toBeCloseTo(base.critChance, 12);
+        expect(initial.statusChance).toBeCloseTo(base.statusChance, 12);
+        expect(realistic.critChance).toBeCloseTo(base.critChance, 12);
+        expect(realistic.statusChance).toBeCloseTo(base.statusChance, 12);
+        expect(fullyLatched.critChance).toBeCloseTo(base.critChance * 2.2, 12);
+        expect(fullyLatched.statusChance).toBeCloseTo(base.statusChance * 2.2, 12);
+        expect(customLatched.critChance).toBeCloseTo(fullyLatched.critChance, 12);
+    });
+
+    it("models Proton Snap's latch delay, rank duration, additive status, and mod-slot Toxin", () => {
+        const melee = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");
+        expect(melee).toBeDefined();
+        const protonSnap = getModsForWeapon(melee!).find((candidate) => candidate.name === "Proton Snap");
+        expect(protonSnap).toBeDefined();
+        expect(protonSnap!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.stats))
+            .toEqual([0.25, 0.5, 0.75, 1].map((toxin, index) => ({
+                toxinBonus: toxin,
+                finalStatusChanceBonus: [0.125, 0.25, 0.375, 0.5][index],
+            })));
+        expect(protonSnap!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.durationSeconds))
+            .toEqual([5, 10, 15, 20]);
+        for (let rank = 0; rank <= protonSnap!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(protonSnap!, rank)).toEqual([]);
+            expect(protonSnap!.effectsByRank[rank].conditionalEffects[0]).toMatchObject({
+                trigger: "whileWallLatched",
+                activationDelaySeconds: 2,
+                maxStacks: 1,
+            });
+        }
+
+        const weapon = {
+            ...makeWeapon({ impact: 100 }),
+            category: "Melee" as const,
+            weaponType: "Heavy Blade",
+            modCompat: "Melee" as const,
+        };
+        const statusMod = { ...emptyEffect(), statusChanceBonus: 0.9 };
+        const snap = protonSnap!.effect;
+        const initial = calculateBuild(weapon, [statusMod, snap], "", { conditionalState: { mode: "initial" } }).modded;
+        const realistic = calculateBuild(weapon, [statusMod, snap], "", { conditionalState: { mode: "realistic" } }).modded;
+        const active = calculateBuild(weapon, [statusMod, snap], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        expect(initial.statusChance).toBeCloseTo(0.4 * 1.9, 12);
+        expect(realistic.statusChance).toBeCloseTo(initial.statusChance, 12);
+        expect(active.statusChance).toBeCloseTo(0.4 * 1.9 + 0.5, 12);
+        expect(initial.damageBreakdownBeforePerStatus.toxin).toBe(0);
+        expect(active.damageBreakdownBeforePerStatus.toxin).toBeGreaterThan(0);
+
+        const heat = { ...emptyEffect(), heatBonus: 1 };
+        const cold = { ...emptyEffect(), coldBonus: 1 };
+        const activeElements = calculateBuild(weapon, [heat, snap, cold], "", {
+            conditionalState: { mode: "fullyStacked" },
+        }).modded.damageBreakdownBeforePerStatus;
+        const inactiveElements = calculateBuild(weapon, [heat, snap, cold], "", {
+            conditionalState: { mode: "initial" },
+        }).modded.damageBreakdownBeforePerStatus;
+        expect(activeElements.gas).toBeGreaterThan(0);
+        expect(activeElements.cold).toBeGreaterThan(0);
+        expect(activeElements.blast).toBe(0);
+        expect(inactiveElements.blast).toBeGreaterThan(0);
+    });
+
     it("parses and applies Shattering Impact only to quantized Impact melee hits", () => {
         const skana = getWeaponCatalog().find((candidate) => candidate.name === "Skana");
         expect(skana).toBeDefined();

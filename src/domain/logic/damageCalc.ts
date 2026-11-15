@@ -561,6 +561,11 @@ export function estimateConditionalUptime(
             // weapon scenarios need an explicit custom/fully-stacked state.
             uptime = 0;
             break;
+        case "whileWallLatched":
+            // Wall-latch duration depends on player movement; the app does not
+            // infer a general uptime from the selected weapon or target.
+            uptime = 0;
+            break;
         case "onReload":
         case "onReloadFromEmpty": {
             const magTime = magazineSize / Math.max(0.0001, fireRate);
@@ -1058,6 +1063,7 @@ export function calculateBuild(
     let conditionalCritMultBonus = 0;
     let conditionalFinalCritMultiplierBonus = 0;
     let conditionalStatusChanceBonus = 0;
+    let conditionalFinalStatusChanceBonus = 0;
     let conditionalStatusDamageBonus = 0;
     let conditionalMultishotBonus = 0;
     let conditionalMultishotDamageBonus = 0;
@@ -1128,6 +1134,7 @@ export function calculateBuild(
         conditionalCritMultBonus += (conditional.stats.critMultBonus ?? 0) * factor;
         conditionalFinalCritMultiplierBonus += (conditional.stats.finalCritMultiplierBonus ?? 0) * factor;
         conditionalStatusChanceBonus += (conditional.stats.statusChanceBonus ?? 0) * factor;
+        conditionalFinalStatusChanceBonus += (conditional.stats.finalStatusChanceBonus ?? 0) * factor;
         conditionalStatusDamageBonus += (conditional.stats.statusDamageBonus ?? 0) * factor;
         conditionalMultishotBonus += (conditional.stats.multishotBonus ?? 0) * factor;
         conditionalMultishotDamageBonus += (conditional.stats.multishotDamageBonus ?? 0) * factor;
@@ -1167,6 +1174,7 @@ export function calculateBuild(
     critMultBonus += conditionalCritMultBonus;
     finalCritMultiplierBonus += conditionalFinalCritMultiplierBonus;
     statusChanceBonus += conditionalStatusChanceBonus;
+    finalStatusChanceBonus += conditionalFinalStatusChanceBonus;
     multishotBonus += conditionalMultishotBonus;
     multishotDamageBonus += conditionalMultishotDamageBonus;
     fireRateBonus += conditionalFireRateBonus;
