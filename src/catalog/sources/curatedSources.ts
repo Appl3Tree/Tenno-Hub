@@ -308,4 +308,3 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:missionreward/saturn/lunaro", label: "Legacy: Lunaro mission reward", type: "other", prereqIds: ["quest_awakening"] },
     { id: "data:missionreward/saturn/lunaro/rotationb", label: "Legacy: Lunaro mission reward (Rotation B)", type: "other", prereqIds: ["quest_awakening"] },
 ];
-
