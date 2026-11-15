@@ -98,6 +98,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Gram Prime", attackName: "Heavy Slam Attack", category: "Expected TTK melee heavy-attack proxy", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Lex Prime", category: "Synth Charge precision pistol", goal: "burst", targetFaction: "Corpus" },
     { weaponName: "Lex Prime", category: "Expected TTK Synth Charge secondary", goal: "timeToKill", targetFaction: "Corpus" },
+    { weaponName: "Akjagara Prime", category: "Range Advantage distance conditional", goal: "burst", targetFaction: "Grineer", targetDistanceMeters: 15 },
 ];
 const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9).trim().toLowerCase();
 const requestedAttack = process.argv.find((arg) => arg.startsWith("--attack="))?.slice(9).trim().toLowerCase();

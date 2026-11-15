@@ -1407,6 +1407,24 @@ function buildMathBreakdown(
             ". Direct damage and proc seeds receive the one-projectile share; DoT ticks do not apply the bonus a second time.",
         );
     }
+    const rangeAdvantageCondition = conditionalEntries.find((conditional) =>
+        conditional.trigger === "whileNoEnemyWithinRange",
+    );
+    if (rangeAdvantageCondition) {
+        const targetDistance = Number.isFinite(conditionalState.targetDistanceMeters)
+            ? conditionalState.targetDistanceMeters ?? null
+            : null;
+        const minimumDistance = rangeAdvantageCondition.minimumTargetDistanceMeters ?? 0;
+        const active = estimateConditionalUptime(
+            rangeAdvantageCondition,
+            baselineRateForConditionals,
+            baseMagazineForConditionals,
+            conditionalState,
+        ) > 0;
+        conditionalLines.push(
+            `Range Advantage = +${fmt((rangeAdvantageCondition.stats.damageBonus ?? 0) * 100, 2)}% additive Damage when no modeled enemy is within ${fmt(minimumDistance, 2)}m; target distance ${targetDistance === null ? "is unset" : `${fmt(targetDistance, 2)}m ${targetDistance > minimumDistance ? "exceeds" : "does not exceed"} the threshold`}, so the bonus is ${active ? "active" : "inactive"}. This single-target scenario does not account for unmodeled nearby enemies. Wiki: https://wiki.warframe.com/w/Range_Advantage`,
+        );
+    }
     const protonSnapCondition = conditionalEntries.find((conditional) =>
         conditional.trigger === "whileWallLatched" && (conditional.stats.toxinBonus ?? 0) > 0,
     );
@@ -5180,7 +5198,12 @@ export default function ModBuilder() {
                                                         <a href="https://wiki.warframe.com/w/Status_Effects" target="_blank" rel="noreferrer" className="text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">Status Effects</a>
                                                     </span>
                                                 </details>
-                                                {weapon && compatMods.some((mod) => mod.path === SPRING_LOADED_BROADHEAD_PATH) && (
+                                                {weapon && compatMods.some((mod) =>
+                                                    mod.path === SPRING_LOADED_BROADHEAD_PATH ||
+                                                    mod.effectsByRank.some((effect) => effect.conditionalEffects?.some((conditional) =>
+                                                        conditional.trigger === "whileNoEnemyWithinRange",
+                                                    )),
+                                                ) && (
                                                     <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 px-2 py-2">
                                                         <label htmlFor="planner-target-distance" className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2 text-[10px] text-slate-300">
                                                             <span>Target distance (m)</span>
@@ -5200,12 +5223,26 @@ export default function ModBuilder() {
                                                             />
                                                             <span className="text-slate-500">meters</span>
                                                         </label>
-                                                        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                                                            Enter the scenario distance. Spring-Loaded Broadhead's +40% value and rank-specific range threshold come from the Wiki automatically; the bonus applies to one projectile and its status DoT seed once. An empty distance keeps the condition inactive.
-                                                        </p>
-                                                        <a href="https://wiki.warframe.com/w/Spring-Loaded_Broadhead" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">
-                                                            WARFRAME Wiki: Spring-Loaded Broadhead
-                                                        </a>
+                                                        {compatMods.some((mod) => mod.path === SPRING_LOADED_BROADHEAD_PATH) && (
+                                                            <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                                                                Spring-Loaded Broadhead's +40% value and rank-specific range threshold come from the Wiki automatically; the bonus applies to one projectile and its status DoT seed once. An empty distance keeps this condition inactive.
+                                                            </p>
+                                                        )}
+                                                        {compatMods.some((mod) => mod.effectsByRank.some((effect) => effect.conditionalEffects?.some((conditional) => conditional.trigger === "whileNoEnemyWithinRange"))) && (
+                                                            <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                                                                Range Advantage's +50% to +300% additive Damage and 10m threshold come from the Wiki automatically. It activates only beyond 10m; the single-target scenario assumes no other nearby enemies are present. An empty distance keeps the condition inactive.
+                                                            </p>
+                                                        )}
+                                                        {compatMods.some((mod) => mod.path === SPRING_LOADED_BROADHEAD_PATH) && (
+                                                            <a href="https://wiki.warframe.com/w/Spring-Loaded_Broadhead" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">
+                                                                WARFRAME Wiki: Spring-Loaded Broadhead
+                                                            </a>
+                                                        )}
+                                                        {compatMods.some((mod) => mod.effectsByRank.some((effect) => effect.conditionalEffects?.some((conditional) => conditional.trigger === "whileNoEnemyWithinRange"))) && (
+                                                            <a href="https://wiki.warframe.com/w/Range_Advantage" target="_blank" rel="noreferrer" className="mt-1 ml-3 inline-block text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">
+                                                                WARFRAME Wiki: Range Advantage
+                                                            </a>
+                                                        )}
                                                     </div>
                                                 )}
                                                 {activeBuildEffects.some((effect) => (effect?.targetStatusDamageVulnerabilityBonus ?? 0) > 0) && (

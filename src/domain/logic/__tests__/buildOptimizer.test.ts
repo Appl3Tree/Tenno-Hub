@@ -594,6 +594,27 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toContain(broadhead);
     });
 
+    it("selects Range Advantage only when the modeled target is beyond the Wiki's 10m threshold", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Akjagara");
+        expect(weapon).toBeDefined();
+        const rangeAdvantage = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Range Advantage");
+        expect(rangeAdvantage).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(rangeAdvantage!, rangeAdvantage!.fusionLimit)).toEqual([]);
+
+        const atThreshold = optimizeBuild(weapon!, [rangeAdvantage!], "burst", 1, {
+            allowForma: false,
+            conditionalState: { mode: "realistic", targetDistanceMeters: 10 },
+        });
+        const beyondThreshold = optimizeBuild(weapon!, [rangeAdvantage!], "burst", 1, {
+            allowForma: false,
+            conditionalState: { mode: "realistic", targetDistanceMeters: 10.1 },
+        });
+
+        expect(atThreshold.slots.filter(Boolean)).toHaveLength(0);
+        expect(beyondThreshold.capacityValid).toBe(true);
+        expect(beyondThreshold.slots).toContain(rangeAdvantage);
+    });
+
     it("parses Critical Focus's aimed critical chance and critical damage", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Corvas Prime");
         expect(weapon).toBeTruthy();

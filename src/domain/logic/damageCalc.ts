@@ -538,6 +538,11 @@ export function estimateConditionalUptime(
         if (requiredStatus === "lifted" && statuses.lastIndexOf("knockdown") > statuses.lastIndexOf("lifted")) return 0;
         return 1;
     }
+    if (conditional.trigger === "whileNoEnemyWithinRange") {
+        const targetDistance = state.targetDistanceMeters;
+        const minimumDistance = conditional.minimumTargetDistanceMeters ?? 0;
+        return Number.isFinite(targetDistance) && (targetDistance ?? 0) > minimumDistance ? 1 : 0;
+    }
     if (state.mode === "initial") return 0;
     if (state.mode === "fullyStacked") return 1;
     if (state.mode === "custom") return Math.max(0, state.externalStacks ?? 0) > 0 ? 1 : 0;
@@ -730,7 +735,7 @@ function estimateConditionalStackFactor(
     state: ConditionalState = DEFAULT_CONDITIONAL_STATE,
     context: ConditionalStackEstimationContext = {},
 ): number {
-    if (conditional.trigger === "whileTargetHasStatus") return 1;
+    if (conditional.trigger === "whileTargetHasStatus" || conditional.trigger === "whileNoEnemyWithinRange") return 1;
     if (state.mode === "initial") return 0;
     if (state.mode === "fullyStacked") return Math.max(1, conditional.maxStacks ?? 1);
     if (state.mode === "custom") {
@@ -1107,7 +1112,13 @@ export function calculateBuild(
     for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
         const isTimedHitStack = conditional.trigger === "onNonCriticalNoStatusHit";
         const isExplicitTargetStatusCondition = conditional.trigger === "whileTargetHasStatus";
-        if (conditionalState.mode === "initial" && !isTimedHitStack && !isExplicitTargetStatusCondition) continue;
+        const isStaticDistanceCondition = conditional.trigger === "whileNoEnemyWithinRange";
+        if (
+            conditionalState.mode === "initial" &&
+            !isTimedHitStack &&
+            !isExplicitTargetStatusCondition &&
+            !isStaticDistanceCondition
+        ) continue;
         const triggerUptime = isTimedHitStack && conditional.requiresAiming
             ? AIMING_UPTIME_ASSUMPTION
             : 1;

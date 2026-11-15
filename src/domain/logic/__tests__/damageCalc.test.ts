@@ -123,6 +123,57 @@ describe("Spring-Loaded Broadhead Wiki modeling", () => {
     });
 });
 
+describe("Range Advantage Wiki modeling", () => {
+    it("parses all six Wiki ranks for Akjagara variants", () => {
+        const catalog = getWeaponCatalog();
+        const akjagara = catalog.find((candidate) => candidate.name === "Akjagara");
+        const akjagaraPrime = catalog.find((candidate) => candidate.name === "Akjagara Prime");
+        expect(akjagara).toBeDefined();
+        expect(akjagaraPrime).toBeDefined();
+
+        const expectedBonuses = [0.5, 1, 1.5, 2, 2.5, 3];
+        for (const weapon of [akjagara!, akjagaraPrime!]) {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Range Advantage");
+            expect(mod).toBeDefined();
+            expect(mod!.effectsByRank.map((effect) => effect.conditionalEffects?.[0])).toEqual(
+                expectedBonuses.map((damageBonus) => ({
+                    trigger: "whileNoEnemyWithinRange",
+                    durationSeconds: 0,
+                    minimumTargetDistanceMeters: 10,
+                    requiresAiming: false,
+                    maxStacks: 1,
+                    stats: { damageBonus },
+                })),
+            );
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+            }
+        }
+    });
+
+    it("activates only beyond 10m and applies the additive bonus in Initial state", () => {
+        const akjagara = getWeaponCatalog().find((candidate) => candidate.name === "Akjagara");
+        expect(akjagara).toBeDefined();
+        const mod = getModsForWeapon(akjagara!).find((candidate) => candidate.name === "Range Advantage")!;
+        const weapon = makeWeapon({ impact: 100 });
+        const rankFive = mod.effectsByRank[5];
+        const baseline = calculateBuild(weapon, []).modded;
+        const unset = calculateBuild(weapon, [rankFive], "", {
+            conditionalState: { mode: "initial" },
+        }).modded;
+        const atThreshold = calculateBuild(weapon, [rankFive], "", {
+            conditionalState: { mode: "initial", targetDistanceMeters: 10 },
+        }).modded;
+        const beyondThreshold = calculateBuild(weapon, [rankFive], "", {
+            conditionalState: { mode: "initial", targetDistanceMeters: 10.001 },
+        }).modded;
+
+        expect(unset.averageShotDamage).toBeCloseTo(baseline.averageShotDamage, 10);
+        expect(atThreshold.averageShotDamage).toBeCloseTo(baseline.averageShotDamage, 10);
+        expect(beyondThreshold.averageShotDamage - baseline.averageShotDamage).toBeCloseTo(300, 8);
+    });
+});
+
 describe("Cull the Weak Wiki modeling", () => {
     it("parses every rank and applies the bonus only to non-critical hits", () => {
         const chesaClaws = getWeaponCatalog().find((candidate) => candidate.name === "Chesa Claws");
