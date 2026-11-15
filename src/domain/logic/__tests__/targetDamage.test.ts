@@ -1452,7 +1452,7 @@ describe("finite expected-value weapon encounters", () => {
         expect(result.timeToKillSeconds).toBe(3);
     });
 
-    it("reweights status rolls while Overguard remains and allows Radiation after it breaks", () => {
+    it("keeps Radiation applications under Overguard while its effects are suppressed", () => {
         const whileOverguardRemains = simulateExpectedWeaponEncounter({
             damageByType: { impact: 0.25 },
             health: 100,
@@ -1478,10 +1478,32 @@ describe("finite expected-value weapon encounters", () => {
             statusRollsPerAttack: 1,
         });
 
-        expect(whileOverguardRemains.statusApplicationsByType.radiation ?? 0).toBe(0);
-        expect(whileOverguardRemains.statusApplicationsByType.viral).toBe(3);
+        expect(whileOverguardRemains.remainingPools.overguard).toBeGreaterThan(0);
+        expect(whileOverguardRemains.statusApplicationsByType.radiation).toBeGreaterThan(0);
+        expect(whileOverguardRemains.statusApplicationsByType.viral).toBeCloseTo(1.5, 12);
         expect(afterOverguardBreaks.statusApplicationsByType.radiation).toBeGreaterThan(0);
         expect(afterOverguardBreaks.statusApplicationsByType.radiation).toBeLessThan(5);
+    });
+
+    it.each([
+        ["impact", 5],
+        ["radiation", 10],
+    ] as const)("replaces the oldest %s stack after its Wiki cap", (type, cap) => {
+        const attacks = cap + 2;
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            maxAttacks: attacks,
+            maxDurationSeconds: attacks,
+            expectedStatusApplicationsPerAttackByType: { [type]: 1 },
+        });
+
+        expect(result.statusApplicationsByType[type]).toBe(attacks);
     });
 
     it("treats 100% status chance as a guaranteed per-projectile proc", () => {
