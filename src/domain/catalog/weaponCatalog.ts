@@ -198,6 +198,8 @@ export interface WeaponEntry {
     selectedAttackUsesSlamDamageBonus?: boolean;
     /** True when the selected catalog row is an ordinary slide attack. */
     selectedAttackIsSlideAttack?: boolean;
+    /** Wiki-defined base critical multiplier when the player is sliding at impact with Furax Kinetic Killer selected. */
+    selectedAttackSlideCritMultiplierOverride?: number;
     /** Selected attack's fixed ammo charge rate, where verified. */
     selectedAttackChargeAmmoPerSecond?: number;
     /** Ammo cost represented by the selected attack row's base damage. */

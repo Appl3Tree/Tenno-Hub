@@ -1494,6 +1494,9 @@ function buildMathBreakdown(
                 `Base crit chance = ${fmt(weapon.critChance * 100, 5)}% | base crit multiplier = ${fmt(weapon.critMultiplier, 5)} | base status chance = ${fmt(weapon.statusChance * 100, 5)}%`,
                 `${rateLabel} base = ${fmt(weapon.fireRate, 5)} | magazine base = ${displayMagazineValue(weapon, weapon.magazineSize)} | reload base = ${fmt(weapon.reloadTime, 5)}s | multishot base = ${fmt(weapon.multishot, 5)}`,
                 `Conditional effects scenario = ${conditionalState.mode}${conditionalState.mode === "custom" ? ` (${conditionalState.externalStacks ?? 0} maintained stacks per effect)` : ""}`,
+                ...(weapon.selectedAttackSlideCritMultiplierOverride !== undefined
+                    ? [`Kinetic Killer = ${conditionalState.playerSlidingAtImpact ? "active: 4x base Critical Damage while sliding at impact" : "selected but inactive: player is not assumed sliding at impact"}; the contact state is held static for each scored attack.`]
+                    : []),
                 ...(weapon.selectedAttackName && weapon.selectedAttackIsAreaDamage === undefined
                     ? ["Attack area type is unverified: the source row has no shot_type and no Wiki classification is cataloged. The current direct-hit-only damage and single-target assumptions are shown for this attack."]
                     : []),
@@ -3161,9 +3164,13 @@ export default function ModBuilder() {
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
     const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
+    const [playerSlidingAtImpact, setPlayerSlidingAtImpact] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
     const [targetDistanceMeters, setTargetDistanceMeters] = useState<number | undefined>(undefined);
+    const supportsKineticKiller = Boolean(getIncarnonRecordForWeapon(weapon)?.tiers.some((tier) =>
+        tier.options.some((option) => option.id === "tier-4-kinetic-killer"),
+    ));
     const meleeDpsModelNote = weapon && usesMeleeDamageModel(weapon.category)
         ? "Default burst and sustained DPS remain attack-rate estimates. The combo scenario scales Blood Rush, Weeping Wounds, and selected heavy-attack damage. The stats panel projects one-hit Heavy Attack Efficiency retention. Direct-hit TTK steps repeated Heavy Attacks and restores Initial Combo at 40 points/s; it still excludes attack-generated combo, Tennokai, stance sequences, and heavy-attack wind-up. DPS, finite status encounter, and optimizer scoring hold the entered tier across each scored hit. Stance DPS uses the selected stance's Wiki Neutral combo, including its direct and forced-Slash multipliers; Wiki timings are approximate and its comparison formula omits combo physical-damage bonuses."
         : "";
@@ -3177,10 +3184,11 @@ export default function ModBuilder() {
         externalStatusTypeCount,
         externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
+        playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3371,6 +3379,7 @@ export default function ModBuilder() {
             externalStatusTypeCount,
             externalStatusTypes,
             targetStartsWithHeat,
+            playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
             meleeComboMultiplier,
             phantasmaChargeAmmo,
             targetDistanceMeters,
@@ -3413,6 +3422,8 @@ export default function ModBuilder() {
         externalStatusTypeCount,
         externalStatusTypes,
         targetStartsWithHeat,
+        playerSlidingAtImpact,
+        supportsKineticKiller,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
@@ -4842,6 +4853,7 @@ export default function ModBuilder() {
         setExternalStatusTypes([]);
         setExternalStatusTypesOpen(false);
         setTargetStartsWithHeat(false);
+        setPlayerSlidingAtImpact(false);
         setWarframeArmorInput(readWarframeArmor(build.plannerConfig?.warframeArmor)?.toString() ?? "");
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
         setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
@@ -4861,6 +4873,7 @@ export default function ModBuilder() {
             setExternalStatusTypes(restoredExternalStatusTypes);
             setExternalStatusTypesOpen(restoredExternalStatusTypes.length > 0);
             setTargetStartsWithHeat(plannerConfig.targetStartsWithHeat === true);
+            setPlayerSlidingAtImpact(plannerConfig.playerSlidingAtImpact === true && supportsKineticKiller);
             setMeleeComboMultiplier(Number.isFinite(plannerConfig.meleeComboMultiplier)
                 ? clampMeleeComboMultiplier(weapon, plannerConfig.meleeComboMultiplier ?? 1)
                 : 1);
@@ -5257,6 +5270,18 @@ export default function ModBuilder() {
                                                         <span title="Assume another source applied Heat before the first Hate hit. Burning Hate then activates on that first hit; the triggering hit's status procs remain unamplified.">Target starts with Heat (external source)</span>
                                                     </label>
                                                 )}
+                                                {supportsKineticKiller && incarnonRecord && (
+                                                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                        <input
+                                                            aria-label="Player sliding at impact for Furax Kinetic Killer"
+                                                            type="checkbox"
+                                                            checked={playerSlidingAtImpact}
+                                                            onChange={(event) => setPlayerSlidingAtImpact(event.target.checked)}
+                                                            className="accent-sky-500"
+                                                        />
+                                                        <span title="Assume the attack makes contact while you are sliding. Requires Kinetic Killer to be selected; the app holds this condition static for scored attacks.">Sliding at impact (Kinetic Killer)</span>
+                                                    </label>
+                                                )}
                                                 {weapon && usesMeleeDamageModel(weapon.category) && (
                                                     <label className="flex items-center gap-2 text-[10px] text-slate-400">
                                                         <span>Melee combo tier</span>
@@ -5281,6 +5306,11 @@ export default function ModBuilder() {
                                                                 : "Applies this maintained stack count to each conditional effect."}
                                                 </span>
                                             </div>
+                                            {supportsKineticKiller && incarnonRecord && (
+                                                <p className="mb-3 text-[10px] text-slate-500">
+                                                    Kinetic Killer sets base Critical Damage to 4× for any attack that contacts while sliding. This is a static contact-state assumption, not movement timing; Heavy Slams require sliding immediately before impact and have a narrow timing window. <a href={incarnonRecord.wikiUrl} target="_blank" rel="noreferrer" className="underline decoration-slate-700 underline-offset-2 hover:text-slate-300">WARFRAME Wiki: Furax Incarnon</a>
+                                                </p>
+                                            )}
                                             {weapon?.hasGaleForceAmmoPassive && (
                                                 <p className="mb-3 text-[10px] text-slate-400">
                                                     Gale Force provides Infinite Ammo for 4 seconds after a headshot kill or four headshots in one burst. Its trigger and refresh timing are not simulated. Perigale assumes it is maintained only in Fully stacked or Custom with at least one stack; while active, the build has no reloads or further first-shot Chamber bonus.
