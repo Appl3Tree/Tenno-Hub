@@ -75,6 +75,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Phantasma Prime", attackName: "Beam", category: "shotgun continuous beam", goal: "scaling", targetFaction: "Grineer" },
     { weaponName: "Rubico Prime", category: "sniper rifle", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Perigale Prime", category: "burst sniper rifle", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Buzlok", attackName: "Normal Attack", category: "Rifle compatibility correction", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Epitaph", attackName: "Charged Shot", category: "secondary charged projectile", goal: "burst", targetFaction: "Corpus" },
     { weaponName: "Acrid", category: "forced-proc toxin secondary", goal: "scaling", targetFaction: "Corpus" },
     { weaponName: "Hystrix Prime", attackName: "Fire Quill", category: "forced-proc selectable-element secondary", goal: "scaling", targetFaction: "Grineer" },
