@@ -542,15 +542,13 @@ function getTargetProfile(targetFaction: string, override?: TargetProfileOverrid
 function getScoringStatusImmunities(target: TargetProfile): ReadonlySet<StatusDamageType> {
     const statusImmuneTypes = target.statusImmuneTypes ?? EMPTY_STATUS_IMMUNITIES;
     const needsMagneticImmunity = target.shieldShare <= 0 && !target.hasOverguard && !statusImmuneTypes.has("magnetic");
-    const needsOverguardRadiationImmunity = target.hasOverguard && !statusImmuneTypes.has("radiation");
-    if (!needsMagneticImmunity && !needsOverguardRadiationImmunity) {
+    if (!needsMagneticImmunity) {
         return statusImmuneTypes;
     }
     const cached = TARGET_STATUS_IMMUNITY_CACHE.get(target);
     if (cached) return cached;
     const withTargetRules = new Set(statusImmuneTypes);
     if (needsMagneticImmunity) withTargetRules.add("magnetic");
-    if (needsOverguardRadiationImmunity) withTargetRules.add("radiation");
     TARGET_STATUS_IMMUNITY_CACHE.set(target, withTargetRules);
     return withTargetRules;
 }
