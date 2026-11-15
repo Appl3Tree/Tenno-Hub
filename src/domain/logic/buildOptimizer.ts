@@ -102,4 +102,3 @@ export function scoreOptimizerResultForConfiguration(input: OptimizerConfigurati
         input.conditionalState,
     );
 }
-
