@@ -226,6 +226,8 @@ export interface ModdedWeaponStats {
     dotDpsByType: Partial<Record<DamageKey, number>>;
     /** Per-proc DoT tick contribution before the grouped +1 accumulator. */
     dotTickDamagePerProcByType: Partial<Record<DamageKey, number>>;
+    /** One Slash DoT tick for a forced proc, independent of the weapon's Slash status weight. */
+    slashDotTickDamagePerProc: number;
     /** Proc-seed tick before the steady-state Condition Overload mean-field bonus. */
     dotTickDamagePerProcBeforeConditionOverloadByType: Partial<Record<DamageKey, number>>;
     /** Group accumulator contribution for each active consolidated DoT tick. */
@@ -315,6 +317,10 @@ export interface MeleeAverageDpsParameters {
 }
 
 export interface MeleeAverageDpsResult {
+    directDamage: number;
+    forcedSlashDamage: number;
+    forcedSlashProcEquivalentHits: number;
+    slashTickCount: number;
     averageHit: number;
     averageDps: number;
     expectedHitDamageMultiplier: number;
@@ -388,7 +394,7 @@ export function avgHitDamageMultiplier(
  * per-hit damage multiplier. Source data is supplied by the stance catalog.
  */
 export function calculateMeleeAverageDps(
-    stats: Pick<ModdedWeaponStats, "totalDamage" | "critChance" | "critMultiplier" | "fireRate" | "nonCriticalHitDamageProcs">,
+    stats: Pick<ModdedWeaponStats, "totalDamage" | "critChance" | "critMultiplier" | "fireRate" | "nonCriticalHitDamageProcs" | "slashDotTickDamagePerProc" | "statusDurationMultiplier">,
     parameters: MeleeAverageDpsParameters,
 ): MeleeAverageDpsResult | null {
     const values = [
@@ -399,10 +405,13 @@ export function calculateMeleeAverageDps(
         parameters.totalDamageMultiplier,
         parameters.totalSlashProcMultiplier,
         parameters.baseComboLengthSeconds,
+        stats.slashDotTickDamagePerProc,
+        stats.statusDurationMultiplier,
     ];
     if (
         !values.every(Number.isFinite) ||
         stats.totalDamage < 0 || stats.critChance < 0 || stats.critMultiplier < 0 || stats.fireRate < 0 ||
+        stats.slashDotTickDamagePerProc < 0 || stats.statusDurationMultiplier < 0 ||
         parameters.totalDamageMultiplier < 0 || parameters.totalSlashProcMultiplier < 0 ||
         parameters.totalDamageMultiplier + parameters.totalSlashProcMultiplier <= 0 ||
         parameters.baseComboLengthSeconds <= 0
@@ -413,11 +422,32 @@ export function calculateMeleeAverageDps(
         stats.critMultiplier,
         stats.nonCriticalHitDamageProcs,
     );
-    const averageHit =
-        (parameters.totalDamageMultiplier + parameters.totalSlashProcMultiplier) *
-        stats.totalDamage *
-        expectedHitDamageMultiplier;
+    const directDamage =
+        parameters.totalDamageMultiplier * stats.totalDamage * expectedHitDamageMultiplier;
+    const slashCoefficient = STATUS_EFFECT_RULES.slash.dotCoefficient ?? 0;
+    const baseSlashTickCount = countStatusDamageTicks(
+        "slash",
+        STATUS_EFFECT_RULES.slash.durationSeconds,
+    );
+    const slashTickCount = countStatusDamageTicks(
+        "slash",
+        STATUS_EFFECT_RULES.slash.durationSeconds * stats.statusDurationMultiplier,
+    );
+    // The Wiki table's forced-Slash multiplier already includes 0.35 damage
+    // and the base six ticks. Resolve its equivalent weighted proc hits, then
+    // use the calculator's Slash tick seed so elemental/physical mods do not
+    // accidentally increase Bleed damage.
+    const forcedSlashProcEquivalentHits = slashCoefficient > 0 && baseSlashTickCount > 0
+        ? parameters.totalSlashProcMultiplier / (slashCoefficient * baseSlashTickCount)
+        : 0;
+    const forcedSlashDamage =
+        stats.slashDotTickDamagePerProc * forcedSlashProcEquivalentHits * slashTickCount;
+    const averageHit = directDamage + forcedSlashDamage;
     return {
+        directDamage,
+        forcedSlashDamage,
+        forcedSlashProcEquivalentHits,
+        slashTickCount,
         averageHit,
         averageDps: averageHit * stats.fireRate / parameters.baseComboLengthSeconds,
         expectedHitDamageMultiplier,
@@ -1512,6 +1542,9 @@ export function calculateBuild(
             Math.fround(Math.max(0, 1 + elementalBonus)),
         ) * Math.fround(Math.max(0, 1 + factionDamageBonus)),
     );
+    const slashDotTickDamagePerProc = statusImmuneTypes.has("slash")
+        ? 0
+        : statusDotTickDamage(dotSeedPerProc, "slash", dotRemainingMultiplier(0), 0);
 
     const totalPrimaryElementBonus = (type: "heat" | "cold" | "electricity" | "toxin") => {
         const modBonus = mods.reduce((sum, effect) => {
@@ -1854,6 +1887,7 @@ export function calculateBuild(
         dotDamagePerShotByType,
         dotDpsByType,
         dotTickDamagePerProcByType,
+        slashDotTickDamagePerProc,
         dotTickDamagePerProcBeforeConditionOverloadByType,
         dotTickAccumulatorDamageByType,
         dotDamagePerApplicationSeedByType,
