@@ -702,13 +702,14 @@ export function simulateExpectedWeaponEncounter(
         const applications: Partial<Record<StatusDamageType, number>> = {};
         const presenceProbabilities: Partial<Record<StatusDamageType, number>> = {};
         const canReweight = input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
+        let totalWeight = 0;
         const immuneTypes = new Set(statusImmuneTypes);
         // Enemy Overguard blocks Radiation's confusion effect, while Magnetic
         // has no defensive effect once both Overguard and Shields are gone.
         if (remainingPools.overguard > 0) immuneTypes.add("radiation");
         if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
         if (canReweight) {
-            const totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
+            totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
                 if (immuneTypes.has(type)) return sum;
                 return sum + finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
             }, 0);
@@ -751,7 +752,22 @@ export function simulateExpectedWeaponEncounter(
             // applications are independent and use their expected count as a
             // bounded event probability. This keeps their source separate from
             // ordinary status chance and preserves fractional Cedo effects.
-            const ordinaryPresence = probabilityAtLeastOnePoissonArrival(ordinary);
+            // For catalog-backed inputs, ordinary procs follow the Wiki's
+            // per-projectile status chance: every whole roll is guaranteed,
+            // each fractional roll is independent, and fractional multishot
+            // adds a projectile only with its fractional probability. Legacy
+            // expected-application inputs lack projectile/status-chance detail,
+            // so retain their explicit Poisson mean-field approximation.
+            const ordinaryPresence = canReweight
+                ? probabilityAtLeastOneWeightedStatusType(
+                    input.expectedProjectiles ?? 1,
+                    input.statusRollsPerAttack ?? 0,
+                    totalWeight > 0
+                        ? finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0) / totalWeight
+                        : 0,
+                    type === "tau" ? 1 : ordinaryStatusChanceMultiplier(),
+                )
+                : probabilityAtLeastOnePoissonArrival(ordinary);
             const forcedPresence = Math.min(1, forced);
             presenceProbabilities[type] = 1 - (1 - ordinaryPresence) * (1 - forcedPresence);
         }
@@ -1935,6 +1951,40 @@ function probabilityAtLeastOnePoissonArrival(expectedArrivals: number): number {
     if (mean <= 0) return 0;
     if (mean >= 20) return 1;
     return -Math.expm1(-mean);
+}
+
+/**
+ * Probability that an attack applies a selected status type at least once.
+ * `statusRollsPerAttack` is projectile count × per-projectile status chance;
+ * weighted type selection occurs independently for every proc roll. Fractional
+ * status chance and multishot represent independent bonus-roll/projectile
+ * chances, matching the current Wiki rules for [Status Chance](https://wiki.warframe.com/w/Status_Chance)
+ * and [Multishot](https://wiki.warframe.com/w/Multishot).
+ */
+function probabilityAtLeastOneWeightedStatusType(
+    projectileCountRaw: number,
+    statusRollsPerAttackRaw: number,
+    typeProbabilityRaw: number,
+    statusChanceMultiplierRaw = 1,
+): number {
+    const projectileCount = finiteNonNegative(projectileCountRaw);
+    const typeProbability = clampProbability(typeProbabilityRaw);
+    if (projectileCount <= 0 || typeProbability <= 0) return 0;
+
+    const statusChancePerProjectile = finiteNonNegative(statusRollsPerAttackRaw) / projectileCount *
+        finiteNonNegative(statusChanceMultiplierRaw);
+    if (statusChancePerProjectile <= 0) return 0;
+
+    const wholeRolls = Math.floor(statusChancePerProjectile);
+    const fractionalRoll = statusChancePerProjectile - wholeRolls;
+    const noProcTypePerProjectile = Math.pow(1 - typeProbability, wholeRolls) *
+        (1 - fractionalRoll * typeProbability);
+    const wholeProjectiles = Math.floor(projectileCount);
+    const fractionalProjectile = projectileCount - wholeProjectiles;
+    const noProcTypeForWholeProjectiles = Math.pow(noProcTypePerProjectile, wholeProjectiles);
+    const noProcTypeForAttack = noProcTypeForWholeProjectiles *
+        (1 - fractionalProjectile * (1 - noProcTypePerProjectile));
+    return clampProbability(1 - noProcTypeForAttack);
 }
 
 function clampProbability(value: number): number {

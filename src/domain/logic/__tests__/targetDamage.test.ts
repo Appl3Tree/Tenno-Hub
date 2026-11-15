@@ -1329,6 +1329,58 @@ describe("finite expected-value weapon encounters", () => {
         expect(afterOverguardBreaks.statusApplicationsByType.radiation).toBeLessThan(5);
     });
 
+    it("treats 100% status chance as a guaranteed per-projectile proc", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            maxAttacks: 2,
+            expectedProjectiles: 1,
+            statusProcWeightsByType: { impact: 1 },
+            statusRollsPerAttack: 1,
+            directDamagePerStatusBonus: 0.8,
+        });
+
+        // The first attack guarantees Impact; its active type bonus applies to
+        // the second attack. A Poisson approximation incorrectly assigns only
+        // 1 - e^-1 probability to this guaranteed proc.
+        expect(result.statusApplicationsByType.impact).toBe(2);
+        expect(result.directDamageByPool.health).toBeCloseTo(280, 10);
+    });
+
+    it("models over-100% status rolls and fractional multishot independently", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            maxAttacks: 2,
+            expectedProjectiles: 1.5,
+            expectedDamageMultiplier: 1,
+            statusProcWeightsByType: { impact: 1, slash: 1 },
+            // 150% chance on each projectile: one guaranteed roll plus a 50%
+            // additional roll. The 0.5 multishot projectile is another
+            // independent event. P(type appears) = 1 - (0.375 × 0.6875).
+            statusRollsPerAttack: 2.25,
+            directDamagePerStatusBonus: 0.8,
+        });
+
+        const probabilityPerType = 1 - (0.375 * 0.6875);
+        expect(result.directDamageByPool.health).toBeCloseTo(
+            100 + 100 * (1 + (2 * probabilityPerType * 0.8)),
+            10,
+        );
+        expect(result.statusApplicationsByType.impact).toBeCloseTo(2.25, 10);
+        expect(result.statusApplicationsByType.slash).toBeCloseTo(2.25, 10);
+    });
+
     it("applies Tau vulnerability to later ordinary status rolls, but not Tau or forced procs", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: {},

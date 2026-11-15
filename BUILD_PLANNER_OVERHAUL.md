@@ -3,6 +3,12 @@
 Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
 ## Latest follow-up (2026-11-14)
+### Exact weighted status presence
+
+The finite encounter previously estimated the chance that a particular ordinary status type became active as `1 - e^(-λ)`. That Poisson approximation undercounted guaranteed per-projectile rolls: a 100% Status Chance hit with a single possible status has a guaranteed proc under the current [Status Chance](https://wiki.warframe.com/w/Status_Chance) rules, not a 63.2% chance. The encounter now computes the no-proc probability across whole and fractional status rolls on each projectile, then across whole and fractional multishot projectiles. It uses the current damage-weighted type distribution after target-immunity reweighting, and applies Tau Status Vulnerability to ordinary status chance while leaving Tau's own chance unamplified. Expected proc counts are unchanged; the correction affects status-type presence used by later conditional bonuses and stack effects.
+
+Regressions cover 100% guaranteed procs and the combined 150% Status Chance / 1.5 projectiles case. All 636 tests across 51 files pass, as do the production build, `validate:sources`, prerequisite and mod-effect audits, focused ESLint, and `git diff --check`. The legacy API that receives only expected status applications still uses its disclosed Poisson fallback because it lacks per-projectile chance and multishot inputs. The encounter remains an expected-value model: fractional stack sizes, joint histories, and TTK distributions remain open limitations. Overall work remains open for global optimizer quality, broader Underframe comparisons, remaining weapon mechanics, and cold/mobile Worker measurements.
+
 
 ### Source-backed weapon augment parsing and Perigale check (2026-11-14)
 
