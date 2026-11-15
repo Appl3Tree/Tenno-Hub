@@ -199,6 +199,57 @@ describe("Volatile Variant Wiki modeling", () => {
     });
 });
 
+describe("Motus Setup Wiki modeling", () => {
+    it("parses all four jump-landing ranks and uses no inferred Realistic uptime", () => {
+        const shotgun = getWeaponCatalog().find((candidate) => candidate.modCompat === "Shotgun");
+        expect(shotgun).toBeDefined();
+        const mod = getModsForWeapon(shotgun!).find((candidate) => candidate.name === "Motus Setup");
+        expect(mod).toBeDefined();
+        const expectedBonuses = [0.25, 0.5, 0.75, 1];
+        expect(mod!.fusionLimit).toBe(3);
+        expect(mod!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.trigger))
+            .toEqual(Array(4).fill("afterJumpLanding"));
+        expect(mod!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.durationSeconds))
+            .toEqual([1, 2, 3, 4]);
+        expect(mod!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.stats))
+            .toEqual(expectedBonuses.map((bonus) => ({ critChanceBonus: bonus, statusChanceBonus: bonus })));
+
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(mod!.unparsedStatsByRank?.[rank] ?? []).toEqual([]);
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(
+                "Jump-landing activation and its rank-specific 1–4 second expiration/refresh timing are not simulated; Auto Optimize skips this conditional effect.",
+            );
+        }
+
+        const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0.2, statusChance: 0.3 };
+        const maxRankEffect = mod!.effectsByRank[mod!.fusionLimit];
+        const initial = calculateBuild(weapon, [maxRankEffect], "", {
+            conditionalState: { mode: "initial" },
+        }).modded;
+        const realistic = calculateBuild(weapon, [maxRankEffect], "", {
+            conditionalState: { mode: "realistic" },
+        }).modded;
+        const fullyStacked = calculateBuild(weapon, [maxRankEffect], "", {
+            conditionalState: { mode: "fullyStacked" },
+        }).modded;
+        const customInactive = calculateBuild(weapon, [maxRankEffect], "", {
+            conditionalState: { mode: "custom", externalStacks: 0 },
+        }).modded;
+        const customActive = calculateBuild(weapon, [maxRankEffect], "", {
+            conditionalState: { mode: "custom", externalStacks: 1 },
+        }).modded;
+
+        for (const inactive of [initial, realistic, customInactive]) {
+            expect(inactive.critChance).toBeCloseTo(0.2, 12);
+            expect(inactive.statusChance).toBeCloseTo(0.3, 12);
+        }
+        for (const active of [fullyStacked, customActive]) {
+            expect(active.critChance).toBeCloseTo(0.4, 12);
+            expect(active.statusChance).toBeCloseTo(0.6, 12);
+        }
+    });
+});
+
 describe("damage calculation status eligibility", () => {
     it("models Enduring Affliction as additive Status Chance only for an explicitly Lifted target", () => {
         const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");

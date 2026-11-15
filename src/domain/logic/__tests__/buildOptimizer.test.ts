@@ -559,6 +559,26 @@ describe("build optimizer scoring", () => {
         expect(snapResult.slots).toContain(protonSnap);
     });
 
+    it("keeps Motus Setup manually selectable but excludes its unmodeled jump timing from Auto Optimize", () => {
+        const shotgun = getWeaponCatalog().find((candidate) => candidate.modCompat === "Shotgun");
+        expect(shotgun).toBeDefined();
+        const motusSetup = getModsForWeapon(shotgun!).find((candidate) => candidate.name === "Motus Setup");
+        expect(motusSetup).toBeDefined();
+        expect(motusSetup!.hasDamageEffect).toBe(true);
+        expect(getUnmodeledDamageEffectLines(motusSetup!, motusSetup!.fusionLimit)).toContain(
+            "Jump-landing activation and its rank-specific 1–4 second expiration/refresh timing are not simulated; Auto Optimize skips this conditional effect.",
+        );
+        expect(getUnmodeledScoringEffectLines(motusSetup!.effect)).toContain(
+            "Jump-landing activation and its rank-specific 1–4 second expiration/refresh timing are not simulated; Auto Optimize skips this conditional effect.",
+        );
+
+        const result = optimizeBuild(shotgun!, [motusSetup!], "burst", 1, {
+            allowForma: false,
+            conditionalState: { mode: "fullyStacked" },
+        });
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
     it("selects Spring-Loaded Broadhead when its Wiki distance condition is met", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu Prime");
         expect(weapon).toBeDefined();

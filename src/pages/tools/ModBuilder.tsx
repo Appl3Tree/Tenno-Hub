@@ -1420,6 +1420,18 @@ function buildMathBreakdown(
             `Proton Snap activation = hold Wall Latch for ${fmt(protonSnapCondition.activationDelaySeconds ?? 2, 2)}s; rank duration ${fmt(protonSnapCondition.durationSeconds, 2)}s. The selected scenario's wall-latch state is held static; latch cadence and expiration are not simulated.`,
         );
     }
+    const motusSetupCondition = conditionalEntries.find((conditional) => conditional.trigger === "afterJumpLanding");
+    if (motusSetupCondition) {
+        const active = estimateConditionalUptime(
+            motusSetupCondition,
+            baselineRateForConditionals,
+            baseMagazineForConditionals,
+            conditionalState,
+        ) > 0;
+        conditionalLines.push(
+            `Motus Setup jump-landing buff = ${active ? "assumed active" : "inactive"}; this selected rank lasts ${fmt(motusSetupCondition.durationSeconds, 2)}s. Jump activation, expiration, and refresh timing are not simulated; an active state is held static for this calculation. Wiki: https://wiki.warframe.com/w/Motus_Setup`,
+        );
+    }
     const customTargetLines = targetProfileOverride ? [
         `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,
         ...(targetProfileOverride.description ? [targetProfileOverride.description] : []),
