@@ -87,6 +87,8 @@ export interface WeaponAttack {
     multishot?: number;
     /** Ammo consumed by one trigger/attack event when it differs by firing mode. */
     ammoCostPerShot?: number;
+    /** Source-backed limit of an attack-row ammo-cost approximation. */
+    ammoCostModelNote?: string;
     /** Verified fixed ammo consumption rate for an ammo-charged attack. */
     chargeAmmoPerSecond?: number;
     /** Ammo cost represented by the attack row's unscaled base damage. */
@@ -170,6 +172,12 @@ export interface WeaponEntry {
     selectedAttackName?: string;
     /** True when the selected attack is part of the weapon's Incarnon form. */
     selectedAttackIsIncarnon?: boolean;
+    /** Wiki-listed total ammo loaded by one fully charged ranged Incarnon form. */
+    selectedAttackIncarnonAmmoCapacity?: number;
+    /** Wiki page for the selected Incarnon mode's finite ammo capacity. */
+    selectedAttackIncarnonAmmoCapacitySourceUrl?: string;
+    /** Disclosure for source-backed attack-row ammo-cost approximations. */
+    selectedAttackAmmoCostModelNote?: string;
     /** True = area hit, false = direct hit, undefined = no source/Wiki classification. */
     selectedAttackIsAreaDamage?: boolean;
     /** True when the selected melee attack is excluded from Condition Overload's bonus. */
@@ -284,6 +292,10 @@ const BURST_RULE_OVERRIDES: Readonly<Record<string, BurstRuleOverride>> = Object
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|normal attack": { count: 3, delay: 0.05 },
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|primary-fire": { count: 2, delay: 0 },
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|radial attack": { count: 2, delay: 0 },
+    // Both Vasto Genesis forms use the Wiki-listed six-shot, 0.1s burst.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Vasto_Incarnon_Genesis
+    "/Lotus/Weapons/Tenno/Pistol/RevolverPistol|incarnon form": { count: 6, delay: 0.1 },
+    "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol|incarnon form": { count: 6, delay: 0.1 },
 });
 
 const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
@@ -294,6 +306,10 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     // grenade launcher is semi-auto. Cannonade requires every firing form to
     // be semi-auto, so the base trigger alone is insufficient here.
     "/Lotus/Weapons/ClanTech/Bio/BioWeapon|incarnon form": "Held",
+    // The Incarnon attack tables classify both Vasto variants as Burst.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Vasto_Incarnon_Genesis
+    "/Lotus/Weapons/Tenno/Pistol/RevolverPistol|incarnon form": "Burst",
+    "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol|incarnon form": "Burst",
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on mode": "Special",
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on radial attack": "Special",
 });
@@ -329,6 +345,25 @@ const VERIFIED_ATTACK_AMMO_COST_OVERRIDES: Readonly<Record<string, Readonly<Reco
         "plasma bomb explosion": 2,
         "cluster bombs impact": 2,
         "cluster bombs explosion": 2,
+    }),
+    // The Onos' fully charged Heat release spends 50 Incarnon rounds after
+    // the charge-beam ticks. These two attack rows are separate direct/radial
+    // representations of that one release; the earlier one-round-per-tick
+    // charge damage remains a separate selected attack row.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Onos
+    "/Lotus/Weapons/Thanotech/EntratiWristGun/EntratiWristGunWeapon": Object.freeze({
+        "incarnon form charge attack": 50,
+        "incarnon form charge radial attack": 50,
+    }),
+});
+
+const VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+    // Each completed Onos Heat release consumes 50 Incarnon rounds after its
+    // charge-beam ticks; the selected-row model excludes the pre-release beam
+    // ticks and charge timing. Verified 2026-11-15: https://wiki.warframe.com/w/Onos
+    "/Lotus/Weapons/Thanotech/EntratiWristGun/EntratiWristGunWeapon": Object.freeze({
+        "incarnon form charge attack": "Each completed Heat release consumes 50 rounds after charge-beam ticks; the pre-release ticks and charge timing are not simulated.",
+        "incarnon form charge radial attack": "Each completed Heat release consumes 50 rounds after charge-beam ticks; the pre-release ticks and charge timing are not simulated.",
     }),
 });
 
@@ -1245,6 +1280,14 @@ const VERIFIED_ATTACK_FORCED_PROC_DISTRIBUTION_OVERRIDES: Readonly<Record<
 
 /** Current Wiki-verified base multishot for attack rows whose fire modes differ. */
 const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
+    // Vasto Incarnon attacks fire six pellets per each of six burst rounds.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Vasto_Incarnon_Genesis
+    "/Lotus/Weapons/Tenno/Pistol/RevolverPistol": Object.freeze({
+        "incarnon form": 6,
+    }),
+    "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol": Object.freeze({
+        "incarnon form": 6,
+    }),
     // Cedo's primary attack has six pellets, while each alternate-fire glaive
     // attack starts with one projectile; multishot mods can create extra glaives.
     // Verified 2026-11-11: https://wiki.warframe.com/w/Cedo
@@ -1470,6 +1513,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const attackName = String(a.name).trim().toLowerCase();
                 const intrinsicPerStatus = VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES[uniqueName]?.[attackName];
                 const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
+                const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
                 const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
                 const sourceShotType = String(a.shot_type ?? "").trim().toLowerCase();
                 const verifiedAreaClassification = VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
@@ -1498,6 +1542,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                         ?? (n(a.multishot) > 0 ? n(a.multishot) : undefined),
                     ammoCostPerShot: VERIFIED_ATTACK_AMMO_COST_OVERRIDES[uniqueName]?.[attackName]
                         ?? (typeof a.ammo_cost === "number" ? a.ammo_cost : undefined),
+                    ammoCostModelNote,
                     chargeAmmoPerSecond: ammoChargeRule?.ammoPerSecond,
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
                     damageRamp,

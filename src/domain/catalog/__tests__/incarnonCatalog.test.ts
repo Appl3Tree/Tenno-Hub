@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog } from "../weaponCatalog";
+import { withSelectedAttack } from "../weaponRules";
+import { calculateBuild } from "../../logic/damageCalc";
 import {
     buildIncarnonCandidateConfigs,
     getIncarnonRecordForWeapon,
@@ -86,6 +88,160 @@ describe("incarnonCatalog", () => {
         });
         expect(elementalBalance.weapon.attacks[incarnonAttack]?.statusChance).toBeCloseTo(0.73, 5);
         expect(elementalBalance.appliedOptions[0]?.model.unsupportedLines).toEqual([]);
+    });
+
+    it("uses Wiki-listed one-charge ammo and Vasto burst mechanics for Incarnon attacks", () => {
+        const weapons = getWeaponCatalog();
+        for (const name of ["Torid", "Vasto", "Vasto Prime"]) {
+            const weapon = weapons.find((entry) => entry.name === name);
+            expect(weapon, name).toBeTruthy();
+            const record = getIncarnonRecordForWeapon(weapon!);
+            expect(record?.incarnonAmmoCapacity, name).toBe(name === "Torid" ? 170 : 24);
+            expect(record?.wikiUrl, name).toMatch(/^https:\/\/wiki\.warframe\.com\/w\//);
+
+            const attackIndex = weapon!.attacks.findIndex((attack) => /incarnon form/i.test(attack.name));
+            expect(attackIndex, name).toBeGreaterThanOrEqual(0);
+            const transformed = resolveIncarnonState(weapon!, attackIndex, {
+                unlockedTier: 1,
+                selectedOptionsByTier: {},
+            });
+            const selectedWeapon = withSelectedAttack(transformed.weapon, attackIndex);
+            const stats = calculateBuild(selectedWeapon, []);
+            expect(stats.modded.magazineSize, name).toBe(record!.incarnonAmmoCapacity);
+            expect(stats.modded.shotsPerMag, name).toBe(record!.incarnonAmmoCapacity);
+
+            if (name.startsWith("Vasto")) {
+                const attack = weapon!.attacks[attackIndex]!;
+                expect(attack.trigger).toBe("Burst");
+                expect(attack.burstCount).toBe(6);
+                expect(attack.burstDelay).toBeCloseTo(0.1, 6);
+                expect(attack.multishot).toBe(6);
+                expect(stats.modded.multishot).toBe(6);
+            }
+        }
+    });
+
+    it("uses current Wiki Incarnon ammo capacities for every ranged form", () => {
+        const expectedCapacities: Record<string, number> = {
+            Angstrum: 120,
+            Atomos: 21,
+            Ballistica: 18,
+            "Ballistica Prime": 18,
+            "Rakta Ballistica": 18,
+            Boar: 150,
+            "Boar Prime": 150,
+            Boltor: 160,
+            "Boltor Prime": 160,
+            Braton: 200,
+            "Braton Prime": 200,
+            "Braton Vandal": 200,
+            Bronco: 20,
+            "Bronco Prime": 20,
+            Burston: 600,
+            "Burston Prime": 600,
+            Cestra: 150,
+            Dera: 50,
+            "Dera Vandal": 50,
+            Despair: 20,
+            "Dex Sybaris": 200,
+            Dread: 20,
+            "Dual Toxocyst": 270,
+            Felarx: 60,
+            Furis: 280,
+            Gammacor: 15,
+            Gorgon: 20,
+            "Gorgon Wraith": 20,
+            Kunai: 20,
+            Laetum: 216,
+            Lato: 24,
+            "Lato Prime": 24,
+            "Lato Vandal": 24,
+            Latron: 40,
+            "Latron Prime": 40,
+            "Latron Wraith": 40,
+            Lex: 20,
+            "Lex Prime": 20,
+            Miter: 20,
+            "Mk1-Braton": 200,
+            "Mk1-Furis": 280,
+            "Mk1-Kunai": 20,
+            "Mk1-Paris": 20,
+            "Mk1-Strun": 40,
+            Onos: 350,
+            Paris: 20,
+            "Paris Prime": 20,
+            Phenmor: 408,
+            "Prisma Angstrum": 120,
+            "Prisma Gorgon": 20,
+            Sicarus: 120,
+            "Sicarus Prime": 120,
+            Soma: 200,
+            "Soma Prime": 200,
+            Stug: 120,
+            Strun: 40,
+            "Strun Prime": 40,
+            "Strun Wraith": 40,
+            Sybaris: 200,
+            "Sybaris Prime": 200,
+            "Synoid Gammacor": 15,
+            "Telos Boltor": 160,
+            Torid: 170,
+            Vasto: 24,
+            "Vasto Prime": 24,
+            Vectis: 45,
+            "Vectis Prime": 45,
+            Zylok: 12,
+            "Zylok Prime": 12,
+        };
+        for (const [name, capacity] of Object.entries(expectedCapacities)) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === name);
+            expect(weapon, name).toBeTruthy();
+            const attackIndex = weapon!.attacks.findIndex((attack) => /incarnon/i.test(attack.name));
+            expect(attackIndex, name).toBeGreaterThanOrEqual(0);
+            const state = resolveIncarnonState(weapon!, attackIndex, {
+                unlockedTier: 1,
+                selectedOptionsByTier: {},
+            });
+            expect(state.weapon.selectedAttackIncarnonAmmoCapacity, name).toBe(capacity);
+            expect(state.weapon.selectedAttackIncarnonAmmoCapacitySourceUrl, name).toMatch(/^https:\/\/wiki\.warframe\.com\/w\//);
+            const record = getIncarnonRecordForWeapon(weapon!);
+            if (record) expect(record.incarnonAmmoCapacity, name).toBe(capacity);
+        }
+
+        const rangedIncarnons = getWeaponCatalog().filter((weapon) =>
+            weapon.attacks.some((attack) => /incarnon/i.test(attack.name)),
+        );
+        expect(rangedIncarnons).toHaveLength(69);
+        expect(rangedIncarnons.map((weapon) => weapon.name).sort()).toEqual(Object.keys(expectedCapacities).sort());
+        for (const weapon of rangedIncarnons) {
+            const attackIndex = weapon.attacks.findIndex((attack) => /incarnon/i.test(attack.name));
+            const state = resolveIncarnonState(weapon, attackIndex, {
+                unlockedTier: 1,
+                selectedOptionsByTier: {},
+            });
+            expect(state.weapon.selectedAttackIncarnonAmmoCapacity, weapon.name).toBeGreaterThan(0);
+            expect(state.weapon.selectedAttackIncarnonAmmoCapacitySourceUrl, weapon.name).toMatch(/^https:\/\/wiki\.warframe\.com\/w\//);
+        }
+    });
+
+    it("counts Onos charged Incarnon releases against their Wiki ammo cost", () => {
+        const onos = getWeaponCatalog().find((entry) => entry.name === "Onos");
+        expect(onos).toBeTruthy();
+
+        for (const attackName of ["Incarnon Form Charge Attack", "Incarnon Form Charge Radial Attack"]) {
+            const attackIndex = onos!.attacks.findIndex((attack) => attack.name === attackName);
+            const resolved = resolveIncarnonState(onos!, attackIndex, {
+                unlockedTier: 1,
+                selectedOptionsByTier: {},
+            });
+            const selected = withSelectedAttack(resolved.weapon, attackIndex);
+            const stats = calculateBuild(selected, []);
+
+            expect(selected.ammoCostPerShot).toBe(50);
+            expect(selected.selectedAttackIncarnonAmmoCapacity).toBe(350);
+            expect(selected.selectedAttackAmmoCostModelNote).toMatch(/pre-release ticks and charge timing are not simulated/);
+            expect(stats.modded.shotsPerMag).toBe(7);
+        }
     });
 
     it("resolves legacy Incarnon stat wording and values for each weapon variant", () => {

@@ -64,6 +64,9 @@ export interface IncarnonWeaponRecord {
     familyName: string;
     sourcePage: string;
     kind: "genesis" | "native";
+    /** Wiki-listed maximum separate ammunition for one fully charged ranged form. */
+    incarnonAmmoCapacity?: number;
+    wikiUrl: string;
     tiers: IncarnonTierEntry[];
 }
 
@@ -89,8 +92,106 @@ export interface ResolvedIncarnonState {
 
 const RAW_RECORDS = INCARNON_RAW as RawIncarnonRecord[];
 
+/**
+ * Current Wiki maximum ammunition for one full ranged Incarnon transformation.
+ * The generated evolution snapshot can omit Evolution I for Genesis variants,
+ * and some native records lag behind the current Wiki (Laetum was 216, not
+ * the snapshot's older 220). Values are rounds/charges as documented by each
+ * record's Wiki page; the page URL is exposed with the resolved record.
+ */
+const WIKI_INCARNON_AMMO_CAPACITY_BY_FAMILY: Readonly<Record<string, number>> = Object.freeze({
+    Angstrum: 120,
+    Atomos: 21,
+    Ballistica: 18,
+    Boar: 150,
+    Boltor: 160,
+    Braton: 200,
+    Bronco: 20,
+    Burston: 600,
+    Cestra: 150,
+    Dera: 50,
+    Despair: 20,
+    Dread: 20,
+    "Dual Toxocyst": 270,
+    Felarx: 60,
+    Furis: 280,
+    Gammacor: 15,
+    Gorgon: 20,
+    Kunai: 20,
+    Laetum: 216,
+    Lato: 24,
+    Latron: 40,
+    Lex: 20,
+    Miter: 20,
+    Onos: 350,
+    Paris: 20,
+    Phenmor: 408,
+    Sicarus: 120,
+    Soma: 200,
+    Stug: 120,
+    Strun: 40,
+    Sybaris: 200,
+    Torid: 170,
+    Vasto: 24,
+    Vectis: 45,
+    Zylok: 12,
+});
+
+/** Newer Genesis records whose evolution snapshot is not in the bundled feed yet. */
+const WIKI_INCARNON_FAMILY_BY_WEAPON_NAME: Readonly<Record<string, string>> = Object.freeze({
+    Ballistica: "Ballistica",
+    "Ballistica Prime": "Ballistica",
+    "Rakta Ballistica": "Ballistica",
+    Stug: "Stug",
+    Vectis: "Vectis",
+    "Vectis Prime": "Vectis",
+});
+
 function normalize(value: string) {
     return String(value ?? "").trim().toLowerCase();
+}
+
+function parseIncarnonAmmoCapacity(record: RawIncarnonRecord): number | undefined {
+    const wikiCapacity = WIKI_INCARNON_AMMO_CAPACITY_BY_FAMILY[record.familyName];
+    if (wikiCapacity !== undefined) return wikiCapacity;
+
+    const formOption = record.tiers
+        .find((tier) => tier.tier === 1)?.options
+        .find((option) => option.id === "tier-1-incarnon-form" || /^incarnon form$/i.test(option.name));
+    if (!formOption) return undefined;
+
+    const capacities = [...formOption.descriptionLines, ...formOption.notes]
+        // Only parse the explicit separate Incarnon-magazine sentence. Some
+        // forms also describe their burst count as a maximum, which is not ammo.
+        .flatMap((line) => [...line.matchAll(/separate\s+["“]?magazine["”]?.*?maximum of\s+([\d,]+)(?:\s+rounds?)?\b/gi)])
+        .map((match) => Number(match[1].replaceAll(",", "")))
+        .filter((value) => Number.isSafeInteger(value) && value > 0);
+    const distinctCapacities = [...new Set(capacities)];
+    return distinctCapacities.length === 1 ? distinctCapacities[0] : undefined;
+}
+
+function wikiUrlForSourcePage(sourcePage: string) {
+    const page = sourcePage
+        .replace(/\s*-\s*WARFRAME Wiki(?:\.html)?$/i, "")
+        .trim()
+        .replace(/\s+/g, "_");
+    return `https://wiki.warframe.com/w/${encodeURIComponent(page)}`;
+}
+
+function wikiUrlForPage(page: string) {
+    return `https://wiki.warframe.com/w/${encodeURIComponent(page.replace(/\s+/g, "_"))}`;
+}
+
+function wikiAmmoCapacityForWeapon(weapon: WeaponEntry, record: IncarnonWeaponRecord | null) {
+    if (record?.incarnonAmmoCapacity !== undefined) return record.incarnonAmmoCapacity;
+    const familyName = WIKI_INCARNON_FAMILY_BY_WEAPON_NAME[weapon.name];
+    return familyName ? WIKI_INCARNON_AMMO_CAPACITY_BY_FAMILY[familyName] : undefined;
+}
+
+function wikiAmmoCapacitySourceForWeapon(weapon: WeaponEntry, record: IncarnonWeaponRecord | null) {
+    if (record) return record.wikiUrl;
+    const familyName = WIKI_INCARNON_FAMILY_BY_WEAPON_NAME[weapon.name];
+    return familyName ? wikiUrlForPage(`${familyName} Incarnon Genesis`) : undefined;
 }
 
 function variantLabelMatchesWeapon(weaponName: string, rawLabel: string) {
@@ -502,6 +603,8 @@ const RECORDS: IncarnonWeaponRecord[] = RAW_RECORDS.map((record) => ({
     familyName: record.familyName,
     sourcePage: record.sourcePage,
     kind: record.kind,
+    incarnonAmmoCapacity: parseIncarnonAmmoCapacity(record),
+    wikiUrl: wikiUrlForSourcePage(record.sourcePage),
     tiers: record.tiers
         .filter((tier): tier is RawIncarnonTier & { tier: IncarnonTier } => tier.tier >= 1 && tier.tier <= 5)
         .map((tier) => ({
@@ -852,17 +955,26 @@ export function resolveIncarnonState(
     config: IncarnonBuildConfig,
 ): ResolvedIncarnonState {
     const record = getIncarnonRecordForWeapon(weapon);
+    const selectedScope = activeScopeForSelectedAttack(weapon, selectedAttackIdx);
+    const baseWeapon: WeaponEntry = {
+        ...weapon,
+        selectedAttackIncarnonAmmoCapacity: selectedScope === "incarnon"
+            ? wikiAmmoCapacityForWeapon(weapon, record)
+            : undefined,
+        selectedAttackIncarnonAmmoCapacitySourceUrl: selectedScope === "incarnon"
+            ? wikiAmmoCapacitySourceForWeapon(weapon, record)
+            : undefined,
+    };
     if (!record) {
-        return { record, appliedOptions: [], weapon, activeEffects: [] };
+        return { record, appliedOptions: [], weapon: baseWeapon, activeEffects: [] };
     }
     const selectedTierIds = Object.values(config.selectedOptionsByTier ?? {}).filter(Boolean);
     if (!selectedTierIds.length) {
-        return { record, appliedOptions: [], weapon, activeEffects: [] };
+        return { record, appliedOptions: [], weapon: baseWeapon, activeEffects: [] };
     }
 
-    const selectedScope = activeScopeForSelectedAttack(weapon, selectedAttackIdx);
     const appliedOptions: IncarnonOption[] = [];
-    let nextWeapon: WeaponEntry = { ...weapon, attacks: weapon.attacks.map((attack) => ({ ...attack, damage: { ...attack.damage } })) };
+    let nextWeapon: WeaponEntry = { ...baseWeapon, attacks: weapon.attacks.map((attack) => ({ ...attack, damage: { ...attack.damage } })) };
     const activeEffects: ModEffect[] = [];
 
     for (const tier of record.tiers) {

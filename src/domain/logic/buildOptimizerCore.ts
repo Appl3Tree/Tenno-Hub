@@ -2267,6 +2267,9 @@ function expectedEncounterScoreForEffects(
         singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
         attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
         shotsPerMagazine: stats.shotsPerMag,
+        attackCountLimit: weapon.selectedAttackIsIncarnon && weapon.selectedAttackIncarnonAmmoCapacity !== undefined
+            ? stats.shotsPerMag
+            : undefined,
         infiniteAmmoActive: stats.infiniteAmmoActive,
         firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
         lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
