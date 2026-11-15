@@ -826,22 +826,23 @@ describe("damage calculation status eligibility", () => {
         expect(normalMeleeAttacks.length).toBeGreaterThan(0);
         expect(normalMeleeAttacks.every(({ attack }) => typeof attack.isAreaDamage === "boolean")).toBe(true);
 
-        const unclassifiedNormalAttacks = getWeaponCatalog().flatMap((weapon) =>
+        const unclassifiedAttacks = getWeaponCatalog().flatMap((weapon) =>
             weapon.attacks
-                .map((attack, attackIndex) => ({ weapon, attack, attackIndex }))
-                .filter(({ attack }) => attack.name.toLowerCase() === "normal attack" && attack.isAreaDamage === undefined),
+                .filter((attack) => attack.isAreaDamage === undefined)
+                .map((attack) => `${weapon.name}: ${attack.name}`),
         );
-        expect(unclassifiedNormalAttacks.length).toBeGreaterThan(0);
-        expect(unclassifiedNormalAttacks.every(({ weapon }) => weapon.category === "Companion")).toBe(true);
-        const unclassifiedNormalAttack = unclassifiedNormalAttacks[0];
-        expect(
-            withSelectedAttack(unclassifiedNormalAttack!.weapon, unclassifiedNormalAttack!.attackIndex).selectedAttackIsAreaDamage,
-        ).toBeUndefined();
+        expect(unclassifiedAttacks).toEqual([]);
 
         // Ordinary melee strikes remain direct even when their hitbox cleaves
         // through multiple targets; explicit AoE source markers still win.
         expectAreaAttack("Broken War", "Normal Attack", false);
         expectAreaAttack("Agkuza", "Normal Attack", false);
+
+        // Hound weapons only use standard melee attacks and their direct
+        // contact rows are confirmed individually on the current Wiki pages.
+        expectAreaAttack("Akaten", "Normal Attack", false);
+        expectAreaAttack("Batoten", "Normal Attack", false);
+        expectAreaAttack("Lacerten", "Normal Attack", false);
 
         // Wiki-verified fallbacks: these source rows omit shot_type.
         // https://wiki.warframe.com/w/Komorex
