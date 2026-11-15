@@ -1347,7 +1347,9 @@ export function calculateBuild(
     const statusChance = weapon.statusChance * (1 + statusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase) + finalStatusChanceBonus;
 
     const magazineSize = ignoresReloadAndMagazine
-        ? Math.max(1, weapon.magazineSize)
+        ? Math.max(1, weapon.selectedAttackIsIncarnon
+            ? weapon.selectedAttackIncarnonAmmoCapacity ?? weapon.magazineSize
+            : weapon.magazineSize)
         : Math.max(1, Math.round(weapon.magazineSize * (1 + magazineBonus)));
     const reloadTime = ignoresReloadAndMagazine
         ? weapon.reloadTime

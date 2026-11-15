@@ -135,6 +135,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         trigger,
         chargeTime: attack.chargeTime ?? null,
         ammoCostPerShot: attack.ammoCostPerShot ?? weapon.ammoCostPerShot,
+        selectedAttackAmmoCostModelNote: attack.ammoCostModelNote,
         burstCount: useBurstModel ? attack.burstCount : undefined,
         burstDelay: useBurstModel ? attack.burstDelay : undefined,
         burstCycleRate: useBurstModel ? attack.speed : undefined,

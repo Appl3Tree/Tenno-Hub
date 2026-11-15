@@ -84,7 +84,6 @@ const options = {
     defaultSlotPolarities: weapon.polarities.slice(0, 3),
     optimizeArcane: true,
     arcaneCandidates: candidateArcanes,
-    buildForAttack,
 };
 const signature = (candidate: IncarnonCandidateConfig) => Object.entries(candidate.selectedOptionsByTier)
     .sort(([left], [right]) => Number(left) - Number(right))
@@ -94,6 +93,9 @@ const run = (candidate: IncarnonCandidateConfig) => {
     const state = resolveIncarnonState(weapon, attackIndex, candidate);
     const result = optimizeBuild(state.weapon, candidateMods, "timeToKill", 3, {
         ...options,
+        // resolveIncarnonState clones attack rows for selected evolutions, so
+        // bind the attack from this candidate's resolved weapon by identity.
+        buildForAttack: state.weapon.attacks[attackIndex] ?? null,
         preEquippedEffects: state.activeEffects,
     });
     return { state, result };

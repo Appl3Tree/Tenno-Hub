@@ -1089,6 +1089,48 @@ describe("finite expected-value weapon encounters", () => {
         expect(encounter.timeToKillSeconds).toBeCloseTo(4 * 0.62 + 3, 10);
     });
 
+    it("stops a finite Incarnon encounter after one source-listed ammo capacity", () => {
+        const common = {
+            damageByType: { impact: 1 },
+            health: 100,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 24,
+            attackCountLimit: 3,
+        };
+        const sequence = simulateDirectAttackSequence(common);
+        const encounter = simulateExpectedWeaponEncounter({ ...common, maxAttacks: 100 });
+
+        expect(sequence.attacksToKill).toBeNull();
+        expect(sequence.attackCountLimitReached).toBe(true);
+        expect(encounter.attacks).toBe(3);
+        expect(encounter.timeToKillSeconds).toBeNull();
+        expect(encounter.attackCountLimitReached).toBe(true);
+        expect(encounter.evaluatedDurationSeconds).toBeCloseTo(2, 10);
+    });
+
+    it("allows a target to die on the final finite Incarnon attack", () => {
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 10 },
+            health: 30,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 24,
+            attackCountLimit: 3,
+            maxAttacks: 100,
+        });
+
+        expect(encounter.attacks).toBe(3);
+        expect(encounter.timeToKillSeconds).toBeCloseTo(2, 10);
+        expect(encounter.attackCountLimitReached).toBe(false);
+    });
+
     it("applies Chamber bonuses to the first attack after each magazine reload", () => {
         const common = {
             damageByType: { impact: 100 },

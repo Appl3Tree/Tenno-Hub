@@ -196,6 +196,8 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attack events available before each reload-like interruption. */
     shotsPerMagazine?: number;
+    /** Stop after this many attack events when a selected form has finite separate ammunition. */
+    attackCountLimit?: number;
     /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
     infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
@@ -242,6 +244,8 @@ export interface DirectAttackSequenceResult {
     remainingPools: Record<TargetDamagePool, number>;
     /** Permanent base armor remaining after Shattering Impact, before temporary Heat/Corrosive strips. */
     remainingArmorAfterBaseStrip: number;
+    /** True when the target survived after a source-defined finite attack capacity was spent. */
+    attackCountLimitReached: boolean;
     /** Heavy-attack combo tier at the first event, when combo consumption is modeled. */
     comboMultiplierAtStart?: number;
     /** Heavy-attack combo tier at the killing event, when combo consumption is modeled. */
@@ -253,6 +257,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     attackIntervalSeconds: number;
     /** Number of attacks before a reload-like interruption. */
     shotsPerMagazine?: number;
+    /** Stop after this many attack events when a selected form has finite separate ammunition. */
+    attackCountLimit?: number;
     /** Treat ammunition as infinite, suppress magazine reloads, and ignore first-shot magazine bonuses. */
     infiniteAmmoActive?: boolean;
     /** Multiplicative bonus for the first ammo-consuming shot in every magazine. */
@@ -336,6 +342,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
 
 export interface ExpectedWeaponEncounterResult {
     attacks: number;
+    /** True when the target survived after a source-defined finite attack capacity was spent. */
+    attackCountLimitReached: boolean;
     timeToKillSeconds: number | null;
     evaluatedDurationSeconds: number;
     directDamageByPool: Record<TargetDamagePool, number>;
@@ -586,6 +594,10 @@ export function simulateExpectedWeaponEncounter(
     const maxAttacks = Number.isFinite(input.maxAttacks)
         ? Math.max(0, Math.floor(input.maxAttacks ?? 0))
         : 20_000;
+    const attackCountLimit = Number.isFinite(input.attackCountLimit)
+        ? Math.max(0, Math.floor(input.attackCountLimit ?? 0))
+        : Number.MAX_SAFE_INTEGER;
+    const maxSimulatedAttacks = Math.min(maxAttacks, attackCountLimit);
     const ticks: ScheduledStatusTick[] = [];
     const groupedElectricTicks = new Map<number, ScheduledStatusTick>();
     const statusImmuneTypes = new Set(input.statusImmuneTypes ?? []);
@@ -1314,9 +1326,9 @@ export function simulateExpectedWeaponEncounter(
         return gasCloudGroup;
     };
 
-    while ((!killed && attacks < maxAttacks) || ticks.length > 0) {
+    while ((!killed && attacks < maxSimulatedAttacks) || ticks.length > 0) {
         while (ticks[0] && cancelledTickSequences.delete(ticks[0].sequence)) heapPop(ticks);
-        const attackTime = !killed && attacks < maxAttacks
+        const attackTime = !killed && attacks < maxSimulatedAttacks
             ? nextAttackTime(attackIndex)
             : Number.POSITIVE_INFINITY;
         const nextTick = ticks[0];
@@ -1546,12 +1558,17 @@ export function simulateExpectedWeaponEncounter(
 
     const totalDamage = sumPools(directDamageByPool) + sumPools(statusDamageByPool);
     const timeToKillSeconds = primaryKilledAt;
-    const evaluatedDurationSeconds = primaryKilledAt ?? maxDurationSeconds;
+    const attackCountLimitReached = !killed &&
+        Number.isFinite(input.attackCountLimit) &&
+        attacks >= maxSimulatedAttacks &&
+        attackCountLimit < maxAttacks;
+    const evaluatedDurationSeconds = primaryKilledAt ?? (attackCountLimitReached ? now : maxDurationSeconds);
     const rateDuration = evaluatedDurationSeconds > 0
         ? evaluatedDurationSeconds
         : attacks > 0 ? attackInterval : 0;
     return {
         attacks,
+        attackCountLimitReached,
         timeToKillSeconds,
         evaluatedDurationSeconds,
         directDamageByPool,
@@ -1597,6 +1614,11 @@ export function simulateDirectAttackSequence(
         : Number.isFinite(input.shotsPerMagazine)
             ? Math.max(1, Math.floor(input.shotsPerMagazine ?? 1))
             : Number.MAX_SAFE_INTEGER;
+    const maxRampAttacks = 100_000;
+    const attackCountLimit = Number.isFinite(input.attackCountLimit)
+        ? Math.max(0, Math.floor(input.attackCountLimit ?? 0))
+        : maxRampAttacks;
+    const maxSimulatedAttacks = Math.min(maxRampAttacks, attackCountLimit);
 
     const firstShotMagazineDamageBonus = input.infiniteAmmoActive
         ? 0
@@ -1613,7 +1635,8 @@ export function simulateDirectAttackSequence(
         input.heavyAttackCombo ||
         firstShotMagazineDamageBonus > 0 ||
         lastShotMagazineDamageBonus > 0 ||
-        finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) > 0
+        finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) > 0 ||
+        Number.isFinite(input.attackCountLimit)
     ) {
         const damageByPool = zeroPools();
         const combo = input.heavyAttackCombo;
@@ -1625,8 +1648,7 @@ export function simulateDirectAttackSequence(
         const enemyShieldGateHitMode = input.enemyShieldGateHitMode ?? "body";
         let comboMultiplierAtStart: number | undefined;
         let comboMultiplierAtKill: number | undefined;
-        const maxRampAttacks = 100_000;
-        for (let index = 0; index < maxRampAttacks; index++) {
+        for (let index = 0; index < maxSimulatedAttacks; index++) {
             const attackTime = attackEventTime(index, {
                 attackIntervalSeconds: attackInterval,
                 shotsPerMagazine,
@@ -1754,6 +1776,7 @@ export function simulateDirectAttackSequence(
                     damageByPool,
                     remainingPools,
                     remainingArmorAfterBaseStrip: armorAfterBaseStrip,
+                    attackCountLimitReached: false,
                     ...(comboMultiplierAtStart === undefined ? {} : { comboMultiplierAtStart }),
                     ...(comboMultiplierAtKill === undefined ? {} : { comboMultiplierAtKill }),
                 };
@@ -1766,6 +1789,9 @@ export function simulateDirectAttackSequence(
             damageByPool,
             remainingPools,
             remainingArmorAfterBaseStrip: armorAfterBaseStrip,
+            attackCountLimitReached: Number.isFinite(input.attackCountLimit) &&
+                attacks >= maxSimulatedAttacks &&
+                attackCountLimit < maxRampAttacks,
             ...(comboMultiplierAtStart === undefined ? {} : { comboMultiplierAtStart }),
             ...(comboMultiplierAtKill === undefined ? {} : { comboMultiplierAtKill }),
         };
@@ -1895,6 +1921,10 @@ export function simulateDirectAttackSequence(
             damageByPool: { ...damageByPool },
             remainingPools: { ...remainingPools },
             remainingArmorAfterBaseStrip: armorAfterBaseStrip,
+            attackCountLimitReached: attacksToKill === null &&
+                Number.isFinite(input.attackCountLimit) &&
+                attacks >= maxSimulatedAttacks &&
+                attackCountLimit < maxRampAttacks,
         };
     }
 }

@@ -4178,6 +4178,9 @@ export default function ModBuilder() {
             enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             shotsPerMagazine: stats.shotsPerMag,
+            attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
+                ? stats.shotsPerMag
+                : undefined,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
@@ -4237,6 +4240,9 @@ export default function ModBuilder() {
             singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             shotsPerMagazine: stats.shotsPerMag,
+            attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
+                ? stats.shotsPerMag
+                : undefined,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
@@ -4279,6 +4285,7 @@ export default function ModBuilder() {
             timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
     }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat]);
+    const activeAttackEventLabel = activeCalcWeapon?.trigger.toLowerCase() === "burst" ? "rounds" : "attacks";
     const activeEncounterStatusSummary = activeTargetEncounter
         ? Object.entries(activeTargetEncounter.statusApplicationsByType)
             .filter(([, count]) => (count ?? 0) >= 0.01)
@@ -5372,6 +5379,12 @@ export default function ModBuilder() {
                                                                         <div className="mt-1 text-xs text-slate-400">
                                                                             Choose a path; only modeled effects change stats or optimizer scores. Unmodeled lines are marked in each perk.
                                                                         </div>
+                                                                        {incarnonRecord.incarnonAmmoCapacity !== undefined && (
+                                                                            <div className="mt-2 text-xs leading-relaxed text-slate-400">
+                                                                                Wiki-listed Incarnon capacity: {fmt(incarnonRecord.incarnonAmmoCapacity, 0)} rounds. The encounter uses one full charge, stops firing when it is spent, and resolves status effects already applied. Reversion and charge-building are not simulated.{" "}
+                                                                                <a href={incarnonRecord.wikiUrl} target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                     <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                                                                         {INCARNON_TIER_ORDER.map((tierNumber) => {
@@ -6007,6 +6020,17 @@ export default function ModBuilder() {
                                                                 <div><span className="text-slate-500">Objective:</span> {GOAL_OPTIONS.find((option) => option.key === goal)?.label ?? goal}</div>
                                                                 <div><span className="text-slate-500">Target:</span> {activeTargetSummary}</div>
                                                                 <div><span className="text-slate-500">Attack:</span> {weapon.attacks[selectedAttackIdx]?.name ?? "Normal attack"}</div>
+                                                                {activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined && (
+                                                                    <div className="sm:col-span-2">
+                                                                        <span className="text-slate-500">Incarnon ammo:</span> one full transformation, {fmt(activeCalcWeapon.selectedAttackIncarnonAmmoCapacity, 0)} rounds. The finite encounter stops at this limit; burst attacks count individual rounds, and charge-building/reversion are not simulated.{" "}
+                                                                        {activeCalcWeapon.selectedAttackIncarnonAmmoCapacitySourceUrl && (
+                                                                            <a href={activeCalcWeapon.selectedAttackIncarnonAmmoCapacitySourceUrl} target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                                {activeCalcWeapon?.selectedAttackAmmoCostModelNote && (
+                                                                    <div className="sm:col-span-2"><span className="text-slate-500">Ammo-cost assumption:</span> {activeCalcWeapon.selectedAttackAmmoCostModelNote}</div>
+                                                                )}
                                                                 {activeWeaponState?.appliedIncarnonOptions.length ? (
                                                                     <div className="sm:col-span-2">
                                                                         <span className="text-slate-500">Incarnon path:</span> {activeWeaponState.appliedIncarnonOptions.map((option) => option.name).join(" · ")} · modeled effects only
@@ -6044,8 +6068,10 @@ export default function ModBuilder() {
                                                                             <div className="sm:col-span-2">
                                                                                 <span className="text-slate-500">Selected-state direct-hit sequence:</span>{" "}
                                                                                 {activeTargetAttackSequence.attacksToKill === null
-                                                                                    ? "not killable with the current direct-hit damage"
-                                                                                    : `${fmt(activeTargetAttackSequence.attacksToKill, 0)} attacks · ${fmt(activeTargetAttackSequence.timeToKillSeconds ?? 0, 2)}s from first attack`}{" "}
+                                                                                    ? activeTargetAttackSequence.attackCountLimitReached
+                                                                                        ? "not defeated within one full Incarnon magazine"
+                                                                                        : "not killable with the current direct-hit damage"
+                                                                                    : `${fmt(activeTargetAttackSequence.attacksToKill, 0)} ${activeAttackEventLabel} · ${fmt(activeTargetAttackSequence.timeToKillSeconds ?? 0, 2)}s from first attack`}{" "}
                                                                                 {activeTargetAttackSequence.comboMultiplierAtStart !== undefined && activeTargetAttackSequence.comboMultiplierAtKill !== undefined
                                                                                     ? `· heavy-attack combo ${fmt(activeTargetAttackSequence.comboMultiplierAtStart, 0)}× → ${fmt(activeTargetAttackSequence.comboMultiplierAtKill, 0)}× `
                                                                                     : ""}
@@ -6059,8 +6085,10 @@ export default function ModBuilder() {
                                                                             <div className="sm:col-span-2">
                                                                                 <span className="text-slate-500">Expected finite encounter:</span>{" "}
                                                                                 {activeTargetEncounter.timeToKillSeconds === null
-                                                                                    ? "not defeated within " + fmt(activeTargetEncounter.evaluatedDurationSeconds, 1) + "s / " + fmt(activeTargetEncounter.attacks, 0) + " attacks"
-                                                                                    : fmt(activeTargetEncounter.timeToKillSeconds, 2) + "s · " + fmt(activeTargetEncounter.attacks, 0) + " attacks"}{" "}
+                                                                                    ? activeTargetEncounter.attackCountLimitReached
+                                                                                        ? "not defeated within one full Incarnon magazine / " + fmt(activeTargetEncounter.attacks, 0) + " " + activeAttackEventLabel
+                                                                                        : "not defeated within " + fmt(activeTargetEncounter.evaluatedDurationSeconds, 1) + "s / " + fmt(activeTargetEncounter.attacks, 0) + " " + activeAttackEventLabel
+                                                                                    : fmt(activeTargetEncounter.timeToKillSeconds, 2) + "s · " + fmt(activeTargetEncounter.attacks, 0) + " " + activeAttackEventLabel}{" "}
                                                                                 · {fmt(activeTargetEncounter.damagePerSecond)} damage/s · direct {fmt(activeTargetEncounter.directDamageByPool.health + activeTargetEncounter.directDamageByPool.shields + activeTargetEncounter.directDamageByPool.overguard)} + status {fmt(activeTargetEncounter.statusDamageByPool.health + activeTargetEncounter.statusDamageByPool.shields + activeTargetEncounter.statusDamageByPool.overguard)} damage{(encounterTargetMetrics?.modded.shatteringImpactBaseArmorPerHit ?? 0) > 0 ? ` · remaining base-stripped Armor ${fmt(activeTargetEncounter.remainingArmorAfterBaseStrip, 0)}` : ""}
                                                                             </div>
                                                                         )}

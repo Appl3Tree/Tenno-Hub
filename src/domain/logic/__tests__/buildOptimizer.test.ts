@@ -3,7 +3,7 @@ import { getArcanesByWeaponCategory, getArcanesForWeapon } from "../../catalog/a
 import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
-import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
 import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
@@ -1335,6 +1335,24 @@ describe("build optimizer scoring", () => {
         expect(perigalePrimeStats.shotsPerMag).toBe(16);
     });
 
+    it("keeps standard sniper mods visible beside flawed variants for Perigale Prime", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Perigale Prime");
+        expect(weapon).toBeTruthy();
+        expect(weapon?.modCompat).toBe("Sniper");
+
+        // The same catalog path feeds the Owned Mods panel and the manual slot picker.
+        const compatible = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const serrations = sortBuilderModsForDisplay(compatible.filter((mod) => mod.name === "Serration"));
+        const standardSerration = serrations.find((mod) => !/\/beginner\//i.test(mod.path));
+        const flawedSerration = serrations.find((mod) => /\/beginner\//i.test(mod.path));
+
+        expect(compatible.length).toBeGreaterThan(100);
+        expect(standardSerration).toBeDefined();
+        expect(flawedSerration).toBeDefined();
+        expect(serrations.indexOf(standardSerration!)).toBeLessThan(serrations.indexOf(flawedSerration!));
+        expect(new Set(compatible.map((mod) => mod.compatBucket))).toEqual(new Set(["Rifle", "Sniper", "Primary"]));
+    });
+
     it("has burst count and delay metadata for every catalog attack marked Burst", () => {
         const unsupported = getWeaponCatalog().flatMap((weapon) => weapon.attacks
             .filter((attack) => attack.trigger?.toLowerCase() === "burst")
@@ -1342,6 +1360,46 @@ describe("build optimizer scoring", () => {
             .map((attack) => `${weapon.name}: ${attack.name}`));
 
         expect(unsupported).toEqual([]);
+    });
+
+    it("scores a Vasto Incarnon build within its Wiki-listed 24-round form", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Vasto Prime");
+        expect(weapon).toBeTruthy();
+        const attackIndex = weapon!.attacks.findIndex((attack) => /incarnon form/i.test(attack.name));
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const transformed = resolveIncarnonState(weapon!, attackIndex, {
+            unlockedTier: 1,
+            selectedOptionsByTier: {},
+        });
+        const selectedWeapon = withSelectedAttack(transformed.weapon, attackIndex);
+        const encounter = debugEvaluateExpectedEncounter(
+            selectedWeapon,
+            [],
+            "",
+            { health: 1_000_000_000, shields: 0, overguard: 0, armor: 0, statusImmuneTypes: ["slash"] },
+        ).encounter;
+
+        expect(encounter?.attacks).toBe(24);
+        expect(encounter?.attackCountLimitReached).toBe(true);
+        expect(encounter?.timeToKillSeconds).toBeNull();
+        expect(encounter?.evaluatedDurationSeconds).toBeCloseTo(3.2, 6);
+
+        const optimized = optimizeBuild(selectedWeapon, [], "timeToKill", 3, {
+            buildForAttack: selectedWeapon.attacks[attackIndex] ?? null,
+            targetProfileOverride: {
+                health: 1_000_000_000,
+                shields: 0,
+                overguard: 0,
+                armor: 0,
+                statusImmuneTypes: ["slash"],
+            },
+            allowCatalyst: false,
+            allowForma: false,
+            optimizeArcane: false,
+        });
+        expect(optimized.capacityValid).toBe(true);
+        expect(optimized.encounterTimeToKillSeconds).toBeNull();
+        expect(optimized.encounterScore).toBeGreaterThan(0);
     });
 
     it("maps legacy stat-focused goals onto the two damage objectives", () => {
