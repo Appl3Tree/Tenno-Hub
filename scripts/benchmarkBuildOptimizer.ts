@@ -14,6 +14,7 @@ interface BenchmarkCase {
     category: string;
     goal: OptimizeGoal;
     targetFaction: string;
+    targetDistanceMeters?: number;
     warframeMaxEnergy?: number;
     warframeEnergyPercent?: number;
 }
@@ -81,6 +82,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Nataruk", attackName: "Perfect Shot", category: "precision bow", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Gram Prime", attackName: "Heavy Slam Attack", category: "melee heavy-attack proxy", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Braton Prime", category: "energy-gated Primary Overcharge", goal: "burst", targetFaction: "Grineer", warframeMaxEnergy: 1000, warframeEnergyPercent: 100 },
+    { weaponName: "Daikyu Prime", category: "Spring-Loaded Broadhead distance-conditional bow", goal: "burst", targetFaction: "Grineer", targetDistanceMeters: 16 },
     { weaponName: "Braton Prime", category: "Expected TTK finite-encounter objective", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Cedo", attackName: "Glaive Radial Attack", category: "Expected TTK glaive radial", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Phantasma Prime", attackName: "Plasma Bomb Explosion", category: "Expected TTK charged alternate fire", goal: "timeToKill", targetFaction: "Grineer" },
@@ -285,6 +287,11 @@ const report = [];
 
 for (const [caseIndex, benchmarkCase] of cases.entries()) {
     process.stderr.write(`[${caseIndex + 1}/${cases.length}] ${benchmarkCase.weaponName}${benchmarkCase.attackName ? ` / ${benchmarkCase.attackName}` : ""} (${RUNS} runs)\n`);
+    if (benchmarkCase.targetDistanceMeters === undefined) {
+        delete conditionalState.targetDistanceMeters;
+    } else {
+        conditionalState.targetDistanceMeters = benchmarkCase.targetDistanceMeters;
+    }
     const weapon = getWeapon(benchmarkCase.weaponName, catalog);
     if (!weapon) {
         report.push({ ...benchmarkCase, status: "missing from supported weapon catalog" });
@@ -486,7 +493,7 @@ console.log(JSON.stringify({
         logicalCpuCount: Number(process.env.NUMBER_OF_PROCESSORS) || undefined,
     },
     assumptions: {
-        conditionalState: "initial",
+        conditionalState: "initial; targetDistanceMeters is recorded per case where applicable",
         catalyst: true,
         formaLimit: 3,
         masteryRank: 30,
