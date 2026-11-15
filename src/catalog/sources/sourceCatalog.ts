@@ -2768,4 +2768,3 @@ export const SOURCE_INDEX: Record<SourceId, Source> = (() => {
 })();
 
 export const SOURCES: Source[] = Object.values(SOURCE_INDEX);
-
