@@ -644,14 +644,24 @@ describe("damage calculation status eligibility", () => {
             critChance: 0.5,
             critMultiplier: 2,
             fireRate: 1.5,
+            slashDotTickDamagePerProc: 52.5,
+            statusDurationMultiplier: 1,
         }, {
             totalDamageMultiplier: 2,
             totalSlashProcMultiplier: 0,
             baseComboLengthSeconds: 0.75,
         });
 
-        // Avg Hit = 2 × 100 × (1 + .5 × (2 − 1)) = 300; DPS = 300 × 1.5 / .75.
-        expect(result).toEqual({ averageHit: 300, averageDps: 600, expectedHitDamageMultiplier: 1.5 });
+        // Direct combo damage = 2 × 100 × (1 + .5 × (2 − 1)) = 300; no Slash is forced.
+        expect(result).toEqual({
+            directDamage: 300,
+            forcedSlashDamage: 0,
+            forcedSlashProcEquivalentHits: 0,
+            slashTickCount: 6,
+            averageHit: 300,
+            averageDps: 600,
+            expectedHitDamageMultiplier: 1.5,
+        });
     });
 
     it("includes the Wiki forced-Slash multiplier in the stance combo estimate", () => {
@@ -660,17 +670,67 @@ describe("damage calculation status eligibility", () => {
             critChance: 0.5,
             critMultiplier: 2,
             fireRate: 1.5,
+            slashDotTickDamagePerProc: 52.5,
+            statusDurationMultiplier: 1,
         }, {
             totalDamageMultiplier: 2,
-            totalSlashProcMultiplier: 0.5,
+            totalSlashProcMultiplier: 2.1,
             baseComboLengthSeconds: 0.75,
         });
 
-        expect(result).toEqual({ averageHit: 375, averageDps: 750, expectedHitDamageMultiplier: 1.5 });
+        expect(result?.directDamage).toBe(300);
+        expect(result?.forcedSlashDamage).toBeCloseTo(315, 10);
+        expect(result?.forcedSlashProcEquivalentHits).toBeCloseTo(1, 12);
+        expect(result?.slashTickCount).toBe(6);
+        expect(result?.averageHit).toBeCloseTo(615, 10);
+        expect(result?.averageDps).toBeCloseTo(1230, 10);
+        expect(result?.expectedHitDamageMultiplier).toBe(1.5);
+    });
+
+    it("keeps Wiki forced Slash damage separate from physical and elemental hit damage", () => {
+        const baseWeapon = {
+            ...makeWeapon({ slash: 100 }),
+            category: "Melee" as const,
+            weaponType: "Sword",
+            modCompat: "Melee",
+        };
+        const baseStats = calculateBuild(baseWeapon, []).modded;
+        const physicalStats = calculateBuild(baseWeapon, [{ ...emptyEffect(), slashBonus: 0.9 }]).modded;
+        const elementalStats = calculateBuild(baseWeapon, [{ ...emptyEffect(), heatBonus: 0.9 }]).modded;
+        const parameters = {
+            totalDamageMultiplier: 1,
+            totalSlashProcMultiplier: 2.1,
+            baseComboLengthSeconds: 1,
+        };
+
+        expect(physicalStats.totalDamage).toBeGreaterThan(baseStats.totalDamage);
+        expect(elementalStats.totalDamage).toBeGreaterThan(baseStats.totalDamage);
+        expect(physicalStats.slashDotTickDamagePerProc).toBe(baseStats.slashDotTickDamagePerProc);
+        expect(elementalStats.slashDotTickDamagePerProc).toBe(baseStats.slashDotTickDamagePerProc);
+
+        const physicalResult = calculateMeleeAverageDps(physicalStats, parameters);
+        const elementalResult = calculateMeleeAverageDps(elementalStats, parameters);
+        expect(physicalResult?.directDamage).toBeGreaterThan(baseStats.totalDamage);
+        expect(elementalResult?.directDamage).toBeGreaterThan(baseStats.totalDamage);
+        expect(physicalResult?.forcedSlashDamage).toBeCloseTo(baseStats.slashDotTickDamagePerProc * 6, 10);
+        expect(elementalResult?.forcedSlashDamage).toBeCloseTo(baseStats.slashDotTickDamagePerProc * 6, 10);
+
+        const longerSlash = calculateMeleeAverageDps({
+            ...baseStats,
+            statusDurationMultiplier: 2,
+        }, parameters);
+        expect(longerSlash?.slashTickCount).toBe(12);
+        expect(longerSlash?.forcedSlashDamage).toBeCloseTo(baseStats.slashDotTickDamagePerProc * 12, 10);
     });
 
     it("rejects invalid Wiki stance values instead of filling in defaults", () => {
-        const stats = { totalDamage: 100, critChance: 0.5, critMultiplier: 2, fireRate: 1.5 };
+        const stats = {
+            ...calculateBuild(makeWeapon({ slash: 100 }), []).modded,
+            totalDamage: 100,
+            critChance: 0.5,
+            critMultiplier: 2,
+            fireRate: 1.5,
+        };
         expect(calculateMeleeAverageDps(stats, {
             totalDamageMultiplier: 1,
             totalSlashProcMultiplier: 0,
