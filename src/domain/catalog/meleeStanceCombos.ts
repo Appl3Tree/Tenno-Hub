@@ -20,7 +20,7 @@ export interface WikiMeleeStanceCombo {
 
 export const WIKI_MELEE_STANCE_SOURCE_URL = "https://wiki.warframe.com/w/Stance#Comparison";
 export const WIKI_MELEE_STANCE_SOURCE_LAST_EDITED = "2026-10-02";
-export const WIKI_MELEE_STANCE_VERIFIED_AT = "2026-11-14";
+export const WIKI_MELEE_STANCE_VERIFIED_AT = "2026-11-15";
 
 const WIKI_NEUTRAL_STANCE_COMBOS = [
     { stanceName: "Astral Twilight", comboName: "Morning Sun", comboType: "Neutral", baseComboLengthSeconds: 4.25, totalDamageMultiplier: 22, totalSlashProcMultiplier: 0 },
