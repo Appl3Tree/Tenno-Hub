@@ -93,6 +93,67 @@ function normalize(value: string) {
     return String(value ?? "").trim().toLowerCase();
 }
 
+function variantLabelMatchesWeapon(weaponName: string, rawLabel: string) {
+    const name = normalize(weaponName).replace(/[‐‑‒–—]/g, "-");
+    const labels = normalize(rawLabel).replace(/[‐‑‒–—]/g, "-").split("/").map((value) => value.trim());
+    return labels.some((label) => {
+        if (name === label) return true;
+        const variantToken = name.match(/(?:^|[\s-])(prime|mk1|prisma|telos|vandal|wraith|rakta|sancti|synoid|carmine|kuva|tenet|mutalist|secura|suda|vaykor)(?=$|[\s-])/i)?.[1];
+        return Boolean(variantToken && label === variantToken.toLowerCase());
+    });
+}
+
+function resolveVariantStatLine(line: string, weaponName: string): string | null {
+    let unresolvedVariant = false;
+    const resolved = line.replace(
+        /[+-]?\d+(?:\.\d+)?(?:%|x)?\s*\([^)]*\)(?:\s*\/\s*[+-]?\d+(?:\.\d+)?(?:%|x)?\s*\([^)]*\))+/gi,
+        (variantGroup) => {
+            const values = [...variantGroup.matchAll(/([+-]?\d+(?:\.\d+)?(?:%|x)?)\s*\(([^)]+)\)/gi)];
+            const selected = values.find((match) => variantLabelMatchesWeapon(weaponName, match[2]));
+            if (!selected) {
+                unresolvedVariant = true;
+                return variantGroup;
+            }
+            return selected[1];
+        },
+    );
+    return unresolvedVariant ? null : resolved;
+}
+
+function normalizeLegacyIncarnonStatLine(line: string) {
+    return line
+        .replace(/^Increase Damage by ([+-]?\d+(?:\.\d+)?)(\.)?$/i, "Increase Base Damage by $1$2")
+        .replace(/^Increase Critical Chance by ([+-]?\d+(?:\.\d+)?%)(\.)?$/i, "Increase Base Critical Chance by $1$2")
+        .replace(/^Increase Status Chance by ([+-]?\d+(?:\.\d+)?%)(\.)?$/i, "Increase Base Status Chance by $1$2")
+        .replace(/^Increase Critical Damage Multiplier by ([+-]?\d+(?:\.\d+)?)(x?)(\.)?$/i, (_line, value: string, suffix: string, punctuation: string) => `Increase Base Critical Damage Multiplier by ${value}${suffix || "x"}${punctuation ?? ""}`)
+        .replace(/^Increase Magazine Capacity by ([+-]?\d+(?:\.\d+)?)(\.)?$/i, "Increase Base Magazine Capacity by $1$2");
+}
+
+function statFamily(value: string) {
+    const text = normalize(value);
+    if (/multishot/.test(text)) return "multishot";
+    if (/magazine/.test(text)) return "magazine";
+    if (/critical damage|critical multiplier/.test(text)) return "critical-multiplier";
+    if (/critical chance/.test(text)) return "critical-chance";
+    if (/status chance/.test(text)) return "status-chance";
+    if (/damage/.test(text)) return "damage";
+    if (/projectile speed/.test(text)) return "projectile-speed";
+    if (/fire rate/.test(text)) return "fire-rate";
+    if (/reload speed/.test(text)) return "reload-speed";
+    if (/accuracy/.test(text)) return "accuracy";
+    if (/punch through/.test(text)) return "punch-through";
+    return null;
+}
+
+function notesForStatLine(line: string, descriptionLines: string[], notes: string[]) {
+    const family = statFamily(line);
+    return notes.filter((note) => {
+        const noteFamily = statFamily(note);
+        if (noteFamily) return noteFamily === family;
+        return descriptionLines.length === 1;
+    });
+}
+
 function isIncarnonAttack(attack: Pick<WeaponAttack, "name">) {
     return /incarnon/i.test(String(attack.name ?? ""));
 }
@@ -138,6 +199,7 @@ function scopeForLine(line: string, notes: string[]): IncarnonAttackScope {
     }
     if (
         text.includes("does not affect incarnon form") ||
+        text.includes("does not apply to incarnon form") ||
         text.includes("only affects untransformed") ||
         text.includes("affects untransformed") ||
         text.includes("only untransformed")
@@ -241,7 +303,7 @@ function parseCritMultiplierPercent(value: string) {
     return Number(value) / 100;
 }
 
-function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
+function buildOptionModel(option: RawIncarnonOption, weaponName: string): IncarnonOptionModel {
     const adjustments: ScopedWeaponAdjustment[] = [];
     const effects: ScopedEffect[] = [];
     const unsupportedLines: string[] = [];
@@ -256,7 +318,13 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
     });
 
     for (const rawLine of descriptionLines) {
-        const line = rawLine.trim();
+        const sourceLine = rawLine.trim();
+        const variantResolvedLine = resolveVariantStatLine(sourceLine, weaponName);
+        if (variantResolvedLine === null) {
+            unsupportedLines.push(sourceLine);
+            continue;
+        }
+        const line = normalizeLegacyIncarnonStatLine(variantResolvedLine);
         if (!line) continue;
 
         if (
@@ -285,7 +353,7 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
             continue;
         }
 
-        const scope = scopeForLine(line, allNotes);
+        const scope = scopeForLine(line, notesForStatLine(line, descriptionLines, allNotes));
         const statsLine = trigger ? line.replace(/^On [^:]+:\s*/i, "") : line;
         const additiveNoteText = normalize(`${statsLine} ${allNotes.join(" ")}`);
 
@@ -326,6 +394,11 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
             });
             continue;
         }
+        const directDamagePerStatusMatch = statsLine.match(/([+-]?[\d.]+)%\s*direct damage per status type affecting the target/i);
+        if (directDamagePerStatusMatch) {
+            addTriggeredOrStaticEffect({ directDamagePerStatusBonus: parsePercent(directDamagePerStatusMatch[1]) });
+            continue;
+        }
         if (
             /^affects both (?:forms|modes)\.?$/i.test(line) ||
             /^(?:damage bonus is )?(?:additive|multiplicative) to base damage (?:sources|bonuses)\b/i.test(line)
@@ -338,17 +411,18 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
         if (multishotDamageMatch) {
             addTriggeredOrStaticEffect({ multishotDamageBonus: parsePercent(multishotDamageMatch[1]) });
         }
-        if (/increase base damage by [+-]?\d+(?:\.\d+)?/i.test(statsLine) && !trigger && !/^with\b/i.test(statsLine)) {
-            const match = statsLine.match(/increase base damage by ([+-]?\d+(?:\.\d+)?)/i);
+        const baseDamageMatch = statsLine.match(/increase (?:base )?damage by ([+-]?\d+(?:\.\d+)?)(?!\s*%)/i);
+        if (baseDamageMatch && !trigger && !/^with\b/i.test(statsLine)) {
+            const match = baseDamageMatch;
             addAdjustment({ baseDamageFlat: Number(match?.[1] ?? 0) });
-        } else if (/increase base critical chance by [+-]?\d+(?:\.\d+)?%/i.test(statsLine)) {
-            const match = statsLine.match(/increase base critical chance by ([+-]?\d+(?:\.\d+)?)%/i);
+        } else if (/increase (?:base )?critical chance by [+-]?\d+(?:\.\d+)?%/i.test(statsLine)) {
+            const match = statsLine.match(/increase (?:base )?critical chance by ([+-]?\d+(?:\.\d+)?)%/i);
             addAdjustment({ critChanceFlat: parsePercent(match?.[1] ?? "0") });
-        } else if (/increase base critical damage multiplier by [+-]?\d+(?:\.\d+)?x/i.test(statsLine)) {
-            const match = statsLine.match(/increase base critical damage multiplier by ([+-]?\d+(?:\.\d+)?)x/i);
+        } else if (/increase (?:base )?critical damage multiplier by [+-]?\d+(?:\.\d+)?x/i.test(statsLine)) {
+            const match = statsLine.match(/increase (?:base )?critical damage multiplier by ([+-]?\d+(?:\.\d+)?)x/i);
             addAdjustment({ critMultiplierFlat: Number(match?.[1] ?? 0) });
-        } else if (/increase base status chance by [+-]?\d+(?:\.\d+)?%/i.test(statsLine)) {
-            const match = statsLine.match(/increase base status chance by ([+-]?\d+(?:\.\d+)?)%/i);
+        } else if (/increase (?:base )?status chance by [+-]?\d+(?:\.\d+)?%/i.test(statsLine)) {
+            const match = statsLine.match(/increase (?:base )?status chance by ([+-]?\d+(?:\.\d+)?)%/i);
             addAdjustment({ statusChanceFlat: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*damage\b/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*damage\b/i);
@@ -379,6 +453,12 @@ function buildOptionModel(option: RawIncarnonOption): IncarnonOptionModel {
             addTriggeredOrStaticEffect({ magazineBonus: parsePercent(match?.[1] ?? "0") });
         } else if (/[+-]?\d+(?:\.\d+)?\s*magazine capacity/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)\s*magazine capacity/i);
+            addAdjustment({ magazineSizeFlat: Number(match?.[1] ?? 0) });
+        } else if (/increase (?:base )?magazine capacity by [+-]?\d+(?:\.\d+)?/i.test(statsLine)) {
+            const match = statsLine.match(/increase (?:base )?magazine capacity by ([+-]?\d+(?:\.\d+)?)/i);
+            addAdjustment({ magazineSizeFlat: Number(match?.[1] ?? 0) });
+        } else if (/increase base magazine capacity by [+-]?\d+(?:\.\d+)?/i.test(statsLine)) {
+            const match = statsLine.match(/increase base magazine capacity by ([+-]?\d+(?:\.\d+)?)/i);
             addAdjustment({ magazineSizeFlat: Number(match?.[1] ?? 0) });
         } else if (/[+-]?\d+(?:\.\d+)?%\s*headshot damage/i.test(statsLine)) {
             const match = statsLine.match(/([+-]?\d+(?:\.\d+)?)%\s*headshot damage/i);
@@ -428,24 +508,158 @@ const RECORDS: IncarnonWeaponRecord[] = RAW_RECORDS.map((record) => ({
             tier: tier.tier,
             options: tier.options.map((option) => {
                 const currentOption = withCurrentPatchDescription(record.weaponName, option);
-                return {
+                const resolvedOption = {
                     ...currentOption,
-                    model: buildOptionModel(currentOption),
+                    descriptionLines: currentOption.descriptionLines.map((line) => {
+                        const variantResolved = resolveVariantStatLine(line, record.weaponName);
+                        return normalizeLegacyIncarnonStatLine(variantResolved ?? line);
+                    }),
+                };
+                return {
+                    ...resolvedOption,
+                    model: buildOptionModel(resolvedOption, record.weaponName),
                 };
             }),
         })),
 }));
 
 /**
- * The generated Wiki snapshot predates PC Hotfix 44.1.3's Crimson Overture
- * ammo-efficiency changes. Keep the correction at the catalog boundary so
- * both the displayed trait and parsed conditional model use the current rules.
- * Source: https://www.warframe.com/en/patch-notes/pc/44-1-3
+ * Keep generated evolution text aligned with the current Wiki when its table
+ * variable substitution has stale wording or unresolved values. Reviewed
+ * 2026-11-15 against the Torid, Burston, Gorgon, and Latron pages.
+ * https://wiki.warframe.com/w/Torid_Incarnon_Genesis
+ * https://wiki.warframe.com/w/Burston_Incarnon_Genesis
+ * https://wiki.warframe.com/w/Gorgon_Incarnon_Genesis
+ * https://wiki.warframe.com/w/Latron_Incarnon_Genesis
+ * Legacy stat wording is normalized according to https://wiki.warframe.com/w/Update_36.
  */
 function withCurrentPatchDescription(weaponName: string, option: RawIncarnonOption): RawIncarnonOption {
+    const name = normalize(weaponName);
+    if (name === "torid") {
+        const currentToridDescriptions: Record<string, Pick<RawIncarnonOption, "descriptionLines" | "notes">> = {
+            "tier-2-final-fusillade": {
+                descriptionLines: [
+                    "Increase Base Damage by +51.",
+                    "+3 Multishot on last shot in magazine.",
+                ],
+                notes: [],
+            },
+            "tier-2-plentiful-mayhem": {
+                descriptionLines: [
+                    "Increase Base Damage by +31.",
+                    "Multishot consumes ammo directly from Capacity and increases Damage by +60%.",
+                ],
+                notes: [
+                    "Damage bonus from multishot consuming ammo is multiplicative to base damage bonuses like Serration.",
+                    "Affects both modes. In the case of Incarnon Form, it pools directly from its magazine.",
+                    "Damage bonus from multishot consuming ammo only applies to projectiles generated by multishot.",
+                    "In the Incarnon Form, instead of increasing the damage of additional projectiles created by multishot, all multishot bonuses are increased by 60%.",
+                ],
+            },
+            "tier-3-extended-volley": {
+                descriptionLines: ["Increase Base Magazine Capacity by +9."],
+                notes: ["Does not apply to Incarnon Form's Magazine."],
+            },
+            "tier-4-commodore-s-fortune": {
+                descriptionLines: ["Increase Base Critical Chance by +20%."],
+                notes: [],
+            },
+            "tier-4-survivor-s-edge": {
+                descriptionLines: [
+                    "Increase Base Critical Chance by +15%.",
+                    "Increase Base Status Chance by +15%.",
+                ],
+                notes: [],
+            },
+            "tier-4-elemental-balance": {
+                descriptionLines: ["Increase Base Status Chance by +34%."],
+                notes: [],
+            },
+        };
+        const toridCorrection = currentToridDescriptions[option.id];
+        if (toridCorrection) return { ...option, ...toridCorrection };
+    }
+
+    const normalizedName = name;
+    const currentWikiStatCorrections: Record<string, Record<string, Pick<RawIncarnonOption, "descriptionLines" | "notes">>> = {
+        burston: {
+            "tier-2-forceful-finality": {
+                descriptionLines: ["Increase Base Damage by +42.", "+5 Base Multishot on final magazine burst."],
+                notes: [
+                    "The multishot bonus is added before mods, so multishot bonuses increase it.",
+                    "The multishot bonus does not affect the Incarnon Form.",
+                ],
+            },
+            "tier-2-fortress-salvo": {
+                descriptionLines: ["Increase Base Damage by +42.", "With Armor Over 450: +2 Punch Through."],
+                notes: [],
+            },
+            "tier-3-extended-volley": {
+                descriptionLines: ["Increase Base Magazine Capacity by +21."],
+                notes: ["Does not apply to Incarnon Form's Magazine."],
+            },
+            "tier-4-absolute-valor": {
+                descriptionLines: ["Increase Base Critical Chance by +22%."],
+                notes: [],
+            },
+        },
+        "burston prime": {
+            "tier-2-forceful-finality": {
+                descriptionLines: ["Increase Base Damage by +42.", "+5 Base Multishot on final magazine burst."],
+                notes: [
+                    "The multishot bonus is added before mods, so multishot bonuses increase it.",
+                    "The multishot bonus does not affect the Incarnon Form.",
+                ],
+            },
+            "tier-2-fortress-salvo": {
+                descriptionLines: ["Increase Base Damage by +42.", "With Armor Over 450: +2 Punch Through."],
+                notes: [],
+            },
+            "tier-3-extended-volley": {
+                descriptionLines: ["Increase Base Magazine Capacity by +21."],
+                notes: ["Does not apply to Incarnon Form's Magazine."],
+            },
+            "tier-4-absolute-valor": {
+                descriptionLines: ["Increase Base Critical Chance by +22%."],
+                notes: [],
+            },
+        },
+        gorgon: {
+            "tier-2-hunter-s-mantra": { descriptionLines: ["Increase Base Damage by +10.", "With Channeled Ability Active: +3 Punch Through, +40% Accuracy."], notes: [] },
+            "tier-2-hoplite-s-virtue": { descriptionLines: ["Increase Base Damage by +10.", "On Shield Break: Increase Base Damage by +13 for 8 seconds."], notes: ["Shield break refers to the player's shields, not the enemy's."] },
+        },
+        "gorgon wraith": {
+            "tier-2-hunter-s-mantra": { descriptionLines: ["Increase Base Damage by +5.", "With Channeled Ability Active: +3 Punch Through, +40% Accuracy."], notes: [] },
+            "tier-2-hoplite-s-virtue": { descriptionLines: ["Increase Base Damage by +5.", "On Shield Break: Increase Base Damage by +8 for 8 seconds."], notes: ["Shield break refers to the player's shields, not the enemy's."] },
+        },
+        "prisma gorgon": {
+            "tier-2-hunter-s-mantra": { descriptionLines: ["Increase Base Damage by +5.", "With Channeled Ability Active: +3 Punch Through, +40% Accuracy."], notes: [] },
+            "tier-2-hoplite-s-virtue": { descriptionLines: ["Increase Base Damage by +5.", "On Shield Break: Increase Base Damage by +8 for 8 seconds."], notes: ["Shield break refers to the player's shields, not the enemy's."] },
+        },
+        latron: {
+            "tier-2-riddled-target": { descriptionLines: ["Increase Base Damage by +48.", "On Puncture Status Effect: +25% Multishot for 8 seconds. Stacks up to 4x."], notes: ["The multishot bonus stacks additively with mods such as Split Chamber."] },
+            "tier-2-swift-punishment": { descriptionLines: ["Increase Base Damage by +48.", "With Sprint Speed 1.2 or Higher: +30% Direct Damage per Status Type affecting the target."], notes: ["The effect only requires 1.1 or higher sprint speed."] },
+            "tier-3-extended-volley": { descriptionLines: ["Increase Base Magazine Capacity by +15."], notes: ["Does not apply to Incarnon Form's Magazine."] },
+            "tier-4-critical-parallel": { descriptionLines: ["Increase Base Critical Chance by +30%.", "Increase Base Critical Damage Multiplier by +0.6x."], notes: [] },
+        },
+        "latron wraith": {
+            "tier-2-riddled-target": { descriptionLines: ["Increase Base Damage by +12.", "On Puncture Status Effect: +25% Multishot for 8 seconds. Stacks up to 4x."], notes: ["The multishot bonus stacks additively with mods such as Split Chamber."] },
+            "tier-2-swift-punishment": { descriptionLines: ["Increase Base Damage by +12.", "With Sprint Speed 1.2 or Higher: +30% Direct Damage per Status Type affecting the target."], notes: ["The effect only requires 1.1 or higher sprint speed."] },
+            "tier-3-extended-volley": { descriptionLines: ["Increase Base Magazine Capacity by +15."], notes: ["Does not apply to Incarnon Form's Magazine."] },
+            "tier-4-critical-parallel": { descriptionLines: ["Increase Base Critical Chance by +24%.", "Increase Base Critical Damage Multiplier by +0.2x."], notes: [] },
+        },
+        "latron prime": {
+            "tier-2-riddled-target": { descriptionLines: ["Increase Base Damage by +6.", "On Puncture Status Effect: +25% Multishot for 8 seconds. Stacks up to 4x."], notes: ["The multishot bonus stacks additively with mods such as Split Chamber."] },
+            "tier-2-swift-punishment": { descriptionLines: ["Increase Base Damage by +6.", "With Sprint Speed 1.2 or Higher: +30% Direct Damage per Status Type affecting the target."], notes: ["The effect only requires 1.1 or higher sprint speed."] },
+            "tier-3-extended-volley": { descriptionLines: ["Increase Base Magazine Capacity by +15."], notes: ["Does not apply to Incarnon Form's Magazine."] },
+            "tier-4-critical-parallel": { descriptionLines: ["Increase Base Critical Chance by +24%.", "Increase Base Critical Damage Multiplier by +0.2x."], notes: [] },
+        },
+    };
+    const currentWikiCorrection = currentWikiStatCorrections[normalizedName]?.[option.id];
+    if (currentWikiCorrection) return { ...option, ...currentWikiCorrection };
+
     if (option.id !== "tier-2-crimson-overture") return option;
 
-    const name = normalize(weaponName);
     if (["boltor", "boltor prime", "telos boltor"].includes(name)) {
         return {
             ...option,
@@ -663,7 +877,7 @@ export function resolveIncarnonState(
             attacks = attacks.map((attack) =>
                 attackMatchesScope(attack, adjustment.scope) ? applyScopedAdjustmentToAttack(attack, adjustment) : attack,
             );
-            if (adjustment.scope === "normal" && adjustment.magazineSizeFlat) {
+            if (adjustment.scope === "normal" && selectedScope === "normal" && adjustment.magazineSizeFlat) {
                 nextWeapon = { ...nextWeapon, magazineSize: nextWeapon.magazineSize + adjustment.magazineSizeFlat };
             }
         }
