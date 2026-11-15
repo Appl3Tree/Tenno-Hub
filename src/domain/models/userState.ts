@@ -219,8 +219,9 @@ export interface SavedBuildPlannerConfig {
     meleeComboMultiplier?: number;
     /** User-entered ammo charge for Phantasma's alternate fire. */
     phantasmaChargeAmmo?: number;
-    /** User-entered stance table values; absent values leave stance DPS blank. */
+    /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */
     meleeAverageComboDamageMultiplier?: number;
+    /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */
     meleeBaseComboLengthSeconds?: number;
     /** Explicit Warframe armor used by armor-scaling weapon arcanes such as Primary Bulwark. */
     warframeArmor?: number;

@@ -294,7 +294,7 @@ export const PR = {
     ACTIVITY_NETRACELLS:            "activity_netracells",              // 5x weekly Netracell runs; req. Whispers in the Walls
     ACTIVITY_ARBITRATIONS:          "activity_arbitrations",            // Arbitration rotation; req. Eris Junction task "Equip a Focus Lens" (Update 39+)
                                                                         //   rank-30 frame required; instant-death on down
-    ACTIVITY_ABYSSAL_ZONE:          "activity_abyssal_zone",            // Abyssal Zone mission access; req. Relay access + any pledged main Syndicate at Rank 2
+    ACTIVITY_ABYSSAL_ZONE:          "activity_abyssal_zone",            // Ceres access + an Abyssal Beacon from any main Syndicate at Rank 2
     ACTIVITY_DEEP_ARCHIMEDEA:       "activity_deep_archimedea",         // Elite endgame activity; req. Whispers + Cavia rank 5 (Family)
     ACTIVITY_NETRACELL_COMPLETED:   "activity_netracell_completed",     // Persistent milestone: at least one Netracell has been completed
     ACTIVITY_SISTER_VANQUISHED:     "activity_sister_vanquished",       // Manual milestone for the vanquished Sister's Hound reward
@@ -324,6 +324,7 @@ export const PR = {
                                                                         //   (excluding Jordas Golem, Mutalist Alad V, Brutus, and post-New-War tilesets)
     ACTIVITY_STEEL_PATH_HONORS:     "activity_steel_path_honors",       // Teshin's shop for Steel Essence; req. Steel Path + any Relay
     ACTIVITY_CIRCUIT_STEEL_PATH:    "activity_circuit_steel_path",      // Steel Path Circuit (Incarnon Genesis adapters);
+    ACTIVITY_DUVIRI_STEEL_PATH:     "activity_duviri_steel_path",       // Duviri Steel Path after all three normal Duviri modes;
                                                                         //   req. Duviri Paradox + Steel Path
 
     // ---- Void Fissures ----
@@ -338,6 +339,9 @@ export const PR = {
 
     // ---- The Circuit (Duviri) ----
     ACTIVITY_CIRCUIT:               "activity_the_circuit",             // Circuit run mode; req. Duviri Paradox
+    ACTIVITY_DUVIRI_EXPERIENCE_COMPLETED: "activity_duviri_experience_completed",
+    ACTIVITY_DUVIRI_LONE_STORY_COMPLETED: "activity_duviri_lone_story_completed",
+    ACTIVITY_CIRCUIT_COMPLETED:     "activity_circuit_completed",
 
     // =========================================================================
     // SYNDICATE RANK MILESTONES

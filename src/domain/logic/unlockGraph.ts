@@ -11,6 +11,9 @@ export interface UnlockNodeStatus {
     missing: PrereqId[];        // prereqs not completed
     missingAnyPrerequisites: PrereqId[];
     missingConditions: PrereqCondition[];
+    /** Non-blocking onboarding readiness; separate from the game's actual unlock checks. */
+    progressionReady: boolean;
+    missingProgressionAfter: PrereqId[];
 }
 
 export interface UnlockGraphSnapshot {
@@ -61,7 +64,8 @@ export function buildPrereqIndex(defs: PrereqDef[] = PREREQ_REGISTRY): Record<st
 /**
  * Compute a stable "availability order" rank using dependency depth:
  * - rank = 0 for roots (no prerequisites)
- * - AND parents use their maximum rank; OR parents use their minimum rank.
+ * - Hard AND parents and non-blocking progression-order parents use their maximum rank;
+ *   OR parents use their minimum rank.
  * - rank = 1 + max(AND parent rank, best OR parent rank).
  * Unknown prereqs contribute +1_000_000 (pushes the node late, fail-closed).
  * Cycles are handled fail-closed by assigning a large rank.
@@ -90,20 +94,21 @@ function computeRankById(index: Record<string, PrereqDef>, defs: PrereqDef[]): R
         visiting.add(id);
 
         const prereqs = Array.isArray(def.prerequisites) ? def.prerequisites : [];
+        const progressionParents = Array.isArray(def.progressionAfter) ? def.progressionAfter : [];
         const alternatives = Array.isArray(def.anyPrerequisites) ? def.anyPrerequisites : [];
         const conditionPrereqs = (def.conditions ?? []).flatMap((condition) =>
             condition.type === "quest_complete" ? [condition.prereqId]
                 : condition.type === "junction_complete" ? [condition.junctionId]
                     : [],
         );
-        if (prereqs.length === 0 && alternatives.length === 0 && conditionPrereqs.length === 0) {
+        if (prereqs.length === 0 && progressionParents.length === 0 && alternatives.length === 0 && conditionPrereqs.length === 0) {
             memo[id] = 0;
             visiting.delete(id);
             return memo[id];
         }
 
         let maxChild = 0;
-        for (const p of [...prereqs, ...conditionPrereqs]) {
+        for (const p of [...prereqs, ...progressionParents, ...conditionPrereqs]) {
             const child = index[p] ? rankOf(p) : UNKNOWN_RANK;
             maxChild = Math.max(maxChild, child);
         }
@@ -148,6 +153,8 @@ export function computeUnlockGraphSnapshot(
         const missingAnyPrerequisites = getMissingAnyPrereqs(index, completedMap, d.anyPrerequisites) as PrereqId[];
 
         const missingConditions = getMissingConditions(d, completedMap, context);
+        const missingProgressionAfter = (d.progressionAfter ?? [])
+            .filter((id) => completedMap[String(id)] !== true);
 
         return {
             id: d.id,
@@ -156,6 +163,8 @@ export function computeUnlockGraphSnapshot(
             missing,
             missingAnyPrerequisites,
             missingConditions,
+            progressionReady: missingProgressionAfter.length === 0,
+            missingProgressionAfter,
         };
     });
 
@@ -177,7 +186,7 @@ export function computeUnlockGraphSnapshot(
     }
 
     const actionable = statuses
-        .filter((s) => !s.completed && s.unlocked)
+        .filter((s) => !s.completed && s.unlocked && s.progressionReady)
         .sort(compare);
 
     const blocked = statuses

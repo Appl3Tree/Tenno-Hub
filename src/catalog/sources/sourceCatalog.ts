@@ -91,7 +91,7 @@ const STAR_CHART_REGION_PREREQS: Array<{ prefix: string; prereqIds: string[] }> 
     { prefix: "Eris", prereqIds: [PR.JUNCTION_PLUTO_SEDNA] },
     { prefix: "Lua", prereqIds: [PR.JUNCTION_EARTH_LUA] },
     { prefix: "Kuva Fortress", prereqIds: [PR.KUVA_FORTRESS_ACCESS] },
-    { prefix: "Sanctuary", prereqIds: [PR.HUB_RELAY, PR.NEW_STRANGE] },
+    { prefix: "Sanctuary", prereqIds: [PR.NEW_STRANGE] },
     { prefix: "Earth Proxima", prereqIds: [PR.SYSTEM_PROXIMA_ACCESS] },
     { prefix: "Venus Proxima", prereqIds: [PR.SYSTEM_PROXIMA_ACCESS] },
     { prefix: "Saturn Proxima", prereqIds: [PR.SYSTEM_PROXIMA_SATURN_ACCESS] },
@@ -160,6 +160,10 @@ function inferExtraPrereqsFromSourceLabel(label: string, vendorName?: string): s
     const normalizedVendor = safeString(vendorName)?.toLowerCase();
 
     if (normalizedVendor === "cephalon simaris") {
+        // This exact WFItems phrase describes a quest specific source, while
+        // the generic Simaris vendor remains available through any Relay.
+        if (/Complete The New Strange/i.test(raw)) out.add(PR.NEW_STRANGE);
+
         const labelToPrereqId: Array<[RegExp, string]> = [
             [/Complete The Archwing/i, PR.ARCHWING],
             [/Complete The Sacrifice/i, PR.SACRIFICE],
@@ -213,6 +217,26 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         .replace(/^Transient Reward:\s*/i, "")
         .replace(/^Key Rewards:\s*/i, "")
         .replace(/^Sortie Rewards$/i, "Sorties");
+
+    // Shrine Defense is available only after both Saya's Vigil and Once Awake.
+    // Keep those mission gates on the mission and reward aliases. The Cetus
+    // vendor route is separate and does not require Steel Path access.
+    if (/Saya'?s\s+Visions/i.test(quantityNormalized)) {
+        const prereqIds: string[] = [PR.SAYA_VIGIL, PR.ONCE_AWAKE];
+        if (/Steel Path/i.test(quantityNormalized)) prereqIds.push(PR.ACTIVITY_STEEL_PATH);
+        return { label: raw, prereqIds, type: "drop" };
+    }
+
+    // Conclave is launched from the Orbiter console, which new accounts receive
+    // after Awakening. The location token in drop data is not a Star Chart planet,
+    // and its legacy "(Extra)" tables are not Steel Path missions.
+    if (/\(Conclave\)/i.test(quantityNormalized)) {
+        const prereqIds: string[] = [PR.AWAKENING];
+        if (/Elite Sanctuary Onslaught/i.test(quantityNormalized)) {
+            prereqIds.push(PR.SYSTEM_RANK30_WARFRAME);
+        }
+        return { label: raw, prereqIds, type: "drop" };
+    }
 
     if (/^Sortie Rewards$/i.test(quantityNormalized)) {
         return {
@@ -1002,7 +1026,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/^WFItems Location(?: \(Legacy\))?:\s*Sanctuary$/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.HUB_RELAY, PR.NEW_STRANGE],
+            prereqIds: [PR.NEW_STRANGE],
             type: "drop",
         };
     }
@@ -1031,6 +1055,9 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
             new RegExp(`^WFItems Location(?: \\(Legacy\\))?:\\s*${escapedPrefix}\\s*/\\s*`, "i").test(quantityNormalized)
         ) {
             const sourcePrereqIds = [...prereqIds];
+            if (prefix === "Sanctuary" && /Elite Sanctuary Onslaught/i.test(quantityNormalized)) {
+                sourcePrereqIds.push(PR.SYSTEM_RANK30_WARFRAME);
+            }
             if (/Steel Path/i.test(quantityNormalized)) sourcePrereqIds.push(PR.ACTIVITY_STEEL_PATH);
             return {
                 label: raw,
@@ -1763,8 +1790,12 @@ function buildMissionNodeSources(): RawSource[] {
 
             const id = dataId(["node", planetName, nodeName]);
             const gameMode = safeString((nodeObj as any)?.gameMode);
-            // (Extra) = Steel Path variant — replace in the display label only; ID stays stable.
-            const nodeNameDisplay = String(nodeName).replace(/\s*\(Extra\)\s*$/i, " (Steel Path)");
+            const isConclave = gameMode?.toLowerCase() === "conclave";
+            // The drop dataset also creates (Extra) Conclave rows. Those are not
+            // Steel Path variants; preserve their stable IDs and show their mode.
+            const nodeNameDisplay = isConclave
+                ? String(nodeName).replace(/\s*\(Extra\)\s*$/i, "")
+                : String(nodeName).replace(/\s*\(Extra\)\s*$/i, " (Steel Path)");
             const label = gameMode ? `${planetName} - ${nodeNameDisplay} (${gameMode})` : `${planetName} - ${nodeNameDisplay}`;
             const inferred = inferSourceMetadataFromLabel(label);
             pushUnique(out, seen, id, inferred?.label ?? label, inferred?.type ?? "drop");
@@ -1788,6 +1819,15 @@ function buildMissionDropNodeAliasSources(): RawSource[] {
     const mrRoot = (missionRewardsJson as any)?.missionRewards ?? (missionRewardsJson as any);
     if (!mrRoot || typeof mrRoot !== "object") return out;
 
+    const conclaveNodeKeys = new Set<string>();
+    for (const [planetName, planetObj] of Object.entries(mrRoot as Record<string, any>)) {
+        if (!planetObj || typeof planetObj !== "object") continue;
+        for (const [nodeName, nodeObj] of Object.entries(planetObj as Record<string, any>)) {
+            if (safeString((nodeObj as any)?.gameMode)?.toLowerCase() !== "conclave") continue;
+            conclaveNodeKeys.add(`${slugifyDropNodeToken(planetName)}:${slugifyDropNodeToken(nodeName)}`);
+        }
+    }
+
     for (const [planetNameRaw, planetObj] of Object.entries(mrRoot as Record<string, any>)) {
         if (!planetObj || typeof planetObj !== "object") continue;
 
@@ -1803,7 +1843,10 @@ function buildMissionDropNodeAliasSources(): RawSource[] {
             if (!nodeName || !nodeToken) continue;
 
             const gameMode = safeString((nodeObj as any)?.gameMode);
-            const nodeNameDisplay = nodeName.replace(/\s*\(Extra\)\s*$/i, " (Steel Path)");
+            const isConclave = gameMode?.toLowerCase() === "conclave";
+            const nodeNameDisplay = isConclave
+                ? nodeName.replace(/\s*\(Extra\)\s*$/i, "")
+                : nodeName.replace(/\s*\(Extra\)\s*$/i, " (Steel Path)");
             const label = gameMode
                 ? `Mission: ${planetName} - ${nodeNameDisplay} (${gameMode})`
                 : `Mission: ${planetName} - ${nodeNameDisplay}`;
@@ -1835,7 +1878,11 @@ function buildMissionDropNodeAliasSources(): RawSource[] {
         if (!match) continue;
 
         const [, planetToken, nodeToken] = match;
-        const label = `Mission: ${humanizeDropNodePlanet(planetToken)} - ${titleCaseTokenWords(nodeToken)}`;
+        const isConclave = conclaveNodeKeys.has(`${planetToken}:${nodeToken}`);
+        const nodeNameDisplay = isConclave
+            ? titleCaseTokenWords(nodeToken.replace(/_extra$/i, ""))
+            : titleCaseTokenWords(nodeToken);
+        const label = `Mission: ${humanizeDropNodePlanet(planetToken)} - ${nodeNameDisplay}${isConclave ? " (Conclave)" : ""}`;
         const inferred = inferSourceMetadataFromLabel(label);
         pushUnique(out, seen, rawSourceId, inferred?.label ?? label, inferred?.type ?? "drop");
         if (inferred?.prereqIds?.length) {
@@ -1923,7 +1970,8 @@ function buildMissionRewardSources(): RawSource[] {
     const mrRoot = (missionRewardsJson as any)?.missionRewards ?? (missionRewardsJson as any);
     if (!mrRoot || typeof mrRoot !== "object" || Array.isArray(mrRoot)) return out;
 
-    // Only strip (Caches) — (Extra) is the Steel Path variant and gets its own source ID + label.
+    // Only strip (Caches). For ordinary Star Chart nodes, (Extra) denotes Steel
+    // Path; the Conclave dataset also uses it for duplicate reward rows.
     const stripNodeSuffix = (s: string): string => s.replace(/\s*\(Caches\)\s*$/i, "");
 
     for (const [planetName, planetObj] of Object.entries(mrRoot as Record<string, any>)) {
@@ -1933,17 +1981,19 @@ function buildMissionRewardSources(): RawSource[] {
             if (!nodeObj || typeof nodeObj !== "object") continue;
 
             const nodeNameBase = stripNodeSuffix(String(nodeNameRaw));
+            const isConclave = safeString((nodeObj as any)?.gameMode)?.toLowerCase() === "conclave";
 
-            // (Extra) suffix = Steel Path variant. Use it as-is for the ID (tokenizer strips parens),
-            // but replace "(Extra)" with "(Steel Path)" in the human-readable label.
-            const isSteelPath = /\s*\(Extra\)\s*$/i.test(nodeNameBase);
+            // (Extra) suffix = Steel Path variant only for ordinary Star Chart nodes.
+            const isSteelPath = !isConclave && /\s*\(Extra\)\s*$/i.test(nodeNameBase);
             const nodeNameDisplay = isSteelPath
                 ? nodeNameBase.replace(/\s*\(Extra\)\s*$/i, " (Steel Path)")
-                : nodeNameBase;
+                : isConclave
+                    ? nodeNameBase.replace(/\s*\(Extra\)\s*$/i, "")
+                    : nodeNameBase;
 
             // Canonical ids (match what your jq script expects: data:missionreward/<planet>/<baseNode>)
             const baseId = dataId(["missionreward", String(planetName), nodeNameBase]);
-            const baseLabel = `Mission Reward: ${planetName} / ${nodeNameDisplay}`;
+            const baseLabel = `Mission Reward: ${planetName} / ${nodeNameDisplay}${isConclave ? " (Conclave)" : ""}`;
             const baseInferred = inferSourceMetadataFromLabel(baseLabel);
             pushUnique(out, seen, baseId, baseInferred?.label ?? baseLabel, baseInferred?.type ?? "drop");
             if (baseInferred?.prereqIds?.length) {
@@ -2636,6 +2686,53 @@ function buildDropDataRuntimeSrcSources(): RawSource[] {
 }
 
 // Exported catalog lists
+function supplementSourcePrerequisites(source: RawSource): RawSource {
+    const label = source.label;
+    const isConclaveSource = /\(Conclave\)/i.test(label);
+    const isDuviriSource = /Duviri/i.test(label) || /(?:^|[/:])duviri(?:[/:]|$)/i.test(String(source.id));
+    const additions: string[] = [];
+    let prereqIds = [...(source.prereqIds ?? [])];
+
+    if (/^WFItems Location(?: \(Legacy\))?:\s*Cephalon Simaris\b/i.test(label)) {
+        additions.push(...inferExtraPrereqsFromSourceLabel(label, "Cephalon Simaris"));
+    }
+    if (/^Transient Reward:\s*Faceoff:/i.test(label)) additions.push(PR.THE_HEX);
+    if (/Kuva (?:Flood|Siphon)/i.test(label)) {
+        prereqIds = [PR.WAR_WITHIN, PR.MR_5];
+    }
+    if (/Nightmare Granum Void/i.test(label)) additions.push(PR.DEADLOCK_PROTOCOL);
+    if (/Arbitration Shield Drone/i.test(label)) additions.push(PR.ACTIVITY_ARBITRATIONS);
+    if (/Void Storm\s*\(Veil Proxima\)/i.test(label)) {
+        prereqIds = [PR.SYSTEM_PROXIMA_VEIL_ACCESS];
+    }
+
+    if (isDuviriSource && /(?:Steel Path|\bHard\b)/i.test(label)) {
+        const hasSpecificCircuitGate = prereqIds.includes(PR.ACTIVITY_CIRCUIT_STEEL_PATH);
+        const replacedDuviriGates = new Set<string>([
+            PR.DUVIRI_PARADOX,
+            PR.ACTIVITY_STEEL_PATH,
+            ...(!hasSpecificCircuitGate ? [PR.ACTIVITY_CIRCUIT_STEEL_PATH] : []),
+        ]);
+        prereqIds = prereqIds.filter((id) => !replacedDuviriGates.has(id));
+        if (!hasSpecificCircuitGate) additions.push(PR.ACTIVITY_DUVIRI_STEEL_PATH);
+    } else if (/^Transient Reward:\s*Duviri Circuit$/i.test(label)
+        || /^Transient Reward:\s*Duviri Full Experience$/i.test(label)
+        || /Duviri Murmur Invasion Rewards/i.test(label)) {
+        additions.push(PR.DUVIRI_PARADOX);
+    }
+
+    if (/\bSteel Path\b/i.test(label) && !isDuviriSource && !isConclaveSource) additions.push(PR.ACTIVITY_STEEL_PATH);
+
+    const originalPrereqs = source.prereqIds ?? [];
+    if (additions.length === 0
+        && prereqIds.length === originalPrereqs.length
+        && prereqIds.every((id, index) => id === originalPrereqs[index])) return source;
+    return {
+        ...source,
+        prereqIds: Array.from(new Set([...prereqIds, ...additions])),
+    };
+}
+
 export const SOURCE_CATALOG: RawSource[] = [
     ...(CURATED_SOURCES as unknown as RawSource[]),
     ...buildWfcdDropSources(),
@@ -2647,7 +2744,7 @@ export const SOURCE_CATALOG: RawSource[] = [
     ...buildWfItemsLocSources(),
     ...buildDropDataSupplementSources(),
     ...buildDropDataRuntimeSrcSources(),
-];
+].map(supplementSourcePrerequisites);
 
 export const SOURCE_INDEX: Record<SourceId, Source> = (() => {
     const index = {} as Record<SourceId, Source>;

@@ -1,7 +1,7 @@
 # Build Planner Optimizer Benchmark
 
 Run date: 2026-11-14; current full-width refresh: 2026-11-13
-Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
+Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
 ## Source-backed weapon augment parser and full-width refresh (2026-11-14)
@@ -1316,7 +1316,7 @@ Epitaph Charged Shot / Burst returned the same eight-mod list and score (241,624
 # Build Planner Optimizer Benchmark
 
 Run date: 2026-11-14; current full-width refresh: 2026-11-13
-Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
+Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
 ## Expected TTK refinement coverage and production baseline (2026-11-14)

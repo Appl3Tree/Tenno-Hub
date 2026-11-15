@@ -148,8 +148,12 @@ export default function Prerequisites() {
     }
 
     const categories = Object.keys(grouped);
-    const actionableCount = snap.actionable.length;
-    const lockedCount = Math.max(0, totals.total - totals.done - actionableCount);
+    const actionableCount = snap.actionable
+        .filter((status) => snap.index[status.id]?.showInPlanner !== false).length;
+    const lockedCount = snap.blocked.filter((status) => !status.completed).length;
+    const queuedCount = snap.statuses.filter((status) =>
+        !status.completed && status.unlocked && !status.progressionReady,
+    ).length;
 
     return (
         <div className="flex flex-col gap-4">
@@ -168,6 +172,7 @@ export default function Prerequisites() {
                         <WorkspaceStat label="Completed" value={totals.done.toLocaleString()} hint="Requirements currently marked complete." />
                         <WorkspaceStat label="Actionable" value={actionableCount.toLocaleString()} hint="Unlock steps that can be worked on right now." />
                         <WorkspaceStat label="Locked" value={lockedCount.toLocaleString()} hint="Requirements still blocked by earlier progression work." />
+                        <WorkspaceStat label="Queued" value={queuedCount.toLocaleString()} hint="Non-blocking tracks introduced after their linked progression step." />
                         <WorkspaceStat label="Categories" value={Object.keys(categoryTotals).length.toLocaleString()} hint="Grouped progression tracks represented in the registry." />
                     </>
                 }
@@ -256,6 +261,7 @@ export default function Prerequisites() {
                                     const missingConditionLabels = st.missingConditions.map((cond) =>
                                         describePrereqCondition(cond, (id) => labelFor(id)),
                                     );
+                                    const missingProgressionLabels = (snap.byId[d.id]?.missingProgressionAfter ?? []).map(labelFor);
                                     const missingAnyLabels = st.missingAnyPrerequisites.length > 0
                                         ? [`Either ${st.missingAnyPrerequisites.map((id) => labelFor(id)).join(" or ")}`]
                                         : [];
@@ -292,6 +298,10 @@ export default function Prerequisites() {
                                                         <input
                                                             type="checkbox"
                                                             checked={st.completed}
+                                                            disabled={missingProgressionLabels.length > 0 && !st.completed}
+                                                            title={missingProgressionLabels.length > 0 && !st.completed
+                                                                ? `Available in the progression plan after ${missingProgressionLabels.join(", ")}.`
+                                                                : undefined}
                                                             onChange={(e) => setPrereqCompleted(d.id, e.target.checked)}
                                                             className="w-4 h-4 accent-emerald-500"
                                                         />
@@ -322,6 +332,9 @@ export default function Prerequisites() {
 
                                                         {locked && !st.completed && (
                                                             <span className="text-[10px] text-amber-400/80">locked</span>
+                                                        )}
+                                                        {missingProgressionLabels.length > 0 && !st.completed && (
+                                                            <span className="text-[10px] text-sky-400/80">After {missingProgressionLabels.join(", ")}</span>
                                                         )}
                                                     </div>
 

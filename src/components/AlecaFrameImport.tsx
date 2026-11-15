@@ -792,4 +792,3 @@ export default function AlecaFrameImport() {
 function sectionKey(section: string, index: number, order: number): string {
   return section + ":" + index + ":" + order;
 }
-

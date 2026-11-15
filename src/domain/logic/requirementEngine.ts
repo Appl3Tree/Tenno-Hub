@@ -15,7 +15,6 @@ import type { SourceId } from "../ids/sourceIds";
 import { SOURCE_INDEX } from "../../catalog/sources/sourceCatalog";
 import { getAcquisitionByCatalogId } from "../../catalog/items/itemAcquisition";
 import { evaluateSourcePrerequisiteAccess } from "./sourcePrerequisiteAccess";
-
 import type { PrereqId } from "../ids/prereqIds";
 
 import { PROGRESSION_ITEM_IDS } from "../../catalog/items/itemsIndex";
@@ -559,10 +558,12 @@ function isDirectGoalFarmScope(catalogId: CatalogId): boolean {
 function canAccessSource(sourceId: SourceId, completedPrereqs: Record<string, boolean>): boolean {
     const sidStr = String(sourceId);
 
+
     // "data:*" synthetic sources are allowed by default unless SOURCE_INDEX explicitly gates them.
     if (sidStr.startsWith("data:")) {
         const def = SOURCE_INDEX[sourceId];
         if (!def) return true;
+
         return evaluateSourcePrerequisiteAccess(sourceId, completedPrereqs).accessible;
     }
 
@@ -585,6 +586,7 @@ function getMissingPrereqsForSources(args: {
 
     for (const sid of sourceIds) {
         const sidStr = String(sid);
+
 
         // Synthetic sources ("data:*") do NOT count as uncurated gates when missing from SOURCE_INDEX.
         // If SOURCE_INDEX defines them, we respect prereqIds.

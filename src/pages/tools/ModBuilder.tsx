@@ -31,6 +31,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
 import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, enemyStatLevelMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
@@ -420,22 +421,7 @@ interface BuildMathBreakdown {
     sections: BuildMathSection[];
 }
 
-interface MeleeDpsInputState {
-    averageComboDamageMultiplier: number | null;
-    baseComboLengthSeconds: number | null;
-}
-
-function parsePositivePlannerInput(value: string, max: number): number | null {
-    if (!value.trim()) return null;
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return null;
-    return Math.min(max, parsed);
-}
-
-function readPositivePlannerInput(value: number | undefined, max: number): number | null {
-    if (!Number.isFinite(value) || (value ?? 0) <= 0) return null;
-    return Math.min(max, value ?? max);
-}
+type MeleeDpsInputState = WikiMeleeStanceCombo;
 
 function readWarframeArmor(value: number | undefined): number | undefined {
     if (!Number.isFinite(value) || (value ?? -1) < 0) return undefined;
@@ -494,8 +480,7 @@ interface BuildExportPayload {
         warframeMaxEnergy?: number;
         warframeEnergyPercent?: number;
         selectedAttackIdx: number;
-        meleeAverageComboDamageMultiplier?: number | null;
-        meleeBaseComboLengthSeconds?: number | null;
+        meleeStanceCombo: (WikiMeleeStanceCombo & { sourceUrl: string; verifiedAt: string }) | null;
     };
     optimizer: {
         mode: OptimizeMode;
@@ -1260,7 +1245,7 @@ function buildMathBreakdown(
     targetFaction = "",
     conditionalState: ConditionalState = DEFAULT_CONDITIONAL_STATE,
     targetProfileOverride?: TargetProfileOverride,
-    meleeDpsInputs?: MeleeDpsInputState,
+    meleeDpsInputs?: MeleeDpsInputState | null,
 ): BuildMathBreakdown {
     const totals = sumEffects(effects);
     const result = calculateBuild(weapon, effects, targetFaction, {
@@ -1271,8 +1256,7 @@ function buildMathBreakdown(
     });
     const stats = result.modded;
     const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
-        meleeDpsInputs?.averageComboDamageMultiplier != null &&
-        meleeDpsInputs.baseComboLengthSeconds != null
+        meleeDpsInputs != null
         ? calculateBuild(weapon, effects, targetFaction, {
             conditionalState: { mode: "initial" },
             statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
@@ -1280,9 +1264,10 @@ function buildMathBreakdown(
             targetStatusState: "initial",
         }).modded
         : null;
-    const meleeAverageDps = meleeDpsBaseline && meleeDpsInputs?.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+    const meleeAverageDps = meleeDpsBaseline && meleeDpsInputs
         ? calculateMeleeAverageDps(meleeDpsBaseline, {
-            averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+            totalDamageMultiplier: meleeDpsInputs.totalDamageMultiplier,
+            totalSlashProcMultiplier: meleeDpsInputs.totalSlashProcMultiplier,
             baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
         })
         : null;
@@ -1521,13 +1506,14 @@ function buildMathBreakdown(
                     : `Sustained DPS = average damage ${fmt(stats.averageShotDamage, 5)} × fire rate ${fmt(stats.fireRate, 5)} × magazine duty cycle ${fmt(stats.magazineDutyCycle, 6)} × sustained ramp ${fmt(stats.sustainedDamageMultiplier, 6)} × average magazine damage ${fmt(stats.magazineAverageDamageMultiplier, 6)} = ${fmt(result.sustainedDPS, 5)}`,
                 ...damageRampLines,
                 ...(usesMeleeDamageModel(weapon.category)
-                    ? meleeAverageDps && meleeDpsInputs?.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+                    ? meleeAverageDps && meleeDpsInputs
                         ? [
-                            `Stance average hit = average combo damage multiplier ${fmt(meleeDpsInputs.averageComboDamageMultiplier, 5)} × initial-state quantized damage ${fmt(meleeDpsBaseline?.totalDamage ?? 0, 5)} × expected hit damage multiplier ${fmt(meleeAverageDps.expectedHitDamageMultiplier, 6)} = ${fmt(meleeAverageDps.averageHit, 5)}`,
+                            `Wiki ${meleeDpsInputs.comboType} combo damage multiplier = direct ${fmt(meleeDpsInputs.totalDamageMultiplier, 5)} + forced Slash ${fmt(meleeDpsInputs.totalSlashProcMultiplier, 5)} = ${fmt(meleeDpsInputs.totalDamageMultiplier + meleeDpsInputs.totalSlashProcMultiplier, 5)} (${meleeDpsInputs.comboName})`,
+                            `Stance average combo damage = combined Wiki multiplier ${fmt(meleeDpsInputs.totalDamageMultiplier + meleeDpsInputs.totalSlashProcMultiplier, 5)} × initial-state quantized damage ${fmt(meleeDpsBaseline?.totalDamage ?? 0, 5)} × expected hit damage multiplier ${fmt(meleeAverageDps.expectedHitDamageMultiplier, 6)} = ${fmt(meleeAverageDps.averageHit, 5)}`,
                             `Stance average DPS = average hit ${fmt(meleeAverageDps.averageHit, 5)} × modded attack speed ${fmt(meleeDpsBaseline?.fireRate ?? 0, 5)} ÷ base combo length ${fmt(meleeDpsInputs.baseComboLengthSeconds, 5)}s = ${fmt(meleeAverageDps.averageDps, 5)}`,
-                            "Stance DPS inputs are user-entered from the stance reference table. The estimate excludes status effects, target defenses, and follow-through.",
+                            `Data: Warframe Wiki Stance comparison table, checked ${WIKI_MELEE_STANCE_VERIFIED_AT}. Combo timing is approximate; the Wiki warns its comparison formula omits combo physical-damage bonuses. The estimate also excludes status history, target defenses, and follow-through.`,
                         ]
-                        : ["Stance average DPS is unavailable until average combo damage multiplier and base combo length are entered from the selected stance's reference data."]
+                        : ["Stance average DPS is unavailable because the selected stance has no timed Neutral combo in the Wiki reference table."]
                     : []),
                 ...(!usesMeleeDamageModel(weapon.category) && !weapon.isExalted ? [
                     `Ordinary ammo efficiency = ${fmt(stats.ammoEfficiencyBonus * 100, 3)}% after additive bonuses and the 75% cap${weapon.selectedAttackIsIncarnon ? " (ignored in transformed Incarnon form)" : ""}${stats.infiniteAmmoActive ? "; Gale Force is modeled separately as maintained infinite ammo" : ""}`,
@@ -1566,7 +1552,7 @@ function buildMathBreakdown(
 function buildExportPayload(args: {
     weapon: WeaponEntry | null;
     selectedAttackIdx: number;
-    meleeDpsInputs: MeleeDpsInputState;
+    meleeDpsInputs: MeleeDpsInputState | null;
     goal: OptimizeGoal;
     conditionalState: ConditionalState;
     targetFaction: string | null;
@@ -1648,8 +1634,7 @@ function buildExportPayload(args: {
         statusStackCaps: targetProfileOverride?.statusStackCaps,
     });
     const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
-        meleeDpsInputs.averageComboDamageMultiplier != null &&
-        meleeDpsInputs.baseComboLengthSeconds != null
+        meleeDpsInputs != null
         ? calculateBuild(calcWeapon, effects, targetFaction ?? "", {
             conditionalState: { mode: "initial" },
             statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
@@ -1657,17 +1642,19 @@ function buildExportPayload(args: {
             targetStatusState: "initial",
         }).modded
         : null;
-    const meleeAverageDps = meleeDpsBaseline && meleeDpsInputs.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+    const meleeAverageDps = meleeDpsBaseline && meleeDpsInputs
         ? calculateMeleeAverageDps(meleeDpsBaseline, {
-            averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+            totalDamageMultiplier: meleeDpsInputs.totalDamageMultiplier,
+            totalSlashProcMultiplier: meleeDpsInputs.totalSlashProcMultiplier,
             baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
         })
         : null;
     const calculatedWithMeleeDps = {
         ...calculated,
-        meleeAverageDps: meleeAverageDps && meleeDpsInputs.averageComboDamageMultiplier != null && meleeDpsInputs.baseComboLengthSeconds != null
+        meleeAverageDps: meleeAverageDps && meleeDpsInputs
             ? {
-                averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+                totalDamageMultiplier: meleeDpsInputs.totalDamageMultiplier,
+                totalSlashProcMultiplier: meleeDpsInputs.totalSlashProcMultiplier,
                 baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
                 averageHit: meleeAverageDps.averageHit,
                 averageDps: meleeAverageDps.averageDps,
@@ -1733,12 +1720,13 @@ function buildExportPayload(args: {
             warframeMaxEnergy,
             warframeEnergyPercent,
             selectedAttackIdx,
-            meleeAverageComboDamageMultiplier: usesMeleeDamageModel(weapon.category)
-                ? meleeDpsInputs.averageComboDamageMultiplier
-                : undefined,
-            meleeBaseComboLengthSeconds: usesMeleeDamageModel(weapon.category)
-                ? meleeDpsInputs.baseComboLengthSeconds
-                : undefined,
+            meleeStanceCombo: usesMeleeDamageModel(weapon.category) && meleeDpsInputs
+                ? {
+                    ...meleeDpsInputs,
+                    sourceUrl: WIKI_MELEE_STANCE_SOURCE_URL,
+                    verifiedAt: WIKI_MELEE_STANCE_VERIFIED_AT,
+                }
+                : null,
         },
         optimizer: {
             mode: optimizeMode,
@@ -3008,6 +2996,7 @@ export default function ModBuilder() {
     const [stanceMod, setStanceMod]    = useState<ModEntry | null>(null);
     const [stanceRank, setStanceRank]  = useState(0);
     const [stancePol, setStancePol]    = useState("");
+    const meleeDpsInputs = useMemo(() => getWikiMeleeStanceCombo(stanceMod?.name), [stanceMod?.name]);
     // Exilus
     const [hasExilus, setHasExilus]    = useState(false);
     const [exilusMod, setExilusMod]    = useState<ModEntry | null>(null);
@@ -3047,12 +3036,8 @@ export default function ModBuilder() {
     const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
-    const [meleeDpsInputs, setMeleeDpsInputs] = useState<MeleeDpsInputState>({
-        averageComboDamageMultiplier: null,
-        baseComboLengthSeconds: null,
-    });
     const meleeDpsModelNote = weapon && usesMeleeDamageModel(weapon.category)
-        ? "Default burst and sustained DPS remain attack-rate estimates. The combo scenario scales Blood Rush, Weeping Wounds, and selected heavy-attack damage. The stats panel projects one-hit Heavy Attack Efficiency retention. Direct-hit TTK steps repeated Heavy Attacks and restores Initial Combo at 40 points/s; it still excludes attack-generated combo, Tennokai, stance sequences, and heavy-attack wind-up. DPS, finite status encounter, and optimizer scoring hold the entered tier across each scored hit. Optional stance-average DPS uses user-entered average combo damage and base combo length; it excludes status effects, target defenses, and follow-through."
+        ? "Default burst and sustained DPS remain attack-rate estimates. The combo scenario scales Blood Rush, Weeping Wounds, and selected heavy-attack damage. The stats panel projects one-hit Heavy Attack Efficiency retention. Direct-hit TTK steps repeated Heavy Attacks and restores Initial Combo at 40 points/s; it still excludes attack-generated combo, Tennokai, stance sequences, and heavy-attack wind-up. DPS, finite status encounter, and optimizer scoring hold the entered tier across each scored hit. Stance DPS uses the selected stance's Wiki Neutral combo, including its direct and forced-Slash multipliers; Wiki timings are approximate and its comparison formula omits combo physical-damage bonuses."
         : "";
     const maxMeleeComboMultiplier = weapon ? getMeleeComboRules(weapon).maxMultiplier : 12;
     useEffect(() => {
@@ -3248,8 +3233,6 @@ export default function ModBuilder() {
             externalStatusTypeCount,
             meleeComboMultiplier,
             phantasmaChargeAmmo,
-            meleeAverageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier ?? undefined,
-            meleeBaseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds ?? undefined,
             warframeArmor,
             warframeMaxEnergy,
             warframeEnergyPercent,
@@ -3288,7 +3271,6 @@ export default function ModBuilder() {
         externalStatusTypeCount,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
-        meleeDpsInputs,
         warframeArmor,
         warframeMaxEnergy,
         warframeEnergyPercent,
@@ -3373,7 +3355,6 @@ export default function ModBuilder() {
         setArcane1(null); setArcane1Rank(0);
         setSelectedAttackIdx(0);
         setPhantasmaChargeAmmo(2);
-        setMeleeDpsInputs({ averageComboDamageMultiplier: null, baseComboLengthSeconds: null });
         setIncarnonPickerTier(null);
         setShowMathWindow(false);
         if (opts?.resetConfig) {
@@ -3980,10 +3961,11 @@ export default function ModBuilder() {
     const meleeAverageDps = useMemo(() => {
         if (
             !weapon || !usesMeleeDamageModel(weapon.category) || !initialTargetMetrics ||
-            meleeDpsInputs.averageComboDamageMultiplier == null || meleeDpsInputs.baseComboLengthSeconds == null
+            !meleeDpsInputs
         ) return null;
         return calculateMeleeAverageDps(initialTargetMetrics.modded, {
-            averageComboDamageMultiplier: meleeDpsInputs.averageComboDamageMultiplier,
+            totalDamageMultiplier: meleeDpsInputs.totalDamageMultiplier,
+            totalSlashProcMultiplier: meleeDpsInputs.totalSlashProcMultiplier,
             baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
         });
     }, [weapon, initialTargetMetrics, meleeDpsInputs]);
@@ -4696,10 +4678,6 @@ export default function ModBuilder() {
             setPhantasmaChargeAmmo(Number.isFinite(plannerConfig.phantasmaChargeAmmo)
                 ? Math.max(2, Math.min(50, Math.round(plannerConfig.phantasmaChargeAmmo ?? 2)))
                 : 2);
-            setMeleeDpsInputs({
-                averageComboDamageMultiplier: readPositivePlannerInput(plannerConfig.meleeAverageComboDamageMultiplier, 50),
-                baseComboLengthSeconds: readPositivePlannerInput(plannerConfig.meleeBaseComboLengthSeconds, 60),
-            });
             const attackIndexByName = plannerConfig.attackName
                 ? weapon.attacks.findIndex((attack) => attack.name === plannerConfig.attackName)
                 : -1;
@@ -5581,60 +5559,28 @@ export default function ModBuilder() {
                                                         )}
                                                 {weapon && usesMeleeDamageModel(weapon.category) && (
                                                     <div className="rounded-md border border-slate-700/70 bg-slate-900/40 px-3 py-3 space-y-2">
-                                                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">Stance-average DPS inputs</div>
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <label className="space-y-1 text-[10px] text-slate-400">
-                                                                <span className="block">Average combo damage multiplier</span>
-                                                                <input
-                                                                    type="number"
-                                                                    min={0.01}
-                                                                    max={50}
-                                                                    step={0.01}
-                                                                    inputMode="decimal"
-                                                                    aria-label="Average combo damage multiplier"
-                                                                    value={meleeDpsInputs.averageComboDamageMultiplier ?? ""}
-                                                                    onChange={(event) => setMeleeDpsInputs((previous) => ({
-                                                                        ...previous,
-                                                                        averageComboDamageMultiplier: parsePositivePlannerInput(event.target.value, 50),
-                                                                    }))}
-                                                                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-sky-500"
-                                                                />
-                                                            </label>
-                                                            <label className="space-y-1 text-[10px] text-slate-400">
-                                                                <span className="block">Base combo length (seconds)</span>
-                                                                <input
-                                                                    type="number"
-                                                                    min={0.01}
-                                                                    max={60}
-                                                                    step={0.01}
-                                                                    inputMode="decimal"
-                                                                    aria-label="Base combo length in seconds"
-                                                                    value={meleeDpsInputs.baseComboLengthSeconds ?? ""}
-                                                                    onChange={(event) => setMeleeDpsInputs((previous) => ({
-                                                                        ...previous,
-                                                                        baseComboLengthSeconds: parsePositivePlannerInput(event.target.value, 60),
-                                                                    }))}
-                                                                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-sky-500"
-                                                                />
-                                                            </label>
-                                                        </div>
+                                                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">Wiki stance DPS estimate</div>
                                                         {meleeAverageDps ? (
-                                                            <p className="text-[11px] text-sky-200">
-                                                                {stanceMod?.name ?? "Selected stance"}: {fmt(meleeAverageDps.averageHit)} average combo hit · {fmt(meleeAverageDps.averageDps)} stance-average DPS
-                                                            </p>
+                                                            <div className="space-y-1 text-[11px] text-sky-200">
+                                                                <p>{meleeDpsInputs?.stanceName} · Neutral: {meleeDpsInputs?.comboName}</p>
+                                                                <p>{fmt(meleeDpsInputs?.totalDamageMultiplier ?? 0, 2)}× direct + {fmt(meleeDpsInputs?.totalSlashProcMultiplier ?? 0, 2)}× forced Slash · {fmt(meleeDpsInputs?.baseComboLengthSeconds ?? 0, 2)}s approximate combo</p>
+                                                                <p>{fmt(meleeAverageDps.averageHit)} average combo damage · {fmt(meleeAverageDps.averageDps)} stance-average DPS</p>
+                                                            </div>
                                                         ) : (
                                                             <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                Enter both values from the current stance reference table. No stance values are inferred or prefilled.
+                                                                {stanceMod
+                                                                    ? `The Wiki has no timed Neutral combo for ${stanceMod.name}; no stance estimate is shown.`
+                                                                    : "Select a stance to calculate its Wiki-backed Neutral combo estimate automatically."}
                                                             </p>
                                                         )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setMeleeDpsInputs({ averageComboDamageMultiplier: null, baseComboLengthSeconds: null })}
-                                                            disabled={meleeDpsInputs.averageComboDamageMultiplier == null && meleeDpsInputs.baseComboLengthSeconds == null}
-                                                            className="text-[10px] text-slate-400 underline decoration-slate-600 underline-offset-2 hover:text-slate-200 disabled:opacity-40"
+                                                        <a
+                                                            href={WIKI_MELEE_STANCE_SOURCE_URL}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-block text-[10px] text-slate-400 underline decoration-slate-600 underline-offset-2 hover:text-slate-200"
                                                         >
-                                                            Clear stance inputs
-                                                        </button>
+                                                            Warframe Wiki stance comparison · checked {WIKI_MELEE_STANCE_VERIFIED_AT}
+                                                        </a>
                                                     </div>
                                                 )}
                                                         <div>

@@ -302,9 +302,11 @@ export interface DamageMetrics {
 }
 
 export interface MeleeAverageDpsParameters {
-    /** Stance-table average combo damage multiplier, entered by the user. */
-    averageComboDamageMultiplier: number;
-    /** Stance-table base combo length in seconds, entered by the user. */
+    /** Wiki stance-table direct damage multiplier for the selected combo. */
+    totalDamageMultiplier: number;
+    /** Wiki stance-table forced Slash proc multiplier for the selected combo. */
+    totalSlashProcMultiplier: number;
+    /** Wiki stance-table combo length in seconds, measured at 1.0 attack speed. */
     baseComboLengthSeconds: number;
 }
 
@@ -376,8 +378,8 @@ export function avgHitDamageMultiplier(
 
 /**
  * Wiki stance-comparison DPS formula using the build's quantized, pre-target hit
- * damage and expected per-hit damage multiplier. Stance values are explicit inputs because
- * this project does not yet have a coverage-verified stance timing catalog.
+ * damage, the stance's direct and forced-Slash combo multipliers, and expected
+ * per-hit damage multiplier. Source data is supplied by the stance catalog.
  */
 export function calculateMeleeAverageDps(
     stats: Pick<ModdedWeaponStats, "totalDamage" | "critChance" | "critMultiplier" | "fireRate" | "nonCriticalHitDamageProcs">,
@@ -388,13 +390,16 @@ export function calculateMeleeAverageDps(
         stats.critChance,
         stats.critMultiplier,
         stats.fireRate,
-        parameters.averageComboDamageMultiplier,
+        parameters.totalDamageMultiplier,
+        parameters.totalSlashProcMultiplier,
         parameters.baseComboLengthSeconds,
     ];
     if (
         !values.every(Number.isFinite) ||
         stats.totalDamage < 0 || stats.critChance < 0 || stats.critMultiplier < 0 || stats.fireRate < 0 ||
-        parameters.averageComboDamageMultiplier <= 0 || parameters.baseComboLengthSeconds <= 0
+        parameters.totalDamageMultiplier < 0 || parameters.totalSlashProcMultiplier < 0 ||
+        parameters.totalDamageMultiplier + parameters.totalSlashProcMultiplier <= 0 ||
+        parameters.baseComboLengthSeconds <= 0
     ) return null;
 
     const expectedHitDamageMultiplier = avgHitDamageMultiplier(
@@ -403,7 +408,7 @@ export function calculateMeleeAverageDps(
         stats.nonCriticalHitDamageProcs,
     );
     const averageHit =
-        parameters.averageComboDamageMultiplier *
+        (parameters.totalDamageMultiplier + parameters.totalSlashProcMultiplier) *
         stats.totalDamage *
         expectedHitDamageMultiplier;
     return {
@@ -1915,4 +1920,3 @@ export function estimateFiniteIndependentDotDps(
     );
     return (damagePerTick * expectedProcsPerShot * finiteTicks) / encounterDurationSeconds;
 }
-

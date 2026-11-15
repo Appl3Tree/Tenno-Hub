@@ -4,7 +4,8 @@
 // Updated: 2026-11 — current progression gates through Update 44.1.4.1.
 //
 // Design rules:
-// - Entries represent gates a player must pass through on the path to endgame.
+// - Hard prerequisites represent verified game-enforced access or acquisition requirements.
+// - progressionAfter is a non-blocking onboarding order link; it never claims a game gate.
 // - showInPlanner: false = tracked on Prerequisites page, excluded from planner.
 // - Mastery Rank modeled only as `conditions`, never as a registry row.
 
@@ -70,6 +71,8 @@ export interface PrereqDef {
     prerequisites: PrereqId[];
     /** At least one item in this alternative group must be complete. */
     anyPrerequisites?: PrereqId[];
+    /** Non-blocking sequence links used to introduce standalone progression tracks after onboarding. */
+    progressionAfter?: PrereqId[];
     conditions?: PrereqCondition[];
     /** Sources supporting the current direct gate(s) for this entry. */
     evidence?: PrereqEvidence[];
@@ -415,9 +418,9 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.VOX_SOLARIS,
         label: "Vox Solaris",
         category: "SideQuests",
-        description: "Unlocks Solaris United bounty progression and Ventkids access in Fortuna / Orb Vallis.",
-        prerequisites: [PR.THE_TEACHER, PR.HUB_FORTUNA],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vox_Solaris_%28Quest%29", verifiedOn: "2026-11-09", classification: "required", note: "The quest page says Vox Solaris is available after The Teacher, then requires reaching Fortuna through the Venus Junction and speaking to Eudico. Both the quest flag and location access are represented." }]
+        description: "Start the quest by speaking to Eudico in Fortuna. Access to Fortuna currently follows the Venus Junction.",
+        prerequisites: [PR.HUB_FORTUNA],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vox_Solaris_%28Quest%29", verifiedOn: "2026-11-14", classification: "required", note: "The current quest requirement panel says to talk with Eudico in Fortuna. It does not list The Teacher as a separate quest check; Fortuna access already follows the Venus Junction." }]
     },
     {
         id: PR.HEART_OF_DEIMOS,
@@ -448,9 +451,11 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.CALL_TEMPESTARII,
         label: "Call of the Tempestarii",
         category: "SideQuests",
-        description: "Unlocks Sisters of Parvos and Corpus Proxima Railjack nodes. Requires a completed Railjack, The Deadlock Protocol, and MR4.",
-        prerequisites: [PR.RAILJACK_CONSTRUCTED, PR.DEADLOCK_PROTOCOL],
-        conditions: [{ type: "mastery_rank", value: 4 }]
+        description: "Unlocks Sisters of Parvos and Corpus Proxima Railjack nodes. Requires The Deadlock Protocol, MR4, and a Railjack obtained through Rising Tide or the Market.",
+        prerequisites: [PR.DEADLOCK_PROTOCOL],
+        anyPrerequisites: [PR.RAILJACK_CONSTRUCTED, PR.RAILJACK_MARKET_ACQUIRED],
+        conditions: [{ type: "mastery_rank", value: 4 }],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Call_of_the_Tempestarii", verifiedOn: "2026-11-14", classification: "required", note: "The current quest requirement panel lists The Deadlock Protocol, an owned Railjack with its Reliquary Key, and MR4." }, { kind: "wiki", url: "https://wiki.warframe.com/w/Railjack", verifiedOn: "2026-11-14", classification: "conditional", note: "A Starter Railjack Bundle purchase grants a fully built Railjack and counts Rising Tide as completed, so purchased ownership satisfies the quest's Railjack requirement without the construction route." }]
     },
     {
         id: PR.DEADLOCK_PROTOCOL,
@@ -464,9 +469,9 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.NEW_STRANGE,
         label: "The New Strange",
         category: "SideQuests",
-        description: "Side quest for Cephalon Simaris and Chroma progression. Requires Stolen Dreams.",
-        prerequisites: [PR.STOLEN_DREAMS],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_New_Strange", verifiedOn: "2026-11-09", classification: "required", note: "The current quest page lists Stolen Dreams as the quest requirement; Jupiter → Europa is not listed as a gate." }]
+        description: "Side quest for Cephalon Simaris and Chroma progression. The current requirement panel lists Stolen Dreams and the Europa Junction.",
+        prerequisites: [PR.STOLEN_DREAMS, PR.JUNCTION_JUPITER_EUROPA],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_New_Strange", verifiedOn: "2026-11-14", classification: "required", note: "The current quest requirement panel lists both Stolen Dreams and the Jupiter → Europa Junction." }]
     },
 
     // =========================================================================
@@ -476,9 +481,9 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.LIMBO_THEOREM,
         label: "The Limbo Theorem",
         category: "SideQuests",
-        description: "Awards Limbo blueprint. Requires an Archwing.",
-        prerequisites: [PR.ARCHWING],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Limbo_Theorem", verifiedOn: "2026-11-09", classification: "required", note: "The current quest page lists obtaining an Archwing as the requirement; Jupiter → Europa is not listed as an additional quest gate." }]
+        description: "Awards Limbo blueprint. The current requirement panel lists an Archwing and the Europa Junction.",
+        prerequisites: [PR.ARCHWING, PR.JUNCTION_JUPITER_EUROPA],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Limbo_Theorem", verifiedOn: "2026-11-14", classification: "required", note: "The current quest requirement panel lists obtaining an Archwing and the Jupiter → Europa Junction." }]
     },
     {
         id: PR.SILVER_GROVE,
@@ -496,6 +501,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         description: "Awards Inaros blueprint. Requires MR5. The quest beacon can be purchased from Baro Ki'Teer or traded from another player, so Relay access is only one acquisition route.",
         prerequisites: [],
         conditions: [{ type: "mastery_rank", value: 5 }],
+        progressionAfter: [PR.AWAKENING],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Sands_of_Inaros", verifiedOn: "2026-11-09", classification: "required", note: "The beacon has an MR5 gate and is tradeable; a player may obtain it by trade, so visiting Baro at a Relay is not mandatory." }]
     },
     {
@@ -607,6 +613,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Systems",
         description: "Deimos opens after completing War on Mars. This path has no Junction; the prior imported junction checkmark remains a compatible saved-state key.",
         prerequisites: [],
+        progressionAfter: [PR.AWAKENING],
         conditions: [{ type: "node_complete", nodeId: "node:mr/mars/war", label: "War mission on Mars" }],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Deimos", verifiedOn: "2026-11-08", classification: "required", note: "Deimos becomes accessible after clearing War on Mars. The Mars-to-Deimos path has no Junction." }, { kind: "wiki", url: "https://wiki.warframe.com/w/Junctions", verifiedOn: "2026-11-08", classification: "required", note: "The current Junctions reference explicitly lists Mars to Deimos as a route without a Junction." }]
     },
@@ -741,9 +748,9 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.HUB_RELAY,
         label: "Any Relay Access",
         category: "Hubs",
-        description: "Visit any available Relay node. Relay nodes have their own Star Chart availability; the Relay system has no shared quest gate.",
-        prerequisites: [],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Relay", verifiedOn: "2026-11-09", classification: "required", note: "The Relay access section says to enter an available Relay node from Navigation; the table lists Strata on Earth, Larunda on Mercury, and Maroo's Bazaar on Mars at MR 0+. No shared quest prerequisite is listed." }]
+        description: "Visit Strata Relay on Earth. The current Star Chart lists Vor's Prize as its access requirement; other Relay nodes have separate planet and Mastery Rank requirements.",
+        prerequisites: [PR.VORS_PRIZE],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Star_Chart", verifiedOn: "2026-11-14", classification: "required", note: "The current Star Chart section 'Relays' states that Strata Relay on Earth becomes available after completing Vor's Prize. This tracks the earliest Relay route; the higher Mastery Rank/planet gates for other Relays are not universal requirements for visiting any Relay." }]
     },
     {
         id: PR.HUB_CETUS,
@@ -836,12 +843,14 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.CLAN_DOJO,
         label: "Clan Dojo Access",
         category: "Systems",
-        description: "Join or create a Clan, build a Clan Key, and enter its Dojo. No quest or Star Chart milestone is required; this is a manual milestone because clan membership/key state is not imported.",
+        description: "Join or create a Clan, build a Clan Key, and enter its Dojo. This is a manual milestone because clan membership/key state is not imported.",
         prerequisites: [],
+        progressionAfter: [PR.AWAKENING],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Clan_Dojo", verifiedOn: "2026-11-09", classification: "required", note: "Dojo access requires clan membership and a constructed Clan Key; no quest prerequisite is listed." }]
     },
     {
         id: PR.CLAN_DRY_DOCK,
+        showInPlanner: false,
         label: "Clan Dojo Dry Dock Access",
         category: "Railjack",
         description: "Manual environment milestone: access a Clan Dojo that has a constructed Dry Dock. Clan membership alone does not guarantee that the room exists.",
@@ -869,8 +878,23 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.ACTIVITY_CIRCUIT_STEEL_PATH,
         label: "The Steel Path Circuit",
         category: "Systems",
-        description: "Unlock the Steel Path version of The Circuit. Requires both The Duviri Paradox and The Steel Path.",
-        prerequisites: [PR.DUVIRI_PARADOX, PR.ACTIVITY_STEEL_PATH]
+        description: "Unlock the Steel Path version of The Circuit after Duviri Steel Path access is available.",
+        prerequisites: [PR.ACTIVITY_DUVIRI_STEEL_PATH],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Steel_Path", verifiedOn: "2026-11-14", classification: "required", note: "Steel Path Circuit rewards require Duviri Steel Path access. The current access article requires the Duviri quest, overall Steel Path access, and completion of The Duviri Experience, The Lone Story, and The Circuit on Normal first." }]
+    },
+    {
+        id: PR.ACTIVITY_DUVIRI_STEEL_PATH,
+        label: "Duviri Steel Path Access",
+        category: "Systems",
+        description: "Unlock Steel Path missions in Duviri after The Duviri Paradox, The Steel Path, and completing The Duviri Experience, The Lone Story, and The Circuit once on Normal.",
+        prerequisites: [
+            PR.DUVIRI_PARADOX,
+            PR.ACTIVITY_STEEL_PATH,
+            PR.ACTIVITY_DUVIRI_EXPERIENCE_COMPLETED,
+            PR.ACTIVITY_DUVIRI_LONE_STORY_COMPLETED,
+            PR.ACTIVITY_CIRCUIT_COMPLETED,
+        ],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Steel_Path", verifiedOn: "2026-11-14", classification: "required", note: "The current Duviri Steel Path access rule requires The Duviri Paradox, unlocked Star Chart Steel Path, and completion of all three base Duviri nodes in Normal mode; Isleweaver is not required." }]
     },
     {
         id: PR.ACTIVITY_NIGHTWAVE,
@@ -922,6 +946,33 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Systems",
         description: "Access The Circuit in Duviri after completing The Duviri Paradox.",
         prerequisites: [PR.DUVIRI_PARADOX]
+    },
+    {
+        id: PR.ACTIVITY_DUVIRI_EXPERIENCE_COMPLETED,
+        showInPlanner: false,
+        label: "Completed The Duviri Experience on Normal",
+        category: "Systems",
+        description: "Manual milestone: complete one normal-mode run of The Duviri Experience. Required with the other two base Duviri modes to unlock Duviri Steel Path.",
+        prerequisites: [PR.DUVIRI_PARADOX],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Steel_Path", verifiedOn: "2026-11-14", classification: "required", note: "The current Duviri Steel Path access rule explicitly requires completing The Duviri Experience in Normal mode." }]
+    },
+    {
+        id: PR.ACTIVITY_DUVIRI_LONE_STORY_COMPLETED,
+        showInPlanner: false,
+        label: "Completed The Lone Story on Normal",
+        category: "Systems",
+        description: "Manual milestone: complete one normal-mode run of The Lone Story. Required with the other two base Duviri modes to unlock Duviri Steel Path.",
+        prerequisites: [PR.DUVIRI_PARADOX],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Steel_Path", verifiedOn: "2026-11-14", classification: "required", note: "The current Duviri Steel Path access rule explicitly requires completing The Lone Story in Normal mode." }]
+    },
+    {
+        id: PR.ACTIVITY_CIRCUIT_COMPLETED,
+        showInPlanner: false,
+        label: "Completed The Circuit on Normal",
+        category: "Systems",
+        description: "Manual milestone: complete one normal-mode run of The Circuit. Required with the other two base Duviri modes to unlock Duviri Steel Path.",
+        prerequisites: [PR.ACTIVITY_CIRCUIT],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Steel_Path", verifiedOn: "2026-11-14", classification: "required", note: "The current Duviri Steel Path access rule explicitly requires completing The Circuit in Normal mode." }]
     },
     {
         id: PR.ACTIVITY_NETRACELLS,
@@ -1163,7 +1214,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
             ],
             rank: 2
         },
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Abyssal_Zone", verifiedOn: "2026-11-09", classification: "required", note: "Abyssal Zone access is on Ceres and requires possession of a Beacon, purchasable from any of the six main Syndicates at Rank 2. The mission page does not require visiting a Relay; Ceres Chart access is the Star Chart gate." }]
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Abyssal_Zone", verifiedOn: "2026-11-14", classification: "required", note: "The current page says entry requires an Abyssal Beacon purchased from any of the six main Syndicates at Rank 2; Ceres node access is a separate Star Chart gate, and Relay access is not listed." }]
     },
     {
         id: PR.ACTIVITY_ARBITRATIONS,
@@ -1338,6 +1389,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Segments",
         description: "Manual alternative acquisition route for the built base Helminth and Invigoration segments from the Market bundle. MR8 is still required.",
         prerequisites: [],
+        progressionAfter: [PR.AWAKENING],
         conditions: [{ type: "mastery_rank", value: 8 }],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Helminth", verifiedOn: "2026-11-09", classification: "conditional", note: "The Helminth Segments Market bundle includes built base and Invigoration segments and bypasses Son's standing-rank requirements, but the current Market page still requires MR8 to purchase the bundle." }]
     },
@@ -1416,6 +1468,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Necramech",
         description: "Manual acquisition alternative: a pre-built Necramech can be purchased from the Market instead of crafting Voidrig or Bonewidow.",
         prerequisites: [],
+        progressionAfter: [PR.AWAKENING],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Necramech", verifiedOn: "2026-11-09", classification: "conditional", note: "Pre-built Necramechs are sold from the Market; this bypasses the Heart of Deimos/Necraloid crafting routes but not The War Within deployment gate." }]
     },
     {
@@ -1443,6 +1496,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Railjack",
         description: "Manual ownership alternative: purchasing a Railjack from the Market satisfies owned-Railjack checks without completing Rising Tide.",
         prerequisites: [],
+        progressionAfter: [PR.AWAKENING],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_New_War", verifiedOn: "2026-11-09", classification: "conditional", note: "The New War accepts an owned Railjack obtained from Rising Tide or purchased with Platinum; the purchase path bypasses Rising Tide for the ownership check." }]
     },
     {
@@ -1569,7 +1623,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Operator Amp Owned",
         category: "Systems",
         description: "Own any Operator Amp to meet The New War's equipment requirement. The Mote Amp is one valid option; a stronger Amp is optional.",
-        prerequisites: [],
+        prerequisites: [PR.SECOND_DREAM],
         evidence: [{
             kind: "official",
             url: "https://www.warframe.com/en/patch-notes/pc/33-5-0",
@@ -1586,18 +1640,22 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
     },
     {
         id: PR.SYSTEM_RANK30_WARFRAME,
-        label: "Sortie / Arbitration Warframe Eligibility",
+        showInPlanner: false,
+        label: "Rank 30 Warframe Activity Eligibility",
         category: "Systems",
-        description: "Have a Rank 30 Warframe available, or be Mastery Rank 30 and use a Forma-polarized Warframe. This is a manual check because the current profile and inventory models do not expose Warframe rank/forma state.",
+        description: "Have a Rank 30 Warframe available, or be Mastery Rank 30 and use a Forma-polarized Warframe. This check applies to Sorties, Arbitrations, and Elite Sanctuary Onslaught; the current profile and inventory models do not expose Warframe rank/forma state.",
         prerequisites: [],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Sortie", verifiedOn: "2026-11-08", classification: "required", note: "Sortie missions require a Rank 30 Warframe, with a bypass for MR30 players using a Forma-polarized Warframe." }, { kind: "wiki", url: "https://wiki.warframe.com/w/Arbitrations", verifiedOn: "2026-11-08", classification: "required", note: "Arbitrations have the same Rank 30 Warframe requirement and MR30 Forma exception." }]
+        progressionAfter: [PR.AWAKENING],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Sortie", verifiedOn: "2026-11-14", classification: "required", note: "The current Sortie eligibility section requires a Rank 30 Warframe, with an MR30 Forma-polarized Warframe bypass." }, { kind: "wiki", url: "https://wiki.warframe.com/w/Arbitrations", verifiedOn: "2026-11-14", classification: "required", note: "The current Arbitrations eligibility section requires a Rank 30 Warframe, with an MR30 Forma-polarized Warframe bypass." }, { kind: "wiki", url: "https://wiki.warframe.com/w/Sanctuary_Onslaught", verifiedOn: "2026-11-14", classification: "required", note: "The Elite Sanctuary Onslaught section requires a Rank 30 Warframe and documents the MR30 Forma bypass." }]
     },
     {
         id: PR.SYSTEM_ADVERSARY_SLOT_CLEAR,
+        showInPlanner: false,
         label: "Adversary Slot Clear",
         category: "Systems",
         description: "Manual, dynamic check: keep this complete only while you have no active Kuva Lich, Sister of Parvos, or Technocyte Coda. Clear it as soon as you generate an Adversary and mark it complete again after that Adversary is defeated or converted. This state is not exposed by imported profiles.",
         prerequisites: [],
+        progressionAfter: [PR.AWAKENING],
         evidence: [{
             kind: "wiki",
             url: "https://wiki.warframe.com/w/Adversary_System",
@@ -1781,6 +1839,7 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Systems",
         description: "Manual, dynamic milestone: have a mature Helminth Cyst on an eligible Warframe. Nidus or another infected player can transmit it; it matures over time.",
         prerequisites: [],
+        progressionAfter: [PR.AWAKENING],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Helminth_Charger", verifiedOn: "2026-11-09", classification: "required", note: "Helminth Charger incubation requires a mature cyst; infection can be received from Nidus or another player and the cyst needs time to mature." }]
     },
     {
@@ -2165,7 +2224,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Mastery Rank 5",
         category: "Systems",
         description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: []
+        prerequisites: [],
+        progressionAfter: [PR.AWAKENING]
     },
     {
         id: PR.MR_8,
@@ -2174,7 +2234,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Mastery Rank 8",
         category: "Systems",
         description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: []
+        prerequisites: [],
+        progressionAfter: [PR.AWAKENING]
     },
     {
         id: PR.MR_10,
@@ -2183,7 +2244,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Mastery Rank 10",
         category: "Systems",
         description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: []
+        prerequisites: [],
+        progressionAfter: [PR.AWAKENING]
     },
     {
         id: PR.MR_15,
@@ -2192,7 +2254,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Mastery Rank 15",
         category: "Systems",
         description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: []
+        prerequisites: [],
+        progressionAfter: [PR.AWAKENING]
     },
     {
         id: PR.MR_30,
@@ -2201,7 +2264,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Mastery Rank 30",
         category: "Systems",
         description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: []
+        prerequisites: [],
+        progressionAfter: [PR.AWAKENING]
     },
 
 ];

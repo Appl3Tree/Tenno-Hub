@@ -16,7 +16,7 @@ describe("prerequisite registry integrity", () => {
     it("defines every prerequisite referenced by other registry rows", () => {
         const ids = new Set(PREREQ_REGISTRY.map((def) => def.id));
         const missing = PREREQ_REGISTRY.flatMap((def) =>
-            [...def.prerequisites, ...(def.anyPrerequisites ?? [])]
+            [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...(def.progressionAfter ?? [])]
                 .filter((prereqId) => !ids.has(prereqId))
                 .map((prereqId) => `${def.id} -> ${prereqId}`),
         );
@@ -70,11 +70,13 @@ describe("prerequisite registry integrity", () => {
             .toBe(PREREQ_REGISTRY.length);
 
         for (const def of PREREQ_REGISTRY) {
-            const allParents = [...def.prerequisites, ...(def.anyPrerequisites ?? [])];
+            const allParents = [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...(def.progressionAfter ?? [])];
             expect(allParents, `${def.id} self-reference`).not.toContain(def.id);
             expect(new Set(def.prerequisites).size, `${def.id} duplicate AND parents`).toBe(def.prerequisites.length);
             expect(new Set(def.anyPrerequisites ?? []).size, `${def.id} duplicate OR parents`).toBe((def.anyPrerequisites ?? []).length);
             expect(def.prerequisites.some((id) => (def.anyPrerequisites ?? []).includes(id)), `${def.id} AND/OR overlap`).toBe(false);
+            expect(new Set(def.progressionAfter ?? []).size, `${def.id} duplicate progression links`).toBe((def.progressionAfter ?? []).length);
+            expect((def.progressionAfter ?? []).some((id) => def.prerequisites.includes(id) || (def.anyPrerequisites ?? []).includes(id)), `${def.id} duplicates a hard parent as a progression link`).toBe(false);
         }
     });
 
@@ -146,7 +148,7 @@ describe("prerequisite registry integrity", () => {
                     : condition.type === "junction_complete" ? [condition.junctionId as typeof def.id]
                         : [],
             );
-            for (const parent of [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...conditionParents]) {
+            for (const parent of [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...conditionParents, ...(def.progressionAfter ?? [])]) {
                 if (!visit(parent)) return false;
             }
             visiting.delete(id);
@@ -157,68 +159,59 @@ describe("prerequisite registry integrity", () => {
         expect(PREREQ_REGISTRY.every((def) => visit(def.id))).toBe(true);
     });
 
-    it("only leaves intentional root milestones without parents", () => {
+    it("connects every prerequisite to the sole onboarding root", () => {
         const roots = PREREQ_REGISTRY
-            .filter((def) => def.prerequisites.length === 0 && !(def.anyPrerequisites?.length) && !(def.conditions?.length))
+            .filter((def) => def.prerequisites.length === 0
+                && !(def.anyPrerequisites?.length)
+                && !(def.conditions?.length)
+                && !(def.progressionAfter?.length))
             .map((def) => def.id)
             .sort();
 
-        expect(roots).toEqual([
-            PR.CLAN_DOJO,
-            PR.COMPANION_MATURE_CYST,
-            PR.NECRAMECH_MARKET,
-            PR.RAILJACK_MARKET_ACQUIRED,
-            PR.SYSTEM_ADVERSARY_SLOT_CLEAR,
-            PR.SYSTEM_OPERATOR_AMP,
-            PR.SYSTEM_RANK30_WARFRAME,
-            PR.AWAKENING,
-            PR.HUB_RELAY,
-            PR.MR_5,
-            PR.MR_8,
-            PR.MR_10,
-            PR.MR_15,
-            PR.MR_30,
-        ].sort());
-    });
+        expect(roots).toEqual([PR.AWAKENING]);
 
-    it("connects progression entries to a tutorial or documented independent acquisition root", () => {
         const index = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
-        const independentRoots = new Set<string>([
-            PR.AWAKENING,
-            PR.SYSTEM_OPERATOR_AMP,
-            PR.SYSTEM_RANK30_WARFRAME,
-            PR.CLAN_DOJO,
-            PR.COMPANION_MATURE_CYST,
-            PR.HELMINTH_MARKET_BUNDLE,
-            PR.NECRAMECH_MARKET,
-            PR.RAILJACK_MARKET_ACQUIRED,
-            PR.SYSTEM_ADVERSARY_SLOT_CLEAR,
-            PR.HUB_RELAY,
-            PR.MR_5,
-            PR.MR_8,
-            PR.MR_10,
-            PR.MR_15,
-            PR.MR_30,
-        ]);
-
-        function reachesVors(id: string, seen = new Set<string>()): boolean {
-            if (independentRoots.has(id)) return true;
+        function reachesAwakening(id: string, seen = new Set<string>()): boolean {
+            if (id === PR.AWAKENING) return true;
             if (seen.has(id)) return false;
             seen.add(id);
             const def = index.get(id);
             if (!def) return false;
-            const parents = [...def.prerequisites, ...(def.anyPrerequisites ?? [])];
-            if (parents.length === 0 && def.conditions?.length) return true;
-            if (parents.length === 0) return false;
-            return parents.some((prereqId) => reachesVors(prereqId, seen));
+            const conditionParents = (def.conditions ?? []).flatMap((condition) =>
+                condition.type === "quest_complete" ? [condition.prereqId]
+                    : condition.type === "junction_complete" ? [condition.junctionId as typeof def.id]
+                        : [],
+            );
+            const parents = [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...conditionParents, ...(def.progressionAfter ?? [])];
+            return parents.some((prereqId) => reachesAwakening(prereqId, seen));
         }
 
         const disconnected = PREREQ_REGISTRY
-            .filter((def) => !independentRoots.has(def.id))
             .map((def) => def.id)
-            .filter((id) => !reachesVors(id));
+            .filter((id) => !reachesAwakening(id));
 
         expect(disconnected).toEqual([]);
+    });
+
+    it("makes Awakening the only initially actionable root, then opens Relay access after Vor's Prize", () => {
+        const initial = computeUnlockGraphSnapshot({});
+        expect(initial.actionable.map((status) => status.id)).toEqual([PR.AWAKENING]);
+
+        const relayBefore = initial.byId[PR.HUB_RELAY];
+        expect(relayBefore).toMatchObject({ unlocked: false, progressionReady: true });
+        expect(initial.blocked.some((status) => status.id === PR.HUB_RELAY)).toBe(true);
+
+        const afterAwakening = computeUnlockGraphSnapshot({ [PR.AWAKENING]: true });
+        expect(afterAwakening.byId[PR.HUB_RELAY]).toMatchObject({ unlocked: false, progressionReady: true });
+        expect(afterAwakening.actionable.map((status) => status.id)).not.toContain(PR.HUB_RELAY);
+
+        const afterVorsPrize = computeUnlockGraphSnapshot({ [PR.AWAKENING]: true, [PR.VORS_PRIZE]: true });
+        expect(afterVorsPrize.byId[PR.HUB_RELAY]).toMatchObject({ unlocked: true, progressionReady: true });
+        expect(afterVorsPrize.actionable.map((status) => status.id)).toContain(PR.HUB_RELAY);
+
+        const importedProgress = computeUnlockGraphSnapshot({ [PR.CLAN_DOJO]: true });
+        expect(importedProgress.byId[PR.CLAN_DOJO]).toMatchObject({ completed: true, progressionReady: false });
+        expect(importedProgress.completed.map((status) => status.id)).toContain(PR.CLAN_DOJO);
     });
 
     it("keeps Quills rank sources aligned with the actual rank that unlocks them", () => {
@@ -322,12 +315,11 @@ describe("prerequisite registry integrity", () => {
             `${PR.PATIENT_ZERO} -> ${PR.ONCE_AWAKE}`,
             `${PR.ACTIVITY_DEEP_ARCHIMEDEA} -> ${PR.WHISPERS_WALL}`,
             `${PR.ACTIVITY_TEMPORAL_ARCHIMEDEA} -> ${PR.THE_HEX}`,
-            `${PR.ACTIVITY_SISTER_PARVOS} -> ${PR.WAR_WITHIN}`,
             `${PR.SAYA_VIGIL} -> ${PR.VORS_PRIZE}`,
-            `${PR.VOX_SOLARIS} -> ${PR.THE_TEACHER}`,
             `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX}`,
             `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX_FINALE}`,
             `${PR.SYNDICATE_VOX_RANK1} -> ${PR.VOX_SOLARIS}`,
+            `${PR.ACTIVITY_DUVIRI_STEEL_PATH} -> ${PR.DUVIRI_PARADOX}`,
         ].sort());
     });
 
