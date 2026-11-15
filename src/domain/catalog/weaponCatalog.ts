@@ -1456,6 +1456,16 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
                 const sourceShotType = String(a.shot_type ?? "").trim().toLowerCase();
                 const verifiedAreaClassification = VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
+                // On ordinary melee and Arch-Melee entries, "Normal Attack"
+                // is the per-target weapon strike; cleaving multiple targets
+                // does not turn it into a radial damage event for the Wiki's
+                // direct-vs-AoE bonus rules. Explicit source and weapon-row
+                // classifications above still take precedence.
+                // Sources: https://wiki.warframe.com/w/Melee
+                // https://wiki.warframe.com/w/Hit_Mechanic
+                // https://wiki.warframe.com/w/Damage/Puncture_Damage
+                const isOrdinaryMeleeNormalAttack =
+                    (cat === "Melee" || cat === "Arch-Melee") && attackName === "normal attack";
                 return {
                     name: String(a.name),
                     speed:          n(a.speed) || 1,
@@ -1463,7 +1473,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     intrinsicDamagePerStatusMode: intrinsicPerStatus?.mode ?? "additiveBase",
                     isAreaDamage: sourceShotType
                         ? sourceShotType === "aoe"
-                        : verifiedAreaClassification ?? undefined,
+                        : verifiedAreaClassification ?? (isOrdinaryMeleeNormalAttack ? false : undefined),
                     critChance:    n(a.crit_chance) / 100,
                     critMultiplier: n(a.crit_mult) || 1.5,
                     statusChance:  n(a.status_chance) / 100,

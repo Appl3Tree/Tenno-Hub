@@ -817,13 +817,31 @@ describe("damage calculation status eligibility", () => {
         );
         expect(unclassifiedNamedAttacks).toEqual([]);
 
-        const unclassifiedNormalAttack = getWeaponCatalog().flatMap((weapon) =>
-            weapon.attacks.map((attack, attackIndex) => ({ weapon, attack, attackIndex })),
-        ).find(({ attack }) => attack.name.toLowerCase() === "normal attack" && attack.isAreaDamage === undefined);
-        expect(unclassifiedNormalAttack).toBeDefined();
+        const normalMeleeAttacks = getWeaponCatalog().flatMap((weapon) =>
+            weapon.attacks
+                .filter((attack) => attack.name.toLowerCase() === "normal attack")
+                .filter(() => weapon.category === "Melee" || weapon.category === "Arch-Melee")
+                .map((attack) => ({ weapon, attack })),
+        );
+        expect(normalMeleeAttacks.length).toBeGreaterThan(0);
+        expect(normalMeleeAttacks.every(({ attack }) => typeof attack.isAreaDamage === "boolean")).toBe(true);
+
+        const unclassifiedNormalAttacks = getWeaponCatalog().flatMap((weapon) =>
+            weapon.attacks
+                .map((attack, attackIndex) => ({ weapon, attack, attackIndex }))
+                .filter(({ attack }) => attack.name.toLowerCase() === "normal attack" && attack.isAreaDamage === undefined),
+        );
+        expect(unclassifiedNormalAttacks.length).toBeGreaterThan(0);
+        expect(unclassifiedNormalAttacks.every(({ weapon }) => weapon.category === "Companion")).toBe(true);
+        const unclassifiedNormalAttack = unclassifiedNormalAttacks[0];
         expect(
             withSelectedAttack(unclassifiedNormalAttack!.weapon, unclassifiedNormalAttack!.attackIndex).selectedAttackIsAreaDamage,
         ).toBeUndefined();
+
+        // Ordinary melee strikes remain direct even when their hitbox cleaves
+        // through multiple targets; explicit AoE source markers still win.
+        expectAreaAttack("Broken War", "Normal Attack", false);
+        expectAreaAttack("Agkuza", "Normal Attack", false);
 
         // Wiki-verified fallbacks: these source rows omit shot_type.
         // https://wiki.warframe.com/w/Komorex
