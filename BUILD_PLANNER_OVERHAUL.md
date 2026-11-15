@@ -1,8 +1,12 @@
 # Build Planner Overhaul — Research and Progress
 
-Last updated: 2026-11-14. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
+Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
-## Latest follow-up (2026-11-14)
+## Latest follow-up (2026-11-15)
+### Independent Wiki Slash DoT fixture (2026-11-15)
+
+Added an independent calculator regression for Slash DoT with critical hits, faction damage, and Status Damage. The fixture evaluates the current [Damage/Calculation](https://wiki.warframe.com/w/Damage/Calculation) Slash coefficient, faction double dip, six-tick duration, and per-tick accumulator, plus the quantized critical multiplier documented by [Critical Hit](https://wiki.warframe.com/w/Critical_Hit). The Wiki calculation page carries an active edit/conflict notice, so this is formula-level source evidence rather than in-game telemetry validation. `npm test` passes 648 tests across 51 files; `npm run build`, `npm run validate:sources`, focused ESLint, and CRLF-aware `git diff --check` pass. Overall task remains open for broader mechanics and status histories, full-catalog/global optimizer quality, Underframe comparisons, and cold/mobile/cross-device performance.
+
 ### Exact weighted status presence
 
 The finite encounter previously estimated the chance that a particular ordinary status type became active as `1 - e^(-λ)`. That Poisson approximation undercounted guaranteed per-projectile rolls: a 100% Status Chance hit with a single possible status has a guaranteed proc under the current [Status Chance](https://wiki.warframe.com/w/Status_Chance) rules, not a 63.2% chance. The encounter now computes the no-proc probability across whole and fractional status rolls on each projectile, then across whole and fractional multishot projectiles. It uses the current damage-weighted type distribution after target-immunity reweighting, and applies Tau Status Vulnerability to ordinary status chance while leaving Tau's own chance unamplified. Expected proc counts are unchanged; the correction affects status-type presence used by later conditional bonuses and stack effects.

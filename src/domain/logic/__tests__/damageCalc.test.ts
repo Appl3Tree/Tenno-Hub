@@ -1037,6 +1037,39 @@ describe("damage calculation status eligibility", () => {
         expect(result.dotDpsByType.toxin).toBeCloseTo(952.0875, 3);
     });
 
+    it("matches the Wiki Slash DoT formula with crit, faction, and Status Damage", () => {
+        const weapon = {
+            ...makeWeapon({ slash: 40 }),
+            statusChance: 1,
+            critChance: 0.5,
+            critMultiplier: 2,
+        };
+        const baneAndStatusDamage = {
+            ...emptyEffect(),
+            factionDamageBonus: 0.5,
+            targetFaction: "Grineer",
+            statusDamageBonus: 1,
+        };
+        const result = calculateBuild(weapon, [baneAndStatusDamage], "Grineer").modded;
+
+        // Independently evaluate the Wiki formulas: the base 2.0x critical
+        // multiplier encodes to round(2 × 4095 / 32) = 256 and decodes to
+        // 256 × 32 / 4095; the average crit factor follows Critical Hit.
+        // Damage/Calculation then applies faction to the seed and again to the
+        // status tick, plus the per-tick +1 accumulator and 35% Slash factor.
+        const criticalCode = Math.floor((2 * 4095) / 32 + 0.5);
+        const decodedCriticalMultiplier = criticalCode * (32 / 4095);
+        const averageCriticalMultiplier = 1 + 0.5 * (decodedCriticalMultiplier - 1);
+        const seededDamage = 40 * averageCriticalMultiplier * 1.5;
+        const wikiTickMultiplier = 0.35 * 2 * 1.5;
+        const wikiSeedTick = seededDamage * wikiTickMultiplier;
+        const wikiSixTickDamage = (seededDamage + 1) * wikiTickMultiplier * 6;
+
+        expect(result.dotTickDamagePerProcByType.slash).toBeCloseTo(wikiSeedTick, 3);
+        expect(result.dotDamagePerShotByType.slash).toBeCloseTo(wikiSixTickDamage, 3);
+        expect(result.dotDpsByType.slash).toBeCloseTo(wikiSixTickDamage, 3);
+    });
+
     it("speeds positive burst fire rate bonuses inside a burst but clamps negative bonuses", () => {
         const weapon: WeaponEntry = {
             ...makeWeapon({ impact: 100 }),
