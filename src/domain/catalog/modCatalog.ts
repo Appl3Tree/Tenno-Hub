@@ -220,6 +220,7 @@ export type ConditionalTrigger =
     | "onKillOrAssist"
     | "onConsecutiveThrow"
     | "onOcucorTendrilKill"
+    | "afterJumpLanding"
     | "whileWallLatched"
     | "whileTargetHasStatus";
 
@@ -489,6 +490,21 @@ function parseComboScaledLine(raw: string): Partial<ModEffect> {
 
 function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }): Partial<ModEffect> {
     const clean = stripColorTags(raw);
+    const jumpLandingMatch = clean.match(
+        /^([+-]?\d+(?:\.\d+)?)%\s+Critical and Status Chance for (\d+(?:\.\d+)?)s after landing from a Double or Bullet Jump\.?$/i,
+    );
+    if (jumpLandingMatch) {
+        const bonus = Number(jumpLandingMatch[1]) / 100;
+        return {
+            conditionalEffects: [{
+                trigger: "afterJumpLanding",
+                durationSeconds: Number(jumpLandingMatch[2]),
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { critChanceBonus: bonus, statusChanceBonus: bonus },
+            }],
+        };
+    }
     const stateCondition = clean.match(/\s+(while aim gliding|while airborne|while invisible|while aiming|when aiming)\s*\.?$/i);
     if (stateCondition?.index !== undefined) {
         const baseStats = parseStatLine(clean.slice(0, stateCondition.index).trim(), options);

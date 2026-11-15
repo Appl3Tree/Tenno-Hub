@@ -23,6 +23,15 @@ export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | nul
     ];
 
     for (const source of sources) {
+        if (source.label === "Effect") {
+            for (const conditional of effect.conditionalEffects ?? []) {
+                if (conditional.trigger === "afterJumpLanding") {
+                    lines.push(
+                        "Jump-landing activation and its rank-specific 1–4 second expiration/refresh timing are not simulated; Auto Optimize skips this conditional effect.",
+                    );
+                }
+            }
+        }
         for (const [key, label] of UNSCORED_HIT_LOCATION_EFFECTS) {
             const value = source.stats[key];
             if (typeof value === "number" && Number.isFinite(value) && value !== 0) {

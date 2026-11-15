@@ -572,6 +572,11 @@ export function estimateConditionalUptime(
             // infer a general uptime from the selected weapon or target.
             uptime = 0;
             break;
+        case "afterJumpLanding":
+            // The jump landing is a Warframe input event; do not assume how
+            // often the player refreshes Motus Setup during a weapon encounter.
+            uptime = 0;
+            break;
         case "onReload":
         case "onReloadFromEmpty": {
             const magTime = magazineSize / Math.max(0.0001, fireRate);
