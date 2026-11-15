@@ -90,4 +90,3 @@ export function findPrerequisiteRelationshipEvidenceGaps(
         ))
         .map((row) => `${row.targetId} -> ${row.relationshipKey}`);
 }
-
