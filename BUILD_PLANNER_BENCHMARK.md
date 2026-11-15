@@ -4,6 +4,14 @@ Run date: 2026-11-15; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Current-source 37-case refresh with a Broadhead range scenario (2026-11-15)
+
+The benchmark corpus now includes Daikyu Prime / Quick Shot / Burst at a 16m target distance, so Spring-Loaded Broadhead's max-rank condition is active and comes from the same saved conditional state passed into the optimizer and score evaluator. The full five-run refresh covered 37 cases / 185 optimizations. Every returned build was legal under capacity and the three-Forma limit. Per-case medians ranged from 0.654s to 2.947s; maximum-of-five observations ranged from 0.665s to 3.012s. These five-run maxima are coarse samples, not population p95 estimates, and this Node harness does not measure browser Worker startup or mobile performance.
+
+The Daikyu case took a median 2.474s / maximum 2.585s in the corpus. Its selected 8-mod build was stable and legal at 57/60 capacity with three Forma, but did not use Spring-Loaded Broadhead. A separate one-case five-run repeat measured 2.415s median / 2.661s maximum. Under the same 16m Burst score, replacing each selected mod one at a time with max-rank Broadhead scored below the original list; the best such substitution replaced Vital Sense and was about 30.7% lower. This bounded check shows the mod was scored but does not establish the global optimum or prove a better combination is absent.
+
+The harness accepts the scenario range on a case-specific basis, and the JSON record includes `targetDistanceMeters` for reproducibility. All 37 cases returned capacity-valid, duplicate-free, incompatibility-group-valid builds within the Forma limit. Lex Prime Burst was the slowest median at 2.947s in this refresh; five-run results are desktop Node observations only.
+
 ## Saved Underframe Braton comparison (2026-11-15)
 
 The in-app browser's saved `Braton Prime benchmark (Copy)` displayed the captured eight-mod Underframe Auto Build list: Amalgam Serration R10, Bane of Corpus R5, Bane of Grineer R5, Bane of Infested R5, Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, and Vital Sense R5. Its explicit target pools were Grineer Heavy Gunner, 83,818 Health, 2,700 Armor, zero Shields and Overguard. Primary Bulwark was set to 500/500. A five-second Luck Averaged run returned 1,529 raw + 465 DoT damage per shot and 19,461 DPS. No build configuration was saved or changed during this read-only check.
