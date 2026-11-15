@@ -829,6 +829,12 @@ Fresh local port-80 and live browser checks show 106 compatible Perigale Prime m
 
 Global and joint optimizer optimality, broader objective-equivalent Underframe comparisons, stochastic status histories, remaining weapon/status mechanics, and cold/mobile/cross-device Worker measurements remain open.
 
+### Direct-hit per-status bonuses on AoE rows (2026-11-15)
+
+The current Wiki describes Galvanized Aptitude, Galvanized Savvy, and Galvanized Shot as direct-hit damage per status type and explicitly excludes radial AoE. The damage calculator now suppresses their shared per-status mod effect on attack records marked `shot_type === "AoE"`; it also suppresses source-defined intrinsic per-status direct-hit passives on those rows. The effective values flow through the same `calculateBuild` result into optimizer scoring and finite expected encounters. The math trace states why the selected AoE attack receives no per-status direct-hit multiplier.
+
+Regressions cover a direct attack, a source-marked AoE attack with static and on-kill conditional bonuses plus an intrinsic passive, and an unclassified row whose attack type is still uncertain. A five-run Cedo Glaive Radial Burst sample returned a stable legal 59/60, three-Forma result at 2.274 s median / 2.523 s max-of-five. This is one desktop Node timing and does not establish search quality. Galvanized kill-stack progression and within-volley status sequencing remain modeled approximations; attack rows without upstream AoE classification are still uncertain. Sources: [Galvanized Aptitude](https://wiki.warframe.com/w/Galvanized_Aptitude), [Galvanized Savvy](https://wiki.warframe.com/w/Galvanized_Savvy), and [Galvanized Shot](https://wiki.warframe.com/w/Galvanized_Shot).
+
 ### Burning Hate target Status Damage vulnerability (2026-11-14)
 
 The current [Burning Hate Wiki page](https://wiki.warframe.com/w/Burning_Hate) lists rank values of +20% to +120% target Status Damage vulnerability when Hate damages a Heat-afflicted enemy. The parser records this separately from source-side Status Damage. The finite expected encounter starts from either no external Heat or the explicit “Target starts with Heat” assumption, activates the permanent vulnerability only after a damage event on a Heat-afflicted target, and snapshots the multiplier when each proc is applied. Existing DoT ticks are not retroactively increased. The steady-state DPS and proxy optimizer assume the trigger is reached when Hate can apply Heat (or the external Heat assumption is selected).

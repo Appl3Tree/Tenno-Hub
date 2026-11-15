@@ -1,7 +1,7 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
+ * The Galvanized Aptitude, Galvanized Savvy, Galvanized Shot, and stance pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
  * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
  * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
  * Damage quantization follows the
@@ -10,7 +10,7 @@
  */
 export const DAMAGE_RULESET = Object.freeze({
     id: "damage-3.0",
-    lastVerified: "2026-11-14",
+    lastVerified: "2026-11-15",
     gameUpdate: "Update 36.0 onward; checked through Update 44.1.4.1",
     sources: Object.freeze({
         damage: "https://wiki.warframe.com/w/Damage/Calculation",
@@ -23,6 +23,9 @@ export const DAMAGE_RULESET = Object.freeze({
         pcPatchIndex: "https://www.warframe.com/en/patch-notes/pc",
         heavyAttack: "https://wiki.warframe.com/w/Heavy_Attack",
         galvanizedSteel: "https://wiki.warframe.com/w/Galvanized_Steel",
+        galvanizedAptitude: "https://wiki.warframe.com/w/Galvanized_Aptitude",
+        galvanizedSavvy: "https://wiki.warframe.com/w/Galvanized_Savvy",
+        galvanizedShot: "https://wiki.warframe.com/w/Galvanized_Shot",
         bloodRush: "https://wiki.warframe.com/w/Blood_Rush",
         weepingWounds: "https://wiki.warframe.com/w/Weeping_Wounds",
         fireRate: "https://wiki.warframe.com/w/Fire_Rate",
@@ -56,6 +59,7 @@ export const DAMAGE_RULESET = Object.freeze({
     knownLimitations: Object.freeze([
         "Primary elemental mods resolve in weapon mod-slot order; repeated types remain at their first slot, conditional effects retain their source mod slot, and innate primary elements append in Heat/Cold/Electricity/Toxin order. Slot-order results are covered by independent fixtures but not in-game telemetry.",
         "The Wiki confirms non-elemental bonuses multiply final quantized values without changing damage composition; the current implementation uses an algebraically equivalent shared-scale application for uniform base-damage bonuses. This equivalence has direct tests but has not been independently compared with in-game telemetry.",
+        "Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE. The damage model suppresses these bonuses on attack rows explicitly marked AoE; attack rows without source AoE classification remain uncertain. Galvanized kill-stack progression and within-volley multishot status sequencing are approximated by the selected conditional state and mean-field status model.",
         "The current DoT path applies the documented binary32 tick accumulator and faction double-dip order; average crit seeds, forced-proc grouping, and encounter-time stack state remain approximations. The finite encounter models same-source Heat stack accumulation, shared tick cadence, duration refresh, and armor-strip ramp/recovery; simultaneous Electricity ticks share a pulse while retaining separate timers. Configured 0–20 same-profile neighbors receive scheduled Electricity/Gas tick damage through their own evolving pools, and Gas ticks continue after the host dies. Gas replacement at its ten-stack cap cancels/reduces the oldest cloud's pending tick damage. Neighbor status histories, positioning, chain geometry, and Gas radius growth are not modeled; cross-source Heat inheritance remains unsupported. Per-attack forced-proc counts are source-annotated for Glaive Prime and Pathocyst variants, but coverage across other weapons and melee stances remains incomplete. Blast records an expected pre-defense hit value H and applies each stack's max(1, 0.3H) payout to the afflicted target at expiry or cap. At cap and primary-target death it also applies the separate 3×sum(H) radial to configured Blast neighbors through their defenses. Optimizer crowd scoring uses configured Electric/Gas counts and estimates Blast cap-radial value with a Poisson arrival proxy; it does not score death-triggered Blast value or evolve neighbor pools.",
         "Burning Hate applies its rank-scaled, permanent target-side Status Damage vulnerability after Hate damages a Heat-afflicted enemy. The finite encounter advances activation after each Hate damage event, snapshots the multiplier when each status proc is applied, and does not retroactively amplify earlier proc ticks; expected trigger probabilities and starting external Heat presence use a mean-field model. External Heat's own tick history and armor-strip contribution are not simulated, and status histories on nearby enemies do not inherit the vulnerability.",
         "Puncture lasts 10 seconds with five stacks on ordinary targets: it reduces enemy outgoing attack damage by 40% at one stack and 10 percentage points per additional stack up to 80%. The status panel displays the mean-field outgoing-damage reduction, but the planner does not simulate enemy attacks or score this defensive value. Its offensive support grants +5 percentage points of critical chance to incoming weapon hits per stack up to +25%, additive after mods, but not to Area-of-Effect damage or Warframe abilities. The damage model uses expected Puncture stacks for weapon attack rows; only rows explicitly marked as AoE are excluded, so unclassified attack rows remain uncertain. For an Overguarded VIP, the user can select the Wiki-documented three-stack cap in custom target settings; VIP identity is not inferred automatically.",

@@ -1248,6 +1248,14 @@ function buildMathBreakdown(
     meleeDpsInputs?: MeleeDpsInputState | null,
 ): BuildMathBreakdown {
     const totals = sumEffects(effects);
+    const hasSuppressedPerStatusDirectHitBonus = weapon.selectedAttackIsAreaDamage === true && (
+        effects.some((effect) => effect != null && (
+            (effect.directDamagePerStatusBonus ?? 0) > 0 ||
+            effect.conditionalEffects?.some((conditional) =>
+                (conditional.stats.directDamagePerStatusBonus ?? 0) > 0,
+            ) === true
+        )) || (weapon.intrinsicDamagePerStatusBonus ?? 0) > 0
+    );
     const result = calculateBuild(weapon, effects, targetFaction, {
         conditionalState,
         statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
@@ -1436,7 +1444,7 @@ function buildMathBreakdown(
                     : []),
                 `Primary element bonuses = heat ${fmt(totals.heatBonus * 100, 3)}%, cold ${fmt(totals.coldBonus * 100, 3)}%, electricity ${fmt(totals.electricityBonus * 100, 3)}%, toxin ${fmt(totals.toxinBonus * 100, 3)}%`,
                 `Advanced element bonuses = magnetic ${fmt(totals.magneticBonus * 100, 3)}%, radiation ${fmt(totals.radiationBonus * 100, 3)}%, viral ${fmt(totals.viralBonus * 100, 3)}%, corrosive ${fmt(totals.corrosiveBonus * 100, 3)}%, void ${fmt(totals.voidBonus * 100, 3)}%, tau ${fmt(totals.tauBonus * 100, 3)}%, true ${fmt(totals.trueBonus * 100, 3)}%`,
-                `Status damage bonus = ${fmt(totals.statusDamageBonus * 100, 3)}% | status duration bonus = ${fmt(totals.statusDurationBonus * 100, 3)}% | faction damage bonus tracked here = ${fmt(totals.factionDamageBonus * 100, 3)}% | mod direct damage per status = ${fmt(stats.directDamagePerStatusBonus * 100, 3)}% | intrinsic direct damage per status = ${fmt(stats.intrinsicDamagePerStatusBonus * 100, 3)}% (${stats.intrinsicDamagePerStatusMode})`,
+                `Status damage bonus = ${fmt(totals.statusDamageBonus * 100, 3)}% | status duration bonus = ${fmt(totals.statusDurationBonus * 100, 3)}% | faction damage bonus tracked here = ${fmt(totals.factionDamageBonus * 100, 3)}% | effective mod direct damage per status = ${fmt(stats.directDamagePerStatusBonus * 100, 3)}% | effective intrinsic direct damage per status = ${fmt(stats.intrinsicDamagePerStatusBonus * 100, 3)}% (${stats.intrinsicDamagePerStatusMode})`,
                 ...(stats.targetStatusDamageVulnerabilityBonus > 0
                     ? [`Burning Hate = +${fmt(stats.targetStatusDamageVulnerabilityBonus * 100, 3)}% permanent target Status Damage vulnerability after Hate damages a Heat-afflicted enemy; finite encounter starts with ${(conditionalState.externalHeatStatusPresenceProbability ?? 0) > 0 ? "external Heat" : "no external Heat"} and activates it only after a qualifying event.`]
                     : []),
@@ -1449,6 +1457,9 @@ function buildMathBreakdown(
                 `Modded base damage = base total ${fmt(baseDamage, 5)} × damage bracket ${fmt(baseDamageMultiplier, 5)} = ${fmt(moddedBaseDamageBeforeConditionOverload, 5)}; Condition Overload adds ${fmt(moddedBaseDamage - moddedBaseDamageBeforeConditionOverload, 5)} = ${fmt(moddedBaseDamage, 5)}`,
                 ...(selectedAttackDamageMultiplier !== 1
                     ? [`Selected attack damage multipliers = Slam Damage ${fmt(stats.slamAttackDamageMultiplier, 5)} × heavy-attack combo ${fmt(stats.meleeAttackComboDamageMultiplier, 5)} = ${fmt(selectedAttackDamageMultiplier, 5)}; quantization base = ${fmt(moddedBaseDamage, 5)} × ${fmt(selectedAttackDamageMultiplier, 5)} = ${fmt(moddedBaseDamageForQuantization, 5)}`]
+                    : []),
+                ...(hasSuppressedPerStatusDirectHitBonus
+                    ? ["Wiki direct-hit rule: per-status mod and weapon damage bonuses do not affect this source-marked AoE attack."]
                     : []),
                 ...(totals.conditionOverloadDamagePerStatusBonus > 0 && !stats.conditionOverloadApplies
                     ? ["Condition Overload is disabled for this selected source-marked area, slam, or glaive heavy-throw attack."]
