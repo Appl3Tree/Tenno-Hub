@@ -565,7 +565,8 @@ describe("damage calculation status eligibility", () => {
             critMultiplier: 2,
             fireRate: 1.5,
         }, {
-            averageComboDamageMultiplier: 2,
+            totalDamageMultiplier: 2,
+            totalSlashProcMultiplier: 0,
             baseComboLengthSeconds: 0.75,
         });
 
@@ -573,14 +574,31 @@ describe("damage calculation status eligibility", () => {
         expect(result).toEqual({ averageHit: 300, averageDps: 600, expectedHitDamageMultiplier: 1.5 });
     });
 
-    it("rejects missing or invalid stance timing inputs instead of filling in defaults", () => {
+    it("includes the Wiki forced-Slash multiplier in the stance combo estimate", () => {
+        const result = calculateMeleeAverageDps({
+            totalDamage: 100,
+            critChance: 0.5,
+            critMultiplier: 2,
+            fireRate: 1.5,
+        }, {
+            totalDamageMultiplier: 2,
+            totalSlashProcMultiplier: 0.5,
+            baseComboLengthSeconds: 0.75,
+        });
+
+        expect(result).toEqual({ averageHit: 375, averageDps: 750, expectedHitDamageMultiplier: 1.5 });
+    });
+
+    it("rejects invalid Wiki stance values instead of filling in defaults", () => {
         const stats = { totalDamage: 100, critChance: 0.5, critMultiplier: 2, fireRate: 1.5 };
         expect(calculateMeleeAverageDps(stats, {
-            averageComboDamageMultiplier: 1,
+            totalDamageMultiplier: 1,
+            totalSlashProcMultiplier: 0,
             baseComboLengthSeconds: 0,
         })).toBeNull();
         expect(calculateMeleeAverageDps(stats, {
-            averageComboDamageMultiplier: Number.NaN,
+            totalDamageMultiplier: Number.NaN,
+            totalSlashProcMultiplier: 0,
             baseComboLengthSeconds: 1,
         })).toBeNull();
     });
