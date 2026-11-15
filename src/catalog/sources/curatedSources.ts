@@ -36,7 +36,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:system/focus", label: "Unlock and rank within the Focus Schools", type: "other", prereqIds: ["quest_the_second_dream"] },
     { id: "data:system/set-bonus-record", label: "Internal set-bonus record", type: "other" },
     { id: "data:system/veiled-riven", label: "Receive as a Veiled Riven Mod", type: "other" },
-    { id: "data:warframe/khora", label: "Receive with Khora", type: "other", prereqIds: ["hub_relay", "quest_the_new_strange"] },
+    { id: "data:warframe/khora", label: "Receive with Khora", type: "other" },
     { id: "data:warframe/khora-prime", label: "Receive with Khora Prime", type: "other" },
     { id: "data:necramech/arquebex-archgun", label: "Receive when claiming any Necramech (Voidrig or Bonewidow)", type: "other", prereqIds: ["system_necramech_unlocked"] },
     { id: "data:necramech/first-claim", label: "Receive automatically after claiming your first Necramech", type: "other", prereqIds: ["system_necramech_unlocked"] },
@@ -63,7 +63,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:junction/pluto-sedna", label: "Earn from completing the Pluto -> Eris Junction", type: "other", prereqIds: ["junction_pluto_sedna"] },
     { id: "data:junction/sedna-eris", label: "Earn from completing the Eris -> Sedna Junction", type: "other", prereqIds: ["junction_sedna_eris"] },
     { id: "data:lua/challenge-room", label: "Complete an Orokin Moon challenge room", type: "drop", prereqIds: ["quest_the_second_dream"] },
-    { id: "data:duviri/circuit/steel-path", label: "Earn from The Steel Path Circuit", type: "drop", prereqIds: ["quest_the_duviri_paradox", "activity_steel_path", "hub_zariman"] },
+    { id: "data:duviri/circuit/steel-path", label: "Earn from The Steel Path Circuit", type: "drop", prereqIds: ["activity_circuit_steel_path"] },
     { id: "data:duviri/circuit/warframe-rewards", label: "Earn Warframe blueprints from The Circuit", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
     { id: "data:duviri/enigma", label: "Solve Enigma puzzles in Duviri", type: "drop", prereqIds: ["quest_the_duviri_paradox"] },
     { id: "data:vendor/duviri/teshins-cave", label: "Buy a Duviri melee weapon blueprint from Teshin (Pathos Clamps)", type: "vendor", prereqIds: ["quest_the_duviri_paradox"] },
@@ -131,7 +131,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:variants/tenet", label: "Tenet variant series", type: "other" },
 
     // Conclave (single buckets, no aliases)
-    { id: "data:conclave", label: "Play Conclave (PvP)", type: "other", prereqIds: ["hub_relay"] },
+    { id: "data:conclave", label: "Play Conclave (PvP)", type: "other", prereqIds: ["quest_awakening"] },
     { id: "data:events/plague-star", label: "Play Plague Star (event)", type: "other", prereqIds: ["hub_cetus"] },
     { id: "data:requiem/oull", label: "Earn Oull from Requiem sources (Liches, Sisters, or Requiem relics)", type: "other" },
 
@@ -140,7 +140,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:vendor/cetus/quills", label: "Buy from The Quills (Cetus)", type: "vendor", prereqIds: ["system_onkko_visited"] },
     { id: "data:vendor/cetus/hai-luk", label: "Buy from Hai-Luk (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
     { id: "data:vendor/cetus/nakak", label: "Nakak (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
-    { id: "data:vendor/cetus/koumei-shrine", label: "Buy from Koumei's Shrine (Cetus)", type: "vendor", prereqIds: ["hub_cetus", "activity_steel_path"] },
+    { id: "data:vendor/cetus/koumei-shrine", label: "Buy from Koumei's Shrine (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
     { id: "data:vendor/cetus/teasonai", label: "Buy from Master Teasonai (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
     { id: "data:vendor/cetus/suumbaat", label: "Buy from Old Man Suumbaat (Cetus)", type: "vendor", prereqIds: ["hub_cetus"] },
 
@@ -168,7 +168,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:vendor/kahl-garrison/chipper", label: "Buy from Chipper (Kahl’s Garrison)", type: "vendor", prereqIds: ["quest_veilbreaker"] },
 
     // Other key vendors
-    { id: "data:vendor/simaris", label: "Buy from Cephalon Simaris", type: "vendor", prereqIds: ["hub_relay", "quest_the_new_strange"] },
+    { id: "data:vendor/simaris", label: "Buy from Cephalon Simaris", type: "vendor", prereqIds: ["hub_relay"] },
     { id: "data:vendor/darvo", label: "Buy from Darvo", type: "vendor", prereqIds: ["hub_relay"] },
     { id: "data:vendor/iron-wake/palladino", label: "Buy from Palladino (Iron Wake)", type: "vendor", prereqIds: ["quest_chains_of_harrow"] },
     { id: "data:vendor/relay/aspirant-zorba", label: "Buy from Aspirant Zorba (Relay)", type: "vendor", prereqIds: ["quest_chains_of_harrow"] },
@@ -305,6 +305,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     // Legacy missionreward ids (kept as-is because other layers may emit them)
     { id: "data:missionreward/deimos/albrechts-laboratories", label: "Legacy: Albrecht’s Laboratories bounty", type: "drop", prereqIds: ["hub_sanctum_anatomica"] },
     { id: "data:missionreward/deimos/albrechts-laboratories/rotationc", label: "Legacy: Albrecht’s Laboratories bounty (Rotation C)", type: "drop", prereqIds: ["hub_sanctum_anatomica"] },
-    { id: "data:missionreward/saturn/lunaro", label: "Legacy: Lunaro mission reward", type: "other", prereqIds: ["hub_relay"] },
-    { id: "data:missionreward/saturn/lunaro/rotationb", label: "Legacy: Lunaro mission reward (Rotation B)", type: "other", prereqIds: ["hub_relay"] },
+    { id: "data:missionreward/saturn/lunaro", label: "Legacy: Lunaro mission reward", type: "other", prereqIds: ["quest_awakening"] },
+    { id: "data:missionreward/saturn/lunaro/rotationb", label: "Legacy: Lunaro mission reward (Rotation B)", type: "other", prereqIds: ["quest_awakening"] },
 ];
+
