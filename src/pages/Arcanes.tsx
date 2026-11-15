@@ -16,6 +16,7 @@ import {
   CollectionFilterDisclosure,
   CollectionRefineGroup,
   CollectionRefineBand,
+  CollectionSortHeader,
   CollectionScrollSurface,
   type CollectionActiveFilter,
 } from "../components/collection/CollectionLedgerShell";
@@ -27,7 +28,17 @@ import { buildCatalogSourceEntries } from "../components/sources/catalogSourceEn
 
 type TagFilterState = "include" | "exclude";
 type OwnershipFilter = "all" | "owned" | "unowned";
-type ModSortKey = "az" | "release-newest" | "release-oldest" | "rarity-asc" | "rarity-desc" | "rank-asc" | "rank-desc";
+type ModSortKey =
+  | "az"
+  | "za"
+  | "release-newest"
+  | "release-oldest"
+  | "rarity-asc"
+  | "rarity-desc"
+  | "rank-asc"
+  | "rank-desc"
+  | "owned-rank-asc"
+  | "owned-rank-desc";
 
 type ArcaneCategory =
   | "all"
@@ -119,12 +130,15 @@ const LEDGER_OVERSCAN = 8;
 
 const MOD_SORT_OPTIONS: Array<{ value: ModSortKey; label: string }> = [
   { value: "az", label: "Name A→Z" },
+  { value: "za", label: "Name Z→A" },
   { value: "release-newest", label: "Release: Newest first" },
   { value: "release-oldest", label: "Release: Oldest first" },
   { value: "rarity-asc", label: "Rarity: Common → Legendary" },
   { value: "rarity-desc", label: "Rarity: Legendary → Common" },
   { value: "rank-asc", label: "Max Rank: Low → High" },
   { value: "rank-desc", label: "Max Rank: High → Low" },
+  { value: "owned-rank-asc", label: "Highest Owned Rank: Low → High" },
+  { value: "owned-rank-desc", label: "Highest Owned Rank: High → Low" },
 ];
 
 const ARCANE_CATEGORIES: { key: ArcaneCategory; label: string }[] = [
@@ -994,7 +1008,15 @@ export default function ArcanesPage() {
       return matchesOwnershipFilter(isOwned ? 1 : 0, ownershipFilter);
     });
 
+    const compareNames = (left: ModEntry, right: ModEntry) =>
+      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" }) ||
+      left.path.localeCompare(right.path);
+
     list.sort((left, right) => {
+      if (sortKey === "az" || sortKey === "za") {
+        const nameOrder = compareNames(left, right);
+        return sortKey === "az" ? nameOrder : -nameOrder;
+      }
       if (sortKey === "release-newest" || sortKey === "release-oldest") {
         const leftRelease = getSortableReleaseDate(ALL_ARCANES_BY_NAME[left.name]?.releaseDate, sortKey === "release-oldest" ? "oldest" : "newest");
         const rightRelease = getSortableReleaseDate(ALL_ARCANES_BY_NAME[right.name]?.releaseDate, sortKey === "release-oldest" ? "oldest" : "newest");
@@ -1012,11 +1034,24 @@ export default function ArcanesPage() {
         const rightRank = ALL_ARCANES_BY_NAME[right.name]?.fusionLimit ?? 0;
         if (leftRank !== rightRank) return sortKey === "rank-asc" ? leftRank - rightRank : rightRank - leftRank;
       }
-      return left.name.localeCompare(right.name);
+      if (sortKey === "owned-rank-asc" || sortKey === "owned-rank-desc") {
+        const getOwnedRank = (entry: ModEntry) => {
+          const rankCounts = arcaneRanksMap[entry.path] ?? {};
+          const fallbackCount = Number(counts[modKey(entry.path)] ?? counts[entry.path] ?? 0);
+          const unknownRankCount = arcaneUnknownRankCountsMap[entry.path] ?? 0;
+          return unknownRankCount > 0
+            ? getHighestOwnedArcaneRank(rankCounts)
+            : getHighestOwnedArcaneRankWithFallback(rankCounts, fallbackCount);
+        };
+        const leftRank = getOwnedRank(left) ?? -1;
+        const rightRank = getOwnedRank(right) ?? -1;
+        if (leftRank !== rightRank) return sortKey === "owned-rank-asc" ? leftRank - rightRank : rightRank - leftRank;
+      }
+      return compareNames(left, right);
     });
 
     return list;
-  }, [arcaneRanksMap, counts, excludedCategories, includedCategories, ownershipFilter, query, sortKey]);
+  }, [arcaneRanksMap, arcaneUnknownRankCountsMap, counts, excludedCategories, includedCategories, ownershipFilter, query, sortKey]);
 
   const {
     scrollportRef,
@@ -1028,6 +1063,13 @@ export default function ArcanesPage() {
   } = useCollectionVirtualWindow(filteredArcanes.length, LEDGER_ROW_HEIGHT, LEDGER_OVERSCAN);
   const activeFilterCount = countTriStateFilters(categoryFilters) + (ownershipFilter !== "all" ? 1 : 0);
   const arcaneBrowseGridTemplate = "minmax(260px,1.5fr) 120px 456px 40px";
+  const toggleArcaneSort = (ascending: ModSortKey, descending: ModSortKey, initial: "ascending" | "descending" = "ascending") => {
+    setSortKey((current) => {
+      if (current === ascending) return descending;
+      if (current === descending) return ascending;
+      return initial === "ascending" ? ascending : descending;
+    });
+  };
   const clearFilters = () => {
     setCategoryFilters({});
     setOwnershipFilter("all");
@@ -1127,18 +1169,43 @@ export default function ArcanesPage() {
               </div>
             ) : (
               <div className="border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]">
-                <div className="min-w-[980px]">
+                <div role="table" aria-label="Arcanes catalog results" className="min-w-[980px]">
                   <div
+                    role="row"
                     className="sticky top-36 z-20 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur sm:top-44 lg:top-28"
                     style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}
                   >
-                    <div>Item</div>
-                    <div>Release</div>
-                    <div>Highest Owned Rank</div>
-                    <div />
+                    <CollectionSortHeader
+                      label="Item"
+                      active={sortKey === "az" || sortKey === "za"}
+                      direction={sortKey === "za" ? "descending" : "ascending"}
+                      ascendingLabel="A to Z"
+                      descendingLabel="Z to A"
+                      onClick={() => toggleArcaneSort("az", "za")}
+                    />
+                    <CollectionSortHeader
+                      label="Release"
+                      active={sortKey === "release-newest" || sortKey === "release-oldest"}
+                      direction={sortKey === "release-oldest" ? "ascending" : "descending"}
+                      initialDirection="descending"
+                      ascendingLabel="Oldest first"
+                      descendingLabel="Newest first"
+                      onClick={() => toggleArcaneSort("release-oldest", "release-newest", "descending")}
+                    />
+                    <CollectionSortHeader
+                      label="Highest Owned Rank"
+                      active={sortKey === "owned-rank-asc" || sortKey === "owned-rank-desc"}
+                      direction={sortKey === "owned-rank-desc" ? "descending" : "ascending"}
+                      initialDirection="descending"
+                      ascendingLabel="Low to High"
+                      descendingLabel="High to Low"
+                      onClick={() => toggleArcaneSort("owned-rank-asc", "owned-rank-desc", "descending")}
+                    />
+                    <div role="columnheader" aria-label="Actions" />
                   </div>
-                  <div ref={rowsAnchorRef} className="relative" style={{ height: filteredArcanes.length * LEDGER_ROW_HEIGHT }}>
+                  <div ref={rowsAnchorRef} role="rowgroup" className="relative" style={{ height: filteredArcanes.length * LEDGER_ROW_HEIGHT }}>
                     <div
+                      role="presentation"
                       className="absolute left-0 right-0 px-4 py-2"
                       style={{ transform: `translateY(${windowState.start * LEDGER_ROW_HEIGHT}px)` }}
                     >
@@ -1155,7 +1222,8 @@ export default function ArcanesPage() {
                           ? getHighestOwnedArcaneRank(rankCounts)
                           : getHighestOwnedArcaneRankWithFallback(rankCounts, fallbackCount);
                         return (
-                          <div key={entry.path} className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}>
+                          <div key={entry.path} role="row" className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: arcaneBrowseGridTemplate }}>
+                            <div role="cell" className="min-w-0">
                             <button
                               className={[
                                 "flex min-w-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
@@ -1180,10 +1248,11 @@ export default function ArcanesPage() {
                                 </span>
                               ) : null}
                             </button>
-                            <div className="px-2 text-sm text-slate-300">
+                            </div>
+                            <div role="cell" className="px-2 text-sm text-slate-300">
                               {formatReleaseDate(ALL_ARCANES_BY_NAME[entry.name]?.releaseDate) ?? "—"}
                             </div>
-                            <div className="flex items-center gap-1.5 overflow-x-auto pr-1" onClick={(event) => event.stopPropagation()}>
+                            <div role="cell" className="flex items-center gap-1.5 overflow-x-auto pr-1" onClick={(event) => event.stopPropagation()}>
                               {Array.from({ length: decodeMaxRank(entry.data?.FusionLimit) + 1 }, (_, rank) => rank).map((rank) => {
                                 const isSelected = highestOwnedRank === rank;
                                 return (
@@ -1210,7 +1279,7 @@ export default function ArcanesPage() {
                                 Clear
                               </button>
                             </div>
-                            <div className="flex justify-center gap-2">
+                            <div role="cell" className="flex justify-center gap-2">
                               <button
                                 className="rounded-lg border border-amber-700/50 bg-amber-950/20 px-2 py-1 text-[11px] font-semibold text-amber-300 hover:bg-amber-950/35"
                                 onClick={(event) => {
@@ -1237,3 +1306,4 @@ export default function ArcanesPage() {
     </div>
   );
 }
+
