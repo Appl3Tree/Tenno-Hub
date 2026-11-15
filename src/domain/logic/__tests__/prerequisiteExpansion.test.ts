@@ -218,6 +218,52 @@ describe("current Warframe progression gates", () => {
         expect(active.unlocked).toBe(true);
     });
 
+    it("keeps current quest gates and the purchased Railjack route exact", () => {
+        expect(definition(PR.VOX_SOLARIS).prerequisites).toEqual([PR.HUB_FORTUNA]);
+        expect(definition(PR.VOX_SOLARIS).prerequisites).not.toContain(PR.THE_TEACHER);
+        expect(definition(PR.NEW_STRANGE).prerequisites).toEqual([
+            PR.STOLEN_DREAMS,
+            PR.JUNCTION_JUPITER_EUROPA,
+        ]);
+        expect(definition(PR.LIMBO_THEOREM).prerequisites).toEqual([
+            PR.ARCHWING,
+            PR.JUNCTION_JUPITER_EUROPA,
+        ]);
+        expect(definition(PR.CALL_TEMPESTARII).prerequisites).toEqual([PR.DEADLOCK_PROTOCOL]);
+        expect(definition(PR.CALL_TEMPESTARII).anyPrerequisites).toEqual([
+            PR.RAILJACK_CONSTRUCTED,
+            PR.RAILJACK_MARKET_ACQUIRED,
+        ]);
+
+        const purchasedRailjack = computeUnlockGraphSnapshot({
+            [PR.DEADLOCK_PROTOCOL]: true,
+            [PR.RAILJACK_MARKET_ACQUIRED]: true,
+        }, undefined, { masteryRank: 4 }).byId[PR.CALL_TEMPESTARII];
+        expect(purchasedRailjack.unlocked).toBe(true);
+    });
+
+    it("requires a Ceres Abyssal Beacon from any main Syndicate at Rank 2 without a Relay visit", () => {
+        const abyssalZone = definition(PR.ACTIVITY_ABYSSAL_ZONE);
+        expect(abyssalZone.prerequisites).toEqual([PR.JUNCTION_MARS_CERES]);
+        expect(abyssalZone.prerequisites).not.toContain(PR.HUB_RELAY);
+        expect(abyssalZone.validatedByAnySyndicate?.rank).toBe(2);
+        expect(abyssalZone.validatedByAnySyndicate?.syndicateIds).toHaveLength(6);
+    });
+
+    it("keeps dynamic endgame conditions out of generic next steps until a target needs them", () => {
+        const afterAwakening = buildProgressionPlan({ [PR.AWAKENING]: true });
+        expect(afterAwakening.steps.map((step) => step.prereqId)).toContain(PR.VORS_PRIZE);
+        expect(afterAwakening.steps.map((step) => step.prereqId)).not.toContain(PR.SYSTEM_RANK30_WARFRAME);
+        expect(afterAwakening.steps.map((step) => step.prereqId)).not.toContain(PR.SYSTEM_ADVERSARY_SLOT_CLEAR);
+
+        const whenTargeted = computeUnlockGraphSnapshot({
+            [PR.WAR_WITHIN]: true,
+            [PR.RAILJACK_MARKET_ACQUIRED]: true,
+        }, undefined, { masteryRank: 5 });
+        expect(whenTargeted.byId[PR.ACTIVITY_KUVA_LICH].unlocked).toBe(false);
+        expect(whenTargeted.byId[PR.ACTIVITY_KUVA_LICH].missing).toContain(PR.SYSTEM_ADVERSARY_SLOT_CLEAR);
+    });
+
     it("requires the current Eris-to-Sedna gate's Rising Tide and Sover Strait tasks", () => {
         const status = computeUnlockGraphSnapshot({
             [PR.JUNCTION_PLUTO_SEDNA]: true,
@@ -560,3 +606,4 @@ describe("milestone rule evaluation", () => {
         expect(complete.completedPrereqs).toEqual([PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL]);
     });
 });
+
