@@ -2831,6 +2831,18 @@ describe("build optimizer scoring", () => {
         expect(explanation.steps[1].why).toContain("+100% status duration");
     });
 
+    it("explains Galvanized Steel's heavy-only critical chance contribution", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeTruthy();
+        const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Galvanized Steel");
+        expect(mod).toBeTruthy();
+        const heavyAttack = weapon!.attacks.find((attack) => attack.name === "Heavy Slam Attack");
+        expect(heavyAttack).toBeTruthy();
+        const explanation = explainBuild(weapon!, [mod!], [mod!.fusionLimit], "burst", "", heavyAttack);
+
+        expect(explanation.steps[0].why).toContain("+110% heavy-attack cc");
+    });
+
     it("summarizes conditional effects that contribute to the modeled build", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime")!;
         expect(weapon).toBeTruthy();

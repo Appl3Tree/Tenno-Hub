@@ -778,6 +778,9 @@ export function calculateBuild(
         punctureBonus += e.punctureBonus ?? 0;
         slashBonus += e.slashBonus ?? 0;
         critChanceBonus += e.critChanceBonus ?? 0;
+        if (weapon.selectedAttackUsesHeavyAttackCritChance === true) {
+            critChanceBonus += e.heavyAttackCritChanceBonus ?? 0;
+        }
         if (weapon.selectedAttackIsSlideAttack === true) {
             critChanceBonus += e.slideAttackCritChanceBonus ?? 0;
         }
@@ -890,7 +893,12 @@ export function calculateBuild(
                 estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState) *
                 estimateConditionalStackFactor(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState);
             eligibilityDamageBonus += (conditional.stats.damageBonus ?? 0) * factor;
-            eligibilityCritChanceBonus += (conditional.stats.critChanceBonus ?? 0) * factor;
+            eligibilityCritChanceBonus += (
+                (conditional.stats.critChanceBonus ?? 0) +
+                (weapon.selectedAttackUsesHeavyAttackCritChance === true
+                    ? conditional.stats.heavyAttackCritChanceBonus ?? 0
+                    : 0)
+            ) * factor;
             eligibilityFinalCritChanceBonus += (conditional.stats.finalCritChanceBonus ?? 0) * factor;
             eligibilityStatusChanceBonus += (conditional.stats.statusChanceBonus ?? 0) * factor;
             eligibilityFinalStatusChanceBonus += (conditional.stats.finalStatusChanceBonus ?? 0) * factor;
@@ -1040,7 +1048,12 @@ export function calculateBuild(
             });
         }
         conditionalDamageBonus += (conditional.stats.damageBonus ?? 0) * factor;
-        conditionalCritChanceBonus += (conditional.stats.critChanceBonus ?? 0) * factor;
+        conditionalCritChanceBonus += (
+            (conditional.stats.critChanceBonus ?? 0) +
+            (weapon.selectedAttackUsesHeavyAttackCritChance === true
+                ? conditional.stats.heavyAttackCritChanceBonus ?? 0
+                : 0)
+        ) * factor;
         conditionalFinalCritChanceBonus += (conditional.stats.finalCritChanceBonus ?? 0) * factor;
         conditionalCritMultBonus += (conditional.stats.critMultBonus ?? 0) * factor;
         conditionalFinalCritMultiplierBonus += (conditional.stats.finalCritMultiplierBonus ?? 0) * factor;

@@ -176,6 +176,8 @@ export interface WeaponEntry {
     selectedAttackIgnoresConditionOverload?: boolean;
     /** True when the selected attack's damage is multiplied by the active melee combo tier. */
     selectedAttackUsesMeleeComboMultiplier?: boolean;
+    /** True when selected-attack heavy-only critical chance bonuses apply to this row. */
+    selectedAttackUsesHeavyAttackCritChance?: boolean;
     /** True when the selected catalog row is a slam attack affected by Slam Damage mods. */
     selectedAttackUsesSlamDamageBonus?: boolean;
     /** True when the selected catalog row is an ordinary slide attack. */

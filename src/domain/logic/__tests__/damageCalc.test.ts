@@ -169,6 +169,60 @@ describe("damage calculation status eligibility", () => {
         expect(moddedNormal.critChance).toBeCloseTo(normalAttack.critChance, 12);
     });
 
+    it("doubles Galvanized Steel critical chance on heavy attacks only", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const galvanizedSteel = getModsForWeapon(weapon!).find((mod) => mod.name === "Galvanized Steel");
+        expect(galvanizedSteel).toBeDefined();
+        expect(galvanizedSteel!.hasDamageEffect).toBe(true);
+        for (let rank = 0; rank <= galvanizedSteel!.fusionLimit; rank++) {
+            const effect = galvanizedSteel!.effectsByRank[rank];
+            expect(effect.critChanceBonus).toBeGreaterThan(0);
+            expect(effect.heavyAttackCritChanceBonus).toBeCloseTo(effect.critChanceBonus, 10);
+            expect(getUnmodeledDamageEffectLines(galvanizedSteel!, rank)).toEqual([]);
+        }
+
+        const normalAttack = withSelectedAttack(
+            weapon!,
+            weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+        );
+        const heavyAttack = withSelectedAttack(
+            weapon!,
+            weapon!.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack"),
+        );
+        expect(normalAttack.selectedAttackUsesHeavyAttackCritChance).toBe(false);
+        expect(heavyAttack.selectedAttackUsesHeavyAttackCritChance).toBe(true);
+
+        const maxRankEffect = galvanizedSteel!.effectsByRank[galvanizedSteel!.fusionLimit];
+        expect(maxRankEffect.critChanceBonus).toBeCloseTo(1.1, 10);
+        expect(maxRankEffect.heavyAttackCritChanceBonus).toBeCloseTo(1.1, 10);
+        const normal = calculateBuild(normalAttack, [maxRankEffect]).modded;
+        const heavy = calculateBuild(heavyAttack, [maxRankEffect]).modded;
+        expect(normal.critChance).toBeCloseTo(normalAttack.critChance * 2.1, 10);
+        expect(heavy.critChance).toBeCloseTo(heavyAttack.critChance * 3.2, 10);
+    });
+
+    it("does not apply heavy-attack critical chance to a Glaive's direct throw", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Glaive Prime");
+        expect(weapon).toBeDefined();
+        const galvanizedSteel = getModsForWeapon(weapon!).find((mod) => mod.name === "Galvanized Steel");
+        expect(galvanizedSteel).toBeDefined();
+        const throwAttack = withSelectedAttack(
+            weapon!,
+            weapon!.attacks.findIndex((attack) => attack.name === "Charged Throw"),
+        );
+        expect(throwAttack.selectedAttackUsesMeleeComboMultiplier).toBe(true);
+        expect(throwAttack.selectedAttackUsesHeavyAttackCritChance).toBe(false);
+
+        const maxRankEffect = galvanizedSteel!.effectsByRank[galvanizedSteel!.fusionLimit];
+        const baseline = calculateBuild(throwAttack, []).modded;
+        const modded = calculateBuild(throwAttack, [maxRankEffect]).modded;
+        expect(modded.critChance).toBeCloseTo(
+            baseline.critChance + throwAttack.critChance * maxRankEffect.critChanceBonus,
+            10,
+        );
+    });
+
     it("models additive final Status Chance and triggered weapon augment effects", () => {
         const supra = getWeaponCatalog().find((candidate) => candidate.name === "Supra");
         const entropyBurst = supra && getModsForWeapon(supra).find((mod) => mod.name === "Entropy Burst");

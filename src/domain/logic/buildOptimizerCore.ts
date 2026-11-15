@@ -1570,6 +1570,7 @@ function beamThemeSignature(state: BeamState): string {
         if ((effect.conditionOverloadDamagePerStatusBonus ?? 0) > 0) tags.add("per-status");
         if (
             (effect.critChanceBonus ?? 0) > 0 ||
+            (effect.heavyAttackCritChanceBonus ?? 0) > 0 ||
             (effect.slideAttackCritChanceBonus ?? 0) > 0 ||
             (effect.critMultBonus ?? 0) > 0
         ) tags.add("crit");
@@ -2185,7 +2186,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
+    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "attackSpeedBonus")) families.push("fire-rate");
@@ -3874,6 +3875,9 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     const parts: string[] = [];
     if (value("slideAttackCritChanceBonus") > 0) {
         parts.push("+" + (value("slideAttackCritChanceBonus") * 100).toFixed(0) + "% slide-attack cc");
+    }
+    if (value("heavyAttackCritChanceBonus") > 0) {
+        parts.push("+" + (value("heavyAttackCritChanceBonus") * 100).toFixed(0) + "% heavy-attack cc");
     }
     if (value("damageBonus") > 0) parts.push(`+${(value("damageBonus") * 100).toFixed(0)}% dmg`);
     if (value("critChanceBonus") > 0) parts.push(`+${(value("critChanceBonus") * 100).toFixed(0)}% cc`);

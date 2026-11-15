@@ -27,6 +27,14 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.knownLimitations.some((entry) => entry.includes("Seismic Wave"))).toBe(true);
     });
 
+    it("records the Wiki source and scope for heavy-attack critical chance", () => {
+        expect(DAMAGE_RULESET.sources.galvanizedSteel).toBe("https://wiki.warframe.com/w/Galvanized_Steel");
+        expect(DAMAGE_RULESET.sources.heavyAttack).toBe("https://wiki.warframe.com/w/Heavy_Attack");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Galvanized Steel's +110% is therefore +110% on ordinary attacks and +220% total on heavy attacks"),
+        )).toBe(true);
+    });
+
     it("uses signed 1/32 round-half-up quantization relative to modded base damage", () => {
         const base = 96;
         const quantum = base / DAMAGE_QUANTIZATION_DENOMINATOR;

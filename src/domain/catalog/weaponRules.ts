@@ -148,6 +148,9 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackIsAreaDamage: attack.isAreaDamage === true,
         selectedAttackIgnoresConditionOverload: ignoresConditionOverload,
         selectedAttackUsesMeleeComboMultiplier: usesMeleeComboMultiplier,
+        selectedAttackUsesHeavyAttackCritChance: usesMeleeComboMultiplier && !(
+            isGlaive && !/\b(?:radial|explosion)\b/.test(attackName)
+        ),
         selectedAttackUsesSlamDamageBonus: /\bslam attack\b/.test(attackName),
         selectedAttackIsSlideAttack: /\bslide attack\b/.test(attackName),
         selectedAttackChargeAmmoPerSecond: attack.chargeAmmoPerSecond,

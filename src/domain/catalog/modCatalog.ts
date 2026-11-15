@@ -91,6 +91,8 @@ export interface ModEffect {
     tauBonus: number;
     trueBonus: number;
     critChanceBonus: number;
+    /** Additional critical chance from mods whose base bonus is doubled on selected heavy attacks. */
+    heavyAttackCritChanceBonus: number;
     /** Additive critical chance that applies only to selected slide attacks. */
     slideAttackCritChanceBonus: number;
     /** Independent damage procs that trigger on a non-critical hit. `damageBonus` is additive, so 20 means 21x damage when triggered. */
@@ -212,6 +214,7 @@ export interface ConditionalEffect {
         ModEffect,
         | "damageBonus"
         | "critChanceBonus"
+        | "heavyAttackCritChanceBonus"
         | "finalCritChanceBonus"
         | "critMultBonus"
         | "finalCritMultiplierBonus"
@@ -308,7 +311,7 @@ function normalizeStatDescriptor(rest: string): string {
 }
 
 const CONDITIONAL_STAT_KEYS: (keyof ConditionalEffect["stats"])[] = [
-    "damageBonus", "critChanceBonus", "finalCritChanceBonus", "critMultBonus",
+    "damageBonus", "critChanceBonus", "heavyAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus",
     "finalCritMultiplierBonus", "statusChanceBonus", "finalStatusChanceBonus",
     "multishotBonus", "multishotDamageBonus", "fireRateBonus", "attackSpeedBonus", "magazineBonus",
     "reloadSpeedBonus", "projectileSpeedBonus", "beamRangeBonus", "accuracyBonus",
@@ -506,6 +509,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (value === null && !flatFinalStatusChance) return {};
 
     const scaled = (value ?? Number(flatFinalStatusChance![1]) / 100) * stackMult;
+    const doublesCriticalChanceOnHeavyAttack = /\(\s*x\s*2\s+for\s+heavy attacks?\s*\)/i.test(withoutPrefix);
     const rest = flatFinalStatusChance
         ? "final status chance"
         : normalizeStatDescriptor(
@@ -514,7 +518,11 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
 
     if (rest === "damage" || rest === "melee damage") return { damageBonus: scaled };
     if (rest === "critical chance and damage") {
-        return { critChanceBonus: scaled, critMultBonus: scaled };
+        return {
+            critChanceBonus: scaled,
+            ...(doublesCriticalChanceOnHeavyAttack ? { heavyAttackCritChanceBonus: scaled } : {}),
+            critMultBonus: scaled,
+        };
     }
     if (/^bonus damage on final shot\.?\s*requires magazine \d+ or higher\.?$/.test(rest)) {
         return { lastShotMagazineDamageBonus: scaled };
@@ -526,7 +534,12 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
         return { conditionOverloadDamagePerStatusBonus: scaled };
     }
     if (rest === "direct damage per status type affecting the target") return { directDamagePerStatusBonus: scaled };
-    if (rest === "critical chance") return { critChanceBonus: scaled };
+    if (rest === "critical chance") {
+        return {
+            critChanceBonus: scaled,
+            ...(doublesCriticalChanceOnHeavyAttack ? { heavyAttackCritChanceBonus: scaled } : {}),
+        };
+    }
     if (rest === "critical damage" || rest === "critical multiplier") return { critMultBonus: scaled };
     if (rest === "status chance") return { statusChanceBonus: scaled };
     if (rest === "multishot") return { multishotBonus: scaled };
