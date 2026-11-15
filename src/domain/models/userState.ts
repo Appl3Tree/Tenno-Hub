@@ -193,6 +193,8 @@ export interface SavedBuildTargetConfig {
     isEximus?: boolean;
     /** Applies the current boss-specific four-stack Blast detonation threshold. */
     bossBlastStackCap?: boolean;
+    /** Treats the target as an Overguarded VIP with a three-stack Puncture cap. */
+    punctureVipStackCap?: boolean;
     isSteelPath?: boolean;
     useCustomStats: boolean;
     baseStats: { health: number; shields: number; overguard: number; armor: number };

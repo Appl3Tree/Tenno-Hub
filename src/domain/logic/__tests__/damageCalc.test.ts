@@ -754,6 +754,19 @@ describe("damage calculation status eligibility", () => {
         expect(overguardTarget.coldCritDamageBonus).toBeCloseTo(0.25, 10);
     });
 
+    it("applies the three-stack Puncture cap to Overguarded VIP target profiles", () => {
+        const weapon = { ...makeWeapon({ puncture: 100 }), statusChance: 1, fireRate: 1 };
+        const ordinaryTarget = calculateBuild(weapon, []).modded;
+        const overguardedVip = calculateBuild(weapon, [], "", { statusStackCaps: { puncture: 3 } }).modded;
+
+        expect(ordinaryTarget.expectedStacksByType.puncture).toBe(5);
+        expect(overguardedVip.expectedStacksByType.puncture).toBe(3);
+        expect(ordinaryTarget.punctureEnemyDamageReduction).toBeCloseTo(0.8, 10);
+        expect(overguardedVip.punctureEnemyDamageReduction).toBeCloseTo(0.6, 10);
+        expect(ordinaryTarget.punctureCritChanceBonus).toBeCloseTo(0.25, 10);
+        expect(overguardedVip.punctureCritChanceBonus).toBeCloseTo(0.15, 10);
+    });
+
     it("excludes the Puncture critical-chance bonus from source-marked area attacks", () => {
         const direct = calculateBuild({
             ...makeWeapon({ puncture: 100 }),
