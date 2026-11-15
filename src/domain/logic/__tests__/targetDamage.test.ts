@@ -355,6 +355,28 @@ describe("target damage progress across defense pools", () => {
         expect(result.directDamageByPool.shields).toBeCloseTo(600, 8);
     });
 
+    it("uses named external statuses for Condition Overload and Galvanized bonuses without double-counting Lifted and Knockdown", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 0,
+            shields: 10_000,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 10,
+            conditionOverloadDamagePerStatusBonus: 0.8,
+            directDamagePerStatusBonus: 0.4,
+            externalStatusTypes: ["viral", "tau", "lifted", "knockdown"],
+            maxAttacks: 1,
+            maxDurationSeconds: 1,
+        });
+
+        // Viral + Tau + one of Lifted/Knockdown count for CO; only Viral and
+        // the unique utility state count for the direct-hit Galvanized bonus.
+        expect(result.directDamageByPool.shields).toBeCloseTo(420, 8);
+    });
+
     it("weights damage by the time each active pool takes to deplete", () => {
         const shares = { overguard: 0, shields: 0.6, health: 0.4 };
         const multiplier = effectiveDamageProgressMultiplier(shares, {
@@ -1691,6 +1713,25 @@ describe("finite expected-value weapon encounters", () => {
         });
 
         expect(result.directDamageByPool.health).toBeCloseTo(100 + 160, 10);
+    });
+
+    it("keeps Tau out of Galvanized counts while including it in intrinsic Cedo-style counts", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            maxAttacks: 2,
+            externalStatusTypes: ["tau"],
+            directDamagePerStatusBonus: 0.4,
+            intrinsicDamagePerStatusBonus: 0.6,
+        });
+
+        // The first hit receives Cedo's 60% per Tau status, but not Galvanized's 40%.
+        expect(result.directDamageByPool.health).toBeCloseTo(320, 10);
     });
 
     it("preserves fractional per-type presence for forced status applications", () => {

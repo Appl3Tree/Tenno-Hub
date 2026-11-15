@@ -26,6 +26,13 @@ import {
     type StatusDamageType,
 } from "./damageRuleset";
 import { calculateDamageRampMultipliers } from "./weaponDamageRamp";
+import {
+    filterExternalStatusTypesForTarget,
+    getDirectDamageEligibleStatusTypes,
+    isUniqueStatusType,
+    unionUniqueStatusTypes,
+    type ExternalStatusType,
+} from "./uniqueStatusRules";
 
 type DamageKey = DamageType;
 
@@ -271,6 +278,8 @@ export interface ModdedWeaponStats {
     intrinsicDamagePerStatusMode: IntrinsicDamagePerStatusMode;
     /** Fractional expected count of unique active status types in the steady-state mean-field model. */
     directDamageStatusTypes: number;
+    /** Fractional expected count for intrinsic weapon passives using the full CO-style status list. */
+    intrinsicDamageStatusTypes: number;
     directDamagePerStatusMultiplier: number;
     /** Quantized base damage before dynamic Condition Overload and direct-hit per-status bonuses. */
     damageBreakdownBeforePerStatus: Record<DamageKey, number>;
@@ -347,6 +356,8 @@ export interface ConditionalState {
     externalStacks?: number;
     /** Distinct additional status types already maintained on the target for Condition Overload (including Tau). */
     externalStatusTypeCount?: number;
+    /** Named external statuses assumed active; these also feed direct per-status effects when eligible. */
+    externalStatusTypes?: readonly ExternalStatusType[];
     /** Probability that the target starts with an externally applied Heat status. */
     externalHeatStatusPresenceProbability?: number;
     /** User-entered melee combo tier; selected heavy attacks use it, but post-attack combo consumption/rebuild is not simulated. */
@@ -1485,31 +1496,45 @@ export function calculateBuild(
     const expectedStacksByType: Partial<Record<DamageKey, number>> = {};
     let directDamageStatusTypes = 0;
     let conditionOverloadStatusTypes = 0;
+    let intrinsicDamageStatusTypes = 0;
+    const externalStatusTypes = filterExternalStatusTypesForTarget(
+        options.conditionalState?.externalStatusTypes,
+        statusImmuneTypes,
+        options.statusStackCaps,
+    );
+    const externalStatusTypeSet = new Set(externalStatusTypes);
+    const directEligibleExternalStatusTypes = getDirectDamageEligibleStatusTypes(externalStatusTypes);
     for (const type of STATUS_DAMAGE_TYPES) {
         const rate = procRatePerSecondByType[type] ?? 0;
         const expectedStackCount = expectedStacksForRate(type, rate);
         expectedStacksByType[type] = expectedStackCount;
         const targetCap = options.statusStackCaps?.[type];
-        if (
-            options.targetStatusState !== "initial" &&
+        const isEligibleForWeaponProcs =
             !statusImmuneTypes.has(type) &&
-            !(Number.isFinite(targetCap) && (targetCap ?? 0) <= 0)
+            !(Number.isFinite(targetCap) && (targetCap ?? 0) <= 0);
+        let presence = externalStatusTypeSet.has(type) ? 1 : 0;
+        if (
+            isEligibleForWeaponProcs &&
+            options.targetStatusState !== "initial" &&
+            !externalStatusTypeSet.has(type)
         ) {
-            const presence = probabilityAtLeastOnePoissonArrival(
+            presence = probabilityAtLeastOnePoissonArrival(
                 Math.max(0, rate) * STATUS_EFFECT_RULES[type].durationSeconds * statusDurationMultiplier,
             );
-            conditionOverloadStatusTypes += presence;
-            // The pre-existing direct-hit per-status effect retains its current
-            // sourced type set. Condition Overload also counts Tau, which was
-            // inadvertently omitted from that older direct-only tally.
-            if (type !== "tau") directDamageStatusTypes += presence;
+        }
+        conditionOverloadStatusTypes += presence;
+        intrinsicDamageStatusTypes += presence;
+        if (directEligibleExternalStatusTypes.has(type) || (type !== "tau" && !externalStatusTypeSet.has(type))) {
+            directDamageStatusTypes += presence;
         }
     }
-    const uniqueWeaponStatusTypeCount = options.targetStatusState === "initial"
-        ? 0
-        : new Set(weapon.uniqueStatusProcs ?? []).size;
-    conditionOverloadStatusTypes = Math.min(16, conditionOverloadStatusTypes + uniqueWeaponStatusTypeCount);
-    directDamageStatusTypes = Math.min(16, directDamageStatusTypes + uniqueWeaponStatusTypeCount);
+    const activeUniqueStatusTypes = unionUniqueStatusTypes(
+        options.targetStatusState === "initial" ? [] : weapon.uniqueStatusProcs ?? [],
+        externalStatusTypes.filter(isUniqueStatusType),
+    );
+    conditionOverloadStatusTypes = Math.min(16, conditionOverloadStatusTypes + activeUniqueStatusTypes.size);
+    intrinsicDamageStatusTypes = Math.min(16, intrinsicDamageStatusTypes + activeUniqueStatusTypes.size);
+    directDamageStatusTypes = Math.min(16, directDamageStatusTypes + activeUniqueStatusTypes.size);
     const conditionOverloadApplies =
         conditionOverloadDamagePerStatusBonus > 0 &&
         weapon.category === "Melee" &&
@@ -1734,7 +1759,7 @@ export function calculateBuild(
         ? 0
         : Math.max(0, weapon.intrinsicDamagePerStatusBonus ?? 0);
     const intrinsicDamagePerStatusMode = weapon.intrinsicDamagePerStatusMode ?? "additiveBase";
-    const intrinsicDamagePerStatusWeight = intrinsicDamagePerStatusBonus * directDamageStatusTypes;
+    const intrinsicDamagePerStatusWeight = intrinsicDamagePerStatusBonus * intrinsicDamageStatusTypes;
     const damageBracketWithIntrinsicBonus = intrinsicDamagePerStatusMode === "multiplicativeBase"
         ? conditionOverloadDamageBracket * (1 + intrinsicDamagePerStatusWeight)
         : conditionOverloadDamageBracket + intrinsicDamagePerStatusWeight;
@@ -1926,6 +1951,7 @@ export function calculateBuild(
         intrinsicDamagePerStatusBonus,
         intrinsicDamagePerStatusMode,
         directDamageStatusTypes,
+        intrinsicDamageStatusTypes,
         directDamagePerStatusMultiplier,
         damageBreakdownBeforePerStatus,
     };

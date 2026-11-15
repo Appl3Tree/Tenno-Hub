@@ -24,6 +24,12 @@ import { advanceDamageRampMultiplier, getInitialDamageRampMultiplier } from "./w
 import { avgHitDamageMultiplier } from "./damageCalc";
 import type { TimedConditionalDamageStack } from "./damageCalc";
 import type { NonCriticalHitDamageProc } from "../catalog/modCatalog";
+import {
+    filterExternalStatusTypesForTarget,
+    isUniqueStatusType,
+    type ExternalStatusType,
+    unionUniqueStatusTypes,
+} from "./uniqueStatusRules";
 
 export type TargetDamagePool = "overguard" | "shields" | "health";
 
@@ -304,6 +310,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     conditionOverloadDamagePerStatusBonus?: number;
     /** Distinct additional externally maintained status types that remain active before each hit. */
     externalConditionOverloadStatusTypeCount?: number;
+    /** Named external statuses assumed active before each hit throughout the encounter. */
+    externalStatusTypes?: readonly ExternalStatusType[];
     /** Guaranteed unique non-damage statuses applied by each attack, such as Nukor's Microwave. */
     uniqueStatusProcsPerAttack?: readonly WeaponUniqueStatusType[];
     /** Weapon passive's per-status direct-hit bonus, if any. */
@@ -575,7 +583,13 @@ export function simulateExpectedWeaponEncounter(
     const groupedElectricTicks = new Map<number, ScheduledStatusTick>();
     const statusImmuneTypes = new Set(input.statusImmuneTypes ?? []);
     const statusStackQueues = new Map<StatusDamageType, ExpectedStatusStackQueue>();
-    const activeUniqueStatusTypes = new Set<WeaponUniqueStatusType>();
+    const externalStatusTypes = filterExternalStatusTypesForTarget(
+        input.externalStatusTypes,
+        statusImmuneTypes,
+        input.statusStackCaps,
+    );
+    const externalStatusTypeSet = new Set(externalStatusTypes);
+    const activeUniqueStatusTypes = unionUniqueStatusTypes(externalStatusTypes.filter(isUniqueStatusType));
     const blastStackEntries: ExpectedBlastStackEntry[] = [];
     const cancelledTickSequences = new Set<number>();
     const heatArmorStripState: { current: HeatArmorStripState | null } = { current: null };
@@ -1111,10 +1125,12 @@ export function simulateExpectedWeaponEncounter(
             : scaleStatusStacks(Math.min(coldStacks, 9), 0.1, 0.05, 0.45);
         const punctureCritBonus = Math.min(0.25, punctureStacks * 0.05);
         const heatArmorStrip = getHeatArmorStripAtTime(time, heatArmorStripState.current, durationMultiplier);
-        const weaponStatusTypeCount = [...statusStackQueues.values()].reduce(
-            (count, queue) => count + expectedStatusPresence(queue),
-            0,
-        );
+        const weaponStatusTypeCount = STATUS_DAMAGE_TYPES.reduce((count, type) => {
+            const modeledPresence = statusStackQueues.get(type)
+                ? expectedStatusPresence(statusStackQueues.get(type)!)
+                : 0;
+            return count + Math.max(modeledPresence, externalStatusTypeSet.has(type) ? 1 : 0);
+        }, 0);
         const externalConditionOverloadStatusTypeCount = Math.max(
             0,
             Math.min(16, Math.floor(finiteNonNegative(input.externalConditionOverloadStatusTypeCount ?? 0))),
@@ -1123,10 +1139,18 @@ export function simulateExpectedWeaponEncounter(
             16,
             weaponStatusTypeCount + activeUniqueStatusTypes.size + externalConditionOverloadStatusTypeCount,
         );
-        const directDamageStatusTypeCount = [...statusStackQueues.entries()].reduce(
-            (count, [type, queue]) => count + (type === "tau" ? 0 : expectedStatusPresence(queue)),
-            0,
-        ) + activeUniqueStatusTypes.size;
+        const intrinsicDamageStatusTypeCount = Math.min(
+            16,
+            weaponStatusTypeCount + activeUniqueStatusTypes.size,
+        );
+        const directDamageStatusTypeCount = STATUS_DAMAGE_TYPES
+            .filter((type) => type !== "tau")
+            .reduce((count, type) => {
+                const modeledPresence = statusStackQueues.get(type)
+                    ? expectedStatusPresence(statusStackQueues.get(type)!)
+                    : 0;
+                return count + Math.max(modeledPresence, externalStatusTypeSet.has(type) ? 1 : 0);
+            }, 0) + activeUniqueStatusTypes.size;
         const damageBracket = Math.max(0.0001, 1 + finiteSigned(input.totalDamageBonus ?? 0) + timedDamageBonus);
         const conditionOverloadDamagePerStatusBonus =
             finiteNonNegative(input.conditionOverloadDamagePerStatusBonus ?? 0);
@@ -1136,7 +1160,7 @@ export function simulateExpectedWeaponEncounter(
         const directDamagePerStatusWeight =
             finiteNonNegative(input.directDamagePerStatusBonus ?? 0) * directDamageStatusTypeCount;
         const intrinsicDamagePerStatusWeight =
-            finiteNonNegative(input.intrinsicDamagePerStatusBonus ?? 0) * directDamageStatusTypeCount;
+            finiteNonNegative(input.intrinsicDamagePerStatusBonus ?? 0) * intrinsicDamageStatusTypeCount;
         const damageBracketWithIntrinsicBonus = input.intrinsicDamagePerStatusMode === "multiplicativeBase"
             ? conditionOverloadDamageBracket * (1 + intrinsicDamagePerStatusWeight)
             : conditionOverloadDamageBracket + intrinsicDamagePerStatusWeight;
@@ -1410,6 +1434,8 @@ export function simulateExpectedWeaponEncounter(
                 recordTimedDamageStackTrigger(runtime, attackTime);
             }
             for (const uniqueStatus of input.uniqueStatusProcsPerAttack ?? []) {
+                if (uniqueStatus === "lifted") activeUniqueStatusTypes.delete("knockdown");
+                if (uniqueStatus === "knockdown") activeUniqueStatusTypes.delete("lifted");
                 activeUniqueStatusTypes.add(uniqueStatus);
             }
             killed = isEncounterTargetDefeated(initialHealth, remainingPools);

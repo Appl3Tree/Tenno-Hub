@@ -31,6 +31,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
@@ -1451,7 +1452,7 @@ function buildMathBreakdown(
                 ...(stats.targetStatusDamageVulnerabilityBonus > 0
                     ? [`Burning Hate = +${fmt(stats.targetStatusDamageVulnerabilityBonus * 100, 3)}% permanent target Status Damage vulnerability after Hate damages a Heat-afflicted enemy; finite encounter starts with ${(conditionalState.externalHeatStatusPresenceProbability ?? 0) > 0 ? "external Heat" : "no external Heat"} and activates it only after a qualifying event.`]
                     : []),
-                `Condition Overload = ${fmt(stats.conditionOverloadDamagePerStatusBonus * 100, 3)}% additive base damage per active type × ${fmt(stats.conditionOverloadStatusTypes, 3)} expected types (including ${conditionalState.externalStatusTypeCount ?? 0} externally maintained); multiplier ${fmt(stats.conditionOverloadDamageMultiplier, 5)}.`,
+                `Condition Overload = ${fmt(stats.conditionOverloadDamagePerStatusBonus * 100, 3)}% additive base damage per active type × ${fmt(stats.conditionOverloadStatusTypes, 3)} expected types (named external: ${conditionalState.externalStatusTypes?.join(", ") || "none"}; legacy unnamed: ${conditionalState.externalStatusTypeCount ?? 0}); multiplier ${fmt(stats.conditionOverloadDamageMultiplier, 5)}.`,
             ],
         },
         {
@@ -1472,8 +1473,8 @@ function buildMathBreakdown(
                 `Combined base damage breakdown before Condition Overload and direct-only per-status bonuses = ${nonZeroRawEntries.map(([type, value]) => `${type} ${fmt(value, 5)}`).join(", ") || "none"}`,
                 stats.directDamagePerStatusMultiplier !== 1
                     ? stats.intrinsicDamagePerStatusMode === "multiplicativeBase"
-                        ? `Direct-hit-only per-status multiplier = (Condition Overload bracket ${fmt(conditionOverloadDamageBracket, 5)} × (1 + intrinsic ${fmt(stats.intrinsicDamagePerStatusBonus, 5)} × ${fmt(stats.directDamageStatusTypes, 3)} types) + mod per-status ${fmt(stats.directDamagePerStatusBonus, 5)} × ${fmt(stats.directDamageStatusTypes, 3)}) ÷ Condition Overload bracket = ${fmt(stats.directDamagePerStatusMultiplier, 5)}`
-                        : `Direct-hit-only per-status multiplier = (Condition Overload bracket ${fmt(conditionOverloadDamageBracket, 5)} + ((mod ${fmt(stats.directDamagePerStatusBonus, 5)} + intrinsic ${fmt(stats.intrinsicDamagePerStatusBonus, 5)}) × ${fmt(stats.directDamageStatusTypes, 3)} types)) ÷ Condition Overload bracket = ${fmt(stats.directDamagePerStatusMultiplier, 5)}`
+                        ? `Direct-hit-only per-status multiplier = (Condition Overload bracket ${fmt(conditionOverloadDamageBracket, 5)} × (1 + intrinsic ${fmt(stats.intrinsicDamagePerStatusBonus, 5)} × ${fmt(stats.intrinsicDamageStatusTypes, 3)} CO-style types) + mod per-status ${fmt(stats.directDamagePerStatusBonus, 5)} × ${fmt(stats.directDamageStatusTypes, 3)} Galvanized-eligible types) ÷ Condition Overload bracket = ${fmt(stats.directDamagePerStatusMultiplier, 5)}`
+                        : `Direct-hit-only per-status multiplier = (Condition Overload bracket ${fmt(conditionOverloadDamageBracket, 5)} + mod per-status ${fmt(stats.directDamagePerStatusBonus, 5)} × ${fmt(stats.directDamageStatusTypes, 3)} Galvanized-eligible types + intrinsic ${fmt(stats.intrinsicDamagePerStatusBonus, 5)} × ${fmt(stats.intrinsicDamageStatusTypes, 3)} CO-style types) ÷ Condition Overload bracket = ${fmt(stats.directDamagePerStatusMultiplier, 5)}`
                     : "No direct-damage per-status multiplier applied",
             ],
         },
@@ -3057,6 +3058,8 @@ export default function ModBuilder() {
     const [conditionalMode, setConditionalMode] = useState<ConditionalState["mode"]>("realistic");
     const [externalConditionalStacks, setExternalConditionalStacks] = useState(1);
     const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
+    const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
+    const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
@@ -3071,10 +3074,11 @@ export default function ModBuilder() {
         mode: conditionalMode,
         externalStacks: conditionalMode === "custom" ? externalConditionalStacks : undefined,
         externalStatusTypeCount,
+        externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, targetStartsWithHeat, meleeComboMultiplier, phantasmaChargeAmmo]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, meleeComboMultiplier, phantasmaChargeAmmo]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3263,6 +3267,7 @@ export default function ModBuilder() {
             conditionalMode,
             externalConditionalStacks,
             externalStatusTypeCount,
+            externalStatusTypes,
             targetStartsWithHeat,
             meleeComboMultiplier,
             phantasmaChargeAmmo,
@@ -3303,6 +3308,7 @@ export default function ModBuilder() {
         excluded,
         externalConditionalStacks,
         externalStatusTypeCount,
+        externalStatusTypes,
         targetStartsWithHeat,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
@@ -4166,13 +4172,14 @@ export default function ModBuilder() {
                 ? stats.conditionOverloadDamagePerStatusBonus
                 : 0,
             externalConditionOverloadStatusTypeCount: externalStatusTypeCount,
+            externalStatusTypes,
             uniqueStatusProcsPerAttack: activeCalcWeapon?.uniqueStatusProcs,
             intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
             intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
             totalDamageBonus: stats.totalDamageBonus,
             timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
-    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, targetStartsWithHeat]);
+    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat]);
     const activeEncounterStatusSummary = activeTargetEncounter
         ? Object.entries(activeTargetEncounter.statusApplicationsByType)
             .filter(([, count]) => (count ?? 0) >= 0.01)
@@ -4694,6 +4701,8 @@ export default function ModBuilder() {
         // Older or imported builds without planner settings must not inherit a
         // stale external status assumption from the previously loaded build.
         setExternalStatusTypeCount(0);
+        setExternalStatusTypes([]);
+        setExternalStatusTypesOpen(false);
         setTargetStartsWithHeat(false);
         setWarframeArmorInput(readWarframeArmor(build.plannerConfig?.warframeArmor)?.toString() ?? "");
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
@@ -4710,6 +4719,9 @@ export default function ModBuilder() {
             setExternalStatusTypeCount(Number.isFinite(plannerConfig.externalStatusTypeCount)
                 ? Math.max(0, Math.min(16, Math.floor(plannerConfig.externalStatusTypeCount ?? 0)))
                 : 0);
+            const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
+            setExternalStatusTypes(restoredExternalStatusTypes);
+            setExternalStatusTypesOpen(restoredExternalStatusTypes.length > 0);
             setTargetStartsWithHeat(plannerConfig.targetStartsWithHeat === true);
             setMeleeComboMultiplier(Number.isFinite(plannerConfig.meleeComboMultiplier)
                 ? clampMeleeComboMultiplier(weapon, plannerConfig.meleeComboMultiplier ?? 1)
@@ -4967,19 +4979,70 @@ export default function ModBuilder() {
                                                         />
                                                     </label>
                                                 )}
-                                                <label className="flex items-center gap-2 text-[10px] text-slate-400">
-                                                    <span title="Count additional distinct statuses already maintained on the target by allies, abilities, hidden effects, or other sources. Includes Tau; capped at 16 total with weapon-generated types.">External Condition Overload types</span>
-                                                    <input
-                                                        aria-label="Externally maintained status types for Condition Overload"
-                                                        type="number"
-                                                        min={0}
-                                                        max={16}
-                                                        step={1}
-                                                        value={externalStatusTypeCount}
-                                                        onChange={(event) => setExternalStatusTypeCount(Math.max(0, Math.min(16, Math.floor(Number(event.target.value) || 0))))}
-                                                        className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
-                                                    />
-                                                </label>
+                                                <details
+                                                    className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 px-2 py-1.5"
+                                                    open={externalStatusTypesOpen}
+                                                    onToggle={(event) => {
+                                                        const nextOpen = event.currentTarget.open;
+                                                        setExternalStatusTypesOpen((current) => current === nextOpen ? current : nextOpen);
+                                                    }}
+                                                >
+                                                    <summary className="cursor-pointer text-[10px] font-medium text-slate-300">
+                                                        External status types ({externalStatusTypes.length} selected)
+                                                    </summary>
+                                                    <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                                                        Assume these named statuses are already active and maintained by allies, abilities, or other sources. Wiki rules are applied automatically: target-immune damage statuses are ignored; Tau counts for Condition Overload and Cedo-style status passives, not Galvanized bonuses; Lifted and Knockdown cannot coexist. Their other effects and DoT histories are not simulated here.
+                                                    </p>
+                                                    {externalStatusTypeCount > 0 && (
+                                                        <div role="note" className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-amber-300/90">
+                                                            <span>This saved configuration also has {externalStatusTypeCount} unnamed legacy status type{externalStatusTypeCount === 1 ? "" : "s"}; those count for Condition Overload only and may overlap named types.</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setExternalStatusTypeCount(0)}
+                                                                className="text-amber-200 underline decoration-amber-600/60 underline-offset-2 hover:text-white"
+                                                            >
+                                                                Clear legacy count
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3 xl:grid-cols-4">
+                                                        {EXTERNAL_STATUS_TYPE_OPTIONS.map(({ type, label }) => (
+                                                            <label key={type} className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    aria-label={`External ${label} status active`}
+                                                                    checked={externalStatusTypes.includes(type)}
+                                                                    onChange={(event) => {
+                                                                        setExternalStatusTypes((current) => {
+                                                                            const next = new Set(current);
+                                                                            if (event.target.checked) {
+                                                                                if (type === "lifted") next.delete("knockdown");
+                                                                                if (type === "knockdown") next.delete("lifted");
+                                                                                next.add(type);
+                                                                            } else {
+                                                                                next.delete(type);
+                                                                            }
+                                                                            return normalizeExternalStatusTypes([...next]);
+                                                                        });
+                                                                    }}
+                                                                    className="accent-sky-500"
+                                                                />
+                                                                <span title={type === "tau"
+                                                                    ? "Counts for Condition Overload; excluded from Galvanized Aptitude, Galvanized Savvy, and Galvanized Shot status lists on the current Wiki."
+                                                                    : type === "lifted"
+                                                                        ? "Counts as a unique status for Condition Overload and Galvanized effects; mutually exclusive with Knockdown."
+                                                                        : type === "knockdown"
+                                                                            ? "Counts as a unique status for Condition Overload and Galvanized effects; mutually exclusive with Lifted."
+                                                                            : undefined}>{label}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                    <span className="mt-2 inline-flex flex-wrap gap-x-3 gap-y-1">
+                                                        <a href="https://wiki.warframe.com/w/Condition_Overload" target="_blank" rel="noreferrer" className="text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">WARFRAME Wiki: Condition Overload</a>
+                                                        <a href="https://wiki.warframe.com/w/Galvanized_Aptitude" target="_blank" rel="noreferrer" className="text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">Galvanized Aptitude</a>
+                                                        <a href="https://wiki.warframe.com/w/Status_Effects" target="_blank" rel="noreferrer" className="text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">Status Effects</a>
+                                                    </span>
+                                                </details>
                                                 {activeBuildEffects.some((effect) => (effect?.targetStatusDamageVulnerabilityBonus ?? 0) > 0) && (
                                                     <label className="flex items-center gap-2 text-[10px] text-slate-400">
                                                         <input
@@ -5816,8 +5879,8 @@ export default function ModBuilder() {
                                                                     </div>
                                                                 )}
                                                                 <div><span className="text-slate-500">Conditional state:</span> {conditionalState.mode}</div>
-                                                                {externalStatusTypeCount > 0 && (
-                                                                    <div><span className="text-slate-500">Condition Overload status assumption:</span> {externalStatusTypeCount} additional distinct types maintained throughout the encounter (maximum 16 total)</div>
+                                                                {(externalStatusTypeCount > 0 || externalStatusTypes.length > 0) && (
+                                                                    <div><span className="text-slate-500">External status assumption:</span> {externalStatusTypes.length > 0 ? externalStatusTypes.join(" · ") + " maintained throughout the encounter" : "none named"}{externalStatusTypeCount > 0 ? ` · ${externalStatusTypeCount} legacy unnamed type(s), Condition Overload only` : ""}</div>
                                                                 )}
                                                                 {usesMeleeDamageModel(weapon.category) && (
                                                                     <div><span className="text-slate-500">Melee combo:</span> {fmt(activeMetrics?.modded.meleeComboMultiplier ?? 1, 0)}× for combo-scaled mods</div>

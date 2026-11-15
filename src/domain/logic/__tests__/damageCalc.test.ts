@@ -1441,6 +1441,50 @@ describe("damage calculation status eligibility", () => {
         expect(externallyCapped.conditionOverloadStatusTypes).toBe(16);
     });
 
+    it("uses named external types for CO and direct per-status bonuses with Tau eligibility separated", () => {
+        const melee = {
+            ...makeWeapon({ impact: 100 }),
+            category: "Melee" as const,
+            weaponType: "Sword",
+            modCompat: "Melee",
+            statusChance: 0,
+        };
+        const overload = { ...emptyEffect(), conditionOverloadDamagePerStatusBonus: 0.8 };
+        const direct = { ...emptyEffect(), directDamagePerStatusBonus: 0.4 };
+        const result = calculateBuild(melee, [overload, direct], "", {
+            targetStatusState: "initial",
+            conditionalState: {
+                mode: "initial",
+                externalStatusTypes: ["viral", "tau", "lifted", "knockdown"],
+            },
+        }).modded;
+
+        // Lifted and Knockdown are mutually exclusive: the last selected state
+        // remains active. Tau counts for Condition Overload but not direct Galvanized bonuses.
+        expect(result.conditionOverloadStatusTypes).toBe(3);
+        expect(result.directDamageStatusTypes).toBe(2);
+        expect(result.intrinsicDamageStatusTypes).toBe(3);
+        expect(result.conditionOverloadDamageMultiplier).toBeCloseTo(3.4, 12);
+        expect(result.directDamagePerStatusMultiplier).toBeCloseTo(1 + 0.8 / 3.4, 12);
+    });
+
+    it("counts Tau for a Cedo-style intrinsic unique-status passive but not Galvanized", () => {
+        const weapon = {
+            ...makeWeapon({ impact: 100 }),
+            intrinsicDamagePerStatusBonus: 0.6,
+            intrinsicDamagePerStatusMode: "additiveBase" as const,
+        };
+        const direct = { ...emptyEffect(), directDamagePerStatusBonus: 0.4 };
+        const result = calculateBuild(weapon, [direct], "", {
+            targetStatusState: "initial",
+            conditionalState: { mode: "initial", externalStatusTypes: ["tau"] },
+        }).modded;
+
+        expect(result.directDamageStatusTypes).toBe(0);
+        expect(result.intrinsicDamageStatusTypes).toBe(1);
+        expect(result.directDamagePerStatusMultiplier).toBeCloseTo(1.6, 12);
+    });
+
     it("applies steady-state Tau vulnerability to ordinary non-Tau status rolls", () => {
         const weapon = { ...makeWeapon({ tau: 50, viral: 50 }), statusChance: 1, fireRate: 1 };
         const steady = calculateBuild(weapon, []).modded;

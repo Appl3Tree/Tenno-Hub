@@ -10,7 +10,7 @@ import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
 import { assignModsToSlots, debugEvaluateExpectedEncounter, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
-import { calculateBuild } from "../damageCalc";
+import { calculateBuild, type ConditionalState } from "../damageCalc";
 import { quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
 
 function makeWeapon(overrides: Partial<WeaponEntry> = {}): WeaponEntry {
@@ -699,18 +699,31 @@ describe("build optimizer scoring", () => {
             selectedAttackIsAreaDamage: false,
         };
         const areaWeapon = { ...directWeapon, selectedAttackIsAreaDamage: true };
-        const score = (weapon: WeaponEntry, effects: ModEffect[]) => debugScoreBuild(
+        const score = (
+            weapon: WeaponEntry,
+            effects: ModEffect[],
+            conditionalState: ConditionalState = { mode: "fullyStacked" },
+        ) => debugScoreBuild(
             weapon,
             effects,
             "burst",
             "Grineer",
             null,
             null,
-            { mode: "fullyStacked" },
+            conditionalState,
         );
 
         expect(score(directWeapon, [perStatusBonus])).toBeGreaterThan(score(directWeapon, []));
         expect(score(areaWeapon, [perStatusBonus])).toBeCloseTo(score(areaWeapon, []), 12);
+        const cleanInitialScore = score(directWeapon, [perStatusBonus], { mode: "initial" });
+        expect(score(directWeapon, [perStatusBonus], {
+            mode: "initial",
+            externalStatusTypes: ["tau"],
+        })).toBeCloseTo(cleanInitialScore, 12);
+        expect(score(directWeapon, [perStatusBonus], {
+            mode: "initial",
+            externalStatusTypes: ["viral", "lifted", "microwave"],
+        })).toBeGreaterThan(cleanInitialScore);
     });
 
     it("scores Nukor Microwave independently of weapon conditional state", () => {

@@ -192,7 +192,8 @@ export interface WeaponEntry {
 
 export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
 export type WeaponForcedProcs = Partial<Record<WeaponForcedProcType, number>>;
-export type WeaponUniqueStatusType = "microwave";
+/** Non-damage-type statuses that may count as a unique Condition Overload/Galvanized state. */
+export type WeaponUniqueStatusType = "microwave" | "lifted" | "knockdown";
 export interface WeaponForcedProcDistribution {
     /** Guaranteed rolls per hit/projectile before multishot. */
     count: number;

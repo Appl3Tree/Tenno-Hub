@@ -2291,6 +2291,7 @@ function expectedEncounterScoreForEffects(
             ? stats.conditionOverloadDamagePerStatusBonus
             : 0,
         externalConditionOverloadStatusTypeCount: conditionalState?.externalStatusTypeCount,
+        externalStatusTypes: conditionalState?.externalStatusTypes,
         uniqueStatusProcsPerAttack: weapon.uniqueStatusProcs,
         intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
         intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
