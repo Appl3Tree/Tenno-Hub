@@ -76,7 +76,7 @@ export interface WeaponAttack {
     intrinsicDamagePerStatusBonus?: number;
     /** How the attack-specific passive stacks with ordinary base-damage bonuses. */
     intrinsicDamagePerStatusMode?: IntrinsicDamagePerStatusMode;
-    /** True when the source catalog identifies this damage instance as area damage. */
+    /** True when the source catalog or a Wiki-verified override identifies this instance as area damage. */
     isAreaDamage?: boolean;
     /** Per-attack trigger, when a weapon has distinct fire-mode attacks. */
     trigger?: string;
@@ -170,7 +170,7 @@ export interface WeaponEntry {
     selectedAttackName?: string;
     /** True when the selected attack is part of the weapon's Incarnon form. */
     selectedAttackIsIncarnon?: boolean;
-    /** True when the selected attack's source row is explicitly marked as area damage. */
+    /** True when the selected attack is identified as area damage by its source row or a Wiki-verified override. */
     selectedAttackIsAreaDamage?: boolean;
     /** True when the selected melee attack is excluded from Condition Overload's bonus. */
     selectedAttackIgnoresConditionOverload?: boolean;
@@ -854,6 +854,25 @@ const VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES: Readonly<Record<
     }),
 });
 
+/** Wiki-confirmed radial attack rows missing their AoE marker in the source export. */
+const VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES: Readonly<
+    Record<string, Readonly<Record<string, true>>>
+> = Object.freeze({
+    // The max-zoom shot adds a 3.5 m Viral explosion. The feed omits shot_type
+    // on this named radial attack, so keep its explosion separate from the
+    // direct projectile hit for status bonuses that only affect direct damage.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Komorex
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentAmlgSniper/CrpSentAmlgSniper": Object.freeze({
+        "3.5x zoom radial attack": true,
+    }),
+    // The Verdilac energy wave explodes at its 1.3 s lifetime for a small
+    // radial Electricity hit. The source row has no shot_type marker.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Verdilac
+    "/Lotus/Weapons/Archon/Melee/Whip/ArchonWhipPlayerWep": Object.freeze({
+        "energy wave explosion": true,
+    }),
+});
+
 /** Current Wiki-verified weapon attack proc rules absent from the WFCD export. */
 const VERIFIED_ATTACK_FORCED_PROC_OVERRIDES: Readonly<Record<
     string,
@@ -1308,7 +1327,8 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     speed:          n(a.speed) || 1,
                     intrinsicDamagePerStatusBonus: intrinsicPerStatus?.bonus ?? 0,
                     intrinsicDamagePerStatusMode: intrinsicPerStatus?.mode ?? "additiveBase",
-                    isAreaDamage: String(a.shot_type ?? "").trim().toLowerCase() === "aoe",
+                    isAreaDamage: String(a.shot_type ?? "").trim().toLowerCase() === "aoe" ||
+                        VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName] === true,
                     critChance:    n(a.crit_chance) / 100,
                     critMultiplier: n(a.crit_mult) || 1.5,
                     statusChance:  n(a.status_chance) / 100,
