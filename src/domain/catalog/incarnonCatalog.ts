@@ -32,6 +32,8 @@ type ScopedWeaponAdjustment = {
     critMultiplierFlat?: number;
     slideCritMultiplierOverride?: number;
     statusChanceFlat?: number;
+    baseStatusChancePerCriticalChance?: number;
+    baseStatusChancePerCriticalChanceCap?: number;
     magazineSizeFlat?: number;
 };
 
@@ -380,6 +382,8 @@ function pushAdjustment(target: ScopedWeaponAdjustment[], scope: IncarnonAttackS
         existing.critMultiplierFlat = (existing.critMultiplierFlat ?? 0) + (patch.critMultiplierFlat ?? 0);
         existing.slideCritMultiplierOverride = patch.slideCritMultiplierOverride ?? existing.slideCritMultiplierOverride;
         existing.statusChanceFlat = (existing.statusChanceFlat ?? 0) + (patch.statusChanceFlat ?? 0);
+        existing.baseStatusChancePerCriticalChance = patch.baseStatusChancePerCriticalChance ?? existing.baseStatusChancePerCriticalChance;
+        existing.baseStatusChancePerCriticalChanceCap = patch.baseStatusChancePerCriticalChanceCap ?? existing.baseStatusChancePerCriticalChanceCap;
         existing.magazineSizeFlat = (existing.magazineSizeFlat ?? 0) + (patch.magazineSizeFlat ?? 0);
         return;
     }
@@ -527,6 +531,12 @@ function buildOptionModel(option: RawIncarnonOption, weaponName: string): Incarn
         } else if (/increase (?:base )?critical damage multiplier by [+-]?\d+(?:\.\d+)?x/i.test(statsLine)) {
             const match = statsLine.match(/increase (?:base )?critical damage multiplier by ([+-]?\d+(?:\.\d+)?)x/i);
             addAdjustment({ critMultiplierFlat: Number(match?.[1] ?? 0) });
+        } else if (/increase base status chance by [\d.]+% of current critical chance, up to [\d.]+%/i.test(statsLine)) {
+            const match = statsLine.match(/increase base status chance by ([\d.]+)% of current critical chance, up to ([\d.]+)%/i);
+            addAdjustment({
+                baseStatusChancePerCriticalChance: parsePercent(match?.[1] ?? "0"),
+                baseStatusChancePerCriticalChanceCap: parsePercent(match?.[2] ?? "0"),
+            });
         } else if (/increase (?:base )?status chance by [+-]?\d+(?:\.\d+)?%/i.test(statsLine)) {
             const match = statsLine.match(/increase (?:base )?status chance by ([+-]?\d+(?:\.\d+)?)%/i);
             addAdjustment({ statusChanceFlat: parsePercent(match?.[1] ?? "0") });
@@ -614,20 +624,22 @@ const RECORDS: IncarnonWeaponRecord[] = RAW_RECORDS.map((record) => ({
         .filter((tier): tier is RawIncarnonTier & { tier: IncarnonTier } => tier.tier >= 1 && tier.tier <= 5)
         .map((tier) => ({
             tier: tier.tier,
-            options: tier.options.map((option) => {
-                const currentOption = withCurrentPatchDescription(record.weaponName, option);
-                const resolvedOption = {
-                    ...currentOption,
-                    descriptionLines: currentOption.descriptionLines.map((line) => {
-                        const variantResolved = resolveVariantStatLine(line, record.weaponName);
-                        return normalizeLegacyIncarnonStatLine(variantResolved ?? line);
-                    }),
-                };
-                return {
-                    ...resolvedOption,
-                    model: buildOptionModel(resolvedOption, record.weaponName),
-                };
-            }),
+            options: tier.options
+                .filter((option) => !(normalize(record.weaponName) === "sicarus" && option.id === "tier-4-wiseman-s-regard"))
+                .map((option) => {
+                    const currentOption = withCurrentPatchDescription(record.weaponName, option);
+                    const resolvedOption = {
+                        ...currentOption,
+                        descriptionLines: currentOption.descriptionLines.map((line) => {
+                            const variantResolved = resolveVariantStatLine(line, record.weaponName);
+                            return normalizeLegacyIncarnonStatLine(variantResolved ?? line);
+                        }),
+                    };
+                    return {
+                        ...resolvedOption,
+                        model: buildOptionModel(resolvedOption, record.weaponName),
+                    };
+                }),
         })),
 }));
 
@@ -645,6 +657,17 @@ const RECORDS: IncarnonWeaponRecord[] = RAW_RECORDS.map((record) => ({
  */
 function withCurrentPatchDescription(weaponName: string, option: RawIncarnonOption): RawIncarnonOption {
     const name = normalize(weaponName);
+    if (name === "sicarus prime" && option.id === "tier-4-wiseman-s-regard") {
+        return {
+            ...option,
+            descriptionLines: ["Increase Base Status Chance by 30% of current Critical Chance, up to 40%."],
+            notes: [
+                ...(option.notes ?? []),
+                ...(option.descriptionLines ?? []).slice(1).filter((line) => !/^notes\s*\[edit\b/i.test(line)),
+                "This calculation uses the selected attack's Critical Chance and supported build effects. Critical Chance sources not represented in the planner are not inferred.",
+            ],
+        };
+    }
     if (
         ["furax", "furax wraith", "mk1-furax"].includes(name) &&
         option.id === "tier-4-kinetic-killer"
@@ -988,6 +1011,8 @@ export function resolveIncarnonState(
     const baseWeapon: WeaponEntry = {
         ...weapon,
         selectedAttackSlideCritMultiplierOverride: undefined,
+        selectedAttackBaseStatusChancePerCriticalChance: undefined,
+        selectedAttackBaseStatusChancePerCriticalChanceCap: undefined,
         selectedAttackIncarnonAmmoCapacity: selectedScope === "incarnon"
             ? wikiAmmoCapacityForWeapon(weapon, record)
             : undefined,
@@ -1026,6 +1051,16 @@ export function resolveIncarnonState(
                 nextWeapon = {
                     ...nextWeapon,
                     selectedAttackSlideCritMultiplierOverride: adjustment.slideCritMultiplierOverride,
+                };
+            }
+            if (
+                adjustment.baseStatusChancePerCriticalChance !== undefined &&
+                (adjustment.scope === "all" || adjustment.scope === selectedScope)
+            ) {
+                nextWeapon = {
+                    ...nextWeapon,
+                    selectedAttackBaseStatusChancePerCriticalChance: adjustment.baseStatusChancePerCriticalChance,
+                    selectedAttackBaseStatusChancePerCriticalChanceCap: adjustment.baseStatusChancePerCriticalChanceCap,
                 };
             }
             if (adjustment.scope === "normal" && selectedScope === "normal" && adjustment.magazineSizeFlat) {

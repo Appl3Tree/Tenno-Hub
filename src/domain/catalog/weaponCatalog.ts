@@ -200,6 +200,10 @@ export interface WeaponEntry {
     selectedAttackIsSlideAttack?: boolean;
     /** Wiki-defined base critical multiplier when the player is sliding at impact with Furax Kinetic Killer selected. */
     selectedAttackSlideCritMultiplierOverride?: number;
+    /** Base Status Chance percentage points from the selected attack's current Critical Chance, for source-backed Incarnon perks. */
+    selectedAttackBaseStatusChancePerCriticalChance?: number;
+    /** Cap on the selected attack's dynamic base Status Chance bonus. */
+    selectedAttackBaseStatusChancePerCriticalChanceCap?: number;
     /** Selected attack's fixed ammo charge rate, where verified. */
     selectedAttackChargeAmmoPerSecond?: number;
     /** Ammo cost represented by the selected attack row's base damage. */

@@ -3,6 +3,15 @@
 Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
 ## Latest follow-up (2026-11-15)
+
+### Wiki lookup-input correction and Sicarus Prime Wiseman's Regard
+
+The attached Stance-Average DPS Inputs screenshot shows a superseded panel. The current melee stance view obtains Neutral-combo multipliers and timing from the Wiki reference table and calculates the estimate automatically; players do not enter lookup values. That existing correction is recorded above and was previously verified on port 80.
+
+The current [Sicarus Incarnon Wiki page](https://wiki.warframe.com/w/Sicarus_Incarnon_Genesis) identifies Wiseman's Regard as Prime-only and defines its bonus as up to +40 percentage points of base Status Chance from 30% of current Critical Chance. The generated snapshot had exposed the option for standard Sicarus and left the Prime effect as unparsed prose. The runtime catalog now removes the option from standard Sicarus and parses it for Sicarus Prime. Calculation uses the selected Normal or Incarnon attack row's current modeled Critical Chance, caps the base Status Chance addition at 40 points, and then applies ordinary additive/final Status Chance effects. The picker retains the Wiki caveats and says Critical Chance sources absent from the planner are not inferred.
+
+Regressions cover Prime-only availability, optimizer candidates, each Sicarus Prime attack form's own Critical Chance, mod scaling, the cap, and inactive state without the perk. All 708 tests across 52 files pass. Production build, `validate:sources`, prerequisite audit, mod-effect audit (485/599 parsed, 114 without a parsed effect, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass. Opening the in-app browser on port 80 returned a queued status, so this follow-up has no new visual confirmation. Overall Damage 3.0 and optimizer-quality criteria remain open.
+
 ### Weapon compatibility audit: Perigale and Buzlok (2026-11-15)
 
 The Perigale Prime report traces to two gaps in the source data path. Its weapon record is missing from the lean item-ancestry catalog, so standard Rifle mods carrying an `ItemCompatibility` path were rejected. Flawed training records often omit that path, so they passed the filter and appeared to be the only choices. The compatibility resolver now applies the weapon's known class when ancestry is missing, while the catalog parser inherits standard-card restrictions onto training variants. A 694-weapon regression checks standard counterparts and display order for every Flawed mod; the explicit Perigale test checks standard Serration, Split Chamber, and Hunter Munitions. The clean profile still does not reproduce the player's profile-specific state.
