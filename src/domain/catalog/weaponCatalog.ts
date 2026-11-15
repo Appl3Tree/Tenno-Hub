@@ -76,7 +76,7 @@ export interface WeaponAttack {
     intrinsicDamagePerStatusBonus?: number;
     /** How the attack-specific passive stacks with ordinary base-damage bonuses. */
     intrinsicDamagePerStatusMode?: IntrinsicDamagePerStatusMode;
-    /** True when the source catalog or a Wiki-verified override identifies this instance as area damage. */
+    /** True = area hit, false = direct hit, undefined = no source/Wiki classification. */
     isAreaDamage?: boolean;
     /** Per-attack trigger, when a weapon has distinct fire-mode attacks. */
     trigger?: string;
@@ -170,7 +170,7 @@ export interface WeaponEntry {
     selectedAttackName?: string;
     /** True when the selected attack is part of the weapon's Incarnon form. */
     selectedAttackIsIncarnon?: boolean;
-    /** True when the selected attack is identified as area damage by its source row or a Wiki-verified override. */
+    /** True = area hit, false = direct hit, undefined = no source/Wiki classification. */
     selectedAttackIsAreaDamage?: boolean;
     /** True when the selected melee attack is excluded from Condition Overload's bonus. */
     selectedAttackIgnoresConditionOverload?: boolean;
@@ -854,9 +854,9 @@ const VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES: Readonly<Record<
     }),
 });
 
-/** Wiki-confirmed radial attack rows missing their AoE marker in the source export. */
+/** Wiki-confirmed direct/radial attack rows missing their area marker in the source export. */
 const VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES: Readonly<
-    Record<string, Readonly<Record<string, true>>>
+    Record<string, Readonly<Record<string, boolean>>>
 > = Object.freeze({
     // The max-zoom shot adds a 3.5 m Viral explosion. The feed omits shot_type
     // on this named radial attack, so keep its explosion separate from the
@@ -869,6 +869,7 @@ const VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES: Readonly<
     // radial Electricity hit. The source row has no shot_type marker.
     // Verified 2026-11-15: https://wiki.warframe.com/w/Verdilac
     "/Lotus/Weapons/Archon/Melee/Whip/ArchonWhipPlayerWep": Object.freeze({
+        "energy wave": false,
         "energy wave explosion": true,
     }),
     // Alternox's alternate-fire sphere pulses on nearby enemies once per
@@ -908,8 +909,100 @@ const VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES: Readonly<
     // impact remains direct and its separate explosion is already source-tagged.
     // Verified 2026-11-15: https://wiki.warframe.com/w/Zenistar
     "/Lotus/Weapons/Tenno/Melee/SunDialAxe/SundialAxeWeapon": Object.freeze({
+        "attacks while disc deployed": false,
+        "disc impact": false,
         "disc aura": true,
     }),
+    // These grenade rows are the projectile's direct contact. Their separate
+    // radial/bounce rows are source-tagged AoE.
+    // Verified 2026-11-15:
+    // https://wiki.warframe.com/w/Cortege
+    // https://wiki.warframe.com/w/Trumna
+    // https://wiki.warframe.com/w/Trumna_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchGun/ThanoTechArchGun": Object.freeze({
+        "grenade impact": false,
+    }),
+    "/Lotus/Weapons/Thanotech/ThanoRifle/ThanotechRifle": Object.freeze({
+        "grenade impact": false,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeTrumna/PrimeTrumnaWeapon": Object.freeze({
+        "grenade impact": false,
+    }),
+    // The Hind semi-auto row is one bullet per trigger, as its Wiki fire-mode
+    // description confirms; the row omits the hit-scan shot_type value.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Hind
+    "/Lotus/Weapons/Grineer/LongGuns/BurstRifle/GrnBurstRifle": Object.freeze({
+        "semi-auto mode": false,
+    }),
+    // Morgha's charged projectile's direct hit is separate from its following
+    // explosion row.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Morgha
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechGrenadeLaunch/ThanoTechGrenadeLauncher": Object.freeze({
+        "charged shot": false,
+    }),
+    // Nepheri fireballs are direct projectiles with infinite body punch-through.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Nepheri
+    "/Lotus/Weapons/Archon/Melee/DualDaggers/ArchonDualDaggersPlayerWep": Object.freeze({
+        "fireballs": false,
+    }),
+    // Orvius deals three single-target Hover Attack ticks before its separate
+    // 4 m throw explosion.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Orvius
+    "/Lotus/Weapons/Tenno/Melee/Glaives/TeshinGlaive/TnTeshinGlaiveWep": Object.freeze({
+        "hover attack": false,
+    }),
+    // Pandero Prime's alternate fire is a burst of the same direct bullets.
+    // Verified 2026-11-15:
+    // https://wiki.warframe.com/w/Pandero_Prime
+    // https://wiki.warframe.com/w/Alternate_Fire
+    "/Lotus/Weapons/Tenno/Pistols/PrimePandero/PanderoPrimeWeapon": Object.freeze({
+        "alt-fire": false,
+    }),
+    // The Paracyst harpoon's contact hit is direct; its damage-over-time effect
+    // is separate from the contact row.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Paracyst
+    "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle": Object.freeze({
+        "infested harpoon contact": false,
+    }),
+    // Shattered Lash's thrust and sweep are melee contact hits, not radial
+    // explosions; the separate Mass Vitrify shatter is ability damage.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Shattered_Lash_%28Weapon%29
+    "/Lotus/Powersuits/Glass/GaraShankWeapon": Object.freeze({
+        "damage": false,
+        "arcing damage": false,
+    }),
+    "/Lotus/Powersuits/Glass/GaraShankWeaponPrime": Object.freeze({
+        "damage": false,
+        "arcing damage": false,
+    }),
+    // The Stormpath slide hit is a melee contact attack; its separate 14 m
+    // vortex pulls and staggers but is not an additional damage event.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Telos_Boltace
+    "/Lotus/Weapons/Syndicates/ArbitersOfHexis/Melee/AHBoltace": Object.freeze({
+        "stormpath slide attack": false,
+    }),
+    // Zaw component attack rows are direct melee strikes across their weapon
+    // classes; their source records omit shot_type.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Zaw
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/PvPVariantTipOne": Object.freeze({ "balla strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipOne": Object.freeze({ "balla strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/PvPVariantTipFour": Object.freeze({ "cyath strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFour": Object.freeze({ "cyath strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/PvPVariantTipFive": Object.freeze({ "dehtat strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFive": Object.freeze({ "dehtat strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipEleven": Object.freeze({ "dokrahm strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/PvPVariantTipSix": Object.freeze({ "kronsh strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipSix": Object.freeze({ "kronsh strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/PvPVariantTipThree": Object.freeze({ "mewan strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipThree": Object.freeze({ "mewan strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/PvPVariantTipTwo": Object.freeze({ "ooltha strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipTwo": Object.freeze({ "ooltha strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/PvPVariantInfestedTipTwo": Object.freeze({ "plague keewar strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipTwo": Object.freeze({ "plague keewar strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/PvPVariantInfestedTipOne": Object.freeze({ "plague kripath strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipOne": Object.freeze({ "plague kripath strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipTen": Object.freeze({ "rabvee strike": false }),
+    "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipNine": Object.freeze({ "sepfahn strike": false }),
 });
 
 /** Current Wiki-verified weapon attack proc rules absent from the WFCD export. */
@@ -1361,13 +1454,16 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const intrinsicPerStatus = VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES[uniqueName]?.[attackName];
                 const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
                 const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
+                const sourceShotType = String(a.shot_type ?? "").trim().toLowerCase();
+                const verifiedAreaClassification = VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
                 return {
                     name: String(a.name),
                     speed:          n(a.speed) || 1,
                     intrinsicDamagePerStatusBonus: intrinsicPerStatus?.bonus ?? 0,
                     intrinsicDamagePerStatusMode: intrinsicPerStatus?.mode ?? "additiveBase",
-                    isAreaDamage: String(a.shot_type ?? "").trim().toLowerCase() === "aoe" ||
-                        VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName] === true,
+                    isAreaDamage: sourceShotType
+                        ? sourceShotType === "aoe"
+                        : verifiedAreaClassification ?? undefined,
                     critChance:    n(a.crit_chance) / 100,
                     critMultiplier: n(a.crit_mult) || 1.5,
                     statusChance:  n(a.status_chance) / 100,
