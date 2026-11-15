@@ -40,6 +40,17 @@ describe("Damage 3.0 shared rules", () => {
         )).toBe(true);
     });
 
+    it("records Magnetic's shield-regeneration rule and encounter limitation", () => {
+        expect(DAMAGE_RULESET.sources.shield).toBe("https://wiki.warframe.com/w/Shield");
+        expect(DAMAGE_RULESET.sources.magnetic).toBe("https://wiki.warframe.com/w/Damage/Magnetic_Damage");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("external Shield restoration can bypass that penalty"),
+        )).toBe(true);
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("The encounter models no natural Shield recharge or external Shield restoration"),
+        )).toBe(true);
+    });
+
     it("records the Wiki source and scope for heavy-attack critical chance", () => {
         expect(DAMAGE_RULESET.sources.galvanizedSteel).toBe("https://wiki.warframe.com/w/Galvanized_Steel");
         expect(DAMAGE_RULESET.sources.heavyAttack).toBe("https://wiki.warframe.com/w/Heavy_Attack");
