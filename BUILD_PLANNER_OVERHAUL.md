@@ -802,4 +802,3 @@ Parsed headshot and weak-point damage and critical bonuses remain available for 
 Fresh local port-80 and live browser checks show 106 compatible Perigale Prime mods in both Owned Mods and the manual picker, including standard Serration beside Serration (Flawed). The clean profile has 0/106 owned, so the profile-specific report remains unreproduced. The release checks pass at 617 tests across 50 files, production build, source validation, and focused ESLint.
 
 Global and joint optimizer optimality, broader objective-equivalent Underframe comparisons, stochastic status histories, remaining weapon/status mechanics, and cold/mobile/cross-device Worker measurements remain open.
-
