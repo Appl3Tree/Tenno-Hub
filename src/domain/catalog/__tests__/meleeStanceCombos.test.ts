@@ -19,7 +19,7 @@ describe("Wiki melee stance combo catalog", () => {
         expect(new Set(wikiNames).size).toBe(wikiNames.length);
         expect(wikiNames.every((name) => catalogStanceNames.has(name))).toBe(true);
         expect(WIKI_MELEE_STANCE_SOURCE_LAST_EDITED).toBe("2026-10-02");
-        expect(WIKI_MELEE_STANCE_VERIFIED_AT).toBe("2026-11-14");
+        expect(WIKI_MELEE_STANCE_VERIFIED_AT).toBe("2026-11-15");
         for (const combo of WIKI_MELEE_STANCE_COMBOS) {
             expect(combo.comboType).toBe("Neutral");
             expect(combo.comboName.length).toBeGreaterThan(0);

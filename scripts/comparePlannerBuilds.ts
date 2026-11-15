@@ -61,8 +61,13 @@ const FRESH_UNDERFRAME_BUILD: NamedBuild = {
         { name: "Radiated Reload", rank: 3 },
     ],
 };
-let SELECTED_BUILDS = process.argv.includes("--fresh-underframe")
-    ? [BENCHMARK_BUILDS[0], FRESH_UNDERFRAME_BUILD]
+const compareSavedUnderframe = process.argv.includes("--saved-underframe");
+const compareFreshUnderframe = process.argv.includes("--fresh-underframe");
+const underframeComparisonBuild = compareSavedUnderframe ? BENCHMARK_BUILDS[1] : FRESH_UNDERFRAME_BUILD;
+let SELECTED_BUILDS = compareSavedUnderframe
+    ? [BENCHMARK_BUILDS[0], BENCHMARK_BUILDS[1]]
+    : compareFreshUnderframe
+        ? [BENCHMARK_BUILDS[0], FRESH_UNDERFRAME_BUILD]
     : BENCHMARK_BUILDS;
 let REOPTIMIZED_BUILD: NamedBuild | null = null;
 let REOPTIMIZED_RESULT: ReturnType<typeof optimizeBuild> | null = null;
@@ -123,14 +128,22 @@ const scoringWeapon = withSelectedAttack(weapon, weapon.attacks.length > 0 ? 0 :
 const targetOverride = {
     ...TARGET,
 };
+const primaryBulwark = process.argv.includes("--primary-bulwark")
+    ? getArcanesForWeapon(weapon).find((arcane) => arcane.name === "Primary Bulwark") ?? null
+    : null;
 const primaryOvercharge = process.argv.includes("--primary-overcharge")
     ? getArcanesForWeapon(weapon).find((arcane) => arcane.name === "Primary Overcharge") ?? null
     : null;
-const primaryOverchargeContext = primaryOvercharge
+if (primaryBulwark && primaryOvercharge) {
+    throw new Error("Choose one benchmark Arcane: --primary-bulwark or --primary-overcharge.");
+}
+const primaryArcane = primaryBulwark ?? primaryOvercharge;
+const primaryArcaneContext = primaryOvercharge
     ? { warframeMaxEnergy: 1000, warframeEnergyPercent: 100 }
     : undefined;
-const primaryOverchargeEffect = primaryOvercharge
-    ? getArcaneEffectAtRank(primaryOvercharge, primaryOvercharge.maxRank, undefined, false, primaryOverchargeContext)
+const warframeArmor = primaryBulwark ? 1_500 : undefined;
+const primaryArcaneEffect = primaryArcane
+    ? getArcaneEffectAtRank(primaryArcane, primaryArcane.maxRank, warframeArmor, false, primaryArcaneContext)
     : null;
 if (process.argv.includes("--reoptimize")) {
     const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon));
@@ -145,9 +158,10 @@ if (process.argv.includes("--reoptimize")) {
         capacityConfig: CAPACITY_CONFIG,
         slotPolarities: weapon.polarities,
         defaultSlotPolarities: weapon.polarities,
-        optimizeArcane: !!primaryOvercharge,
-        arcaneCandidates: primaryOvercharge ? [primaryOvercharge] : [],
-        ...primaryOverchargeContext,
+        optimizeArcane: !!primaryArcane,
+        arcaneCandidates: primaryArcane ? [primaryArcane] : [],
+        warframeArmor,
+        ...primaryArcaneContext,
         optimizeExilus: false,
         buildForAttack: weapon.attacks[0] ?? null,
     });
@@ -156,15 +170,17 @@ if (process.argv.includes("--reoptimize")) {
         ? [{ name: mod.name, rank: optimized.slotRanks[index] ?? mod.fusionLimit }]
         : []);
     REOPTIMIZED_BUILD = { name: `Tenno-Hub optimizer (${CONDITIONAL_STATE.mode})`, mods: optimizedMods };
-    SELECTED_BUILDS = process.argv.includes("--fresh-underframe")
-        ? [REOPTIMIZED_BUILD, FRESH_UNDERFRAME_BUILD]
-        : [REOPTIMIZED_BUILD];
+    SELECTED_BUILDS = compareSavedUnderframe
+        ? [REOPTIMIZED_BUILD, BENCHMARK_BUILDS[1]]
+        : compareFreshUnderframe
+            ? [REOPTIMIZED_BUILD, FRESH_UNDERFRAME_BUILD]
+            : [REOPTIMIZED_BUILD];
 }
 const target = getTargetProfileAssumptions(FACTION, targetOverride);
 const reports = SELECTED_BUILDS.map((build) => {
     const { effects, mods } = makeEffects(build, weapon);
-    const calculatedEffects = primaryOverchargeEffect
-        ? [...effects, { ...emptyEffect(), ...primaryOverchargeEffect, conditionalEffects: [...(primaryOverchargeEffect.conditionalEffects ?? [])] }]
+    const calculatedEffects = primaryArcaneEffect
+        ? [...effects, { ...emptyEffect(), ...primaryArcaneEffect, conditionalEffects: [...(primaryArcaneEffect.conditionalEffects ?? [])] }]
         : effects;
     const ranks = mods.map(({ rank }) => rank);
     const assigned = assignBuildForCapacity(mods.map(({ mod }) => mod), ranks, weapon);
@@ -187,7 +203,7 @@ const reports = SELECTED_BUILDS.map((build) => {
         FACTION,
         targetOverride,
         CONDITIONAL_STATE,
-        primaryOverchargeEffect,
+        primaryArcaneEffect,
     );
     const encounter = finiteExpectedEncounter.encounter;
 
@@ -205,10 +221,15 @@ const reports = SELECTED_BUILDS.map((build) => {
             formaLimit: MAX_FORMA,
             legal: capacityValid && formaCount <= MAX_FORMA,
         },
-        arcane: primaryOvercharge
-            ? { name: primaryOvercharge.name, rank: primaryOvercharge.maxRank, multishotBonus: primaryOverchargeEffect?.multishotBonus ?? 0 }
+        arcane: primaryArcane
+            ? {
+                name: primaryArcane.name,
+                rank: primaryArcane.maxRank,
+                damageBonus: primaryArcaneEffect?.damageBonus ?? 0,
+                multishotBonus: primaryArcaneEffect?.multishotBonus ?? 0,
+            }
             : null,
-        commonOptimizerScore: debugScoreBuild(scoringWeapon, effects, GOAL, FACTION, primaryOverchargeEffect, targetOverride, CONDITIONAL_STATE),
+        commonOptimizerScore: debugScoreBuild(scoringWeapon, effects, GOAL, FACTION, primaryArcaneEffect, targetOverride, CONDITIONAL_STATE),
         ...(build === REOPTIMIZED_BUILD && REOPTIMIZED_RESULT
             ? {
                 optimizerRefinement: {
@@ -240,18 +261,22 @@ const swapAnalysis = process.argv.includes("--analyze-underframe-swaps")
 
 console.log(JSON.stringify({
     methodology: {
-        target: "Level-100 Heavy Gunner current pools copied from the Tenno-Hub planner comparison: 83,818 Health, 2,700 Armor, no Shields or Overguard.",
+        target: "Explicit Grineer Heavy Gunner pools: 83,818 Health, 2,700 Armor, no Shields or Overguard.",
         objective: `Both fixed builds are evaluated with Tenno-Hub's same ${CONDITIONAL_STATE.mode}-state ${GOAL} screening score and finite expected encounter. For Expected TTK, the optimizer ranks kills inside its 600-second cap ahead of capped encounters and uses damage per second only when neither build kills; this does not equate Underframe stochastic DPS with Tenno-Hub's model.`,
         assumptions: [
-            primaryOvercharge
-                ? `Braton Prime Normal Attack; both lists receive Primary Overcharge R5 at the 350% multishot cap (1,000 Max Energy, 100% current Energy). No target headshot multiplier, Exilus, or external buffs are supplied${CONDITIONAL_STATE.mode === "fullyStacked" ? "; Fully stacked activates supported mod conditionals such as Galvanized Scope, without adding headshot damage." : "; non-initial mod conditionals are inactive."}`
+            primaryBulwark
+                ? `Braton Prime Normal Attack; both lists receive Primary Bulwark R5 at its +500% damage cap using 1,500 Warframe Armor (the Underframe fixture displays 500/500). No target headshot multiplier, Exilus, or external buffs are supplied${CONDITIONAL_STATE.mode === "fullyStacked" ? "; Fully stacked activates supported mod conditionals such as Galvanized Scope, without adding headshot damage." : "; non-initial mod conditionals are inactive."}`
+                : primaryOvercharge
+                    ? `Braton Prime Normal Attack; both lists receive Primary Overcharge R5 at the 350% multishot cap (1,000 Max Energy, 100% current Energy). No target headshot multiplier, Exilus, or external buffs are supplied${CONDITIONAL_STATE.mode === "fullyStacked" ? "; Fully stacked activates supported mod conditionals such as Galvanized Scope, without adding headshot damage." : "; non-initial mod conditionals are inactive."}`
                 : `Braton Prime Normal Attack; no arcane, Exilus, external buffs, or target headshot multiplier${CONDITIONAL_STATE.mode === "fullyStacked" ? "; Fully stacked activates supported mod conditionals such as Galvanized Scope, without adding headshot damage." : "; non-initial mod conditionals are inactive."}`,
             "No explicit status immunities; the model removes Magnetic as a dead effect for a shieldless target.",
             "Three-forma feasibility is recomputed against the weapon's default polarities and 60 capacity.",
             "Fractional procs, Electricity/Gas group histories, cross-source Heat inheritance, shield gates, animation timing, and random TTK distributions remain approximations or omitted.",
         ],
-        buildCapture: process.argv.includes("--fresh-underframe")
-            ? `The current Underframe eight-mod Auto Build result was captured in the in-app browser on 2026-11-12. Its native result used a five-second Luck Averaged run with Galvanized Chamber, Galvanized Aptitude, and Primary Overcharge controls at their displayed maximums; ${primaryOvercharge ? "Primary Overcharge is replayed at its 350% rank-5 cap using 1,000 Max Energy and 100% current Energy." : "Primary Overcharge is omitted from the common-model replay; pass --primary-overcharge to compare its cap-equivalent assumption."}`
+        buildCapture: compareSavedUnderframe
+            ? `The saved Underframe Braton Prime benchmark copy was inspected in the in-app browser on 2026-11-15; it uses Amalgam Serration, three faction Banes, and Primary Bulwark at 500/500. A five-second Luck Averaged run showed 1,529 raw + 465 DoT damage per shot and 19,461 DPS. ${primaryBulwark ? "Primary Bulwark is replayed at its +500% rank-5 cap using 1,500 Warframe Armor, corresponding to the saved 500/500 value." : primaryOvercharge ? "Primary Overcharge is replayed at its 350% rank-5 cap using 1,000 Max Energy and 100% current Energy; this differs from the saved page's displayed Primary Bulwark state." : "The Primary Arcane is omitted from the common-model replay; pass --primary-bulwark to match the saved 500/500 Bulwark state."}`
+            : compareFreshUnderframe
+            ? `The current Underframe eight-mod Auto Build result was captured in the in-app browser on 2026-11-12. Its native result used a five-second Luck Averaged run with Galvanized Chamber, Galvanized Aptitude, and Primary Overcharge controls at their displayed maximums; ${primaryBulwark ? "Primary Bulwark is replayed at its +500% rank-5 cap using 1,500 Warframe Armor, matching the 500/500 Underframe slider." : primaryOvercharge ? "Primary Overcharge is replayed at its 350% rank-5 cap using 1,000 Max Energy and 100% current Energy." : "the selected Primary Arcane is omitted from the common-model replay; pass --primary-bulwark or --primary-overcharge to include it."}`
             : "Tenno-Hub seven-mod optimizer result and Underframe eight-mod Auto Build output were captured in the in-app browser on 2026-11-11.",
     },
     builds: reports,
@@ -278,16 +303,16 @@ function chooseCombinations<T>(values: T[], count: number): T[][] {
 }
 
 function analyzeUnderframeSwapNeighborhood() {
-    if (!REOPTIMIZED_BUILD || !process.argv.includes("--fresh-underframe")) {
-        throw new Error("--analyze-underframe-swaps requires --fresh-underframe and --reoptimize");
+    if (!REOPTIMIZED_BUILD || (!compareFreshUnderframe && !compareSavedUnderframe)) {
+        throw new Error("--analyze-underframe-swaps requires an Underframe snapshot flag and --reoptimize");
     }
 
-    const underframeNames = new Set(FRESH_UNDERFRAME_BUILD.mods.map((mod) => mod.name.toLowerCase()));
+    const underframeNames = new Set(underframeComparisonBuild.mods.map((mod) => mod.name.toLowerCase()));
     const tennoNames = new Set(REOPTIMIZED_BUILD.mods.map((mod) => mod.name.toLowerCase()));
     const tennoOnly = REOPTIMIZED_BUILD.mods.filter((mod) => !underframeNames.has(mod.name.toLowerCase()));
-    const underframeOnly = FRESH_UNDERFRAME_BUILD.mods.filter((mod) => !tennoNames.has(mod.name.toLowerCase()));
+    const underframeOnly = underframeComparisonBuild.mods.filter((mod) => !tennoNames.has(mod.name.toLowerCase()));
     const baseline = evaluateCandidate(REOPTIMIZED_BUILD);
-    const underframeBaseline = evaluateCandidate(FRESH_UNDERFRAME_BUILD);
+    const underframeBaseline = evaluateCandidate(underframeComparisonBuild);
     const depths = [];
 
     for (let depth = 1; depth <= Math.min(4, tennoOnly.length, underframeOnly.length); depth++) {
@@ -349,14 +374,14 @@ function evaluateCandidate(build: NamedBuild) {
         && new Set(uniqueNames).size === uniqueNames.length
         && new Set(incompatibilityGroups).size === incompatibilityGroups.length;
     const encounter = legal
-        ? debugScoreExpectedEncounter(scoringWeapon, effects, FACTION, targetOverride, CONDITIONAL_STATE, primaryOverchargeEffect)
+        ? debugScoreExpectedEncounter(scoringWeapon, effects, FACTION, targetOverride, CONDITIONAL_STATE, primaryArcaneEffect)
         : { damagePerSecond: 0, timeToKillSeconds: null };
     return {
         build: build.name,
         legal,
         capacityUsed: assigned.usedCapacity,
         formaCount,
-        screeningProxy: debugScoreBuild(scoringWeapon, effects, GOAL, FACTION, primaryOverchargeEffect, targetOverride, CONDITIONAL_STATE),
+        screeningProxy: debugScoreBuild(scoringWeapon, effects, GOAL, FACTION, primaryArcaneEffect, targetOverride, CONDITIONAL_STATE),
         expectedTtk: encounter.timeToKillSeconds,
         expectedDamagePerSecond: encounter.damagePerSecond,
         orderedMods: mods.map(({ mod, rank }) => `${mod.name} R${rank}`),

@@ -1512,9 +1512,11 @@ function buildMathBreakdown(
                     ? meleeAverageDps && meleeDpsInputs
                         ? [
                             `Wiki ${meleeDpsInputs.comboType} combo damage multiplier = direct ${fmt(meleeDpsInputs.totalDamageMultiplier, 5)} + forced Slash ${fmt(meleeDpsInputs.totalSlashProcMultiplier, 5)} = ${fmt(meleeDpsInputs.totalDamageMultiplier + meleeDpsInputs.totalSlashProcMultiplier, 5)} (${meleeDpsInputs.comboName})`,
-                            `Stance average combo damage = combined Wiki multiplier ${fmt(meleeDpsInputs.totalDamageMultiplier + meleeDpsInputs.totalSlashProcMultiplier, 5)} × initial-state quantized damage ${fmt(meleeDpsBaseline?.totalDamage ?? 0, 5)} × expected hit damage multiplier ${fmt(meleeAverageDps.expectedHitDamageMultiplier, 6)} = ${fmt(meleeAverageDps.averageHit, 5)}`,
+                            `Wiki direct combo damage = direct multiplier ${fmt(meleeDpsInputs.totalDamageMultiplier, 5)} × initial-state quantized hit damage ${fmt(meleeDpsBaseline?.totalDamage ?? 0, 5)} × expected hit multiplier ${fmt(meleeAverageDps.expectedHitDamageMultiplier, 6)} = ${fmt(meleeAverageDps.directDamage, 5)}`,
+                            `Wiki forced Slash DoT = one-proc Slash tick ${fmt(meleeDpsBaseline?.slashDotTickDamagePerProc ?? 0, 5)} × combo-equivalent forced hits ${fmt(meleeAverageDps.forcedSlashProcEquivalentHits, 5)} × duration-adjusted ticks ${fmt(meleeAverageDps.slashTickCount, 0)} = ${fmt(meleeAverageDps.forcedSlashDamage, 5)}`,
+                            `Average combo damage = direct ${fmt(meleeAverageDps.directDamage, 5)} + forced Slash DoT ${fmt(meleeAverageDps.forcedSlashDamage, 5)} = ${fmt(meleeAverageDps.averageHit, 5)}`,
                             `Stance average DPS = average hit ${fmt(meleeAverageDps.averageHit, 5)} × modded attack speed ${fmt(meleeDpsBaseline?.fireRate ?? 0, 5)} ÷ base combo length ${fmt(meleeDpsInputs.baseComboLengthSeconds, 5)}s = ${fmt(meleeAverageDps.averageDps, 5)}`,
-                            `Data: Warframe Wiki Stance comparison table, checked ${WIKI_MELEE_STANCE_VERIFIED_AT}. Combo timing is approximate; the Wiki warns its comparison formula omits combo physical-damage bonuses. The estimate also excludes status history, target defenses, and follow-through.`,
+                            `Data: Warframe Wiki Stance comparison table, checked ${WIKI_MELEE_STANCE_VERIFIED_AT}. Forced Slash uses the current Bleed tick model; physical/elemental mods do not increase that proc. Combo timing is approximate, stance physical-damage bonuses are omitted by the Wiki table, and target defenses/full hit sequences are not simulated.`,
                         ]
                         : ["Stance average DPS is unavailable because the selected stance has no timed Neutral combo in the Wiki reference table."]
                     : []),
@@ -1659,6 +1661,10 @@ function buildExportPayload(args: {
                 totalDamageMultiplier: meleeDpsInputs.totalDamageMultiplier,
                 totalSlashProcMultiplier: meleeDpsInputs.totalSlashProcMultiplier,
                 baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
+                directDamage: meleeAverageDps.directDamage,
+                forcedSlashDamage: meleeAverageDps.forcedSlashDamage,
+                forcedSlashProcEquivalentHits: meleeAverageDps.forcedSlashProcEquivalentHits,
+                slashTickCount: meleeAverageDps.slashTickCount,
                 averageHit: meleeAverageDps.averageHit,
                 averageDps: meleeAverageDps.averageDps,
             }
@@ -5587,7 +5593,7 @@ export default function ModBuilder() {
                                                             <div className="space-y-1 text-[11px] text-sky-200">
                                                                 <p>{meleeDpsInputs?.stanceName} · Neutral: {meleeDpsInputs?.comboName}</p>
                                                                 <p>{fmt(meleeDpsInputs?.totalDamageMultiplier ?? 0, 2)}× direct + {fmt(meleeDpsInputs?.totalSlashProcMultiplier ?? 0, 2)}× forced Slash · {fmt(meleeDpsInputs?.baseComboLengthSeconds ?? 0, 2)}s approximate combo</p>
-                                                                <p>{fmt(meleeAverageDps.averageHit)} average combo damage · {fmt(meleeAverageDps.averageDps)} stance-average DPS</p>
+                                                                <p>{fmt(meleeAverageDps.directDamage)} direct + {fmt(meleeAverageDps.forcedSlashDamage)} forced Slash DoT = {fmt(meleeAverageDps.averageHit)} average combo damage · {fmt(meleeAverageDps.averageDps)} stance-average DPS</p>
                                                             </div>
                                                         ) : (
                                                             <p className="text-[10px] leading-relaxed text-slate-500">
