@@ -320,6 +320,87 @@ describe("incarnonCatalog", () => {
         }
     });
 
+    it("models Sicarus Prime's Crit-scaled Wiseman's Regard on each attack form", () => {
+        const sicarus = getWeaponCatalog().find((entry) => entry.name === "Sicarus");
+        const prime = getWeaponCatalog().find((entry) => entry.name === "Sicarus Prime");
+        const standardRecord = getIncarnonRecordForWeapon("Sicarus");
+        const primeRecord = getIncarnonRecordForWeapon("Sicarus Prime");
+        expect(sicarus).toBeTruthy();
+        expect(prime).toBeTruthy();
+        expect(standardRecord).toBeTruthy();
+        expect(primeRecord).toBeTruthy();
+
+        const wisemanOption = primeRecord!.tiers.find((tier) => tier.tier === 4)?.options
+            .find((option) => option.id === "tier-4-wiseman-s-regard");
+        expect(standardRecord!.tiers.find((tier) => tier.tier === 4)?.options)
+            .not.toContainEqual(expect.objectContaining({ id: "tier-4-wiseman-s-regard" }));
+        expect(wisemanOption?.descriptionLines).toEqual([
+            "Increase Base Status Chance by 30% of current Critical Chance, up to 40%.",
+        ]);
+        expect(wisemanOption?.model.adjustments).toContainEqual(expect.objectContaining({
+            scope: "all",
+            baseStatusChancePerCriticalChance: 0.3,
+            baseStatusChancePerCriticalChanceCap: 0.4,
+        }));
+        expect(wisemanOption?.model.unsupportedLines).toEqual([]);
+        expect(wisemanOption?.notes).toContain(
+            "Incarnon Form Status Chance is displayed in the Arsenal screen as if using the normal form's Critical Chance, but will properly use its' own Critical chance while in-mission.",
+        );
+        expect(wisemanOption?.notes).toContain(
+            "This calculation uses the selected attack's Critical Chance and supported build effects. Critical Chance sources not represented in the planner are not inferred.",
+        );
+        expect(buildIncarnonCandidateConfigs(primeRecord!, {}, true).some(
+            (candidate) => candidate.selectedOptionsByTier[4] === "tier-4-wiseman-s-regard",
+        )).toBe(true);
+        expect(buildIncarnonCandidateConfigs(standardRecord!, {}, true).some(
+            (candidate) => candidate.selectedOptionsByTier[4] === "tier-4-wiseman-s-regard",
+        )).toBe(false);
+
+        const normalIndex = prime!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const incarnonIndex = prime!.attacks.findIndex((attack) => attack.name === "Incarnon Form");
+        expect(normalIndex).toBeGreaterThanOrEqual(0);
+        expect(incarnonIndex).toBeGreaterThanOrEqual(0);
+        const selection = {
+            unlockedTier: 4 as const,
+            selectedOptionsByTier: { 4: "tier-4-wiseman-s-regard" },
+        };
+        const normalResolved = resolveIncarnonState(prime!, normalIndex, selection);
+        const incarnonResolved = resolveIncarnonState(prime!, incarnonIndex, selection);
+        const normalWeapon = withSelectedAttack(normalResolved.weapon, normalIndex);
+        const incarnonWeapon = withSelectedAttack(incarnonResolved.weapon, incarnonIndex);
+        expect(normalWeapon.selectedAttackBaseStatusChancePerCriticalChance).toBe(0.3);
+        expect(incarnonWeapon.selectedAttackBaseStatusChancePerCriticalChance).toBe(0.3);
+
+        const normalStats = calculateBuild(normalWeapon, []);
+        const expectedNormalBonus = Math.min(0.4, normalStats.modded.critChance * 0.3);
+        expect(normalStats.modded.statusChanceFromCritChanceBonus).toBeCloseTo(expectedNormalBonus, 6);
+        expect(normalStats.modded.statusChance).toBeCloseTo(prime!.attacks[normalIndex]!.statusChance + expectedNormalBonus, 6);
+
+        const incarnonStats = calculateBuild(incarnonWeapon, []);
+        const expectedIncarnonBonus = Math.min(0.4, prime!.attacks[incarnonIndex]!.critChance * 0.3);
+        expect(incarnonStats.modded.statusChanceFromCritChanceBonus).toBeCloseTo(expectedIncarnonBonus, 6);
+        expect(incarnonStats.modded.statusChance).toBeCloseTo(prime!.attacks[incarnonIndex]!.statusChance + expectedIncarnonBonus, 6);
+
+        const critAndStatusMods = [{ ...emptyEffect(), critChanceBonus: 1, statusChanceBonus: 1 }];
+        const moddedNormalStats = calculateBuild(normalWeapon, critAndStatusMods);
+        const expectedModdedBonus = Math.min(0.4, moddedNormalStats.modded.critChance * 0.3);
+        expect(moddedNormalStats.modded.statusChanceFromCritChanceBonus).toBeCloseTo(expectedModdedBonus, 6);
+        expect(moddedNormalStats.modded.statusChance).toBeCloseTo(
+            (prime!.attacks[normalIndex]!.statusChance + expectedModdedBonus) * 2,
+            6,
+        );
+
+        const cappedStats = calculateBuild(normalWeapon, [{ ...emptyEffect(), critChanceBonus: 10 }]);
+        expect(cappedStats.modded.statusChanceFromCritChanceBonus).toBeCloseTo(0.4, 6);
+
+        const withoutWiseman = resolveIncarnonState(prime!, normalIndex, {
+            unlockedTier: 4,
+            selectedOptionsByTier: { 4: "tier-4-survivor-s-edge" },
+        });
+        const noPerkStats = calculateBuild(withSelectedAttack(withoutWiseman.weapon, normalIndex), []);
+        expect(noPerkStats.modded.statusChanceFromCritChanceBonus).toBe(0);
+    });
+
     it("models Furax Kinetic Killer as a sliding-at-impact base critical multiplier override", () => {
         for (const name of ["Furax", "Furax Wraith", "Mk1-Furax"]) {
             const weapon = getWeaponCatalog().find((entry) => entry.name === name);

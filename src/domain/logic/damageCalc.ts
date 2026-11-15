@@ -170,6 +170,8 @@ export interface ModdedWeaponStats {
     quantizedBaseCritMultiplier: number;
     critChance: number;
     critMultiplier: number;
+    /** Base Status Chance percentage points added by a current-Critical-Chance-scaled weapon perk. */
+    statusChanceFromCritChanceBonus: number;
     nonCriticalHitDamageProcs?: NonCriticalHitDamageProc[];
     averageCritTier: number;
     meleeComboMultiplier: number;
@@ -1372,7 +1374,15 @@ export function calculateBuild(
     const quantizedBaseCritMultiplier = quantizeBaseCriticalDamageMultiplier(baseCritMultiplier);
     const critMultiplier = quantizedBaseCritMultiplier * (1 + critMultBonus) + finalCritMultiplierBonus;
     const averageCritTier = Math.max(0, critChance);
-    const statusChance = weapon.statusChance * (
+    const statusChanceFromCritChanceBonus = Number.isFinite(weapon.selectedAttackBaseStatusChancePerCriticalChance) &&
+        Number.isFinite(weapon.selectedAttackBaseStatusChancePerCriticalChanceCap)
+        ? Math.min(
+            Math.max(0, weapon.selectedAttackBaseStatusChancePerCriticalChanceCap ?? 0),
+            Math.max(0, critChance * (weapon.selectedAttackBaseStatusChancePerCriticalChance ?? 0)),
+        )
+        : 0;
+    const baseStatusChance = weapon.statusChance + statusChanceFromCritChanceBonus;
+    const statusChance = baseStatusChance * (
         1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase
     ) + finalStatusChanceBonus;
 
@@ -1960,6 +1970,7 @@ export function calculateBuild(
         quantizedBaseCritMultiplier,
         critChance,
         critMultiplier,
+        statusChanceFromCritChanceBonus,
         nonCriticalHitDamageProcs,
         averageCritTier,
         meleeComboMultiplier,
