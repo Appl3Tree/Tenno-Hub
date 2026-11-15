@@ -232,7 +232,7 @@ describe("current Warframe progression gates", () => {
         ]);
         expect(definition(PR.LIMBO_THEOREM).prerequisites).toEqual([PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_JUPITER_EUROPA]);
         expect(definition(PR.LIMBO_THEOREM).conditions).toBeUndefined();
-        expect(definition(PR.JORDAS_PRECEPT).prerequisites).toEqual([PR.JUNCTION_PLUTO_SEDNA, PR.SYSTEM_ARCHWING_OWNED]);
+        expect(definition(PR.JORDAS_PRECEPT).prerequisites).toEqual([PR.JUNCTION_PLUTO_SEDNA]);
         expect(definition(PR.SYSTEM_ARCHWING_OWNED).conditions?.[0]).toMatchObject({
             type: "item_owned_any",
             label: "Own any Archwing",
@@ -390,6 +390,8 @@ describe("current Warframe progression gates", () => {
         expect(definition(PR.ACTIVITY_NETRACELL_COMPLETED).prerequisites).toEqual([PR.ACTIVITY_NETRACELLS]);
         expect(definition(PR.ACTIVITY_TECHNOCYTE_CODA).conditions ?? [])
             .not.toContainEqual({ type: "mastery_rank", value: 5 });
+        expect(definition(PR.ACTIVITY_TECHNOCYTE_CODA).evidence?.find((source) => source.url.endsWith("/Adversary_System")))
+            .toMatchObject({ classification: "conditional" });
         expect(definition(PR.ACTIVITY_TEMPORAL_ARCHIMEDEA).prerequisites).toEqual([PR.THE_HEX, PR.SYNDICATE_HEX_RANK5]);
         expect(definition(PR.ACTIVITY_FABLES_FRONTIERS).prerequisites).toEqual([
             PR.THE_HEX,

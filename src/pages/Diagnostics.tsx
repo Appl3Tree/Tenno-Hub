@@ -4,6 +4,7 @@
 import { useMemo, useState } from "react";
 import { useTrackerStore } from "../store/store";
 import { buildRequirementsSnapshot, buildFarmingSnapshot } from "../domain/logic/requirementEngine";
+import { deriveCompletedMap } from "../domain/logic/syndicatePrereqs";
 import { FULL_CATALOG } from "../domain/catalog/loadFullCatalog";
 import { getAcquisitionByCatalogId } from "../catalog/items/itemAcquisition";
 import { SOURCE_INDEX } from "../catalog/sources/sourceCatalog";
@@ -14,6 +15,10 @@ import { STAR_CHART_DATA } from "../domain/catalog/starChart";
 import { getDropSourcesForStarChartNode } from "../domain/catalog/starChart/nodeDropSourceMap";
 import { getLootForStarChartNode } from "../domain/logic/nodeLootIndex";
 import { WorkspaceSection } from "../components/workspace/WorkspaceChrome";
+
+const EMPTY_LIST: never[] = [];
+const EMPTY_BOOLEAN_MAP: Record<string, boolean> = {};
+const EMPTY_NUMBER_MAP: Record<string, number> = {};
 
 function Section(props: { title: string; subtitle?: string; children: React.ReactNode }) {
     return <WorkspaceSection title={props.title} subtitle={props.subtitle}>{props.children}</WorkspaceSection>;
@@ -123,28 +128,35 @@ function isRecipeKey(catalogId: string): boolean {
 }
 
 export default function Diagnostics() {
-    const syndicates = useTrackerStore((s) => s.state.syndicates ?? []);
-    const goals = useTrackerStore((s) => s.state.goals ?? []);
-    const completedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed ?? {});
+    const syndicates = useTrackerStore((s) => s.state.syndicates ?? EMPTY_LIST);
+    const goals = useTrackerStore((s) => s.state.goals ?? EMPTY_LIST);
+    const completedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed ?? EMPTY_BOOLEAN_MAP);
     const inventory = useTrackerStore((s) => s.state.inventory);
     const masteryState = useTrackerStore((s) => s.state.mastery);
+    const masteryRank = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
+    const nodeCompletedMap = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? EMPTY_BOOLEAN_MAP);
+    const railjackIntrinsics = useTrackerStore((s) => s.state.intrinsics?.railjack ?? EMPTY_NUMBER_MAP);
+    const effectiveCompletedPrereqs = useMemo(
+        () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventory.counts ?? EMPTY_NUMBER_MAP),
+        [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventory.counts],
+    );
 
     const requirements = useMemo(() => {
         return buildRequirementsSnapshot({
             syndicates,
             goals,
-            completedPrereqs,
+            completedPrereqs: effectiveCompletedPrereqs,
             inventory,
             expandMode: "direct"
         });
-    }, [syndicates, goals, completedPrereqs, inventory]);
+    }, [syndicates, goals, effectiveCompletedPrereqs, inventory]);
 
     const farming = useMemo(() => {
         return buildFarmingSnapshot({
             requirements,
-            completedPrereqs
+            completedPrereqs: effectiveCompletedPrereqs
         });
-    }, [requirements, completedPrereqs]);
+    }, [requirements, effectiveCompletedPrereqs]);
 
     const unknownAcquisition = useMemo(() => {
         const hidden = Array.isArray(farming?.hidden) ? farming.hidden : [];

@@ -19,6 +19,8 @@ import { TreeStyles } from "./goals/GoalsTreeView";
 import { WorkspaceAction, WorkspaceFilterBar, WorkspaceFilterGroup, WorkspacePillButton, WorkspaceSection, WorkspaceSegmented, WorkspaceSegmentedButton } from "../components/workspace/WorkspaceChrome";
 import { getOwnedCountForCatalogId } from "../domain/goals/catalogGoals";
 
+const EMPTY_NUMBER_MAP: Record<string, number> = {};
+
 function Section(props: { title: string; subtitle?: string; children: ReactNode }) {
     return <WorkspaceSection title={props.title} subtitle={props.subtitle}>{props.children}</WorkspaceSection>;
 }
@@ -151,17 +153,18 @@ export default function Goals() {
     const { goals, syndicates, completedPrereqs, inventory, masteryRank, nodeCompletedMap, railjackIntrinsics } = useTrackerStore(
         useShallow((s) => ({
             goals: Array.isArray((s.state as any).goals) ? (s.state as any).goals : EMPTY_ARR,
-            syndicates: s.state.syndicates ?? [],
+            syndicates: s.state.syndicates ?? EMPTY_ARR,
             completedPrereqs: s.state.prereqs?.completed ?? EMPTY_OBJ,
             inventory: s.state.inventory,
             masteryRank: s.state.player?.masteryRank ?? null,
             nodeCompletedMap: s.state.missions?.nodeCompleted ?? EMPTY_OBJ,
-            railjackIntrinsics: s.state.intrinsics?.railjack ?? EMPTY_OBJ,
+            railjackIntrinsics: s.state.intrinsics?.railjack ?? EMPTY_NUMBER_MAP,
         }))
     );
+    const inventoryCounts = useTrackerStore((s) => s.state.inventory.counts);
     const effectiveCompletedPrereqs = useMemo(
-        () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventory.counts ?? EMPTY_OBJ),
-        [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventory.counts],
+        () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts),
+        [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventoryCounts],
     );
 
     const [tab, setTab] = useState<GoalsTab>("personal");

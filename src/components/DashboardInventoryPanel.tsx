@@ -15,6 +15,10 @@ type NeedLine = {
     neededFor: Array<{ syndicateName: string; rankTitle: string; need: number }>;
 };
 
+const EMPTY_LIST: never[] = [];
+const EMPTY_BOOLEAN_MAP: Record<string, boolean> = {};
+const EMPTY_NUMBER_MAP: Record<string, number> = {};
+
 function normalize(s: string): string { return s.trim().toLowerCase(); }
 
 function resolveToCatalogId(keyOrName: string): CatalogId | null {
@@ -27,12 +31,12 @@ function resolveToCatalogId(keyOrName: string): CatalogId | null {
 
 export default function DashboardInventoryPanel() {
     const setActivePage    = useTrackerStore((s) => s.setActivePage);
-    const syndicates       = useTrackerStore((s) => s.state.syndicates ?? []);
-    const completedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed ?? {});
-    const counts           = useTrackerStore((s) => s.state.inventory?.counts ?? {});
+    const syndicates       = useTrackerStore((s) => s.state.syndicates ?? EMPTY_LIST);
+    const completedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed ?? EMPTY_BOOLEAN_MAP);
+    const counts           = useTrackerStore((s) => s.state.inventory?.counts ?? EMPTY_NUMBER_MAP);
     const masteryRank      = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
-    const nodeCompletedMap = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? {});
-    const railjackIntrinsics = useTrackerStore((s) => s.state.intrinsics?.railjack ?? {});
+    const nodeCompletedMap = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? EMPTY_BOOLEAN_MAP);
+    const railjackIntrinsics = useTrackerStore((s) => s.state.intrinsics?.railjack ?? EMPTY_NUMBER_MAP);
     const effectiveCompletedPrereqs = useMemo(
         () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, counts),
         [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, counts],

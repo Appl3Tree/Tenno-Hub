@@ -87,7 +87,7 @@ export const CURATED_SOURCES: CuratedRawSource[] = [
     { id: "data:quest/the-new-strange", label: "Earn from completing The New Strange quest", type: "other", prereqIds: ["quest_stolen_dreams", "junction_jupiter_europa"] },
     { id: "data:quest/octavias-anthem", label: "Earn from completing Octavia's Anthem", type: "other", prereqIds: ["quest_the_second_dream"] },
     { id: "data:quest/rising-tide", label: "Earn from completing Rising Tide", type: "other", prereqIds: ["quest_the_war_within"] },
-    { id: "data:quest/the-jordas-precept", label: "Earn from progressing through The Jordas Precept quest", type: "other", prereqIds: [PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_PLUTO_ERIS] },
+    { id: "data:quest/the-jordas-precept", label: "Earn from progressing through The Jordas Precept quest", type: "other", prereqIds: [PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_PLUTO_SEDNA] },
     { id: "data:quest/the-limbo-theorem", label: "Earn from progressing through The Limbo Theorem quest", type: "other", prereqIds: [PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_JUPITER_EUROPA] },
     { id: "data:quest/patient-zero", label: "Earn from completing Patient Zero", type: "other", prereqIds: ["quest_once_awake", "junction_pluto_sedna"] },
     { id: "data:quest/the-silver-grove", label: "Earn from progressing through The Silver Grove quest", type: "other", prereqIds: ["quest_the_second_dream"] },

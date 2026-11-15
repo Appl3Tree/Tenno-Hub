@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAcquisitionByCatalogId } from "../../../catalog/items/itemAcquisition";
-import { PREREQ_REGISTRY } from "../../../catalog/prereqs/prereqRegistry";
+import { ARCHWING_CATALOG_IDS, PREREQ_REGISTRY } from "../../../catalog/prereqs/prereqRegistry";
 import { SOURCE_INDEX } from "../../../catalog/sources/sourceCatalog";
 import { FULL_CATALOG, type CatalogId } from "../../catalog/loadFullCatalog";
 import { PR } from "../../ids/prereqIds";
@@ -8,6 +8,7 @@ import { normalizeSourceId } from "../../ids/sourceIds";
 import { evaluateSourcePrerequisiteAccess } from "../sourcePrerequisiteAccess";
 import { canAccessCatalogItem } from "../plannerEngine";
 import { buildFarmingSnapshot, type RequirementsResult } from "../requirementEngine";
+import { deriveCompletedMap } from "../syndicatePrereqs";
 
 describe("source prerequisite access", () => {
     it("honors explicit gates on registered drop routes", () => {
@@ -198,18 +199,31 @@ describe("source prerequisite access", () => {
 
         expect(limbo?.prereqIds).toEqual([PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_JUPITER_EUROPA]);
         expect(jordas?.prereqIds).toEqual([PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_PLUTO_SEDNA]);
+        expect(fomorian).toBeDefined();
         expect(fomorian?.[1].prereqIds).toEqual([PR.ACTIVITY_INVASIONS, PR.SYSTEM_ARCHWING_OWNED]);
-        for (const sourceId of [normalizeSourceId("data:quest/the-limbo-theorem"), normalizeSourceId("data:quest/the-jordas-precept"), fomorian?.[0]]) {
-            expect(sourceId).toBeDefined();
-            expect(SOURCE_INDEX[sourceId!]?.prereqIds).not.toContain(PR.ARCHWING);
-        }
+        expect(limbo?.prereqIds).not.toContain(PR.ARCHWING);
+        expect(jordas?.prereqIds).not.toContain(PR.ARCHWING);
+        expect(fomorian?.[1].prereqIds).not.toContain(PR.ARCHWING);
 
-        const archwingCatalogId = "items:/Lotus/Powersuits/Archwing/StandardJetPack/StandardJetPack";
+        const archwingCatalogId = ARCHWING_CATALOG_IDS[0];
         const effective = deriveCompletedMap({}, [], 0, {}, {}, { [archwingCatalogId]: 1 });
         expect(effective[PR.SYSTEM_ARCHWING_OWNED]).toBe(true);
         expect(evaluateSourcePrerequisiteAccess(normalizeSourceId("data:quest/the-limbo-theorem"), {
             ...effective,
             [PR.JUNCTION_JUPITER_EUROPA]: true,
+        })).toMatchObject({ known: true, accessible: true, missingPrereqs: [] });
+        expect(evaluateSourcePrerequisiteAccess(normalizeSourceId("data:quest/the-jordas-precept"), {
+            [PR.JUNCTION_PLUTO_SEDNA]: true,
+        })).toMatchObject({ known: true, accessible: false, missingPrereqs: [PR.SYSTEM_ARCHWING_OWNED] });
+        expect(evaluateSourcePrerequisiteAccess(normalizeSourceId("data:quest/the-jordas-precept"), {
+            ...effective,
+            [PR.JUNCTION_PLUTO_SEDNA]: true,
+        })).toMatchObject({ known: true, accessible: true, missingPrereqs: [] });
+        expect(evaluateSourcePrerequisiteAccess(normalizeSourceId(fomorian![0]), { [PR.ACTIVITY_INVASIONS]: true }))
+            .toMatchObject({ known: true, accessible: false, missingPrereqs: [PR.SYSTEM_ARCHWING_OWNED] });
+        expect(evaluateSourcePrerequisiteAccess(normalizeSourceId(fomorian![0]), {
+            ...effective,
+            [PR.ACTIVITY_INVASIONS]: true,
         })).toMatchObject({ known: true, accessible: true, missingPrereqs: [] });
     });
 

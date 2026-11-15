@@ -34,6 +34,9 @@ function PillButton(props: { label: string; active: boolean; onClick: () => void
 
 const FARMING_SOURCE_FILTER_STORAGE_KEY = "tnh.requirements.hiddenSourceFilters";
 const FARMING_SOURCE_FILTER_GRANULARITY_STORAGE_KEY = "tnh.requirements.sourceFilterGranularity";
+const EMPTY_LIST: never[] = [];
+const EMPTY_BOOLEAN_MAP: Record<string, boolean> = {};
+const EMPTY_NUMBER_MAP: Record<string, number> = {};
 
 type SourceFilterGranularity = "category" | "source";
 type SourceFilterOption = {
@@ -213,13 +216,13 @@ export default function Requirements() {
 
     const { syndicates, goals, completedPrereqs, inventory, masteryRank, nodeCompletedMap, railjackIntrinsics } = useTrackerStore(
         useShallow((s) => ({
-            syndicates: s.state.syndicates ?? [],
-            goals: s.state.goals ?? [],
-            completedPrereqs: s.state.prereqs?.completed ?? {},
+            syndicates: s.state.syndicates ?? EMPTY_LIST,
+            goals: s.state.goals ?? EMPTY_LIST,
+            completedPrereqs: s.state.prereqs?.completed ?? EMPTY_BOOLEAN_MAP,
             inventory: s.state.inventory,
             masteryRank: s.state.player?.masteryRank ?? null,
-            nodeCompletedMap: s.state.missions?.nodeCompleted ?? {},
-            railjackIntrinsics: s.state.intrinsics?.railjack ?? {},
+            nodeCompletedMap: s.state.missions?.nodeCompleted ?? EMPTY_BOOLEAN_MAP,
+            railjackIntrinsics: s.state.intrinsics?.railjack ?? EMPTY_NUMBER_MAP,
         }))
     );
     const effectiveCompletedPrereqs = useMemo(

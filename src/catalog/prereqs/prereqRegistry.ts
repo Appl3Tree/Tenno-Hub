@@ -526,12 +526,9 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.JORDAS_PRECEPT,
         label: "The Jordas Precept",
         category: "SideQuests",
-        description: "Awards Atlas blueprint. Requires Pluto → Eris junction completion and an owned Archwing for the Jordas Golem mission.",
-        prerequisites: [PR.JUNCTION_PLUTO_SEDNA, PR.SYSTEM_ARCHWING_OWNED],
-        evidence: [
-            { kind: "wiki", url: "https://wiki.warframe.com/w/The_Jordas_Precept", verifiedOn: "2026-11-14", classification: "required", note: "The quest is automatically acquired after Pluto → Eris; its Jordas Golem mission instructions also require the player to be capable of using an Archwing." },
-            { kind: "wiki", url: "https://wiki.warframe.com/w/The_Archwing", verifiedOn: "2026-11-14", classification: "required", note: "Odonata can be built and owned before the final mission completes The Archwing quest, so the vehicle requirement is tracked separately from quest completion." },
-        ]
+        description: "Awards Atlas blueprint. Automatically acquired after completing Pluto → Eris Junction.",
+        prerequisites: [PR.JUNCTION_PLUTO_SEDNA],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Jordas_Precept", verifiedOn: "2026-11-14", classification: "required", note: "The current quest is automatically acquired after completing the Pluto → Eris Junction; Archwing equipment is needed later for the Jordas Golem mission, not for initial quest access." }]
     },
     {
         id: PR.GLAST_GAMBIT,

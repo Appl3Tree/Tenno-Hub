@@ -206,7 +206,6 @@ export default function StarChartMap(props: {
     }, []);
 
     // Inventory ownership — used to decorate loot panel items
-    const inventoryCounts = useTrackerStore((s) => s.state.inventory?.counts ?? EMPTY_NODE_COMPLETED);
     const inventory = useTrackerStore((s) => s.state.inventory);
     const goals = useTrackerStore((s) => s.state.goals ?? []);
     const setCount = useTrackerStore((s) => s.setCount);

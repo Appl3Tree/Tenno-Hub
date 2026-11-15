@@ -413,6 +413,8 @@ for (const def of PREREQ_REGISTRY) {
                 ? `mastery rank ${def.validatedByMasteryRank}`
                 : def.label.startsWith("Junction:")
                     ? "derived from matching Star Chart junction node"
+                : def.id === "system_archwing_owned"
+                    ? "derived from owned Archwing inventory"
                 : ["deimos_access", "junction_earth_lua", "kuva_fortress_access", "system_eris_focus_lens"].includes(def.id)
                     ? "derived from Star Chart or quest progression"
                 : def.id === "activity_steel_path" || def.id === "activity_nightmare_missions"
