@@ -3159,8 +3159,8 @@ export default function ModBuilder() {
             enemyShieldGateHitMode,
             nearbyEnemyCount,
             nearbyBlastEnemyCount,
-            // Radiation immunity and the four-stack Cold cap are conditional on
-            // Overguard remaining; the encounter simulator applies them per event.
+            // Cold's four-stack cap and crowd-control immunity follow active
+            // Overguard; Radiation can apply but its effects remain suppressed.
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: bossBlastStackCap ? { blast: 4 } : undefined,
         };
@@ -5317,7 +5317,7 @@ export default function ModBuilder() {
                                                                     </label>
                                                                     {isEximus && (
                                                                         <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                            Uses current Eximus Health/Shield adjustments, standard Armor scaling, and level-scaled base Overguard {EXIMUS_BASE_OVERGUARD}. Active Overguard blocks Radiation procs and caps Cold at four stacks; Blast keeps its normal ten-stack detonation threshold. Special Eximus, squad, and boss modifiers remain unsupported. <a href="https://wiki.warframe.com/w/Overguard" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
+                                                                            Uses current Eximus Health/Shield adjustments, standard Armor scaling, and level-scaled base Overguard {EXIMUS_BASE_OVERGUARD}. Radiation statuses can be applied while Overguard is active, but their effects are suppressed until the pool breaks; Cold caps at four stacks, and Blast keeps its normal ten-stack detonation threshold. Special Eximus, squad, and boss modifiers remain unsupported. <a href="https://wiki.warframe.com/w/Overguard" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Wiki source</a>
                                                                         </p>
                                                                     )}
                                                                     <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
@@ -6335,7 +6335,7 @@ export default function ModBuilder() {
                                         { label: "Corrosive Strip", value: fmt(stats.corrosiveArmorStrip * 100, 0) + "%", sub: "armor removed", tooltip: "Armor removed by Corrosive status stacks." },
                                         ...(stats.shatteringImpactBaseArmorPerHit > 0 ? [{ label: "Shattering Impact", value: `-${fmt(stats.shatteringImpactBaseArmorPerHit, 0)}`, sub: "base Armor / Impact hit", tooltip: "Permanently removes this much base Armor per melee hit with nonzero quantized Impact damage. It does not require an Impact status proc; level scaling applies, then percentage Heat/Corrosive strips." }] : []),
                                         { label: "Magnetic Shield", value: fmt(stats.magneticShieldDamageBonus * 100, 0) + "%", sub: "shield damage", tooltip: "Extra damage dealt to shields and overguard from Magnetic stacks." },
-                                        { label: "Radiation Ally Dmg", value: fmt(stats.radiationAllyDamageBonus * 100, 0) + "%", sub: "friendly fire bonus", tooltip: "Damage amplification enemies receive from allies while affected by Radiation." },
+                                        { label: "Radiation Ally Dmg", value: fmt(stats.radiationAllyDamageBonus * 100, 0) + "%", sub: "friendly fire bonus", tooltip: "Potential ally damage bonus from accumulated Radiation stacks. Overguard suppresses this effect until the pool breaks." },
                                         { label: "Cold Slow", value: fmt(stats.coldSlow * 100, 0) + "%", sub: "move/attack slow", tooltip: "Movement and attack speed slow applied by Cold stacks." },
                                         { label: "Cold Crit Damage", value: fmt(stats.coldCritDamageBonus * 100, 0) + "%", sub: "crit damage bonus", tooltip: "Bonus crit damage applied from maxed Cold freeze effects." },
                                         { label: "Puncture Dmg Down", value: fmt(stats.punctureEnemyDamageReduction * 100, 0) + "%", sub: "enemy damage reduction", tooltip: "How much enemy outgoing damage is reduced by Puncture stacks." },
