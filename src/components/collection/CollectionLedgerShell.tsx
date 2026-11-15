@@ -18,6 +18,46 @@ export type CollectionActiveFilter = {
   onRemove: () => void;
 };
 
+export function CollectionSortHeader({
+  label,
+  active,
+  direction,
+  initialDirection = "ascending",
+  ascendingLabel,
+  descendingLabel,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  direction: "ascending" | "descending";
+  initialDirection?: "ascending" | "descending";
+  ascendingLabel: string;
+  descendingLabel: string;
+  onClick: () => void;
+}) {
+  const currentLabel = direction === "ascending" ? ascendingLabel : descendingLabel;
+  const nextLabel = active
+    ? direction === "ascending" ? descendingLabel : ascendingLabel
+    : initialDirection === "ascending" ? ascendingLabel : descendingLabel;
+
+  return (
+    <div role="columnheader" aria-sort={active ? direction : undefined}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`Sort by ${label}. ${active ? `Currently ${currentLabel}. ` : ""}Activate to sort ${nextLabel}.`}
+        title={`Sort by ${label}${active ? ` (${currentLabel})` : ""}`}
+        className="group flex min-h-6 w-full min-w-0 items-center justify-between gap-1 rounded px-1 text-left font-semibold text-[color:var(--wf-text-dim)] transition-colors hover:bg-[color:var(--wf-surface-1)] hover:text-[color:var(--wf-text-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--wf-accent-primary)]"
+      >
+        <span className="truncate">{label}</span>
+        <span aria-hidden="true" className={active ? "shrink-0 text-[10px] font-bold text-[color:var(--wf-accent-primary)]" : "shrink-0 text-[10px] text-[color:var(--wf-text-dim)] opacity-60 group-hover:opacity-100"}>
+          {active ? direction === "ascending" ? "↑" : "↓" : "↕"}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export function CollectionScrollSurface({
   scrollportRef,
   contentRef,
@@ -344,3 +384,4 @@ export function CollectionChipRail({
     </div>
   );
 }
+
