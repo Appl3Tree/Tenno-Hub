@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAcquisitionByCatalogId } from "../../../catalog/items/itemAcquisition";
+import { PREREQ_REGISTRY } from "../../../catalog/prereqs/prereqRegistry";
 import { SOURCE_INDEX } from "../../../catalog/sources/sourceCatalog";
 import { FULL_CATALOG, type CatalogId } from "../../catalog/loadFullCatalog";
 import { PR } from "../../ids/prereqIds";
@@ -27,9 +28,48 @@ describe("source prerequisite access", () => {
 
     it("does not let duplicate mission-source IDs leak another planet's gate", () => {
         expect(SOURCE_INDEX[normalizeSourceId("data:drop:node:earth:sayas-visions")]?.prereqIds)
-            .toEqual([PR.VORS_PRIZE]);
+            .toEqual([PR.SAYA_VIGIL, PR.ONCE_AWAKE]);
         expect(SOURCE_INDEX[normalizeSourceId("data:drop:node:europa:cryotic-front")]?.prereqIds)
             .toEqual([PR.JUNCTION_JUPITER_EUROPA]);
+    });
+
+    it("requires Saya's Vigil and Once Awake for every Saya's Visions source alias", () => {
+        const expected = [PR.SAYA_VIGIL, PR.ONCE_AWAKE];
+        const sourceIds = [
+            "data:node/earth/sayas-visions",
+            "data:drop:node:earth:sayas_visions",
+            "data:drop:node:earth:sayas-visions",
+            "data:missionreward/earth/sayas-visions",
+            "data:wfitems:loc:earthsayas-visions-shrine-defense",
+        ];
+
+        for (const rawSourceId of sourceIds) {
+            const sourceId = normalizeSourceId(rawSourceId);
+            expect(SOURCE_INDEX[sourceId]?.prereqIds, rawSourceId).toEqual(expected);
+            expect(evaluateSourcePrerequisiteAccess(sourceId, {}).missingPrereqs, rawSourceId).toEqual(expected);
+        }
+    });
+
+    it("keeps the Simaris vendor generally open at a Relay and scopes New Strange to its named reward", () => {
+        const generalSimarisSources = [
+            "data:vendor/simaris",
+            "data:vendor/syndicate/cephalon-simaris",
+            "data:wfitems:loc:cephalon-simaris",
+        ];
+        for (const rawSourceId of generalSimarisSources) {
+            const prereqIds = SOURCE_INDEX[normalizeSourceId(rawSourceId)]?.prereqIds;
+            expect(prereqIds, rawSourceId).toEqual([PR.HUB_RELAY]);
+            expect(prereqIds, rawSourceId).not.toContain(PR.NEW_STRANGE);
+        }
+
+        expect(SOURCE_INDEX[normalizeSourceId("data:wfitems:loc:cephalon-simaris-complete-the-new-strange")]?.prereqIds)
+            .toEqual([PR.HUB_RELAY, PR.NEW_STRANGE]);
+    });
+
+    it("does not make Steel Path a prerequisite for buying from Koumei's Cetus shrine", () => {
+        const shrine = SOURCE_INDEX[normalizeSourceId("data:vendor/cetus/koumei-shrine")];
+        expect(shrine?.prereqIds).toEqual([PR.HUB_CETUS]);
+        expect(shrine?.prereqIds).not.toContain(PR.ACTIVITY_STEEL_PATH);
     });
 
     it("adds the Steel Path gate to region-mapped Steel Path mission nodes", () => {
@@ -37,11 +77,96 @@ describe("source prerequisite access", () => {
             .toEqual([PR.JUNCTION_MARS_CERES, PR.ACTIVITY_STEEL_PATH]);
     });
 
+    it("keeps Conclave access separate from Relay and Steel Path access", () => {
+        const conclaveSourceIds = [
+            "data:conclave",
+            "data:node/saturn/annihilation",
+            "data:node/saturn/annihilation-extra",
+            "data:missionreward/saturn/lunaro-arena",
+            "data:missionreward/saturn/lunaro-arena-extra",
+            "data:drop:node:saturn:annihilation",
+            "data:drop:node:saturn:annihilation_extra",
+        ];
+
+        for (const rawSourceId of conclaveSourceIds) {
+            const sourceId = normalizeSourceId(rawSourceId);
+            expect(SOURCE_INDEX[sourceId], rawSourceId).toBeDefined();
+            expect(SOURCE_INDEX[sourceId]?.prereqIds, rawSourceId).toEqual([PR.AWAKENING]);
+            expect(SOURCE_INDEX[sourceId]?.label, rawSourceId).not.toContain("Steel Path");
+        }
+        expect(SOURCE_INDEX[normalizeSourceId("data:conclave/typhoon")]?.prereqIds)
+            .toEqual([PR.HUB_RELAY]);
+        expect(evaluateSourcePrerequisiteAccess(normalizeSourceId("data:conclave"), {})).toMatchObject({
+            known: true,
+            accessible: false,
+            missingPrereqs: [PR.AWAKENING],
+        });
+        expect(evaluateSourcePrerequisiteAccess(normalizeSourceId("data:conclave"), { [PR.AWAKENING]: true }))
+            .toMatchObject({ known: true, accessible: true, missingPrereqs: [] });
+    });
+
+    it("does not relay-lock Sanctuary Onslaught and applies Elite eligibility only to Elite routes", () => {
+        const regularNode = SOURCE_INDEX[normalizeSourceId("data:node/sanctuary/sanctuary-onslaught")];
+        const eliteNode = SOURCE_INDEX[normalizeSourceId("data:node/sanctuary/elite-sanctuary-onslaught")];
+        const eliteReward = SOURCE_INDEX[normalizeSourceId("data:missionreward/sanctuary/elite-sanctuary-onslaught/rotationa")];
+
+        expect(regularNode?.prereqIds).toEqual([PR.NEW_STRANGE]);
+        expect(eliteNode?.prereqIds).toEqual([PR.NEW_STRANGE, PR.SYSTEM_RANK30_WARFRAME]);
+        expect(eliteReward?.prereqIds).toEqual([PR.NEW_STRANGE, PR.SYSTEM_RANK30_WARFRAME]);
+        expect(regularNode?.prereqIds).not.toContain(PR.HUB_RELAY);
+        expect(evaluateSourcePrerequisiteAccess(
+            normalizeSourceId("data:node/sanctuary/sanctuary-onslaught"),
+            { [PR.NEW_STRANGE]: true },
+        )).toMatchObject({ known: true, accessible: true, missingPrereqs: [] });
+    });
+
+    it("does not apply Khora's farm gates to the item granted with Khora", () => {
+        const sourceId = normalizeSourceId("data:warframe/khora");
+        expect(SOURCE_INDEX[sourceId]?.prereqIds).toBeUndefined();
+        expect(evaluateSourcePrerequisiteAccess(sourceId, {})).toMatchObject({
+            known: true,
+            accessible: true,
+            missingPrereqs: [],
+        });
+    });
+
     it("gates both generated Duviri transient reward routes behind the Duviri quest", () => {
         expect(SOURCE_INDEX[normalizeSourceId("data:transient/duviri-circuit")]?.prereqIds)
             .toEqual([PR.DUVIRI_PARADOX]);
         expect(SOURCE_INDEX[normalizeSourceId("data:transient/duviri-full-experience")]?.prereqIds)
             .toEqual([PR.DUVIRI_PARADOX]);
+    });
+
+    it("keeps generated reward and activity routes aligned to their actual access gates", () => {
+        const sources = Object.entries(SOURCE_INDEX);
+        const matches = (pattern: RegExp) => sources.filter(([, source]) => pattern.test(source.label));
+        const assertEverySourceHas = (entries: typeof sources, prereqIds: string[]) => {
+            expect(entries.length).toBeGreaterThan(0);
+            for (const [sourceId, source] of entries) {
+                expect(source.prereqIds, sourceId).toEqual(expect.arrayContaining(prereqIds));
+            }
+        };
+
+        assertEverySourceHas(matches(/Kuva (?:Flood|Siphon)/i), [PR.WAR_WITHIN, PR.MR_5]);
+        assertEverySourceHas(matches(/Nightmare Granum Void/i), [PR.DEADLOCK_PROTOCOL]);
+        assertEverySourceHas(matches(/Arbitration Shield Drone/i), [PR.ACTIVITY_ARBITRATIONS]);
+        assertEverySourceHas(matches(/Void Storm\s*\(Veil Proxima\)/i), [PR.SYSTEM_PROXIMA_VEIL_ACCESS]);
+        assertEverySourceHas(matches(/^Transient Reward:\s*Faceoff:/i), [PR.THE_HEX]);
+
+        const duviriSteelPathSources = sources.filter(([sourceId, source]) =>
+            /Duviri/i.test(sourceId) && /Steel Path|\bHard\b/i.test(source.label),
+        );
+        expect(duviriSteelPathSources.length).toBeGreaterThan(0);
+        for (const [sourceId, source] of duviriSteelPathSources) {
+            expect(source.prereqIds, sourceId).toEqual(expect.arrayContaining([
+                expect.stringMatching(new RegExp(`^(?:${PR.ACTIVITY_DUVIRI_STEEL_PATH}|${PR.ACTIVITY_CIRCUIT_STEEL_PATH})$`)),
+            ]));
+            expect(source.prereqIds, sourceId).not.toContain(PR.ACTIVITY_STEEL_PATH);
+        }
+        expect(SOURCE_INDEX[normalizeSourceId("data:duviri/circuit/steel-path")]?.prereqIds)
+            .toEqual([PR.ACTIVITY_CIRCUIT_STEEL_PATH]);
+        expect(PREREQ_REGISTRY.find((def) => def.id === PR.ACTIVITY_CIRCUIT_STEEL_PATH)?.prerequisites)
+            .toEqual([PR.ACTIVITY_DUVIRI_STEEL_PATH]);
     });
 
     it("keeps source locks route-specific when another acquisition route is open", () => {
@@ -97,3 +222,4 @@ describe("source prerequisite access", () => {
         expect(unlocked.targeted[0]?.sources.length).toBeGreaterThan(0);
     });
 });
+
