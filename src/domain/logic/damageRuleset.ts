@@ -1,7 +1,7 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The Impact, Puncture, melee Slam Damage, and Korumm pages were checked on 2026-11-14. The official patch
+ * The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
  * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
  * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
  * Damage quantization follows the
@@ -21,6 +21,7 @@ export const DAMAGE_RULESET = Object.freeze({
         hotfix4414: "https://www.warframe.com/en/patch-notes/pc/44-1-4",
         pcPatchIndex: "https://www.warframe.com/en/patch-notes/pc",
         heavyAttack: "https://wiki.warframe.com/w/Heavy_Attack",
+        galvanizedSteel: "https://wiki.warframe.com/w/Galvanized_Steel",
         bloodRush: "https://wiki.warframe.com/w/Blood_Rush",
         weepingWounds: "https://wiki.warframe.com/w/Weeping_Wounds",
         fireRate: "https://wiki.warframe.com/w/Fire_Rate",
@@ -66,6 +67,7 @@ export const DAMAGE_RULESET = Object.freeze({
         "The optional standard Eximus target applies current Eximus base Health/Shield adjustments, standard armor level scaling, base 12 Overguard scaling, Radiation immunity while Overguard is active, and a four-stack Cold limit while Overguard remains. Blast retains its normal ten-stack detonation threshold. It does not model special-unit Eximus variants or evolving post-Overguard status state.",
         "The finite encounter applies Cold's three-second freeze at ten stacks and restores three residual stacks afterward. The Wiki does not specify the residual stacks' remaining timers, so they are assigned one fresh Cold duration; fractional mean-field applications approximate when the ten-stack threshold is crossed.",
         "Blood Rush and Weeping Wounds scale from their parsed bonus per combo tier above 1x. The user enters the assumed tier; Initial state derives it from Initial Combo mods and supported innate weapon passives. Standard weapons cap at 12x, Dex Nikana uses 11 points per tier and caps at 11x, and Venka Prime caps at 13x. Normal melee attacks do not receive the combo damage multiplier. Selected heavy-attack rows apply the active tier after Damage 3.0 channel quantization. Direct-hit TTK steps repeated Heavy Attacks through Heavy Attack Efficiency retention and restores Initial Combo at 40 points per second, capped at its starting Initial Combo value; combo-scaled critical chance is recomputed per tier. This direct-only path does not add combo from hits, model Tennokai, stance sequences, heavy-attack wind-up, or natural combo decay. DPS, the finite status encounter, and optimizer scoring still hold the selected starting tier across scored hits.",
+        "Melee mods marked x2 for Heavy Attacks add their ordinary critical chance on selected heavy-attack rows only. Galvanized Steel's +110% is therefore +110% on ordinary attacks and +220% total on heavy attacks. Glaive heavy-attack critical bonuses are restricted to radial/explosion rows because the Wiki excludes direct throws.",
         "Galvanized Reflex's On Melee Kill effect adds 20 Initial Combo per stack for 20s, up to four stacks. The selected conditional state applies this bonus to the modeled starting combo; the Realistic state uses the shared 60% kill uptime and 70% stack-cap heuristic (33.6 points at the four-stack maximum), not a target-specific kill history. The finite status encounter and optimizer still hold that starting combo tier across attacks.",
         "Amanata Pressure contributes one uniformly distributed expected proc across Impact, Puncture, Slash, Heat, Cold, Electricity, Toxin, Blast, Radiation, Gas, Magnetic, Viral, and Corrosive on selected heavy-attack rows at 8x combo or higher. Its combo threshold and one-proc distribution are modeled for the primary target. DPS, optimizer scoring, and finite status encounters keep that starting tier static across repeated hits; status histories on other enemies hit by the heavy slam are not evolved.",
         "The optional melee stance-average DPS estimate uses the selected stance's Wiki Neutral-combo direct and forced-Slash multipliers and approximate timing; 58 currently cataloged stance mods have source rows. The Wiki warns its comparison formula omits stance physical-damage bonuses. Stance hit sequences beyond Neutral, combo generation and decay, target defenses, and status history are excluded; the optimizer's Burst/Sustained objectives remain attack-rate proxies for melee.",
