@@ -1446,3 +1446,4 @@ export function getWeaponCatalog(): WeaponEntry[] {
 export function getWeaponsByCategory(cat: WeaponCategory): WeaponEntry[] {
     return getWeaponCatalog().filter(w => w.category === cat);
 }
+
