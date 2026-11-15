@@ -826,6 +826,12 @@ describe("damage calculation status eligibility", () => {
         expectAreaAttack("Alternox", "Alt-Fire Damage over Time", true);
         expectAreaAttack("Alternox Prime", "Alt-Fire Damage over Time", true);
 
+        // Azima's deployed magazine turret detonates in a small radius when
+        // its ammunition expires; ordinary turret bullets remain direct hits.
+        // https://wiki.warframe.com/w/Azima
+        expectAreaAttack("Azima", "Normal Attack", false);
+        expectAreaAttack("Azima", "Turret Expiry", true);
+
         // Shooting a Quanta cube triggers a 6 m radial explosion, separate
         // from the cube's direct contact and ordinary contact explosion rows.
         // https://wiki.warframe.com/w/Quanta
