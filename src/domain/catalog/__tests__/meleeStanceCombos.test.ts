@@ -61,4 +61,3 @@ describe("Wiki melee stance combo catalog", () => {
         expect(getWikiMeleeStanceCombo("Unlisted Stance")).toBeNull();
     });
 });
-
