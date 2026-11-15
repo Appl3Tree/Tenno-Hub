@@ -4,6 +4,12 @@ Run date: 2026-11-15; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Buzlok Wiki Rifle-compatibility case (2026-11-15)
+
+The current [Buzlok Wiki page](https://wiki.warframe.com/w/Buzlok) classifies Buzlok as a Rifle; its item ancestry also resolves through `LotusAssaultRifle`. The upstream weapon type string and internal path had caused the catalog to label it a Sniper, exposing sniper-only choices. The corrected pool uses 107 Rifle/Primary candidates and excludes Sniper-only mods such as Charged Chamber and Target Acquired.
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5 --weapon=Buzlok --goal=burst`. The scenario used the Grineer preset, MR 30, max-rank catalog mods, Catalyst, Exilus and Arcane optimization, Initial conditional state, and up to three Forma. All five runs returned the same legal 60/60 build with three Forma and no Arcane: Primed Cryo Rounds R10, Malignant Force R3, Hellfire R5, Heavy Caliber R10, Vile Acceleration R5, Vital Sense R5, and Split Chamber R5. Median time was 1.923s; the five-run p95/max observation was 2.208s. This desktop Node sample checks a corrected class pool and legality; it is not a global-optimality, production Worker, or mobile-performance result.
+
 ## Current-source 37-case refresh with a Broadhead range scenario (2026-11-15)
 
 The benchmark corpus now includes Daikyu Prime / Quick Shot / Burst at a 16m target distance, so Spring-Loaded Broadhead's max-rank condition is active and comes from the same saved conditional state passed into the optimizer and score evaluator. The full five-run refresh covered 37 cases / 185 optimizations. Every returned build was legal under capacity and the three-Forma limit. Per-case medians ranged from 0.654s to 2.947s; maximum-of-five observations ranged from 0.665s to 3.012s. These five-run maxima are coarse samples, not population p95 estimates, and this Node harness does not measure browser Worker startup or mobile performance.

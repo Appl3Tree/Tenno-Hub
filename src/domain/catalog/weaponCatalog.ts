@@ -19,6 +19,14 @@ const PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES = new Set([
     "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
 ]);
 
+// The upstream item type and internal path call Buzlok a sniper, but the
+// current Wiki classifies it as a Rifle and places it in the assault-rifle
+// compatibility branch. It must not receive sniper-only mods such as Charged
+// Chamber or Target Acquired.
+const PRIMARY_RIFLE_MOD_COMPAT_OVERRIDES = new Set([
+    "/Lotus/Weapons/Grineer/LongGuns/GrnGorgSniperRifle/GrnGorgSniperRifle",
+]);
+
 // The Coda variant inherits Bubonico's shotgun class, although WFCD's weapon
 // row labels it as a rifle. Keep its available mod family aligned with the
 // current weapon class listed by the Warframe Wiki.
@@ -530,6 +538,9 @@ function resolveWeaponFamily(category: WeaponCategory, item: Record<string, unkn
     if (category === "Arch-Melee") return { weaponType: weaponType || "Arch-Melee", modCompat: "Archmelee" };
     if (category === "Secondary") return { weaponType: weaponType || "Pistol", modCompat: "Pistol" };
     if (category === "Melee") return { weaponType: weaponType || "Melee", modCompat: "Melee" };
+    if (category === "Primary" && PRIMARY_RIFLE_MOD_COMPAT_OVERRIDES.has(String(item.uniqueName ?? ""))) {
+        return { weaponType: "Rifle", modCompat: "Rifle" };
+    }
     if (category === "Primary" && PRIMARY_SNIPER_MOD_COMPAT_OVERRIDES.has(String(item.uniqueName ?? ""))) {
         return { weaponType: "Sniper", modCompat: "Sniper" };
     }

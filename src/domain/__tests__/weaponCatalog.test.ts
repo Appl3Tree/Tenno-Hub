@@ -7,6 +7,8 @@ import ITEMS_RAW from "../../data/_generated/items-lean.auto.json";
 const ITEMS = ITEMS_RAW as Record<string, {
     name?: string;
     categories?: string[];
+    parent?: string;
+    parents?: string[];
     data?: {
         CompatibilityTags?: string[];
     };
@@ -131,6 +133,36 @@ describe("weapon catalog stance inference", () => {
 
         const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(getModsForWeapon(bratonPrime!).some((mod) => mod.name === "Primed Chamber")).toBe(false);
+    });
+
+    it("uses Rifle compatibility for Buzlok despite the upstream Sniper type label", () => {
+        const buzlok = getWeaponCatalog().find((weapon) => weapon.name === "Buzlok");
+
+        expect(buzlok).toBeTruthy();
+        expect(ITEMS[buzlok!.uniqueName]?.categories).toContain("primary-rifle");
+        expect(ITEMS[buzlok!.uniqueName]?.parents).toContain("/Lotus/Weapons/Tenno/Rifle/LotusAssaultRifle");
+        expect(buzlok).toMatchObject({ weaponType: "Rifle", modCompat: "Rifle" });
+
+        const mods = filterBuilderExpertVariants(getModsForWeapon(buzlok!));
+        expect(mods.some((mod) => mod.name === "Serration" && mod.path === "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod")).toBe(true);
+        expect(mods.some((mod) => mod.name === "Charged Chamber")).toBe(false);
+        expect(mods.some((mod) => mod.name === "Target Acquired")).toBe(false);
+    });
+
+    it("keeps primary Rifle and Sniper compatibility aligned with item ancestry", () => {
+        const failures: Array<{ weapon: string; modCompat: string; ancestry: string[] }> = [];
+
+        for (const weapon of getWeaponCatalog().filter((entry) => entry.category === "Primary")) {
+            const raw = ITEMS[weapon.uniqueName];
+            const ancestry = [raw?.parent, ...(raw?.parents ?? [])].filter((parent): parent is string => Boolean(parent));
+            const isAssaultRifle = ancestry.includes("/Lotus/Weapons/Tenno/Rifle/LotusAssaultRifle");
+            const isSniperRifle = ancestry.includes("/Lotus/Weapons/Tenno/Rifle/LotusSniperRifle");
+            if ((isAssaultRifle && weapon.modCompat === "Sniper") || (isSniperRifle && weapon.modCompat === "Rifle")) {
+                failures.push({ weapon: weapon.name, modCompat: weapon.modCompat, ancestry });
+            }
+        }
+
+        expect(failures).toEqual([]);
     });
 
     it("keeps standard compatible mods available to every weapon in the builder catalog", () => {

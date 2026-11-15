@@ -3,6 +3,16 @@
 Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
 ## Latest follow-up (2026-11-15)
+### Weapon compatibility audit: Perigale and Buzlok (2026-11-15)
+
+The Perigale Prime report traces to two gaps in the source data path. Its weapon record is missing from the lean item-ancestry catalog, so standard Rifle mods carrying an `ItemCompatibility` path were rejected. Flawed training records often omit that path, so they passed the filter and appeared to be the only choices. The compatibility resolver now applies the weapon's known class when ancestry is missing, while the catalog parser inherits standard-card restrictions onto training variants. A 694-weapon regression checks standard counterparts and display order for every Flawed mod; the explicit Perigale test checks standard Serration, Split Chamber, and Hunter Munitions. The clean profile still does not reproduce the player's profile-specific state.
+
+That catalog audit also found Buzlok's source row called it a Sniper, but the current [Buzlok Wiki page](https://wiki.warframe.com/w/Buzlok) classifies it as a Rifle, and its item ancestry is under `LotusAssaultRifle`. The weapon now uses Rifle compatibility; Sniper-only choices such as Charged Chamber and Target Acquired are excluded, while standard Rifle mods remain available. The [Sniper Mods list](https://wiki.warframe.com/w/Sniper_Mods) distinguishes those choices from ordinary Rifle mods. A regression scans the complete primary catalog for Rifle/Sniper ancestry disagreements.
+
+The five-run Buzlok / Burst benchmark returned the same legal 60/60, three-Forma build on each run (1.923s median / 2.208s five-run p95/max). The 705-test suite, TypeScript/production build, source validation, prerequisite audit, mod-effect audit (485/599 parsed; 114 without parsed effects; zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass. The optimizer Worker is 115,019 bytes; the existing Vite large-chunk warning remains.
+
+The in-app browser panel request for `http://localhost:80/` remains queued, so this follow-up has source/catalog verification but no fresh visual confirmation. The root cause and regression prevent a weapon class or incomplete ancestry record from making Flawed variants the only offered mod family.
+
 ### Wiki-backed Range Advantage (2026-11-15)
 
 The current [Range Advantage Wiki page](https://wiki.warframe.com/w/Range_Advantage) lists six additive Damage ranks (+50%, +100%, +150%, +200%, +250%, and +300%) for Akjagara and Akjagara Prime when no enemy is within 10m. The parser now reads every rank automatically and keeps the mod eligible for Auto Optimize. The existing target-distance scenario activates it only when distance is strictly greater than 10m; it no longer requires a player to look up or enter the mod's values.
