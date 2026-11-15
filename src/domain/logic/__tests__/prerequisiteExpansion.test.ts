@@ -606,4 +606,3 @@ describe("milestone rule evaluation", () => {
         expect(complete.completedPrereqs).toEqual([PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL]);
     });
 });
-
