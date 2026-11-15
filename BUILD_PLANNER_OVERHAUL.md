@@ -3,6 +3,14 @@
 Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
 ## Latest follow-up (2026-11-15)
+### Wiki-backed Spring-Loaded Broadhead (2026-11-15)
+
+The current [Spring-Loaded Broadhead Wiki page](https://wiki.warframe.com/w/Spring-Loaded_Broadhead) lists +40% damage at all six ranks, with target-distance thresholds of 45, 39, 33, 27, 21, and 15 meters. The bundled source splits the bonus and condition across separate stat lines; the parser now joins those lines and stores the Wiki values by rank. [Damage Calculation](https://wiki.warframe.com/w/Damage/Calculation) places the conditional bonus after base and elemental damage calculation, and [Passives](https://wiki.warframe.com/w/Passives) limits its multishot benefit to one hit. The calculator adds the rank bonus after Damage 3.0 quantization to one projectile, without changing status-type weights. Its one-projectile share enters the status DoT seed once; DoT ticks do not receive a second application.
+
+Daikyu and Daikyu Prime expose a target-distance scenario input because the Wiki cannot know the selected encounter's range. The bonus and selected-rank threshold are populated automatically, the condition is strict (`distance > threshold`), and an unset distance leaves it inactive. Saved planner state retains this scenario value. Direct target damage, finite encounter scoring, and the optimizer proxy all include the one-projectile share. The trace explains the active/inactive threshold and one-hit/DoT behavior.
+
+Regressions cover all six ranks and compatibility, the strict rank-5 threshold, direct damage, optimizer availability, unchanged status weights, and the one-time DoT seed. All 683 tests across 52 files pass. The production build, `validate:sources`, prerequisite audit, mod-effect coverage audit (482/599 records parsed, 117 with no parsed effect, 85 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass. The broader Damage 3.0 assignment remains open for mechanic coverage, global/joint optimizer quality, broader Underframe comparisons, stochastic histories, and cold/mobile/cross-device performance.
+
 ### Tennokai manual-picker coverage (2026-11-15)
 
 The current [Melee Tennokai section](https://wiki.warframe.com/w/Melee#Tennokai) describes opportunities from qualifying direct melee hits, with a 15% base chance and a 2-second window; the [Update 35 notes](https://wiki.warframe.com/w/Update_35) specify Discipline's Merit changes that to every four melee hits. The [Tennokai Mods](https://wiki.warframe.com/w/Tennokai_Mods) list includes Mentor's Legacy, whose upstream item record has no rank-stat block, so the catalog had silently omitted it before the manual picker. The catalog now preserves its exact zero-rank record and labels its unmodeled Tennokai behavior.

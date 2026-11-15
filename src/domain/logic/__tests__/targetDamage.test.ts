@@ -498,6 +498,36 @@ describe("single-attack damage against the target's current pools", () => {
         expect(result.uncappedDamageByPool.health).toBeCloseTo(130.8, 12);
     });
 
+    it("adds a one-projectile damage bonus once per attack in direct and finite calculations", () => {
+        const direct = calculateDirectDamageToInitialPools({
+            damageByType: { impact: 100 },
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 2,
+            expectedDamageMultiplier: 2,
+            singleProjectileDamageBonus: 0.4,
+        });
+        expect(direct.uncappedDamageByPool.health).toBeCloseTo(240, 12);
+
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 2,
+            expectedDamageMultiplier: 2,
+            singleProjectileDamageBonus: 0.4,
+            attackIntervalSeconds: 1,
+            maxAttacks: 1,
+        });
+        expect(encounter.directDamageByPool.health).toBeCloseTo(240, 12);
+    });
+
     it("uses the first-tick minimum and advances the ramp in a direct attack sequence", () => {
         const initialHit = calculateDirectDamageToInitialPools({
             damageByType: { impact: 100 },

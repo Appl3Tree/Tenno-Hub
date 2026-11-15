@@ -25,7 +25,7 @@ import {
     type IncarnonCandidateConfig,
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
-import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect } from "../../domain/catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect, SPRING_LOADED_BROADHEAD_PATH } from "../../domain/catalog/modCatalog";
 import { getUnmodeledScoringEffectLines } from "../../domain/catalog/modEffectUtils";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
@@ -1295,7 +1295,8 @@ function buildMathBreakdown(
     const moddedBaseDamageForQuantization = moddedBaseDamage * selectedAttackDamageMultiplier;
     const quantScale = (moddedBaseDamageForQuantization / 32) * (stats.directDamagePerStatusMultiplier || 1);
     const fireRateBonus = usesMeleeDamageModel(weapon.category) ? totals.attackSpeedBonus : totals.fireRateBonus;
-    const quantizedShotDamage = stats.totalDamage * stats.damageWeightedMultishot;
+    const attackDamageEquivalent = stats.damageWeightedMultishot + stats.singleProjectileDamageBonus;
+    const quantizedShotDamage = stats.totalDamage * attackDamageEquivalent;
     const avgHitMultiplier = quantizedShotDamage > 0 ? stats.averageShotDamage / quantizedShotDamage : 1;
     const hasConditionalBonuses = effects.some(effect => (effect?.conditionalEffects?.length ?? 0) > 0);
     const damageUnit = actionUnitLabel(weapon.category);
@@ -1382,6 +1383,28 @@ function buildMathBreakdown(
             " active tendrils; Realistic uses the disclosed 70%-of-four heuristic. Wiki tendrils reset on reload or an empty magazine, but kill cadence/reset timing are not simulated; the finite encounter holds the selected stack estimate constant.",
         );
     }
+    const selectedSpringLoadedBroadheadBonus = effects.reduce(
+        (sum, effect) => sum + (effect?.springLoadedBroadheadDamageBonus ?? 0),
+        0,
+    );
+    if (selectedSpringLoadedBroadheadBonus > 0) {
+        const threshold = stats.singleProjectileDamageMinDistanceMeters;
+        const targetDistance = Number.isFinite(conditionalState.targetDistanceMeters)
+            ? conditionalState.targetDistanceMeters ?? null
+            : null;
+        const rangeState = targetDistance !== null
+            ? fmt(targetDistance, 2) + "m " +
+                (targetDistance > threshold ? "exceeds" : "does not exceed") +
+                " the " + fmt(threshold, 2) + "m rank threshold"
+            : "target distance is unset";
+        conditionalLines.push(
+            "Spring-Loaded Broadhead = +" + fmt(selectedSpringLoadedBroadheadBonus * 100, 2) +
+            "% on one hit when the target is over " + fmt(threshold, 2) +
+            "m away; " + rangeState + ", so the bonus is " +
+            (stats.singleProjectileDamageBonus > 0 ? "active" : "inactive") +
+            ". Direct damage and proc seeds receive the one-projectile share; DoT ticks do not apply the bonus a second time.",
+        );
+    }
     const protonSnapCondition = conditionalEntries.find((conditional) =>
         conditional.trigger === "whileWallLatched" && (conditional.stats.toxinBonus ?? 0) > 0,
     );
@@ -1458,6 +1481,11 @@ function buildMathBreakdown(
                             : []),
                     ]
                     : []),
+                ...(stats.singleProjectileDamageMinDistanceMeters > 0
+                    ? ["Target distance = " + (Number.isFinite(conditionalState.targetDistanceMeters)
+                        ? fmt(conditionalState.targetDistanceMeters ?? 0, 2) + "m"
+                        : "unset")]
+                    : []),
                 ...customTargetLines,
             ],
         },
@@ -1531,9 +1559,10 @@ function buildMathBreakdown(
         {
             title: "Crit and DPS",
             lines: [
-                `Arsenal Total Damage = unquantized damage construction × damage-weighted multishot = ${fmt(stats.arsenalDamage, 5)}`,
+                `Arsenal Total Damage = unquantized damage construction × attack damage equivalent (damage-weighted multishot ${fmt(stats.damageWeightedMultishot, 5)} + one-hit bonus ${fmt(stats.singleProjectileDamageBonus, 5)}) = ${fmt(stats.arsenalDamage, 5)}`,
                 `Expected projectile count = ${fmt(stats.multishot, 5)} per ${damageUnit}; damage-weighted multiplier = ${fmt(stats.damageWeightedMultishot, 5)} (unique extra-projectile damage bonus ${fmt(stats.multishotDamageBonus * 100, 3)}%)`,
-                `Quantized direct damage per ${damageUnit} = ${fmt(stats.totalDamage, 5)} × damage-weighted multiplier ${fmt(stats.damageWeightedMultishot, 5)} = ${fmt(quantizedShotDamage, 5)}`,
+                `Quantized direct damage per ${damageUnit} = ${fmt(stats.totalDamage, 5)} × attack damage equivalent ${fmt(attackDamageEquivalent, 5)} = ${fmt(quantizedShotDamage, 5)}`,
+                `Status DoT seed damage share = (damage-weighted multishot ${fmt(stats.damageWeightedMultishot, 5)} + one-hit bonus ${fmt(stats.singleProjectileDamageBonus, 5)}) ÷ multishot ${fmt(stats.multishot, 5)} = ${fmt(stats.multishot > 0 ? attackDamageEquivalent / stats.multishot : 1, 6)}; Spring-Loaded Broadhead enters the seed once and is not applied again to each DoT tick.`,
                 `Average hit damage multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgHitMultiplier, 6)}`,
                 `Average crit multiplier cross-check = 1 + crit chance × (crit multiplier - 1) = 1 + ${fmt(stats.critChance, 5)} × (${fmt(stats.critMultiplier, 5)} - 1) = ${fmt(1 + stats.critChance * (stats.critMultiplier - 1), 6)}`,
                 `Average direct damage per ${damageUnit} = quantized damage ${fmt(quantizedShotDamage, 5)} × average hit damage multiplier ${fmt(avgHitMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
@@ -3102,6 +3131,7 @@ export default function ModBuilder() {
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
+    const [targetDistanceMeters, setTargetDistanceMeters] = useState<number | undefined>(undefined);
     const meleeDpsModelNote = weapon && usesMeleeDamageModel(weapon.category)
         ? "Default burst and sustained DPS remain attack-rate estimates. The combo scenario scales Blood Rush, Weeping Wounds, and selected heavy-attack damage. The stats panel projects one-hit Heavy Attack Efficiency retention. Direct-hit TTK steps repeated Heavy Attacks and restores Initial Combo at 40 points/s; it still excludes attack-generated combo, Tennokai, stance sequences, and heavy-attack wind-up. DPS, finite status encounter, and optimizer scoring hold the entered tier across each scored hit. Stance DPS uses the selected stance's Wiki Neutral combo, including its direct and forced-Slash multipliers; Wiki timings are approximate and its comparison formula omits combo physical-damage bonuses."
         : "";
@@ -3117,7 +3147,8 @@ export default function ModBuilder() {
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, meleeComboMultiplier, phantasmaChargeAmmo]);
+        targetDistanceMeters,
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3310,6 +3341,7 @@ export default function ModBuilder() {
             targetStartsWithHeat,
             meleeComboMultiplier,
             phantasmaChargeAmmo,
+            targetDistanceMeters,
             warframeArmor,
             warframeMaxEnergy,
             warframeEnergyPercent,
@@ -3351,6 +3383,7 @@ export default function ModBuilder() {
         targetStartsWithHeat,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
+        targetDistanceMeters,
         warframeArmor,
         warframeMaxEnergy,
         warframeEnergyPercent,
@@ -3435,6 +3468,7 @@ export default function ModBuilder() {
         setArcane1(null); setArcane1Rank(0);
         setSelectedAttackIdx(0);
         setPhantasmaChargeAmmo(2);
+        setTargetDistanceMeters(undefined);
         setIncarnonPickerTier(null);
         setShowMathWindow(false);
         if (opts?.resetConfig) {
@@ -4125,6 +4159,7 @@ export default function ModBuilder() {
             ),
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
+            singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
         };
     }, [activeMetrics, activeBuildEffects, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
     const activeTargetAttackDamage = useMemo(() => {
@@ -4199,6 +4234,7 @@ export default function ModBuilder() {
             nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
+            singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             shotsPerMagazine: stats.shotsPerMag,
             infiniteAmmoActive: stats.infiniteAmmoActive,
@@ -4792,6 +4828,9 @@ export default function ModBuilder() {
             setPhantasmaChargeAmmo(Number.isFinite(plannerConfig.phantasmaChargeAmmo)
                 ? Math.max(2, Math.min(50, Math.round(plannerConfig.phantasmaChargeAmmo ?? 2)))
                 : 2);
+            setTargetDistanceMeters(Number.isFinite(plannerConfig.targetDistanceMeters)
+                ? Math.max(0, plannerConfig.targetDistanceMeters ?? 0)
+                : undefined);
             const attackIndexByName = plannerConfig.attackName
                 ? weapon.attacks.findIndex((attack) => attack.name === plannerConfig.attackName)
                 : -1;
@@ -5120,6 +5159,34 @@ export default function ModBuilder() {
                                                         <a href="https://wiki.warframe.com/w/Status_Effects" target="_blank" rel="noreferrer" className="text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">Status Effects</a>
                                                     </span>
                                                 </details>
+                                                {weapon && compatMods.some((mod) => mod.path === SPRING_LOADED_BROADHEAD_PATH) && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 px-2 py-2">
+                                                        <label htmlFor="planner-target-distance" className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2 text-[10px] text-slate-300">
+                                                            <span>Target distance (m)</span>
+                                                            <input
+                                                                id="planner-target-distance"
+                                                                aria-label="Target distance in meters"
+                                                                type="number"
+                                                                min={0}
+                                                                step={0.1}
+                                                                value={targetDistanceMeters ?? ""}
+                                                                onChange={(event) => {
+                                                                    const value = event.currentTarget.value;
+                                                                    const next = value === "" ? Number.NaN : Number(value);
+                                                                    setTargetDistanceMeters(Number.isFinite(next) && next >= 0 ? next : undefined);
+                                                                }}
+                                                                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                            />
+                                                            <span className="text-slate-500">meters</span>
+                                                        </label>
+                                                        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                                                            Enter the scenario distance. Spring-Loaded Broadhead's +40% value and rank-specific range threshold come from the Wiki automatically; the bonus applies to one projectile and its status DoT seed once. An empty distance keeps the condition inactive.
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Spring-Loaded_Broadhead" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300">
+                                                            WARFRAME Wiki: Spring-Loaded Broadhead
+                                                        </a>
+                                                    </div>
+                                                )}
                                                 {activeBuildEffects.some((effect) => (effect?.targetStatusDamageVulnerabilityBonus ?? 0) > 0) && (
                                                     <label className="flex items-center gap-2 text-[10px] text-slate-400">
                                                         <input

@@ -225,6 +225,8 @@ export interface SavedBuildPlannerConfig {
     meleeComboMultiplier?: number;
     /** User-entered ammo charge for Phantasma's alternate fire. */
     phantasmaChargeAmmo?: number;
+    /** Assumed target distance used by rank-conditioned weapon effects such as Spring-Loaded Broadhead. */
+    targetDistanceMeters?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */
     meleeAverageComboDamageMultiplier?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */

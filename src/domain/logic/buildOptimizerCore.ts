@@ -805,7 +805,9 @@ function scoreEffects(
         modded.nonCriticalHitDamageProcs,
     );
     const objectiveAttackRate = goal === "burst" ? modded.burstFireRate : modded.fireRate;
-    const burstAttackRate = modded.damageWeightedMultishot * critMultiplier * objectiveAttackRate;
+    const attackDamageEquivalent =
+        modded.damageWeightedMultishot + modded.singleProjectileDamageBonus;
+    const burstAttackRate = attackDamageEquivalent * critMultiplier * objectiveAttackRate;
     // Ramp-adjusted Burst and Sustained DPS have different damage multipliers;
     // use the independent magazine duty cycle instead of dividing those values.
     const sustainedDutyCycle = modded.fireRate > 0 ? modded.magazineDutyCycle : 0;
@@ -2262,6 +2264,7 @@ function expectedEncounterScoreForEffects(
         nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
         expectedProjectiles: stats.multishot,
         expectedDamageMultiplier: stats.damageWeightedMultishot,
+        singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
         attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
         shotsPerMagazine: stats.shotsPerMag,
         infiniteAmmoActive: stats.infiniteAmmoActive,

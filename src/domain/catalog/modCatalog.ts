@@ -64,6 +64,10 @@ const COMPAT_MAP: Record<string, string> = {
 
 export interface ModEffect {
     damageBonus: number;
+    /** Spring-Loaded Broadhead's multiplicative damage bonus for one hit beyond its rank distance threshold. */
+    springLoadedBroadheadDamageBonus: number;
+    /** Target distance must be strictly greater than this rank threshold to activate Spring-Loaded Broadhead. */
+    springLoadedBroadheadMinDistanceMeters: number;
     /** Multiplicative weapon damage bonus for the first ammo-consuming shot after each magazine reload. */
     firstShotMagazineDamageBonus: number;
     /** Bonus damage on one hit of the final ammo-consuming shot in each eligible magazine. */
@@ -187,6 +191,7 @@ const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjecti
 const SENTIENT_SURGE_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveOcucorAugmentMod";
 const PROTON_JET_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModB";
 const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
+export const SPRING_LOADED_BROADHEAD_PATH = "/Lotus/Upgrades/Mods/PvPMods/Rifle/DaikyuMoreDamageOverDistanceMod";
 const MENTOR_LEGACY_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/TennokaiBaseMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
@@ -1425,6 +1430,35 @@ function buildCaches(): ModCaches {
                 });
             });
         }
+        if (path === SPRING_LOADED_BROADHEAD_PATH) {
+            // The raw catalog splits the damage amount and distance condition
+            // across two lines. Keep this source effect out of the additive
+            // damage bracket: the Wiki applies it after base/elemental mods,
+            // to one multishot hit, and only once to status DoT seeds.
+            // https://wiki.warframe.com/w/Spring-Loaded_Broadhead
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect) return;
+                const text = (levelStat.stats ?? [])
+                    .map((rawStat) => stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim())
+                    .filter(Boolean)
+                    .join(" ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                const match = text.match(/^Increase damage by \+?(\d+(?:\.\d+)?)% if the target is over (\d+(?:\.\d+)?)m away\.?$/i);
+                if (!match) return;
+                // This exact mod record contains only the line parsed above;
+                // undo any generic parser interpretation before storing the
+                // source-specific, multiplicative effect.
+                rankEffect.damageBonus = 0;
+                rankEffect.springLoadedBroadheadDamageBonus = Number(match[1]) / 100;
+                rankEffect.springLoadedBroadheadMinDistanceMeters = Number(match[2]);
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Increase damage by \+?\d+(?:\.\d+)?%$/i.test(line) &&
+                    !/^if the target is over \d+(?:\.\d+)?m away\.?$/i.test(line),
+                );
+            });
+        }
         if (effectsByRank.length === 0) effectsByRank.push(emptyEffect());
         // Pad up to fusionLimit if levelStats has fewer entries
         while (effectsByRank.length <= fl) {
@@ -1462,6 +1496,13 @@ function buildCaches(): ModCaches {
                     /chance to apply\s+on Critical\b/i,
                     "chance to apply Slash on Critical",
                 );
+            }
+        }
+        if (path === SPRING_LOADED_BROADHEAD_PATH) {
+            for (let rank = 0; rank < statsTextByRank.length; rank++) {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect || rankEffect.springLoadedBroadheadDamageBonus <= 0) continue;
+                statsTextByRank[rank] = `+${rankEffect.springLoadedBroadheadDamageBonus * 100}% damage to one hit when target is over ${rankEffect.springLoadedBroadheadMinDistanceMeters}m away`;
             }
         }
         if (statsTextByRank.length === 0) {
