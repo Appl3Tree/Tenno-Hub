@@ -381,7 +381,7 @@ Incarnon damage accuracy follow-up (2026-11-11): a unique extra-projectile damag
 - [x] Add bounded Blast cap/death radial handling as conditional AoE/utility
   - Scope: custom targets can include 0–20 same-profile neighbors. The finite encounter applies the primary target's cap/death `3 × sum(H)` radial through each neighbor's Blast defenses and reports collateral separately from primary TTK. Optimizer scoring estimates cap-radial value from Poisson proc arrivals; death-triggered value, neighbor statuses/positions, and chained deaths remain unsupported. Default is zero.
 - [ ] Add per-target state simulation for:
-  - [ ] Slash
+  - [x] Slash (target-local Bleed procs keep independent six-tick timers, bypass Armor, and resolve against Shields/Health; there is no damage cap at ten stacks—the Wiki's ten-number limit is display-only. Proc rolls remain expected-value/mean-field.)
   - [x] Heat (mean-field armor strip; DoT group refresh remains unmodeled)
   - [ ] Electric
   - [ ] Toxin
