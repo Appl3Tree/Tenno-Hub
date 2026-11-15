@@ -872,6 +872,30 @@ describe("finite expected-value weapon encounters", () => {
         expect(result.electricGasCollateralDamageByPool.health).toBeCloseTo(10, 12);
     });
 
+    it("keeps more than ten Electricity procs on independent timers", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            maxAttacks: 12,
+            maxDurationSeconds: 17,
+            dotDamagePerAttackByType: { electricity: 6 },
+            dotDamagePerApplicationByType: { electricity: 6 },
+            expectedStatusApplicationsPerAttackByType: { electricity: 1 },
+            nearbyElectricGasEnemyCount: 1,
+        });
+
+        // Each of twelve procs keeps six ticks. Simultaneous ticks are one
+        // pulse, but the Wiki's ten-number display limit is not a damage cap.
+        expect(result.statusApplicationsByType.electricity).toBeCloseTo(12, 12);
+        expect(result.statusDamageByPool.health).toBeCloseTo(72, 12);
+        expect(result.electricGasCollateralDamageByPool.health).toBeCloseTo(72, 12);
+    });
+
     it("replaces the oldest Gas cloud at ten stacks and cancels its future ticks", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: {},
