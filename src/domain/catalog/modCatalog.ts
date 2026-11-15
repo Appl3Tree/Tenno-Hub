@@ -12,7 +12,7 @@
 // Additionally, weapon-specific augments (e.g. compatName "Hek") are surfaced
 // when the selected weapon's name matches the compat name.
 
-import { emptyEffect } from "./modEffectUtils";
+import { emptyEffect, VOLATILE_VARIANT_MOD_PATH } from "./modEffectUtils";
 export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
@@ -109,6 +109,8 @@ export interface ModEffect {
     critMultBonus: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
+    /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
+    areaDamageStatusChanceBonus: number;
     /** Status chance per combo tier above 1x (e.g. Weeping Wounds). */
     comboStatusChanceBonus: number;
     multishotBonus: number;
@@ -328,7 +330,8 @@ function normalizeStatDescriptor(rest: string): string {
         .replace(/\bstacks?\s+up\s+to\s+\d+x\b\.?/ig, "")
         .replace(/\s+/g, " ")
         .replace(/\s+\.\s*/g, " ")
-        .trim();
+        .trim()
+        .replace(/\.$/, "");
 }
 
 const CONDITIONAL_STAT_KEYS: (keyof ConditionalEffect["stats"])[] = [
@@ -1248,6 +1251,29 @@ function buildCaches(): ModCaches {
             unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
+        if (path === VOLATILE_VARIANT_MOD_PATH) {
+            // The Wiki says this additive Status Chance applies only to Volatile
+            // Variant's explosion. Apply it only when the selected attack row is
+            // classified as AoE; the direct-hit explosion timing, radius, and
+            // Punch Through stay disclosed as unsupported.
+            // https://wiki.warframe.com/w/Volatile_Variant
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect) return;
+                const statusLine = (levelStat.stats ?? [])
+                    .flatMap(explodeStatLines)
+                    .map((line) => stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim())
+                    .find((line) => /^\+?\d+(?:\.\d+)?%\s*Status Chance\.?$/i.test(line));
+                const match = statusLine?.match(/^\+?(\d+(?:\.\d+)?)%\s*Status Chance\.?$/i);
+                if (!match) return;
+
+                rankEffect.statusChanceBonus = 0;
+                rankEffect.areaDamageStatusChanceBonus = Number(match[1]) / 100;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^\+?\d+(?:\.\d+)?%\s*Status Chance\.?$/i.test(stripColorTags(line).trim()),
+                );
+            });
+        }
         if (path === SHATTERING_IMPACT_PATH) {
             parsedLevelStats.forEach((levelStat, rank) => {
                 for (const rawStat of levelStat.stats ?? []) {

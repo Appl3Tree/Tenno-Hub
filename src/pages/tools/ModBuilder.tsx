@@ -992,6 +992,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         acc.critMultBonus += effect.critMultBonus ?? 0;
         acc.finalCritMultiplierBonus += effect.finalCritMultiplierBonus ?? 0;
         acc.statusChanceBonus += effect.statusChanceBonus ?? 0;
+        acc.areaDamageStatusChanceBonus += effect.areaDamageStatusChanceBonus ?? 0;
         acc.comboStatusChanceBonus += effect.comboStatusChanceBonus ?? 0;
         acc.finalStatusChanceBonus += effect.finalStatusChanceBonus ?? 0;
         acc.multishotBonus += effect.multishotBonus ?? 0;
@@ -1030,6 +1031,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         critMultBonus: 0,
         finalCritMultiplierBonus: 0,
         statusChanceBonus: 0,
+        areaDamageStatusChanceBonus: 0,
         comboStatusChanceBonus: 0,
         finalStatusChanceBonus: 0,
         multishotBonus: 0,
@@ -1495,7 +1497,7 @@ function buildMathBreakdown(
                 `Base damage multiplier bracket = 1 + additive damage bonuses = 1 + ${fmt(totals.damageBonus, 5)} = ${fmt(baseDamageMultiplier, 5)}`,
                 `Crit chance = base ${fmt(weapon.critChance, 5)} × (1 + additive crit ${fmt(totals.critChanceBonus, 5)}) + final crit ${fmt(totals.finalCritChanceBonus, 5)} = ${fmt(stats.critChance, 5)} (${fmt(stats.critChance * 100, 3)}%)`,
                 `Crit multiplier = quantized base ${fmt(stats.quantizedBaseCritMultiplier, 7)} × (1 + additive crit mult ${fmt(totals.critMultBonus, 5)}) + final crit mult ${fmt(totals.finalCritMultiplierBonus, 5)} = ${fmt(stats.critMultiplier, 7)}`,
-                `Status chance = base ${fmt(weapon.statusChance, 5)} × (1 + additive status ${fmt(totals.statusChanceBonus, 5)}) + final status ${fmt(totals.finalStatusChanceBonus, 5)} = ${fmt(stats.statusChance, 5)} (${fmt(stats.statusChance * 100, 3)}%)`,
+                `Status chance = base ${fmt(weapon.statusChance, 5)} × (1 + additive status ${fmt(totals.statusChanceBonus, 5)} + AoE-only additive status ${fmt(weapon.selectedAttackIsAreaDamage === true ? totals.areaDamageStatusChanceBonus : 0, 5)}${usesMeleeDamageModel(weapon.category) ? ` + combo status ${fmt(totals.comboStatusChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1), 5)}` : ""}) + final status ${fmt(totals.finalStatusChanceBonus, 5)} = ${fmt(stats.statusChance, 5)} (${fmt(stats.statusChance * 100, 3)}%)`,
                 `Multishot = base ${fmt(weapon.multishot, 5)} × (1 + additive multishot ${fmt(totals.multishotBonus, 5)}) = ${fmt(stats.multishot, 5)}`,
                 ...(usesMeleeDamageModel(weapon.category)
                     ? ["Combo-scaled bonuses = " + fmt(totals.comboCritChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 3) + "% crit chance; " + fmt(totals.comboStatusChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 3) + "% status chance"]

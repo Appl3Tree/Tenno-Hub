@@ -993,6 +993,29 @@ describe("build optimizer scoring", () => {
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
+    it("keeps Volatile Variant out of automatic builds until its direct-hit explosion behavior is modeled", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Sporothrix");
+        expect(weapon).toBeDefined();
+        const volatileVariant = getModsForWeapon(weapon!).find((entry) => entry.name === "Volatile Variant");
+        expect(volatileVariant).toBeDefined();
+        expect(volatileVariant!.effect.areaDamageStatusChanceBonus).toBe(0.5);
+        expect(getUnmodeledDamageEffectLines(volatileVariant!, volatileVariant!.fusionLimit)).toContain(
+            "Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.",
+        );
+
+        const areaAttackIndex = weapon!.attacks.findIndex((attack) => attack.isAreaDamage === true);
+        const result = optimizeBuild(
+            withSelectedAttack(weapon!, areaAttackIndex),
+            [volatileVariant!],
+            "status",
+            1,
+            { allowForma: false },
+        );
+
+        expect(result.mods).toEqual([]);
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
     it("matches brute-force scoring for a small capacity-constrained candidate set", () => {
         const weapon = makeWeapon({
             damage: {

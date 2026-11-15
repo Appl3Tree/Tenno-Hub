@@ -160,6 +160,45 @@ describe("Cull the Weak Wiki modeling", () => {
     });
 });
 
+describe("Volatile Variant Wiki modeling", () => {
+    it("applies the rank-scaled Status Chance only to Sporothrix explosion attacks", () => {
+        const expectedBonuses = [0.25, 0.3, 0.35, 0.4, 0.45, 0.5];
+        for (const weaponName of ["Sporothrix", "Coda Sporothrix"]) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon).toBeDefined();
+            const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Volatile Variant");
+            expect(mod).toBeDefined();
+
+            expect(mod!.effectsByRank.map((effect) => effect.areaDamageStatusChanceBonus)).toEqual(expectedBonuses);
+            expect(mod!.effectsByRank.map((effect) => effect.statusChanceBonus)).toEqual([0, 0, 0, 0, 0, 0]);
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                const unmodeled = getUnmodeledDamageEffectLines(mod!, rank);
+                expect(unmodeled).toContain(
+                    "Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.",
+                );
+                expect(unmodeled.some((line) => /\+\d+% Status Chance/.test(line))).toBe(false);
+            }
+
+            const directAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            const areaAttackIndex = weapon!.attacks.findIndex((attack) => attack.isAreaDamage === true);
+            expect(directAttackIndex).toBeGreaterThanOrEqual(0);
+            expect(areaAttackIndex).toBeGreaterThanOrEqual(0);
+            const directWeapon = withSelectedAttack(weapon!, directAttackIndex);
+            const areaWeapon = withSelectedAttack(weapon!, areaAttackIndex);
+            const maxRankEffect = mod!.effectsByRank[mod!.fusionLimit];
+
+            const directBaseline = calculateBuild(directWeapon, []).modded;
+            const directModded = calculateBuild(directWeapon, [maxRankEffect]).modded;
+            expect(directModded.statusChance).toBeCloseTo(directBaseline.statusChance, 12);
+
+            const areaBaseline = calculateBuild(areaWeapon, []).modded;
+            const areaModded = calculateBuild(areaWeapon, [maxRankEffect]).modded;
+            expect(areaModded.statusChance).toBeCloseTo(areaWeapon.statusChance * 1.5, 10);
+            expect(areaModded.averageProcsPerShot).toBeGreaterThan(areaBaseline.averageProcsPerShot);
+        }
+    });
+});
+
 describe("damage calculation status eligibility", () => {
     it("models Enduring Affliction as additive Status Chance only for an explicitly Lifted target", () => {
         const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");
