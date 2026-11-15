@@ -805,6 +805,7 @@ export function calculateBuild(
     let finalCritMultiplierBonus = 0;
     const nonCriticalHitDamageProcs: NonCriticalHitDamageProc[] = [];
     let statusChanceBonus = 0;
+    let areaDamageStatusChanceBonus = 0;
     let comboStatusChanceBonus = 0;
     let finalStatusChanceBonus = 0;
     let multishotBonus = 0;
@@ -881,6 +882,7 @@ export function calculateBuild(
         critMultBonus += e.critMultBonus ?? 0;
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
+        areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
         comboStatusChanceBonus += e.comboStatusChanceBonus ?? 0;
         finalStatusChanceBonus += e.finalStatusChanceBonus ?? 0;
         multishotBonus += e.multishotBonus ?? 0;
@@ -946,6 +948,9 @@ export function calculateBuild(
         directBonusBreakdown.true += e.trueBonus ?? 0;
     }
 
+    const selectedAreaDamageStatusChanceBonus = weapon.selectedAttackIsAreaDamage === true
+        ? areaDamageStatusChanceBonus
+        : 0;
     const baseFireRateBonus = usesMeleeDamageModel(weapon.category) ? attackSpeedBonus : fireRateBonus;
     const baselineReloadTime = ignoresReloadAndMagazine
         ? weapon.reloadTime
@@ -1021,7 +1026,8 @@ export function calculateBuild(
             1 + critChanceBonus + comboCritChanceBonus * comboTiersForTrigger + eligibilityCritChanceBonus
         ) + finalCritChanceBonus + eligibilityFinalCritChanceBonus;
         const eligibilityStatusChanceBeforeImmunity = weapon.statusChance * (
-            1 + statusChanceBonus + comboStatusChanceBonus * comboTiersForTrigger + eligibilityStatusChanceBonus
+            1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus +
+                comboStatusChanceBonus * comboTiersForTrigger + eligibilityStatusChanceBonus
         ) + finalStatusChanceBonus + eligibilityFinalStatusChanceBonus;
         const eligibilityMultishot = weapon.multishot * (1 + multishotBonus + eligibilityMultishotBonus);
         const eligibilityBaseDamageMultiplier = Math.max(0, 1 + eligibilityDamageBonus);
@@ -1344,7 +1350,9 @@ export function calculateBuild(
     const quantizedBaseCritMultiplier = quantizeBaseCriticalDamageMultiplier(weapon.critMultiplier);
     const critMultiplier = quantizedBaseCritMultiplier * (1 + critMultBonus) + finalCritMultiplierBonus;
     const averageCritTier = Math.max(0, critChance);
-    const statusChance = weapon.statusChance * (1 + statusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase) + finalStatusChanceBonus;
+    const statusChance = weapon.statusChance * (
+        1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase
+    ) + finalStatusChanceBonus;
 
     const magazineSize = ignoresReloadAndMagazine
         ? Math.max(1, weapon.selectedAttackIsIncarnon
@@ -1514,7 +1522,9 @@ export function calculateBuild(
     for (const effect of mods) {
         for (const [type, baseChance] of Object.entries(effect?.independentStatusProcChanceByType ?? {}) as Array<[StatusDamageType, number]>) {
             if (!Number.isFinite(baseChance) || baseChance <= 0) continue;
-            const chanceWithMods = baseChance * (1 + statusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase) + finalStatusChanceBonus;
+            const chanceWithMods = baseChance * (
+                1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase
+            ) + finalStatusChanceBonus;
             const chanceWithTargetState = chanceWithMods * (type === "tau" ? 1 : tauStatusChanceMultiplier);
             const perHitChance = Math.min(1, Math.max(0, chanceWithTargetState));
             if (perHitChance <= 0) continue;

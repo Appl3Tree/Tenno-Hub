@@ -1,5 +1,7 @@
 import type { ModEffect } from "./modCatalog";
 
+export const VOLATILE_VARIANT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveSporothrixAugmentMod";
+
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -35,6 +37,7 @@ export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | nul
 /** Raw lines that a conservative keyword screen flags for parser review at this rank. */
 export function getUnmodeledDamageEffectLines(
     mod: {
+        path?: string;
         unparsedStatsByRank?: string[][];
         effectsByRank?: Partial<ModEffect>[];
         effect?: Partial<ModEffect>;
@@ -43,6 +46,9 @@ export function getUnmodeledDamageEffectLines(
 ): string[] {
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
         .filter((line) => DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    if (mod.path === VOLATILE_VARIANT_MOD_PATH) {
+        lines.push("Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.");
+    }
     if (lines.some((line) => /\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b/i.test(line))) {
         lines.push("Tennokai opportunity timing and attack-chain cadence are not modeled or scored.");
     }
@@ -68,6 +74,7 @@ export function emptyEffect(): ModEffect {
         critChanceBonus: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0, finalCritMultiplierBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
+        areaDamageStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, magazineBonus: 0,
         reloadSpeedBonus: 0, attackSpeedBonus: 0,
         statusDurationBonus: 0, statusDamageBonus: 0, targetStatusDamageVulnerabilityBonus: 0,

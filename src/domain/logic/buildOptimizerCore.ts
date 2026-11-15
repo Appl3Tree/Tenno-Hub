@@ -2172,7 +2172,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         "magneticBonus", "viralBonus", "corrosiveBonus", "radiationBonus", "voidBonus", "tauBonus",
     )) families.push("elemental");
     const statusRelevant = has(
-        "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "statusChanceBonus", "areaDamageStatusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
         "targetStatusDamageVulnerabilityBonus",
         "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
@@ -2198,7 +2198,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     if (has("damageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs")) families.push("base-damage");
     if (has("factionDamageBonus")) families.push("faction-damage");
     if (has(
-        "statusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "statusChanceBonus", "areaDamageStatusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
         "targetStatusDamageVulnerabilityBonus",
         "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
