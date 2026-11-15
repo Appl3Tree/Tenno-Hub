@@ -18,6 +18,7 @@ import { WorkspaceAction, WorkspaceFilterBar, WorkspaceFilterGroup, WorkspaceHer
 import { FULL_CATALOG } from "../domain/catalog/loadFullCatalog";
 import { getAcquisitionByCatalogId } from "../catalog/items/itemAcquisition";
 import { getGoalCatalogKind, getOwnedCountForGoal } from "../domain/goals/catalogGoals";
+import { deriveCompletedMap } from "../domain/logic/syndicatePrereqs";
 
 function normalize(s: string): string {
     return s.trim().toLowerCase();
@@ -210,13 +211,20 @@ function CurrencyCostChip(props: { line: CurrencyRequirementLine }) {
 export default function Requirements() {
     const setActivePage = useTrackerStore((s) => s.setActivePage);
 
-    const { syndicates, goals, completedPrereqs, inventory } = useTrackerStore(
+    const { syndicates, goals, completedPrereqs, inventory, masteryRank, nodeCompletedMap, railjackIntrinsics } = useTrackerStore(
         useShallow((s) => ({
             syndicates: s.state.syndicates ?? [],
             goals: s.state.goals ?? [],
             completedPrereqs: s.state.prereqs?.completed ?? {},
             inventory: s.state.inventory,
+            masteryRank: s.state.player?.masteryRank ?? null,
+            nodeCompletedMap: s.state.missions?.nodeCompleted ?? {},
+            railjackIntrinsics: s.state.intrinsics?.railjack ?? {},
         }))
+    );
+    const effectiveCompletedPrereqs = useMemo(
+        () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventory.counts ?? {}),
+        [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, inventory.counts],
     );
 
     const [mode, setMode] = useState<RequirementViewMode>("targeted");
@@ -251,21 +259,21 @@ export default function Requirements() {
         return buildRequirementsSnapshot({
             syndicates,
             goals,
-            completedPrereqs,
+            completedPrereqs: effectiveCompletedPrereqs,
             inventory,
             expandMode,
             // Farming page always shows all remaining rank requirements so players can
             // plan their full farming runs, not just the immediate next rank.
             syndicateScope: "allRemaining"
         });
-    }, [syndicates, goals, completedPrereqs, inventory, expandMode]);
+    }, [syndicates, goals, effectiveCompletedPrereqs, inventory, expandMode]);
 
     const farming = useMemo(() => {
         return buildFarmingSnapshot({
             requirements,
-            completedPrereqs
+            completedPrereqs: effectiveCompletedPrereqs
         });
-    }, [requirements, completedPrereqs]);
+    }, [requirements, effectiveCompletedPrereqs]);
 
     const sourceOptions = useMemo(() => {
         const seen = new Map<string, SourceFilterOption>();

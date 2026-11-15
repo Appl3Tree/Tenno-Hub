@@ -216,6 +216,8 @@ export interface SavedBuildPlannerConfig {
     externalConditionalStacks?: number;
     /** Distinct additional status types assumed active for Condition Overload (including Tau). */
     externalStatusTypeCount?: number;
+    /** Assume the target starts Heat-afflicted by another source. */
+    targetStartsWithHeat?: boolean;
     meleeComboMultiplier?: number;
     /** User-entered ammo charge for Phantasma's alternate fire. */
     phantasmaChargeAmmo?: number;

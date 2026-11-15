@@ -27,6 +27,13 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.knownLimitations.some((entry) => entry.includes("Seismic Wave"))).toBe(true);
     });
 
+    it("records Burning Hate's Wiki source and proc-timing boundary", () => {
+        expect(DAMAGE_RULESET.sources.burningHate).toBe("https://wiki.warframe.com/w/Burning_Hate");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Burning Hate applies its rank-scaled, permanent target-side Status Damage vulnerability"),
+        )).toBe(true);
+    });
+
     it("records the Wiki source and scope for heavy-attack critical chance", () => {
         expect(DAMAGE_RULESET.sources.galvanizedSteel).toBe("https://wiki.warframe.com/w/Galvanized_Steel");
         expect(DAMAGE_RULESET.sources.heavyAttack).toBe("https://wiki.warframe.com/w/Heavy_Attack");

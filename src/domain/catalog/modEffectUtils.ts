@@ -64,7 +64,7 @@ export function emptyEffect(): ModEffect {
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, magazineBonus: 0,
         reloadSpeedBonus: 0, attackSpeedBonus: 0,
-        statusDurationBonus: 0, statusDamageBonus: 0,
+        statusDurationBonus: 0, statusDamageBonus: 0, targetStatusDamageVulnerabilityBonus: 0,
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
         headshotMultiplierBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,

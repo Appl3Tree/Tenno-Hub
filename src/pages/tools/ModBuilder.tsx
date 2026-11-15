@@ -1437,6 +1437,9 @@ function buildMathBreakdown(
                 `Primary element bonuses = heat ${fmt(totals.heatBonus * 100, 3)}%, cold ${fmt(totals.coldBonus * 100, 3)}%, electricity ${fmt(totals.electricityBonus * 100, 3)}%, toxin ${fmt(totals.toxinBonus * 100, 3)}%`,
                 `Advanced element bonuses = magnetic ${fmt(totals.magneticBonus * 100, 3)}%, radiation ${fmt(totals.radiationBonus * 100, 3)}%, viral ${fmt(totals.viralBonus * 100, 3)}%, corrosive ${fmt(totals.corrosiveBonus * 100, 3)}%, void ${fmt(totals.voidBonus * 100, 3)}%, tau ${fmt(totals.tauBonus * 100, 3)}%, true ${fmt(totals.trueBonus * 100, 3)}%`,
                 `Status damage bonus = ${fmt(totals.statusDamageBonus * 100, 3)}% | status duration bonus = ${fmt(totals.statusDurationBonus * 100, 3)}% | faction damage bonus tracked here = ${fmt(totals.factionDamageBonus * 100, 3)}% | mod direct damage per status = ${fmt(stats.directDamagePerStatusBonus * 100, 3)}% | intrinsic direct damage per status = ${fmt(stats.intrinsicDamagePerStatusBonus * 100, 3)}% (${stats.intrinsicDamagePerStatusMode})`,
+                ...(stats.targetStatusDamageVulnerabilityBonus > 0
+                    ? [`Burning Hate = +${fmt(stats.targetStatusDamageVulnerabilityBonus * 100, 3)}% permanent target Status Damage vulnerability after Hate damages a Heat-afflicted enemy; finite encounter starts with ${(conditionalState.externalHeatStatusPresenceProbability ?? 0) > 0 ? "external Heat" : "no external Heat"} and activates it only after a qualifying event.`]
+                    : []),
                 `Condition Overload = ${fmt(stats.conditionOverloadDamagePerStatusBonus * 100, 3)}% additive base damage per active type × ${fmt(stats.conditionOverloadStatusTypes, 3)} expected types (including ${conditionalState.externalStatusTypeCount ?? 0} externally maintained); multiplier ${fmt(stats.conditionOverloadDamageMultiplier, 5)}.`,
             ],
         },
@@ -3034,6 +3037,7 @@ export default function ModBuilder() {
     const [conditionalMode, setConditionalMode] = useState<ConditionalState["mode"]>("realistic");
     const [externalConditionalStacks, setExternalConditionalStacks] = useState(1);
     const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
+    const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
     const meleeDpsModelNote = weapon && usesMeleeDamageModel(weapon.category)
@@ -3047,9 +3051,10 @@ export default function ModBuilder() {
         mode: conditionalMode,
         externalStacks: conditionalMode === "custom" ? externalConditionalStacks : undefined,
         externalStatusTypeCount,
+        externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, meleeComboMultiplier, phantasmaChargeAmmo]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, targetStartsWithHeat, meleeComboMultiplier, phantasmaChargeAmmo]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3231,6 +3236,7 @@ export default function ModBuilder() {
             conditionalMode,
             externalConditionalStacks,
             externalStatusTypeCount,
+            targetStartsWithHeat,
             meleeComboMultiplier,
             phantasmaChargeAmmo,
             warframeArmor,
@@ -3269,6 +3275,7 @@ export default function ModBuilder() {
         excluded,
         externalConditionalStacks,
         externalStatusTypeCount,
+        targetStartsWithHeat,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         warframeArmor,
@@ -4103,6 +4110,8 @@ export default function ModBuilder() {
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
             statusDurationMultiplier: stats.statusDurationMultiplier,
+            targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
+            initialHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
             dotDamagePerAttackByType: stats.dotDamagePerShotByType,
             dotDamagePerApplicationByType: Object.fromEntries(
                 Object.entries(stats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
@@ -4135,7 +4144,7 @@ export default function ModBuilder() {
             totalDamageBonus: stats.totalDamageBonus,
             timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
-    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount]);
+    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, targetStartsWithHeat]);
     const activeEncounterStatusSummary = activeTargetEncounter
         ? Object.entries(activeTargetEncounter.statusApplicationsByType)
             .filter(([, count]) => (count ?? 0) >= 0.01)
@@ -4657,6 +4666,7 @@ export default function ModBuilder() {
         // Older or imported builds without planner settings must not inherit a
         // stale external status assumption from the previously loaded build.
         setExternalStatusTypeCount(0);
+        setTargetStartsWithHeat(false);
         setWarframeArmorInput(readWarframeArmor(build.plannerConfig?.warframeArmor)?.toString() ?? "");
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
         setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
@@ -4672,6 +4682,7 @@ export default function ModBuilder() {
             setExternalStatusTypeCount(Number.isFinite(plannerConfig.externalStatusTypeCount)
                 ? Math.max(0, Math.min(16, Math.floor(plannerConfig.externalStatusTypeCount ?? 0)))
                 : 0);
+            setTargetStartsWithHeat(plannerConfig.targetStartsWithHeat === true);
             setMeleeComboMultiplier(Number.isFinite(plannerConfig.meleeComboMultiplier)
                 ? clampMeleeComboMultiplier(weapon, plannerConfig.meleeComboMultiplier ?? 1)
                 : 1);
@@ -4940,6 +4951,18 @@ export default function ModBuilder() {
                                                         className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
                                                     />
                                                 </label>
+                                                {activeBuildEffects.some((effect) => (effect?.targetStatusDamageVulnerabilityBonus ?? 0) > 0) && (
+                                                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                        <input
+                                                            aria-label="Target starts with external Heat status"
+                                                            type="checkbox"
+                                                            checked={targetStartsWithHeat}
+                                                            onChange={(event) => setTargetStartsWithHeat(event.target.checked)}
+                                                            className="accent-sky-500"
+                                                        />
+                                                        <span title="Assume another source applied Heat before the first Hate hit. Burning Hate then activates on that first hit; the triggering hit's status procs remain unamplified.">Target starts with Heat (external source)</span>
+                                                    </label>
+                                                )}
                                                 {weapon && usesMeleeDamageModel(weapon.category) && (
                                                     <label className="flex items-center gap-2 text-[10px] text-slate-400">
                                                         <span>Melee combo tier</span>

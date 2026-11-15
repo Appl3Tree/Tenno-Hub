@@ -227,6 +227,22 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
         return { label: raw, prereqIds, type: "drop" };
     }
 
+    // Update 43's two Uranus Proxima missions are named without "Proxima" in
+    // several upstream source feeds. Match them before the generic Uranus
+    // region rule so every alias follows the Constellations unlock route.
+    if (/\bUranus\b/i.test(quantityNormalized)) {
+        const missionPrereq = /\bScoria'?s?\s+Angel\b/i.test(quantityNormalized)
+            ? PR.ACTIVITY_SCORIAS_ANGEL
+            : /\bKuva\s+Wytch\b/i.test(quantityNormalized)
+                ? PR.ACTIVITY_KUVA_WYTCH
+                : null;
+        if (missionPrereq) {
+            const prereqIds: string[] = [missionPrereq];
+            if (/Steel Path/i.test(quantityNormalized)) prereqIds.push(PR.ACTIVITY_STEEL_PATH);
+            return { label: raw, prereqIds, type: "drop" };
+        }
+    }
+
     // Conclave is launched from the Orbiter console, which new accounts receive
     // after Awakening. The location token in drop data is not a Star Chart planet,
     // and its legacy "(Extra)" tables are not Steel Path missions.
@@ -377,7 +393,7 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     if (/^Transient Reward:\s*Fomorian Sabotage$/i.test(quantityNormalized)) {
         return {
             label: raw,
-            prereqIds: [PR.ACTIVITY_INVASIONS, PR.ARCHWING],
+            prereqIds: [PR.ACTIVITY_INVASIONS, PR.SYSTEM_ARCHWING_OWNED],
             type: "drop",
         };
     }
@@ -1919,9 +1935,9 @@ function buildRankedSyndicateSources(): RawSource[] {
 
     const holdfastRankInfo: Record<string, { label: string; prereqIds: string[] }> = {
         neutral: { label: "Neutral rank", prereqIds: [PR.HUB_ZARIMAN] },
-        watcher: { label: "Watcher rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK1] },
-        guardian: { label: "Guardian rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK2] },
-        fallen: { label: "Fallen rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK3] },
+        fallen: { label: "Fallen rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK1] },
+        watcher: { label: "Watcher rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK2] },
+        guardian: { label: "Guardian rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK3] },
         seraph: { label: "Seraph rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK4] },
         angel: { label: "Angel rank", prereqIds: [PR.HUB_ZARIMAN, PR.SYNDICATE_HOLDFASTS_RANK5] },
     };

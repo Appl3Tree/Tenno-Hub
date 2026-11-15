@@ -31,6 +31,7 @@ export type PrereqCondition =
     | { type: "planet_unlock"; planetId: string }
     | { type: "syndicate_rank"; syndicateId: string; rank: number }
     | { type: "item_owned"; catalogId: string }
+    | { type: "item_owned_any"; catalogIds: readonly string[]; label: string }
     | { type: "resource_owned"; catalogId: string; quantity: number }
     | { type: "star_chart_access"; activity: "steel_path" | "nightmare" }
     | { type: "railjack_intrinsic_rank"; rank: number; skillId?: string };
@@ -55,6 +56,7 @@ export function describePrereqCondition(cond: PrereqCondition, prereqLabelFor?: 
         case "planet_unlock":     return `Planet unlocked: ${cond.planetId}`;
         case "syndicate_rank":    return `${getSyndicateDisplayName(cond.syndicateId)} Rank ${cond.rank} required`;
         case "item_owned":        return `Item owned: ${cond.catalogId}`;
+        case "item_owned_any":    return cond.label;
         case "resource_owned":    return `${cond.quantity}× ${cond.catalogId} required`;
         case "star_chart_access": return cond.activity === "steel_path"
             ? "Complete the eligible Star Chart nodes required to unlock The Steel Path"
@@ -91,6 +93,15 @@ export interface PrereqDef {
     };
     validatedByMasteryRank?: number;
 }
+
+/** Inventory identities for every currently catalogued, usable Archwing. */
+export const ARCHWING_CATALOG_IDS = [
+    "items:/Lotus/Powersuits/Archwing/DemolitionJetPack/DemolitionJetPack", // Elytron
+    "items:/Lotus/Powersuits/Archwing/PrimeJetPack/PrimeJetPack",           // Odonata Prime
+    "items:/Lotus/Powersuits/Archwing/StandardJetPack/StandardJetPack",     // Odonata
+    "items:/Lotus/Powersuits/Archwing/StealthJetPack/StealthJetPack",       // Itzal
+    "items:/Lotus/Powersuits/Archwing/SupportJetPack/SupportJetPack",       // Amesha
+] as const;
 
 export const PREREQ_REGISTRY: PrereqDef[] = [
 
@@ -481,9 +492,9 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.LIMBO_THEOREM,
         label: "The Limbo Theorem",
         category: "SideQuests",
-        description: "Awards Limbo blueprint. The current requirement panel lists an Archwing and the Europa Junction.",
-        prerequisites: [PR.ARCHWING, PR.JUNCTION_JUPITER_EUROPA],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Limbo_Theorem", verifiedOn: "2026-11-14", classification: "required", note: "The current quest requirement panel lists obtaining an Archwing and the Jupiter → Europa Junction." }]
+        description: "Awards Limbo blueprint. Requires owning an Archwing and completing the Jupiter → Europa Junction; the Archwing quest itself can still be in progress.",
+        prerequisites: [PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_JUPITER_EUROPA],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Limbo_Theorem", verifiedOn: "2026-11-14", classification: "required", note: "The Limbo Theorem requirement row names an obtained Archwing and the Jupiter → Europa Junction, not completion of The Archwing quest." }, { kind: "wiki", url: "https://wiki.warframe.com/w/The_Archwing", verifiedOn: "2026-11-14", classification: "required", note: "The quest awards the Odonata after its component blueprints are built and before the final Balor Fomorian mission; the player's Archwing can therefore be owned while the quest remains incomplete." }]
     },
     {
         id: PR.SILVER_GROVE,
@@ -515,9 +526,12 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.JORDAS_PRECEPT,
         label: "The Jordas Precept",
         category: "SideQuests",
-        description: "Awards Atlas blueprint. Requires Pluto → Eris junction completion.",
-        prerequisites: [PR.JUNCTION_PLUTO_SEDNA],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Jordas_Precept", verifiedOn: "2026-11-08", classification: "required", note: "The current quest is automatically acquired after completing the Pluto → Eris Junction." }]
+        description: "Awards Atlas blueprint. Requires Pluto → Eris junction completion and an owned Archwing for the Jordas Golem mission.",
+        prerequisites: [PR.JUNCTION_PLUTO_SEDNA, PR.SYSTEM_ARCHWING_OWNED],
+        evidence: [
+            { kind: "wiki", url: "https://wiki.warframe.com/w/The_Jordas_Precept", verifiedOn: "2026-11-14", classification: "required", note: "The quest is automatically acquired after Pluto → Eris; its Jordas Golem mission instructions also require the player to be capable of using an Archwing." },
+            { kind: "wiki", url: "https://wiki.warframe.com/w/The_Archwing", verifiedOn: "2026-11-14", classification: "required", note: "Odonata can be built and owned before the final mission completes The Archwing quest, so the vehicle requirement is tracked separately from quest completion." },
+        ]
     },
     {
         id: PR.GLAST_GAMBIT,
@@ -926,10 +940,9 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.ACTIVITY_VOID_STORMS,
         label: "Void Storms",
         category: "Systems",
-        description: "Join Railjack Void Storm missions after The Archwing, or launch them with a player-owned Railjack after Rising Tide. Call of the Tempestarii is not required to join a squad.",
-        prerequisites: [],
-        anyPrerequisites: [PR.ARCHWING, PR.RAILJACK_CONSTRUCTED],
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/30-0-0", verifiedOn: "2026-11-09", classification: "required", note: "Update 30 introduced Void Storms as Empyrean fissures. The Empyrean access rules allow Archwing-equipped players to join public Railjack missions; owning a Railjack is only required to launch/host one." }]
+        description: "Join Void Storm missions after Empyrean Proxima access. A player-owned Railjack is required only to pilot your own ship; you can join another player's mission without owning one.",
+        prerequisites: [PR.SYSTEM_PROXIMA_ACCESS],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Empyrean", verifiedOn: "2026-11-14", classification: "required", note: "Empyrean access requires completing The Archwing to join a mission; the host's Railjack is used, so owning a Railjack is not an alternative access route. Rising Tide is required only to pilot a personally owned Railjack." }, { kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/30-0-0", verifiedOn: "2026-11-14", classification: "historical", note: "Update 30 introduced Void Storms as Empyrean fissures; the current access rule is documented on the Empyrean page." }]
     },
     {
         id: PR.ACTIVITY_KUVA_SIPHON,
@@ -1279,13 +1292,12 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         id: PR.ACTIVITY_TECHNOCYTE_CODA,
         label: "Technocyte Coda System",
         category: "Systems",
-        description: "Meet the prerequisites to create and pursue a Technocyte Coda: complete The Hex, reach MR5, and have no other active Adversary when generating it. Railjack access is needed only for the final Earth Proxima showdown, where joining another player's ship is valid.",
+        description: "Meet the prerequisites to generate a Technocyte Coda: complete The Hex and have no active Kuva Lich, Sister, or Coda. The final Earth Proxima showdown needs Railjack access, but joining another player's squad is valid; there is no Mastery Rank 5 generation gate.",
         prerequisites: [PR.THE_HEX, PR.SYSTEM_ADVERSARY_SLOT_CLEAR],
-        conditions: [{ type: "mastery_rank", value: 5 }],
         evidence: [
-            { kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/38-5-0", verifiedOn: "2026-11-09", classification: "required", note: "Update 38.5 states Coda generation requires main quests through The Hex and no active Kuva Lich or Sister; the Earth Proxima showdown is later and not a generation gate." },
-            { kind: "wiki", url: "https://wiki.warframe.com/w/Adversary_System", verifiedOn: "2026-11-09", classification: "required", note: "The current Adversary System requirements apply Mastery Rank 5 to obtaining a Kuva Lich, Sister, or Coda." },
-            { kind: "wiki", url: "https://wiki.warframe.com/w/Adversary_System", verifiedOn: "2026-11-09", classification: "required", note: "The shared Adversary slot permits only one active Lich, Sister, or Coda. A current Adversary must be defeated or converted before another one can be generated." }
+            { kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/38-5-0", verifiedOn: "2026-11-14", classification: "required", note: "Update 38.5 lists completing main quests through The Hex, access to Höllvania missions, and no active Kuva Lich or Sister as Coda requirements; it does not list Mastery Rank 5." },
+            { kind: "wiki", url: "https://wiki.warframe.com/w/Technocyte_Coda", verifiedOn: "2026-11-14", classification: "required", note: "The current Coda creation instructions require The Hex and an empty Adversary slot, without an MR5 condition." },
+            { kind: "wiki", url: "https://wiki.warframe.com/w/Adversary_System", verifiedOn: "2026-11-14", classification: "conditional", note: "Supports only the shared one-active-adversary slot. Its generic MR5 sentence conflicts with the specific Coda page and official Update 38.5, so MR5 is not applied to Coda." }
         ]
     },
     // =========================================================================
@@ -1576,7 +1588,22 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Railjack",
         description: "Compatibility alias for general Void Storm access; Corpus Proxima is not required to join a Void Storm on another player's Railjack.",
         prerequisites: [PR.ACTIVITY_VOID_STORMS],
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/30-0-0", verifiedOn: "2026-11-09", classification: "required", note: "Void Storms are Empyrean Fissures and are available in eligible Proxima regions; Call of the Tempestarii is not a universal player access requirement." }]
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Empyrean", verifiedOn: "2026-11-14", classification: "required", note: "Empyrean missions use the host's Railjack; joining does not require owning one or completing Call of the Tempestarii." }]
+    },
+    {
+        id: PR.SYSTEM_ARCHWING_OWNED,
+        showInPlanner: false,
+        label: "Any Archwing Owned",
+        category: "Systems",
+        description: "Own any Archwing for content that requires the vehicle. An Archwing can be built before completing The Archwing quest, so quest completion is not a substitute for this ownership check.",
+        prerequisites: [],
+        conditions: [{ type: "item_owned_any", catalogIds: ARCHWING_CATALOG_IDS, label: "Own any Archwing" }],
+        progressionAfter: [PR.AWAKENING],
+        evidence: [
+            { kind: "wiki", url: "https://wiki.warframe.com/w/The_Limbo_Theorem", verifiedOn: "2026-11-14", classification: "required", note: "The Limbo Theorem lists obtaining an Archwing as a direct requirement." },
+            { kind: "wiki", url: "https://wiki.warframe.com/w/The_Jordas_Precept", verifiedOn: "2026-11-14", classification: "required", note: "The Jordas Golem mission instructions say players must be capable of using an Archwing; this is an equipment requirement, not completion of The Archwing quest." },
+            { kind: "wiki", url: "https://wiki.warframe.com/w/The_Archwing", verifiedOn: "2026-11-14", classification: "required", note: "Odonata can be built and owned before the final mission completes The Archwing quest." },
+        ],
     },
     {
         id: PR.SYSTEM_ONKKO_VISITED,
@@ -1623,17 +1650,23 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Operator Amp Owned",
         category: "Systems",
         description: "Own any Operator Amp to meet The New War's equipment requirement. The Mote Amp is one valid option; a stronger Amp is optional.",
-        prerequisites: [PR.SECOND_DREAM],
+        prerequisites: [PR.SYSTEM_ONKKO_VISITED],
         evidence: [{
             kind: "official",
             url: "https://www.warframe.com/en/patch-notes/pc/33-5-0",
-            verifiedOn: "2026-11-08",
+            verifiedOn: "2026-11-14",
             classification: "required",
             note: "Update 33.5 says an Operator Amp must be obtained to begin The New War; it does not specify the Mote Amp model."
         }, {
             kind: "wiki",
+            url: "https://wiki.warframe.com/w/Amp",
+            verifiedOn: "2026-11-14",
+            classification: "required",
+            note: "The Mote Amp is obtained from Onkko on joining The Quills; the remaining Amp part and crafting routes also begin through The Quills or Vox Solaris. Onkko access is separately gated by War Within and Cetus, so this records an available acquisition route without making Second Dream alone sufficient."
+        }, {
+            kind: "wiki",
             url: "https://wiki.warframe.com/w/The_New_War",
-            verifiedOn: "2026-11-08",
+            verifiedOn: "2026-11-14",
             classification: "required",
             note: "The current quest requirements list owning an Amp, rather than a specific Amp model."
         }]
@@ -1754,7 +1787,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Amp Parts: Tier 1",
         category: "Systems",
         description: "Unlock Tier 1 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK1]
+        prerequisites: [PR.SYNDICATE_QUILLS_RANK1],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 1 components at The Quills Rank 1 (Mote)." }]
     },
     {
         id: PR.AMP_TIER2,
@@ -1762,7 +1796,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Amp Parts: Tier 2",
         category: "Systems",
         description: "Unlock Tier 2 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK2]
+        prerequisites: [PR.SYNDICATE_QUILLS_RANK2],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 2 components at The Quills Rank 2 (Observer)." }]
     },
     {
         id: PR.AMP_TIER3,
@@ -1770,7 +1805,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Amp Parts: Tier 3",
         category: "Systems",
         description: "Unlock Tier 3 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK3]
+        prerequisites: [PR.SYNDICATE_QUILLS_RANK3],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 3 components at The Quills Rank 3 (Adherent)." }]
     },
     {
         id: PR.AMP_TIER4,
@@ -1778,7 +1814,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Amp Parts: Tier 4",
         category: "Systems",
         description: "Unlock Tier 4 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK4]
+        prerequisites: [PR.SYNDICATE_QUILLS_RANK4],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 4 components at The Quills Rank 4 (Instrument)." }]
     },
     {
         id: PR.AMP_TIER5,
@@ -1786,7 +1823,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Amp Parts: Tier 5",
         category: "Systems",
         description: "Unlock Tier 5 Amp parts from Vox Solaris.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK1]
+        prerequisites: [PR.SYNDICATE_VOX_RANK2],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 5 components at Vox Solaris Rank 2 (Agent)." }]
     },
     {
         id: PR.AMP_TIER6,
@@ -1794,7 +1832,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Amp Parts: Tier 6",
         category: "Systems",
         description: "Unlock Tier 6 Amp parts from Vox Solaris.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK2]
+        prerequisites: [PR.SYNDICATE_VOX_RANK3],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 6 components at Vox Solaris Rank 3 (Hand)." }]
     },
     {
         id: PR.AMP_TIER7,
@@ -1802,7 +1841,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "Amp Parts: Tier 7",
         category: "Systems",
         description: "Unlock Tier 7 Amp parts from Vox Solaris.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK3]
+        prerequisites: [PR.SYNDICATE_VOX_RANK4],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 7 components at Vox Solaris Rank 4 (Instrument)." }]
     },
     {
         id: PR.AMP_GILDING,
@@ -1954,7 +1994,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "The Holdfasts: Rank 1 (Fallen)",
         category: "Syndicates",
         description: "Unlocks the first Holdfasts standing tier in the Chrysalith.",
-        prerequisites: [PR.HUB_ZARIMAN]
+        prerequisites: [PR.HUB_ZARIMAN],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Holdfasts", verifiedOn: "2026-11-14", classification: "required", note: "The current Holdfast rank table identifies Fallen as Rank 1; the syndicate is available after Angels of the Zariman opens the Zariman." }]
     },
     {
         id: PR.SYNDICATE_HOLDFASTS_RANK2,
@@ -1962,7 +2003,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "The Holdfasts: Rank 2 (Watcher)",
         category: "Syndicates",
         description: "Unlocks additional Holdfasts vendor stock in the Chrysalith.",
-        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK1]
+        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK1],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Holdfasts", verifiedOn: "2026-11-14", classification: "required", note: "The current Holdfast rank table identifies Watcher as Rank 2, following Fallen at Rank 1." }]
     },
     {
         id: PR.SYNDICATE_HOLDFASTS_RANK3,
@@ -1970,7 +2012,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "The Holdfasts: Rank 3 (Guardian)",
         category: "Syndicates",
         description: "Unlocks mid-tier Holdfasts vendor stock in the Chrysalith.",
-        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK2]
+        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK2],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Holdfasts", verifiedOn: "2026-11-14", classification: "required", note: "The current Holdfast rank table identifies Guardian as Rank 3, following Watcher at Rank 2." }]
     },
     {
         id: PR.SYNDICATE_HOLDFASTS_RANK4,
@@ -1978,7 +2021,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "The Holdfasts: Rank 4 (Seraph)",
         category: "Syndicates",
         description: "Unlocks advanced Holdfasts vendor stock in the Chrysalith.",
-        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK3]
+        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK3],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Holdfasts", verifiedOn: "2026-11-14", classification: "required", note: "The current Holdfast rank table identifies Seraph as Rank 4, following Guardian at Rank 3." }]
     },
     {
         id: PR.SYNDICATE_HOLDFASTS_RANK5,
@@ -1986,7 +2030,8 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         label: "The Holdfasts: Rank 5 (Angel)",
         category: "Syndicates",
         description: "Unlocks the final Holdfasts standing tier and full Chrysalith vendor stock.",
-        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK4]
+        prerequisites: [PR.SYNDICATE_HOLDFASTS_RANK4],
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Holdfasts", verifiedOn: "2026-11-14", classification: "required", note: "The current Holdfast rank table identifies Angel as Rank 5, following Seraph at Rank 4." }]
     },
     {
         id: PR.SYNDICATE_SOLARIS_RANK1,
@@ -2457,13 +2502,13 @@ const ENTRY_EVIDENCE_FACTS = new Map<PrereqId, string>([
     [PR.MR_15, "Mastery Rank is an independent profile progression value. This milestone is derived from the imported profile and does not require a quest."],
     [PR.MR_30, "Mastery Rank is an independent profile progression value. This milestone is derived from the imported profile and does not require a quest."],
     [PR.AMP_SIROCCO, "The New War quest rewards the built Sirocco Amp."],
-    [PR.AMP_TIER1, "The Amp parts table places Tier 1 components at The Quills Rank 1."],
-    [PR.AMP_TIER2, "The Amp parts table places Tier 2 components at The Quills Rank 2."],
-    [PR.AMP_TIER3, "The Amp parts table places Tier 3 components at The Quills Rank 3."],
-    [PR.AMP_TIER4, "The Amp parts table places Tier 4 components at The Quills Rank 4."],
-    [PR.AMP_TIER5, "The Amp parts table places Tier 5 components at Vox Solaris Rank 1."],
-    [PR.AMP_TIER6, "The Amp parts table places Tier 6 components at Vox Solaris Rank 2."],
-    [PR.AMP_TIER7, "The Amp parts table places Tier 7 components at Vox Solaris Rank 3."],
+    [PR.AMP_TIER1, "The Amp parts table places Tier 1 components at The Quills Rank 1 (Mote)."],
+    [PR.AMP_TIER2, "The Amp parts table places Tier 2 components at The Quills Rank 2 (Observer)."],
+    [PR.AMP_TIER3, "The Amp parts table places Tier 3 components at The Quills Rank 3 (Adherent)."],
+    [PR.AMP_TIER4, "The Amp parts table places Tier 4 components at The Quills Rank 4 (Instrument)."],
+    [PR.AMP_TIER5, "The Amp parts table places Tier 5 components at Vox Solaris Rank 2 (Agent)."],
+    [PR.AMP_TIER6, "The Amp parts table places Tier 6 components at Vox Solaris Rank 3 (Hand)."],
+    [PR.AMP_TIER7, "The Amp parts table places Tier 7 components at Vox Solaris Rank 4 (Instrument)."],
     [PR.COMPANION_MOA, "The MOA companion page places its assembly service with Legs in Fortuna after the Vox Solaris quest unlocks Solaris United access."],
     [PR.COMPANION_PREDASITE, "Predasites are Deimos conservation companions; the Necralisk and Cambion Drift access are unlocked through Heart of Deimos."],
     [PR.COMPANION_VULPAPHYLA, "Vulpaphylas are Deimos conservation companions; the Necralisk and Cambion Drift access are unlocked through Heart of Deimos."],

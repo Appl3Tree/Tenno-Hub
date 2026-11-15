@@ -169,6 +169,32 @@ describe("damage calculation status eligibility", () => {
         expect(moddedNormal.critChance).toBeCloseTo(normalAttack.critChance, 12);
     });
 
+    it("parses Burning Hate's rank-scaled permanent target Status Damage vulnerability", () => {
+        const hate = getWeaponCatalog().find((candidate) => candidate.name === "Hate");
+        expect(hate).toBeDefined();
+        const burningHate = getModsForWeapon(hate!).find((candidate) => candidate.name === "Burning Hate");
+        expect(burningHate).toBeDefined();
+        expect(burningHate!.effectsByRank.map((effect) => effect.targetStatusDamageVulnerabilityBonus))
+            .toEqual([0.2, 0.4, 0.6, 0.8, 1, 1.2]);
+        expect(burningHate!.hasDamageEffect).toBe(true);
+        for (let rank = 0; rank <= burningHate!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(burningHate!, rank)).toEqual([]);
+        }
+
+        const maxRankEffect = burningHate!.effectsByRank[burningHate!.fusionLimit];
+        const noHeat = calculateBuild(hate!, [maxRankEffect]).modded;
+        expect(noHeat.targetStatusDamageVulnerabilityBonus).toBe(1.2);
+        expect(noHeat.steadyStateTargetStatusDamageMultiplier).toBe(1);
+
+        const assumedExternalHeat = calculateBuild(hate!, [maxRankEffect], "", {
+            conditionalState: {
+                mode: "initial",
+                externalHeatStatusPresenceProbability: 1,
+            },
+        }).modded;
+        expect(assumedExternalHeat.steadyStateTargetStatusDamageMultiplier).toBeCloseTo(2.2, 12);
+    });
+
     it("doubles Galvanized Steel critical chance on heavy attacks only", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         expect(weapon).toBeDefined();

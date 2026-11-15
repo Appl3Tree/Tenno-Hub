@@ -2,6 +2,7 @@
 import { useMemo } from "react";
 import { useTrackerStore } from "../store/store";
 import { canAccessCatalogItem } from "../domain/logic/plannerEngine";
+import { deriveCompletedMap } from "../domain/logic/syndicatePrereqs";
 import { FULL_CATALOG, type CatalogId } from "../domain/catalog/loadFullCatalog";
 import { WorkspaceAction, WorkspacePanel } from "./workspace/WorkspaceChrome";
 
@@ -29,6 +30,13 @@ export default function DashboardInventoryPanel() {
     const syndicates       = useTrackerStore((s) => s.state.syndicates ?? []);
     const completedPrereqs = useTrackerStore((s) => s.state.prereqs?.completed ?? {});
     const counts           = useTrackerStore((s) => s.state.inventory?.counts ?? {});
+    const masteryRank      = useTrackerStore((s) => s.state.player?.masteryRank ?? null);
+    const nodeCompletedMap = useTrackerStore((s) => s.state.missions?.nodeCompleted ?? {});
+    const railjackIntrinsics = useTrackerStore((s) => s.state.intrinsics?.railjack ?? {});
+    const effectiveCompletedPrereqs = useMemo(
+        () => deriveCompletedMap(completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, counts),
+        [completedPrereqs, syndicates, masteryRank, nodeCompletedMap, railjackIntrinsics, counts],
+    );
 
     const accessibleLines = useMemo<NeedLine[]>(() => {
         const needMap: Record<string, {
@@ -48,7 +56,7 @@ export default function DashboardInventoryPanel() {
                 const cid = resolveToCatalogId(labelOrKey);
                 if (!cid) continue;
 
-                const access = canAccessCatalogItem(cid, completedPrereqs);
+                const access = canAccessCatalogItem(cid, effectiveCompletedPrereqs);
                 if (!access.allowed) continue;
 
                 const rec = FULL_CATALOG.recordsById[cid];
@@ -70,7 +78,7 @@ export default function DashboardInventoryPanel() {
 
         out.sort((a, b) => b.remaining - a.remaining || a.itemName.localeCompare(b.itemName));
         return out.filter((l) => l.remaining > 0);
-    }, [syndicates, completedPrereqs, counts]);
+    }, [syndicates, effectiveCompletedPrereqs, counts]);
 
     return (
         <WorkspacePanel className="p-4">

@@ -112,7 +112,7 @@ export const PR = {
     // SIDE QUESTS — Warframe Blueprint Quests
     // =========================================================================
 
-    LIMBO_THEOREM:          "quest_the_limbo_theorem",      // Limbo BP; req. Void access
+    LIMBO_THEOREM:          "quest_the_limbo_theorem",      // Limbo BP; req. Jupiter -> Europa Junction + owned Archwing
     SILVER_GROVE:           "quest_the_silver_grove",       // Titania BP; Second Dream + MR7; start by speaking to New Loka at a Relay
     SANDS_INAROS:           "quest_sands_of_inaros",        // Inaros BP; MR5; beacon can be bought or traded
     OCTAVIA_ANTHEM:         "quest_octavias_anthem",        // Octavia BP; req. Lua access (Earth-Lua junction)
@@ -223,6 +223,7 @@ export const PR = {
 
     AMP_MOTE:               "amp_mote",                                 // Mote Amp item ownership, kept on its stable saved-state key
     SYSTEM_OPERATOR_AMP:    "system_operator_amp_owned",                // Any owned Operator Amp satisfies The New War's Amp gate
+    SYSTEM_ARCHWING_OWNED:  "system_archwing_owned",                    // Any owned Archwing; distinct from completing The Archwing
     SYSTEM_RANK30_WARFRAME: "system_rank30_warframe_eligible",           // Rank 30 Warframe or MR30+Forma exception for Sorties/Arbitrations
     SYSTEM_ADVERSARY_SLOT_CLEAR: "system_adversary_slot_clear",          // Manual dynamic gate: no active Kuva Lich, Sister, or Technocyte Coda
     SYSTEM_ONKKO_VISITED:    "system_onkko_visited",                     // Current Chains of Harrow gate: visit Onkko after War Within
@@ -230,10 +231,10 @@ export const PR = {
     AMP_TIER1:              "amp_tier1_parts",                          // Raplak/Pencha/Clapkra parts; req. Quills rank 1
     AMP_TIER2:              "amp_tier2_parts",                          // Shwaak/Shraksun/Juttni parts; req. Quills rank 2
     AMP_TIER3:              "amp_tier3_parts",                          // Granmu/Phahd/Lohrin parts; req. Quills rank 3
-    AMP_TIER4:              "amp_tier4_parts",                          // Propa/Klebrik/Certus parts; req. Quills rank 4 (Architect)
-    AMP_TIER5:              "amp_tier5_parts",                          // Propa scaffold / T5 brace; req. Vox Solaris rank 1
-    AMP_TIER6:              "amp_tier6_parts",                          // T6 parts; req. Vox Solaris rank 2
-    AMP_TIER7:              "amp_tier7_parts",                          // T7 parts (best-in-slot); req. Vox Solaris rank 3
+    AMP_TIER4:              "amp_tier4_parts",                          // Propa/Klebrik/Certus parts; req. Quills rank 4 (Instrument)
+    AMP_TIER5:              "amp_tier5_parts",                          // T5 parts; req. Vox Solaris rank 2 (Agent)
+    AMP_TIER6:              "amp_tier6_parts",                          // T6 parts; req. Vox Solaris rank 3 (Hand)
+    AMP_TIER7:              "amp_tier7_parts",                          // T7 parts; req. Vox Solaris rank 4 (Instrument)
     AMP_GILDING:            "amp_gilding_unlocked",                     // Gild Amp (base dmg boost + Lens slot); req. Quills rank 3 or Vox rank 3
 
     // =========================================================================
@@ -329,7 +330,7 @@ export const PR = {
 
     // ---- Void Fissures ----
     ACTIVITY_VOID_FISSURES:         "activity_void_fissures",           // Fissure missions on unlocked nodes; segment is for refining relics
-    ACTIVITY_VOID_STORMS:           "activity_void_storms",             // Join after Archwing or host with an owned Railjack
+    ACTIVITY_VOID_STORMS:           "activity_void_storms",             // Join after Empyrean access; own Railjack only to host
     ACTIVITY_KUVA_SIPHON:           "activity_kuva_siphon",             // Kuva Siphon/Flood missions; requires MR5 + War Within
 
     // ---- Nemesis Systems ----

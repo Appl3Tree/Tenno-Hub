@@ -3,6 +3,7 @@ import { buildPrerequisiteRelationshipAudit, findPrerequisiteRelationshipEvidenc
 import { MILESTONE_REGISTRY } from "../src/catalog/prereqs/milestoneRegistry";
 import { SOURCE_INDEX } from "../src/catalog/sources/sourceCatalog";
 import { STAR_CHART_DATA } from "../src/domain/catalog/starChart";
+import { FULL_CATALOG } from "../src/domain/catalog/loadFullCatalog";
 import { PR } from "../src/domain/ids/prereqIds";
 import { SY } from "../src/domain/ids/syndicateIds";
 
@@ -24,6 +25,7 @@ const progressionMissingRefs: string[] = [];
 const chartNodeIds = new Set(STAR_CHART_DATA.nodes.map((node) => node.id));
 const chartPlanetIds = new Set(STAR_CHART_DATA.planets.map((planet) => planet.id));
 const syndicateIds = new Set(Object.values(SY));
+const inventoryItemIds = new Set(FULL_CATALOG.inventoryItemIds);
 
 for (const def of PREREQ_REGISTRY) {
     const conditionParents = (def.conditions ?? []).flatMap((condition) =>
@@ -78,6 +80,23 @@ for (const def of PREREQ_REGISTRY) {
         }
         if (condition.type === "resource_owned" && (!Number.isFinite(condition.quantity) || condition.quantity <= 0)) {
             conditionMissingRefs.push(`${def.id} -> invalid resource quantity ${condition.quantity}`);
+        }
+        if (condition.type === "item_owned" && !inventoryItemIds.has(condition.catalogId as (typeof FULL_CATALOG.inventoryItemIds)[number])) {
+            conditionMissingRefs.push(`${def.id} -> unknown or non-inventory item ${condition.catalogId}`);
+        }
+        if (condition.type === "item_owned_any") {
+            if (!condition.catalogIds.length) conditionMissingRefs.push(`${def.id} -> empty item_owned_any condition`);
+            if (new Set(condition.catalogIds).size !== condition.catalogIds.length) {
+                conditionMissingRefs.push(`${def.id} -> duplicate item_owned_any catalog IDs`);
+            }
+            for (const catalogId of condition.catalogIds) {
+                if (!inventoryItemIds.has(catalogId as (typeof FULL_CATALOG.inventoryItemIds)[number])) {
+                    conditionMissingRefs.push(`${def.id} -> unknown or non-inventory item ${catalogId}`);
+                }
+            }
+        }
+        if (condition.type === "resource_owned" && !inventoryItemIds.has(condition.catalogId as (typeof FULL_CATALOG.inventoryItemIds)[number])) {
+            conditionMissingRefs.push(`${def.id} -> unknown or non-inventory resource ${condition.catalogId}`);
         }
         if (condition.type === "railjack_intrinsic_rank" && (
             !Number.isInteger(condition.rank)
@@ -412,6 +431,7 @@ for (const def of PREREQ_REGISTRY) {
             case "planet_unlock": return `Planet unlocked: ${condition.planetId}`;
             case "syndicate_rank": return `Syndicate ${condition.syndicateId} rank ${condition.rank}`;
             case "item_owned": return `Item owned: ${condition.catalogId}`;
+            case "item_owned_any": return condition.label;
             case "resource_owned": return `${condition.quantity}× ${condition.catalogId}`;
             case "star_chart_access": return condition.activity === "steel_path"
                 ? "Steel Path Star Chart node set complete"

@@ -77,6 +77,60 @@ describe("source prerequisite access", () => {
             .toEqual([PR.JUNCTION_MARS_CERES, PR.ACTIVITY_STEEL_PATH]);
     });
 
+    it("routes every Uranus Proxima mission-source alias through its Update 43 unlock", () => {
+        const aliases = [
+            { id: "data:node/uranus/scorias-angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
+            { id: "data:drop:node:uranus:scorias_angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
+            { id: "data:drop:node:uranus:scorias-angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
+            { id: "data:missionreward/uranus/scorias-angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
+            { id: "data:wfitems:loc:uranusscorias-angel-skirmish", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
+            { id: "data:node/uranus/the-kuva-wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
+            { id: "data:drop:node:uranus:the_kuva_wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
+            { id: "data:drop:node:uranus:the-kuva-wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
+            { id: "data:missionreward/uranus/the-kuva-wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
+            { id: "data:wfitems:loc:uranusthe-kuva-wytch-skirmish", prereq: PR.ACTIVITY_KUVA_WYTCH },
+        ];
+
+        for (const { id, prereq } of aliases) {
+            const sourceId = normalizeSourceId(id);
+            expect(SOURCE_INDEX[sourceId]?.prereqIds, id).toEqual([prereq]);
+            expect(SOURCE_INDEX[sourceId]?.prereqIds, id).not.toContain(PR.JUNCTION_SATURN_URANUS);
+            expect(evaluateSourcePrerequisiteAccess(sourceId, {}).missingPrereqs, id).toEqual([prereq]);
+        }
+
+        const steelPathAliases = [
+            "data:node/uranus/scorias-angel-extra",
+            "data:drop:node:uranus:scorias_angel_extra",
+            "data:missionreward/uranus/scorias-angel-extra",
+            "data:node/uranus/the-kuva-wytch-extra",
+            "data:drop:node:uranus:the_kuva_wytch_extra",
+            "data:missionreward/uranus/the-kuva-wytch-extra",
+        ];
+        for (const id of steelPathAliases) {
+            const sourceId = normalizeSourceId(id);
+            const expectedActivity = /scoria/i.test(id) ? PR.ACTIVITY_SCORIAS_ANGEL : PR.ACTIVITY_KUVA_WYTCH;
+            expect(SOURCE_INDEX[sourceId]?.prereqIds, id).toEqual([expectedActivity, PR.ACTIVITY_STEEL_PATH]);
+        }
+    });
+
+    it("maps Holdfast vendor source tokens to the correct standing rank", () => {
+        const rankCases = [
+            { token: "fallen", prereq: PR.SYNDICATE_HOLDFASTS_RANK1 },
+            { token: "watcher", prereq: PR.SYNDICATE_HOLDFASTS_RANK2 },
+            { token: "guardian", prereq: PR.SYNDICATE_HOLDFASTS_RANK3 },
+            { token: "seraph", prereq: PR.SYNDICATE_HOLDFASTS_RANK4 },
+            { token: "angel", prereq: PR.SYNDICATE_HOLDFASTS_RANK5 },
+        ];
+        for (const vendor of ["cavalero", "hombask"]) {
+            expect(SOURCE_INDEX[normalizeSourceId(`data:syndicate/holdfasts/${vendor}/neutral`)]?.prereqIds)
+                .toEqual([PR.HUB_ZARIMAN]);
+            for (const { token, prereq } of rankCases) {
+                const id = `data:syndicate/holdfasts/${vendor}/${token}`;
+                expect(SOURCE_INDEX[normalizeSourceId(id)]?.prereqIds, id).toEqual([PR.HUB_ZARIMAN, prereq]);
+            }
+        }
+    });
+
     it("keeps Conclave access separate from Relay and Steel Path access", () => {
         const conclaveSourceIds = [
             "data:conclave",
@@ -135,6 +189,28 @@ describe("source prerequisite access", () => {
             .toEqual([PR.DUVIRI_PARADOX]);
         expect(SOURCE_INDEX[normalizeSourceId("data:transient/duviri-full-experience")]?.prereqIds)
             .toEqual([PR.DUVIRI_PARADOX]);
+    });
+
+    it("uses owned Archwing equipment for Limbo, Jordas, and Fomorian routes instead of quest completion", () => {
+        const limbo = SOURCE_INDEX[normalizeSourceId("data:quest/the-limbo-theorem")];
+        const jordas = SOURCE_INDEX[normalizeSourceId("data:quest/the-jordas-precept")];
+        const fomorian = Object.entries(SOURCE_INDEX).find(([, source]) => /^Transient Reward:\s*Fomorian Sabotage$/i.test(source.label));
+
+        expect(limbo?.prereqIds).toEqual([PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_JUPITER_EUROPA]);
+        expect(jordas?.prereqIds).toEqual([PR.SYSTEM_ARCHWING_OWNED, PR.JUNCTION_PLUTO_SEDNA]);
+        expect(fomorian?.[1].prereqIds).toEqual([PR.ACTIVITY_INVASIONS, PR.SYSTEM_ARCHWING_OWNED]);
+        for (const sourceId of [normalizeSourceId("data:quest/the-limbo-theorem"), normalizeSourceId("data:quest/the-jordas-precept"), fomorian?.[0]]) {
+            expect(sourceId).toBeDefined();
+            expect(SOURCE_INDEX[sourceId!]?.prereqIds).not.toContain(PR.ARCHWING);
+        }
+
+        const archwingCatalogId = "items:/Lotus/Powersuits/Archwing/StandardJetPack/StandardJetPack";
+        const effective = deriveCompletedMap({}, [], 0, {}, {}, { [archwingCatalogId]: 1 });
+        expect(effective[PR.SYSTEM_ARCHWING_OWNED]).toBe(true);
+        expect(evaluateSourcePrerequisiteAccess(normalizeSourceId("data:quest/the-limbo-theorem"), {
+            ...effective,
+            [PR.JUNCTION_JUPITER_EUROPA]: true,
+        })).toMatchObject({ known: true, accessible: true, missingPrereqs: [] });
     });
 
     it("keeps generated reward and activity routes aligned to their actual access gates", () => {

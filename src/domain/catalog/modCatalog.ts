@@ -114,6 +114,8 @@ export interface ModEffect {
     attackSpeedBonus: number;
     statusDurationBonus: number;
     statusDamageBonus: number;
+    /** Permanent target-side Status Damage vulnerability after Hate damages a Heat-afflicted target. */
+    targetStatusDamageVulnerabilityBonus: number;
     projectileSpeedBonus: number;
     accuracyBonus: number;
     blastRadiusBonus: number;
@@ -177,6 +179,7 @@ export interface NonCriticalHitDamageProc {
 const AMANATA_PRESSURE_PATH = "/Lotus/Weapons/Tenno/Melee/Polearms/Naginata/ShrineMaidenNaginataAugment";
 const SHATTERING_IMPACT_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeArmorShatterMod";
 const MAIMING_STRIKE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/SlideAttackCritChanceMod";
+const BURNING_HATE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveStalkerScytheAugmentMod";
 const PROTOTYPE_SHOCK_COILS_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
 const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjectileMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
@@ -1220,6 +1223,24 @@ function buildCaches(): ModCaches {
                     const match = text.match(/^\+?(\d+(?:\.\d+)?)% Critical Chance for Slide Attack\.?$/i);
                     if (!match || !effectsByRank[rank]) continue;
                     effectsByRank[rank].slideAttackCritChanceBonus = Number(match[1]) / 100;
+                    unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim() !== text,
+                    );
+                    break;
+                }
+            });
+        }
+        if (path === BURNING_HATE_PATH) {
+            // This is a target-side, permanent Status Damage vulnerability,
+            // not a source-side Status Damage bonus. Preserve its rank values
+            // separately so encounter timing can apply it only to later procs.
+            // https://wiki.warframe.com/w/Burning_Hate
+            parsedLevelStats.forEach((levelStat, rank) => {
+                for (const rawStat of levelStat.stats ?? []) {
+                    const text = stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    const match = text.match(/^When Hate damages enemies inflicted with Heat Status, they become vulnerable to (\d+(?:\.\d+)?)% more Status Damage\.?$/i);
+                    if (!match || !effectsByRank[rank]) continue;
+                    effectsByRank[rank].targetStatusDamageVulnerabilityBonus = Number(match[1]) / 100;
                     unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                         stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim() !== text,
                     );

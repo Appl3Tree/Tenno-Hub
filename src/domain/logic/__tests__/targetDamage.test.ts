@@ -15,6 +15,113 @@ const phantasmaRamp: WeaponDamageRampRule = {
 };
 
 describe("target damage progress across defense pools", () => {
+    it("activates Burning Hate after a qualifying hit and boosts only later procs", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            dotDamagePerAttackByType: { slash: 60 },
+            dotDamagePerApplicationByType: { slash: 60 },
+            forcedStatusApplicationsPerAttackByType: { slash: 1 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            targetStatusDamageVulnerabilityBonus: 1.2,
+            initialHeatStatusPresenceProbability: 1,
+            maxAttacks: 2,
+            maxDurationSeconds: 7,
+        });
+
+        // The first hit activates the debuff, but its own Slash proc stays at 60.
+        // The second attack's proc is created after activation and contributes 132.
+        expect(result.statusDamageByPool.health).toBeCloseTo(192, 8);
+    });
+
+    it("does not retroactively amplify DoT ticks from a proc applied before Burning Hate activated", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            dotDamagePerAttackByType: { slash: 60 },
+            dotDamagePerApplicationByType: { slash: 60 },
+            forcedStatusApplicationsPerAttackByType: { slash: 1 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            targetStatusDamageVulnerabilityBonus: 1.2,
+            initialHeatStatusPresenceProbability: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 1,
+        });
+
+        // The only tick is the first unamplified tick of the proc created by the
+        // same hit that activated the vulnerability.
+        expect(result.statusDamageByPool.health).toBeCloseTo(10, 8);
+    });
+
+    it("activates Burning Hate when a Heat tick damages a Heat-afflicted target", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 2,
+            targetStatusDamageVulnerabilityBonus: 1.2,
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
+            heatDotTickDamagePerProc: 10,
+            maxAttacks: 2,
+            maxDurationSeconds: 2,
+        });
+
+        // The first Heat seed ticks for 10 at t=1 and activates the debuff.
+        // The t=2 Heat proc adds a 22-damage seed to the shared next tick.
+        expect(result.statusDamageByPool.health).toBeCloseTo(42, 8);
+    });
+
+    it("requires both Burning Hate and a Heat status, and keeps the vulnerability after Heat expires", () => {
+        const base = {
+            damageByType: { impact: 1 },
+            dotDamagePerAttackByType: { slash: 60 },
+            dotDamagePerApplicationByType: { slash: 60 },
+            forcedStatusApplicationsPerAttackByType: { slash: 1 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            maxAttacks: 2,
+            maxDurationSeconds: 13,
+        } as const;
+        const noHeat = simulateExpectedWeaponEncounter({
+            ...base,
+            attackIntervalSeconds: 1,
+            targetStatusDamageVulnerabilityBonus: 1.2,
+            maxAttacks: 1,
+            maxDurationSeconds: 6,
+        });
+        const noBurningHate = simulateExpectedWeaponEncounter({
+            ...base,
+            attackIntervalSeconds: 1,
+            initialHeatStatusPresenceProbability: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 6,
+        });
+        const afterHeatExpires = simulateExpectedWeaponEncounter({
+            ...base,
+            attackIntervalSeconds: 7,
+            targetStatusDamageVulnerabilityBonus: 1.2,
+            initialHeatStatusPresenceProbability: 1,
+        });
+
+        expect(noHeat.statusDamageByPool.health).toBeCloseTo(60, 8);
+        expect(noBurningHate.statusDamageByPool.health).toBeCloseTo(60, 8);
+        expect(afterHeatExpires.statusDamageByPool.health).toBeCloseTo(192, 8);
+    });
+
     it("strips persistent base armor on each Impact hit before percentage strips", () => {
         const sequence = simulateDirectAttackSequence({
             damageByType: { impact: 2_000 },
