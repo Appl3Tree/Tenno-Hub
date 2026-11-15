@@ -1,7 +1,7 @@
 # Build Planner Optimizer Benchmark
 
 Run date: 2026-11-14; current full-width refresh: 2026-11-13
-Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
+Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
 ## Source-backed weapon augment parser and full-width refresh (2026-11-14)
@@ -1316,7 +1316,7 @@ Epitaph Charged Shot / Burst returned the same eight-mod list and score (241,624
 # Build Planner Optimizer Benchmark
 
 Run date: 2026-11-14; current full-width refresh: 2026-11-13
-Command: `npm run benchmark:build-planner` (the harness defaults to five runs)  
+Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
 ## Expected TTK refinement coverage and production baseline (2026-11-14)
@@ -1577,3 +1577,4 @@ This full-width five-run refresh supersedes the preceding Epitaph performance ex
 | Lex Prime | Expected TTK | 2.122 s | 2.130 s | 3 | Yes |
 
 Epitaph Charged Shot / Burst returned the same eight-mod list and score (241,624.7363) in all five runs, with 3.204 s median and 3.241 s maximum. This current-source result removes the earlier five-second exception in this Node sample. It does not measure the packaged Worker, cold startup, mobile/cross-device latency, custom target profiles, or global build quality. A bounded benchmark corpus cannot prove full-catalog optimality; broad objective-equivalent Underframe comparisons, weapon/status coverage, and exhaustive oracles remain open. The production Worker after Maiming Strike support is 107,043 bytes; the existing Vite large-chunk warning remains.
+
