@@ -428,4 +428,3 @@ console.log(lines.join("\n"));
 if (duplicates.length || duplicateMilestoneIds.length || duplicateLabels.length || selfReferences.length || duplicateEdges.length || missingRefs.length || progressionMissingRefs.length || disconnectedFromAwakening.length || roots.length !== 1 || roots[0]?.id !== PR.AWAKENING || sourceMissingRefs.length || milestoneMissingRefs.length || conditionMissingRefs.length || cyclicComponents.length || unapprovedRedundantEdges.length || junctionIssues.length || duplicateChartNodeIds.length || chartReferenceIssues.length || entriesWithoutEvidence.length || gatedEntriesWithoutEvidence.length || gatedEntriesWithoutCurrentEvidence.length || relationshipEvidenceGaps.length || invalidEvidence.length) {
     process.exitCode = 1;
 }
-
