@@ -383,7 +383,7 @@ Incarnon damage accuracy follow-up (2026-11-11): a unique extra-projectile damag
 - [ ] Add per-target state simulation for:
   - [x] Slash (target-local Bleed procs keep independent six-tick timers, bypass Armor, and resolve against Shields/Health; there is no damage cap at ten stacks—the Wiki's ten-number limit is display-only. Proc rolls remain expected-value/mean-field.)
   - [x] Heat (mean-field armor strip; DoT group refresh remains unmodeled)
-  - [ ] Electric
+  - [x] Electric (target-local independent six-second proc timers resolve as one same-second pulse; configured neighbor pools take bounded collateral damage. Neighbor status/proc and stun histories, positions, geometry, and crowd control are not simulated. [Wiki](https://wiki.warframe.com/w/Damage/Electricity_Damage))
   - [x] Toxin (target-local Poison procs keep independent six-tick timers, bypass Shields but not Overguard, and resolve through the configured pools; there is no damage cap at ten stacks—the Wiki's ten-number limit is display-only. Proc rolls remain expected-value/mean-field.)
   - [ ] Gas
   - [x] Viral (mean-field stacks and Health amplification)
