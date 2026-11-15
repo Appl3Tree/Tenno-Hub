@@ -1,8 +1,16 @@
 # Build Planner Optimizer Benchmark
 
-Run date: 2026-11-14; current full-width refresh: 2026-11-13
+Run date: 2026-11-15; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
+
+## Saved Underframe Braton comparison (2026-11-15)
+
+The in-app browser's saved `Braton Prime benchmark (Copy)` displayed the captured eight-mod Underframe Auto Build list: Amalgam Serration R10, Bane of Corpus R5, Bane of Grineer R5, Bane of Infested R5, Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, and Vital Sense R5. Its explicit target pools were Grineer Heavy Gunner, 83,818 Health, 2,700 Armor, zero Shields and Overguard. Primary Bulwark was set to 500/500. A five-second Luck Averaged run returned 1,529 raw + 465 DoT damage per shot and 19,461 DPS. No build configuration was saved or changed during this read-only check.
+
+The matched common-model replay uses the same target pools and max-rank Primary Bulwark (+500% weapon damage at 1,500 Warframe Armor), with a three-Forma cap. The current Expected TTK optimizer returns Malignant Force R3, Stormbringer R5, Thermite Rounds R3, Galvanized Aptitude R10, Vile Acceleration R5, Galvanized Chamber R10, Bladed Rounds R5, and Spring-Loaded Chamber R5 at 59/60 capacity and three Forma. It models 0.788 s TTK / 106,394 DPS. The fixed Underframe list models 4.071 s / 20,589 DPS in the same Tenno-Hub expected encounter; this is 80.6% lower TTK for Tenno-Hub on this one common-model fixture. Replaying the fixed list's expected DPS within 5.8% of Underframe's native Luck Average is a useful cross-check, but the metrics come from different simulators.
+
+The bounded 1–4-mod substitution audit evaluated 886 combinations (704 legal); none beat the optimizer's result. This only covers swaps between the two captured lists and does not establish Auto Build's hidden winning list, global optimality, or general superiority. Reproduce the model with `npx tsx scripts/comparePlannerBuilds.ts --saved-underframe --reoptimize --goal=timeToKill --fully-stacked --primary-bulwark --analyze-underframe-swaps`. `--primary-bulwark` maps the saved 500/500 condition to the Wiki-sourced rank-5 +500% effect at 1,500 Warframe Armor.
 
 ## Source-backed weapon augment parser and full-width refresh (2026-11-14)
 
