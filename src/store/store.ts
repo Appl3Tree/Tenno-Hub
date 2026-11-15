@@ -708,7 +708,12 @@ export const useTrackerStore = create<TrackerStore>()(
                         return { ok: false, error: "The reviewed inventory failed validation; no changes were applied." };
                     }
                     const nextInventory = validated.data.inventory as Inventory;
-                    const nextProgress = validated.data.alecaFrameProgress as AlecaFrameProgressSnapshot | undefined;
+                    const importedProgress = validated.data.alecaFrameProgress as AlecaFrameProgressSnapshot | undefined;
+                    const savedProgressHasRecords = (previousProgress?.weeklyGuildVaultBonusInfo.length ?? 0) > 0;
+                    const importedProgressHasRecords = (importedProgress?.weeklyGuildVaultBonusInfo.length ?? 0) > 0;
+                    const nextProgress = savedProgressHasRecords && !importedProgressHasRecords
+                        ? previousProgress
+                        : importedProgress ?? previousProgress;
                     set((s) => {
                         s.state.inventory = nextInventory;
                         if (nextProgress) s.state.alecaFrameProgress = nextProgress;

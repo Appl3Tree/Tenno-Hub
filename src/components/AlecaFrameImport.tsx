@@ -182,7 +182,11 @@ export default function AlecaFrameImport() {
   const pageCount = Math.ceil(filteredRows.length / 40);
   const currentPage = Math.min(page, Math.max(0, pageCount - 1));
   const visibleRows = filteredRows.slice(currentPage * 40, currentPage * 40 + 40);
+  const hasSavedWeeklyProgress = (alecaFrameProgress?.weeklyGuildVaultBonusInfo.length ?? 0) > 0;
+  const emptyWeeklyImportWouldClearSavedProgress = preview?.weeklyGuildVaultBonusInfo?.length === 0 &&
+    hasSavedWeeklyProgress;
   const weeklyProgressChanged = preview?.weeklyGuildVaultBonusInfo !== undefined &&
+    !emptyWeeklyImportWouldClearSavedProgress &&
     JSON.stringify(preview.weeklyGuildVaultBonusInfo) !==
       JSON.stringify(alecaFrameProgress?.weeklyGuildVaultBonusInfo ?? null);
 
@@ -411,7 +415,9 @@ export default function AlecaFrameImport() {
               <section className="rounded-lg border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-3">
                 <h3 className="font-semibold text-[color:var(--wf-text-strong)]">Weekly Personal Rewards</h3>
                 <p className="mt-1 text-xs text-[color:var(--wf-text-muted)]">
-                  {preview.weeklyGuildVaultBonusInfo.length.toLocaleString()} source records found. This tracks your weekly personal rewards earned through Clan Vault bonuses; it will be saved separately from owned inventory counts.
+                  {emptyWeeklyImportWouldClearSavedProgress
+                    ? "No weekly progress records were found in this file. Your previously saved weekly progress will be kept."
+                    : `${preview.weeklyGuildVaultBonusInfo.length.toLocaleString()} source records found. This tracks your weekly personal rewards earned through Clan Vault bonuses; it will be saved separately from owned inventory counts.`}
                 </p>
                 {preview.weeklyGuildVaultBonusInfo.length > 0 ? (
                   <details className="mt-2">
@@ -754,7 +760,9 @@ export default function AlecaFrameImport() {
                 <h3 id="alecaframe-confirm-title" className="font-semibold text-[color:var(--wf-text-strong)]">Confirm AlecaFrame import</h3>
                 <p className="mt-1 text-sm text-[color:var(--wf-text-muted)]">
                   Apply {plannedChanges.toLocaleString()} reviewed changes using “{mode}”. Existing local-only inventory, mastery, goals, saved builds, and unrelated progress remain unchanged.
-                  {preview.weeklyGuildVaultBonusInfo !== undefined
+                  {emptyWeeklyImportWouldClearSavedProgress
+                    ? " No new Weekly Personal Rewards records were found; your previously saved weekly progress will be kept."
+                    : preview.weeklyGuildVaultBonusInfo !== undefined
                     ? " Personal Weekly Rewards data will be stored separately from owned item counts."
                     : " The existing Personal Weekly Rewards snapshot will be kept because this file has no such section."}
                   {preview.unresolvedRecords.length > 0
