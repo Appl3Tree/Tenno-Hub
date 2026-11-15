@@ -1402,6 +1402,9 @@ function buildMathBreakdown(
                 `Base crit chance = ${fmt(weapon.critChance * 100, 5)}% | base crit multiplier = ${fmt(weapon.critMultiplier, 5)} | base status chance = ${fmt(weapon.statusChance * 100, 5)}%`,
                 `${rateLabel} base = ${fmt(weapon.fireRate, 5)} | magazine base = ${displayMagazineValue(weapon, weapon.magazineSize)} | reload base = ${fmt(weapon.reloadTime, 5)}s | multishot base = ${fmt(weapon.multishot, 5)}`,
                 `Conditional effects scenario = ${conditionalState.mode}${conditionalState.mode === "custom" ? ` (${conditionalState.externalStacks ?? 0} maintained stacks per effect)` : ""}`,
+                ...(weapon.selectedAttackName && weapon.selectedAttackIsAreaDamage === undefined
+                    ? ["Attack area type is unverified: the source row has no shot_type and no Wiki classification is cataloged. The current direct-hit-only damage and single-target assumptions are shown for this attack."]
+                    : []),
                 ...(weapon.hasGaleForceAmmoPassive ? [
                     `Gale Force = ${stats.infiniteAmmoActive ? "assumed continuously maintained" : "not active"}; headshot/kill trigger and four-second refresh timing are not simulated.${stats.infiniteAmmoActive ? " Infinite ammo prevents reloads, and first-shot Chamber bonuses are already spent." : " Select Fully stacked or Custom with at least one maintained stack to model the active buff."}`,
                 ] : []),

@@ -145,7 +145,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         intrinsicDamagePerStatusMode: attack.intrinsicDamagePerStatusMode ?? "additiveBase",
         selectedAttackName: attack.name,
         selectedAttackIsIncarnon: selectedAttackUsesIncarnonForm(weapon, selectedAttackIdx),
-        selectedAttackIsAreaDamage: attack.isAreaDamage === true,
+        selectedAttackIsAreaDamage: attack.isAreaDamage,
         selectedAttackIgnoresConditionOverload: ignoresConditionOverload,
         selectedAttackUsesMeleeComboMultiplier: usesMeleeComboMultiplier,
         selectedAttackUsesHeavyAttackCritChance: usesMeleeComboMultiplier && !(

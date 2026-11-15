@@ -801,7 +801,7 @@ describe("damage calculation status eligibility", () => {
     });
 
     it("classifies Wiki-confirmed radial attacks without mislabeling direct grenade impacts", () => {
-        const expectAreaAttack = (weaponName: string, attackName: string, isAreaDamage: boolean) => {
+        const expectAreaAttack = (weaponName: string, attackName: string, isAreaDamage: boolean | undefined) => {
             const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
             expect(weapon).toBeDefined();
             const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
@@ -809,6 +809,21 @@ describe("damage calculation status eligibility", () => {
             expect(weapon!.attacks[attackIndex].isAreaDamage).toBe(isAreaDamage);
             expect(withSelectedAttack(weapon!, attackIndex).selectedAttackIsAreaDamage).toBe(isAreaDamage);
         };
+
+        const unclassifiedNamedAttacks = getWeaponCatalog().flatMap((weapon) =>
+            weapon.attacks
+                .filter((attack) => attack.name.toLowerCase() !== "normal attack" && attack.isAreaDamage === undefined)
+                .map((attack) => `${weapon.name}: ${attack.name}`),
+        );
+        expect(unclassifiedNamedAttacks).toEqual([]);
+
+        const unclassifiedNormalAttack = getWeaponCatalog().flatMap((weapon) =>
+            weapon.attacks.map((attack, attackIndex) => ({ weapon, attack, attackIndex })),
+        ).find(({ attack }) => attack.name.toLowerCase() === "normal attack" && attack.isAreaDamage === undefined);
+        expect(unclassifiedNormalAttack).toBeDefined();
+        expect(
+            withSelectedAttack(unclassifiedNormalAttack!.weapon, unclassifiedNormalAttack!.attackIndex).selectedAttackIsAreaDamage,
+        ).toBeUndefined();
 
         // Wiki-verified fallbacks: these source rows omit shot_type.
         // https://wiki.warframe.com/w/Komorex
@@ -832,6 +847,54 @@ describe("damage calculation status eligibility", () => {
         expectAreaAttack("Azima", "Normal Attack", false);
         expectAreaAttack("Azima", "Turret Expiry", true);
 
+        // The current Wiki descriptions confirm these untagged named rows are
+        // direct contact/projectile hits; they are not radial damage events.
+        // https://wiki.warframe.com/w/Hind
+        // https://wiki.warframe.com/w/Morgha
+        // https://wiki.warframe.com/w/Nepheri
+        // https://wiki.warframe.com/w/Orvius
+        // https://wiki.warframe.com/w/Pandero_Prime
+        // https://wiki.warframe.com/w/Paracyst
+        // https://wiki.warframe.com/w/Shattered_Lash_%28Weapon%29
+        // https://wiki.warframe.com/w/Telos_Boltace
+        expectAreaAttack("Hind", "Semi-Auto Mode", false);
+        expectAreaAttack("Morgha", "Charged Shot", false);
+        expectAreaAttack("Nepheri", "Fireballs", false);
+        expectAreaAttack("Orvius", "Hover Attack", false);
+        expectAreaAttack("Pandero Prime", "Alt-Fire", false);
+        expectAreaAttack("Paracyst", "Infested Harpoon Contact", false);
+        expectAreaAttack("Shattered Lash", "Damage", false);
+        expectAreaAttack("Shattered Lash", "Arcing Damage", false);
+        expectAreaAttack("Shattered Lash Prime", "Damage", false);
+        expectAreaAttack("Shattered Lash Prime", "Arcing Damage", false);
+        expectAreaAttack("Telos Boltace", "Stormpath Slide Attack", false);
+
+        // Zaw strike components are direct melee attacks. The compatibility
+        // records also contain Conclave-only duplicates, so check every row.
+        // https://wiki.warframe.com/w/Zaw
+        for (const [weaponName, attackName] of [
+            ["Balla", "Balla Strike"],
+            ["Cyath", "Cyath Strike"],
+            ["Dehtat", "Dehtat Strike"],
+            ["Dokrahm", "Dokrahm Strike"],
+            ["Kronsh", "Kronsh Strike"],
+            ["Mewan", "Mewan Strike"],
+            ["Ooltha", "Ooltha Strike"],
+            ["Plague Keewar", "Plague Keewar Strike"],
+            ["Plague Kripath", "Plague Kripath Strike"],
+            ["Rabvee", "Rabvee Strike"],
+            ["Sepfahn", "Sepfahn Strike"],
+        ]) {
+            const weaponRows = getWeaponCatalog().filter((weapon) => weapon.name === weaponName);
+            expect(weaponRows.length).toBeGreaterThan(0);
+            for (const weapon of weaponRows) {
+                const attackIndex = weapon.attacks.findIndex((attack) => attack.name === attackName);
+                expect(attackIndex).toBeGreaterThanOrEqual(0);
+                expect(weapon.attacks[attackIndex].isAreaDamage).toBe(false);
+                expect(withSelectedAttack(weapon, attackIndex).selectedAttackIsAreaDamage).toBe(false);
+            }
+        }
+
         // Shooting a Quanta cube triggers a 6 m radial explosion, separate
         // from the cube's direct contact and ordinary contact explosion rows.
         // https://wiki.warframe.com/w/Quanta
@@ -844,6 +907,7 @@ describe("damage calculation status eligibility", () => {
 
         // The Zenistar disc's 4 m aura is radial; disc contact is direct.
         // https://wiki.warframe.com/w/Zenistar
+        expectAreaAttack("Zenistar", "Attacks While Disc Deployed", false);
         expectAreaAttack("Zenistar", "Disc Impact", false);
         expectAreaAttack("Zenistar", "Disc Aura", true);
 
