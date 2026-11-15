@@ -1179,26 +1179,29 @@ describe("finite expected-value weapon encounters", () => {
         expect(result.statusDamageByPool.health).toBe(1);
     });
 
-    it("keeps independent Slash proc timers beyond the Wiki's ten-number display limit", () => {
-        const result = simulateExpectedWeaponEncounter({
-            damageByType: {},
-            health: 1_000,
-            shields: 0,
-            overguard: 0,
-            armor: 0,
-            faction: "",
-            attackIntervalSeconds: 0.25,
-            maxAttacks: 12,
-            maxDurationSeconds: 20,
-            expectedStatusApplicationsPerAttackByType: { slash: 1 },
-            dotDamagePerAttackByType: { slash: 12 },
-            dotDamagePerApplicationByType: { slash: 12 },
-        });
+    it.each(["slash", "toxin"] as const)(
+        "keeps independent %s proc timers beyond the Wiki's ten-number display limit",
+        (type) => {
+            const result = simulateExpectedWeaponEncounter({
+                damageByType: {},
+                health: 1_000,
+                shields: 0,
+                overguard: 0,
+                armor: 0,
+                faction: "",
+                attackIntervalSeconds: 0.25,
+                maxAttacks: 12,
+                maxDurationSeconds: 20,
+                expectedStatusApplicationsPerAttackByType: { [type]: 1 },
+                dotDamagePerAttackByType: { [type]: 12 },
+                dotDamagePerApplicationByType: { [type]: 12 },
+            });
 
-        expect(result.statusApplicationsByType.slash).toBe(12);
-        // Each of 12 independent procs deals its full 12 damage over six ticks.
-        expect(result.statusDamageByPool.health).toBeCloseTo(144, 10);
-    });
+            expect(result.statusApplicationsByType[type]).toBe(12);
+            // Each of 12 independent procs deals its full 12 damage over six ticks.
+            expect(result.statusDamageByPool.health).toBeCloseTo(144, 10);
+        },
+    );
 
     it("schedules expected Blast damage at its delayed detonation time", () => {
         const result = simulateExpectedWeaponEncounter({
