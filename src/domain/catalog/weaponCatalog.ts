@@ -871,6 +871,39 @@ const VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES: Readonly<
     "/Lotus/Weapons/Archon/Melee/Whip/ArchonWhipPlayerWep": Object.freeze({
         "energy wave explosion": true,
     }),
+    // Alternox's alternate-fire sphere pulses on nearby enemies once per
+    // second within 6 m. The pulse row omits shot_type; contact and the final
+    // explosion are separate source rows.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Alternox
+    "/Lotus/Weapons/Tenno/LongGuns/GyreRifle/GyreRifleWeapon": Object.freeze({
+        "alt-fire damage over time": true,
+    }),
+    // Alternox Prime uses the same 6 m pulse behavior as the base weapon.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Alternox_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeAlternox/PrimeAlternoxWeapon": Object.freeze({
+        "alt-fire damage over time": true,
+    }),
+    // When a player shoots a Quanta cube it detonates in a 6 m radius. Keep
+    // that area hit distinct from the cube's direct contact row.
+    // Verified 2026-11-15:
+    // https://wiki.warframe.com/w/Quanta
+    // https://wiki.warframe.com/w/Quanta_Vandal
+    // https://wiki.warframe.com/w/Tenet_Quanta
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle": Object.freeze({
+        "cube (shot by player)": true,
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal": Object.freeze({
+        "cube (shot by player)": true,
+    }),
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta": Object.freeze({
+        "cube (shot by player)": true,
+    }),
+    // The deployed disc aura deals Heat damage to enemies within 4 m. Its
+    // impact remains direct and its separate explosion is already source-tagged.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Zenistar
+    "/Lotus/Weapons/Tenno/Melee/SunDialAxe/SundialAxeWeapon": Object.freeze({
+        "disc aura": true,
+    }),
 });
 
 /** Current Wiki-verified weapon attack proc rules absent from the WFCD export. */
