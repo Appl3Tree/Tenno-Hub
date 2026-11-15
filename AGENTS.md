@@ -15,6 +15,8 @@ Tasks are organized by priority. Update this list as work progresses.
 
 ### Working Queue
 
+- Current stance-input and Underframe check (2026-11-15): the screenshot of manual stance DPS inputs is from a superseded UI. Port-80 in-app-browser verification with Broken War / Crimson Dervish showed the Wiki-sourced Neutral combo, computed stance DPS, approximate timing note, and source link with no lookup fields. A matched Braton Prime optimizer build was then scored in Underframe at the same ranks and target: 56,456 native Average DPS / 1.49 s versus Tenno-Hub's 58,679 / 1.428414 s; the list fit within three Forma after two Madurai and one Naramon polarities. This is one simulator comparison, not accuracy or global-quality proof. The Underframe copy was restored and the in-app browser left on port 80 for manual testing. Details: `BUILD_PLANNER_BENCHMARK.md` and `BUILD_PLANNER_OVERHAUL.md`.
+
 - [x] Comprehensive World State API integration and live synchronization — audit the live API and consumers; establish one reactive data service; synchronize page, bell, Dashboard, and completion tracking; then verify persistence, reliability, responsive behavior, and delivery.
   - Completed (2026-11-11): the current 38-field PC response and March 24 historical fixture were compared; duplicate World State fetch/cache paths were consolidated into one reactive, race-safe five-minute service. The World State page, bell, Dashboard, reset tracker, Vault Trader consumers, Inventory, Requirements, and Relic Farming use the shared snapshot. Invasion/Nightwave/event completion is persistent and bidirectional, event keys scope completion to a rotation, and the page/Dashboard/bell share expiry-aware activity totals. Baro timing prefers API windows and labels the hard-coded fallback as a prediction. `npm test` passes 346 tests across 41 files; production build and `validate:sources` pass. Browser QA verified bidirectional completion/undo, shared manual refresh time, matching 23-item Dashboard/page totals, and 390×844 / 768×1024 / 1280×720 layouts without overflow or console errors. PR #8 merged to `main` as `9edaf9b`; the original local `main` synced to that commit. GitHub Pages deployment run #79 succeeded and the live app loaded from https://appl3tree.github.io/Tenno-Hub/.
 - [x] World State activity completion controls — let players mark current alerts, sorties, Archon Hunts, and other supported rotating activities complete; sync Sortie and Archon Hunt state with the Dashboard Reset Tracker.
@@ -256,7 +258,7 @@ Current Wiki correction for the status checklist below: Impact's status effect l
 - [x] Use `Shots Per Magazine = Modded Mag Size / Ammo Cost Per Shot`
 - [x] Apply additive ammo efficiency to sustained-fire and encounter magazine timing (75% cap; transformed Incarnon exception)
 - [x] Update sustained DPS to the wiki shooting-vs-reloading proportion formula
-- [x] Add optional melee DPS math using user-entered average combo multiplier and base combo length
+- [x] Add optional Wiki-sourced stance-average DPS from the selected stance's Neutral combo, multipliers, and approximate timing; remove the manual lookup fields
 
 #### Damage Over Time / Status Math
 
