@@ -131,6 +131,10 @@ export interface ModdedWeaponStats {
     /** Unmodded, charge- and active-combo-adjusted base damage used as the Damage 3.0 quantization scale. */
     baseDamageTotal: number;
     arsenalDamage: number;
+    /** Additional damage fraction from a source effect that buffs one hit per attack. */
+    singleProjectileDamageBonus: number;
+    /** Rank threshold of the selected one-hit distance bonus; zero when none is equipped. */
+    singleProjectileDamageMinDistanceMeters: number;
     /**
      * Sum of all additive damage bonuses applied to base damage (e.g. Serration, Pressure Point,
      * conditional bonuses). Used by the optimizer to correctly apply Condition Overload and
@@ -364,6 +368,8 @@ export interface ConditionalState {
     meleeComboMultiplier?: number;
     /** User-selected ammo consumed by one Phantasma charged alternate-fire attack. */
     phantasmaChargeAmmo?: number;
+    /** Assumed target distance for source effects with an explicit range condition. */
+    targetDistanceMeters?: number;
 }
 
 export const DEFAULT_CONDITIONAL_STATE: Readonly<ConditionalState> = Object.freeze({ mode: "realistic" });
@@ -786,6 +792,8 @@ export function calculateBuild(
     let slamAttackDamageBonus = 0;
     let firstShotMagazineDamageBonus = 0;
     let lastShotMagazineDamageBonus = 0;
+    let springLoadedBroadheadDamageBonus = 0;
+    let springLoadedBroadheadMinDistanceMeters = 0;
     let shatteringImpactBaseArmorPerHit = 0;
     let impactBonus = 0;
     let punctureBonus = 0;
@@ -842,6 +850,16 @@ export function calculateBuild(
             slamAttackDamageBonus += e.slamAttackDamageBonus ?? 0;
         }
         lastShotMagazineDamageBonus += e.lastShotMagazineDamageBonus ?? 0;
+        springLoadedBroadheadMinDistanceMeters = Math.max(
+            springLoadedBroadheadMinDistanceMeters,
+            e.springLoadedBroadheadMinDistanceMeters ?? 0,
+        );
+        if (
+            Number.isFinite(conditionalState.targetDistanceMeters) &&
+            (conditionalState.targetDistanceMeters ?? 0) > (e.springLoadedBroadheadMinDistanceMeters ?? 0)
+        ) {
+            springLoadedBroadheadDamageBonus += e.springLoadedBroadheadDamageBonus ?? 0;
+        }
         shatteringImpactBaseArmorPerHit += e.shatteringImpactBaseArmorPerHit ?? 0;
         if (weapon.selectedAttackUsesMeleeComboMultiplier === true) {
             damageBonus += e.heavyAttackDamageBonus ?? 0;
@@ -1315,7 +1333,12 @@ export function calculateBuild(
     const moddedMultishot = weapon.multishot * (1 + multishotBonus);
     const extraProjectiles = Math.max(0, moddedMultishot - weapon.multishot);
     const damageWeightedMultishot = moddedMultishot + extraProjectiles * multishotDamageBonus;
-    const procSeedDamageRatio = moddedMultishot > 0 ? damageWeightedMultishot / moddedMultishot : 1;
+    // Broadhead buffs only one projectile. Its proportional seed contribution
+    // is included once here, so status DoTs receive the damage bonus exactly
+    // once rather than a faction-style second application on every tick.
+    const procSeedDamageRatio = moddedMultishot > 0
+        ? (damageWeightedMultishot + springLoadedBroadheadDamageBonus) / moddedMultishot
+        : 1;
     const comboTiersAboveBase = Math.max(0, meleeComboMultiplier - 1);
     const critChance = weapon.critChance * (1 + critChanceBonus + comboCritChanceBonus * comboTiersAboveBase) + finalCritChanceBonus;
     const quantizedBaseCritMultiplier = quantizeBaseCriticalDamageMultiplier(weapon.critMultiplier);
@@ -1821,8 +1844,9 @@ export function calculateBuild(
     }
 
     const totalDamage = totalDamageOf(damageBreakdown);
-    const arsenalDamage = totalDamageOf(directRawBreakdown) * damageWeightedMultishot;
-    const averageShotDamage = totalDamage * damageWeightedMultishot * avgHitDamageMultiplier(
+    const attackDamageEquivalent = damageWeightedMultishot + springLoadedBroadheadDamageBonus;
+    const arsenalDamage = totalDamageOf(directRawBreakdown) * attackDamageEquivalent;
+    const averageShotDamage = totalDamage * attackDamageEquivalent * avgHitDamageMultiplier(
         critChance,
         critMultiplier,
         nonCriticalHitDamageProcs,
@@ -1887,6 +1911,8 @@ export function calculateBuild(
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
         baseDamageTotal: baseDamageTotal * slamAttackDamageMultiplier * meleeAttackComboDamageMultiplier,
         arsenalDamage,
+        singleProjectileDamageBonus: springLoadedBroadheadDamageBonus,
+        singleProjectileDamageMinDistanceMeters: springLoadedBroadheadMinDistanceMeters,
         totalDamageBonus: damageBonus,
         timedConditionalDamageStacks,
         averageShotDamage,

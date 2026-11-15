@@ -66,6 +66,8 @@ export interface DirectTargetDamageInput {
     damageRampMultiplier?: number;
     /** Expected per-hit multiplier after crit tiers and supported noncritical-hit procs. */
     expectedHitDamageMultiplier?: number;
+    /** Additional direct-damage fraction applied to one projectile per attack. */
+    singleProjectileDamageBonus?: number;
     /** Base post-mod critical chance/multiplier for encounter status-state updates. */
     critChance?: number;
     critMultiplier?: number;
@@ -156,7 +158,12 @@ export function calculateDirectDamageToInitialPools(
         uncappedDamageByPool.health += healthDamageAfterArmor * factionMultiplier;
     }
 
-    const expectedScale = expectedDamageMultiplier * hitDamageMultiplier;
+    // Some source-verified mods add damage to one projectile rather than every
+    // multishot projectile. Keep that one-hit contribution separate from the
+    // ordinary attack multiplier, then apply the same crit/ramp/target rules.
+    const expectedScale = (
+        expectedDamageMultiplier + finiteNonNegative(input.singleProjectileDamageBonus ?? 0)
+    ) * hitDamageMultiplier;
     for (const pool of TARGET_POOLS) {
         uncappedDamageByPool[pool] *= expectedScale;
     }

@@ -68,6 +68,61 @@ describe("Tennokai mod catalog coverage", () => {
     });
 });
 
+describe("Spring-Loaded Broadhead Wiki modeling", () => {
+    it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
+        const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
+        const daikyuPrime = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu Prime");
+        const bratonPrime = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime");
+        expect(daikyu).toBeDefined();
+        expect(daikyuPrime).toBeDefined();
+        expect(bratonPrime).toBeDefined();
+
+        const mod = getModsForWeapon(daikyu!).find((candidate) => candidate.name === "Spring-Loaded Broadhead");
+        const primeMod = getModsForWeapon(daikyuPrime!).find((candidate) => candidate.name === "Spring-Loaded Broadhead");
+        expect(mod).toBeDefined();
+        expect(primeMod).toBeDefined();
+        expect(getModsForWeapon(bratonPrime!).some((candidate) => candidate.name === "Spring-Loaded Broadhead")).toBe(false);
+        expect(mod!.effectsByRank.map((effect) => effect.springLoadedBroadheadDamageBonus)).toEqual([0.4, 0.4, 0.4, 0.4, 0.4, 0.4]);
+        expect(mod!.effectsByRank.map((effect) => effect.springLoadedBroadheadMinDistanceMeters)).toEqual([45, 39, 33, 27, 21, 15]);
+        expect(mod!.effectsByRank.map((effect) => effect.damageBonus)).toEqual([0, 0, 0, 0, 0, 0]);
+        expect(mod!.statsTextByRank[0]).toContain("over 45m away");
+        expect(mod!.statsTextByRank[5]).toContain("over 15m away");
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+        }
+    });
+
+    it("activates strictly beyond the rank threshold and adds one projectile share to direct and DoT damage", () => {
+        const weapon = { ...makeWeapon({ slash: 100 }), multishot: 2 };
+        const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
+        const mod = getModsForWeapon(daikyu!).find((candidate) => candidate.name === "Spring-Loaded Broadhead")!;
+        const rankFive = mod.effectsByRank[5]!;
+        const baseline = calculateBuild(weapon, []).modded;
+        const atThreshold = calculateBuild(weapon, [rankFive], "", {
+            conditionalState: { mode: "realistic", targetDistanceMeters: 15 },
+        }).modded;
+        const beyondThreshold = calculateBuild(weapon, [rankFive], "", {
+            conditionalState: { mode: "realistic", targetDistanceMeters: 15.001 },
+        }).modded;
+
+        expect(atThreshold.singleProjectileDamageBonus).toBe(0);
+        expect(beyondThreshold.singleProjectileDamageBonus).toBe(0.4);
+        expect(atThreshold.averageShotDamage).toBeCloseTo(baseline.averageShotDamage, 10);
+        expect(beyondThreshold.averageShotDamage - baseline.averageShotDamage).toBeCloseTo(40, 8);
+        expect(beyondThreshold.damageBreakdown).toEqual(baseline.damageBreakdown);
+        expect(beyondThreshold.statusChance).toBe(baseline.statusChance);
+        expect(beyondThreshold.procWeightBreakdown).toEqual(baseline.procWeightBreakdown);
+        expect(beyondThreshold.dotDamagePerApplicationSeedByType.slash).toBeCloseTo(
+            (baseline.dotDamagePerApplicationSeedByType.slash ?? 0) * 1.2,
+            8,
+        );
+        // The Wiki's per-application +1 tick accumulator is additive, not part of the weapon seed.
+        expect(beyondThreshold.dotDamagePerShotByType.slash).toBeLessThan(
+            (baseline.dotDamagePerShotByType.slash ?? 0) * 1.2,
+        );
+    });
+});
+
 describe("damage calculation status eligibility", () => {
     it("models Enduring Affliction as additive Status Chance only for an explicitly Lifted target", () => {
         const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");

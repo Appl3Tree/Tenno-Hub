@@ -559,6 +559,21 @@ describe("build optimizer scoring", () => {
         expect(snapResult.slots).toContain(protonSnap);
     });
 
+    it("selects Spring-Loaded Broadhead when its Wiki distance condition is met", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu Prime");
+        expect(weapon).toBeDefined();
+        const broadhead = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Spring-Loaded Broadhead");
+        expect(broadhead).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(broadhead!, broadhead!.fusionLimit)).toEqual([]);
+
+        const result = optimizeBuild(weapon!, [broadhead!], "burst", 1, {
+            allowForma: false,
+            conditionalState: { mode: "realistic", targetDistanceMeters: 16 },
+        });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots).toContain(broadhead);
+    });
+
     it("parses Critical Focus's aimed critical chance and critical damage", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Corvas Prime");
         expect(weapon).toBeTruthy();
