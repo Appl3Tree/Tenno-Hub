@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { getWeaponCatalog } from "../weaponCatalog";
 import { withSelectedAttack } from "../weaponRules";
 import { calculateBuild } from "../../logic/damageCalc";
+import { quantizeBaseCriticalDamageMultiplier } from "../../logic/damageRuleset";
+import { emptyEffect } from "../modCatalog";
 import {
     buildIncarnonCandidateConfigs,
     getIncarnonRecordForWeapon,
@@ -315,6 +317,67 @@ describe("incarnonCatalog", () => {
                 .toBeCloseTo(weapon!.attacks[normalAttackIndex]!.statusChance + expected.statusChanceBonus, 5);
             expect(resolved.weapon.attacks[incarnonAttackIndex]?.statusChance)
                 .toBeCloseTo(weapon!.attacks[incarnonAttackIndex]!.statusChance + expected.statusChanceBonus, 5);
+        }
+    });
+
+    it("models Furax Kinetic Killer as a sliding-at-impact base critical multiplier override", () => {
+        for (const name of ["Furax", "Furax Wraith", "Mk1-Furax"]) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === name);
+            const record = getIncarnonRecordForWeapon(name);
+            expect(weapon, name).toBeTruthy();
+            expect(record, name).toBeTruthy();
+
+            const kineticKiller = record!.tiers.find((tier) => tier.tier === 4)?.options
+                .find((option) => option.id === "tier-4-kinetic-killer");
+            expect(kineticKiller?.descriptionLines).toEqual([
+                "Increase Base Critical Damage Multiplier to 4x on Slide Attacks.",
+            ]);
+            expect(kineticKiller?.model.adjustments).toContainEqual(expect.objectContaining({
+                scope: "all",
+                slideCritMultiplierOverride: 4,
+            }));
+            expect(kineticKiller?.model.unsupportedLines).toEqual([]);
+
+            const normalAttackIndex = weapon!.attacks.findIndex((attack) => /^normal attack$/i.test(attack.name));
+            const heavySlamAttackIndex = weapon!.attacks.findIndex((attack) => /^heavy slam attack$/i.test(attack.name));
+            expect(normalAttackIndex, name).toBeGreaterThanOrEqual(0);
+            expect(heavySlamAttackIndex, name).toBeGreaterThanOrEqual(0);
+
+            const selectedNormal = resolveIncarnonState(weapon!, normalAttackIndex, {
+                unlockedTier: 4,
+                selectedOptionsByTier: { 4: "tier-4-kinetic-killer" },
+            });
+            const unselected = resolveIncarnonState(weapon!, normalAttackIndex, {
+                unlockedTier: 4,
+                selectedOptionsByTier: {},
+            });
+            expect(selectedNormal.weapon.selectedAttackSlideCritMultiplierOverride).toBe(4);
+            expect(unselected.weapon.selectedAttackSlideCritMultiplierOverride).toBeUndefined();
+
+            const notSliding = calculateBuild(selectedNormal.weapon, []).modded;
+            const ordinary = calculateBuild(unselected.weapon, []).modded;
+            expect(notSliding.quantizedBaseCritMultiplier).toBeCloseTo(
+                quantizeBaseCriticalDamageMultiplier(weapon!.attacks[normalAttackIndex]!.critMultiplier),
+                6,
+            );
+            expect(notSliding.quantizedBaseCritMultiplier).toBe(ordinary.quantizedBaseCritMultiplier);
+
+            const sliding = calculateBuild(selectedNormal.weapon, [{ ...emptyEffect(), critMultBonus: 1 }], "", {
+                conditionalState: { mode: "realistic", playerSlidingAtImpact: true },
+            }).modded;
+            const expectedSlidingBase = quantizeBaseCriticalDamageMultiplier(4);
+            expect(sliding.quantizedBaseCritMultiplier).toBe(expectedSlidingBase);
+            expect(sliding.critMultiplier).toBeCloseTo(expectedSlidingBase * 2, 6);
+
+            const selectedHeavySlam = resolveIncarnonState(weapon!, heavySlamAttackIndex, {
+                unlockedTier: 4,
+                selectedOptionsByTier: { 4: "tier-4-kinetic-killer" },
+            });
+            const heavySlam = withSelectedAttack(selectedHeavySlam.weapon, heavySlamAttackIndex);
+            expect(heavySlam.selectedAttackSlideCritMultiplierOverride).toBe(4);
+            expect(calculateBuild(heavySlam, [], "", {
+                conditionalState: { mode: "realistic", playerSlidingAtImpact: true },
+            }).modded.quantizedBaseCritMultiplier).toBe(expectedSlidingBase);
         }
     });
 

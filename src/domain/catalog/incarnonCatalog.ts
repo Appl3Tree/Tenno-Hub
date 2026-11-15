@@ -30,6 +30,7 @@ type ScopedWeaponAdjustment = {
     baseDamageFlat?: number;
     critChanceFlat?: number;
     critMultiplierFlat?: number;
+    slideCritMultiplierOverride?: number;
     statusChanceFlat?: number;
     magazineSizeFlat?: number;
 };
@@ -377,6 +378,7 @@ function pushAdjustment(target: ScopedWeaponAdjustment[], scope: IncarnonAttackS
         existing.baseDamageFlat = (existing.baseDamageFlat ?? 0) + (patch.baseDamageFlat ?? 0);
         existing.critChanceFlat = (existing.critChanceFlat ?? 0) + (patch.critChanceFlat ?? 0);
         existing.critMultiplierFlat = (existing.critMultiplierFlat ?? 0) + (patch.critMultiplierFlat ?? 0);
+        existing.slideCritMultiplierOverride = patch.slideCritMultiplierOverride ?? existing.slideCritMultiplierOverride;
         existing.statusChanceFlat = (existing.statusChanceFlat ?? 0) + (patch.statusChanceFlat ?? 0);
         existing.magazineSizeFlat = (existing.magazineSizeFlat ?? 0) + (patch.magazineSizeFlat ?? 0);
         return;
@@ -516,6 +518,9 @@ function buildOptionModel(option: RawIncarnonOption, weaponName: string): Incarn
         if (baseDamageMatch && !trigger && !/^with\b/i.test(statsLine)) {
             const match = baseDamageMatch;
             addAdjustment({ baseDamageFlat: Number(match?.[1] ?? 0) });
+        } else if (/increase (?:base )?critical damage multiplier to [\d.]+x on slide attacks?/i.test(statsLine)) {
+            const match = statsLine.match(/increase (?:base )?critical damage multiplier to ([\d.]+)x on slide attacks?/i);
+            addAdjustment({ slideCritMultiplierOverride: Number(match?.[1] ?? 0) });
         } else if (/increase (?:base )?critical chance by [+-]?\d+(?:\.\d+)?%/i.test(statsLine)) {
             const match = statsLine.match(/increase (?:base )?critical chance by ([+-]?\d+(?:\.\d+)?)%/i);
             addAdjustment({ critChanceFlat: parsePercent(match?.[1] ?? "0") });
@@ -640,6 +645,16 @@ const RECORDS: IncarnonWeaponRecord[] = RAW_RECORDS.map((record) => ({
  */
 function withCurrentPatchDescription(weaponName: string, option: RawIncarnonOption): RawIncarnonOption {
     const name = normalize(weaponName);
+    if (
+        ["furax", "furax wraith", "mk1-furax"].includes(name) &&
+        option.id === "tier-4-kinetic-killer"
+    ) {
+        return {
+            ...option,
+            descriptionLines: ["Increase Base Critical Damage Multiplier to 4x on Slide Attacks."],
+            notes: ["Applies to any attack that makes contact while the player is sliding, including Heavy Attacks and Heavy Slams."],
+        };
+    }
     if (name === "torid") {
         const currentToridDescriptions: Record<string, Pick<RawIncarnonOption, "descriptionLines" | "notes">> = {
             "tier-2-final-fusillade": {
@@ -972,6 +987,7 @@ export function resolveIncarnonState(
     const selectedScope = activeScopeForSelectedAttack(weapon, selectedAttackIdx);
     const baseWeapon: WeaponEntry = {
         ...weapon,
+        selectedAttackSlideCritMultiplierOverride: undefined,
         selectedAttackIncarnonAmmoCapacity: selectedScope === "incarnon"
             ? wikiAmmoCapacityForWeapon(weapon, record)
             : undefined,
@@ -1003,6 +1019,15 @@ export function resolveIncarnonState(
             attacks = attacks.map((attack) =>
                 attackMatchesScope(attack, adjustment.scope) ? applyScopedAdjustmentToAttack(attack, adjustment) : attack,
             );
+            if (
+                adjustment.slideCritMultiplierOverride !== undefined &&
+                (adjustment.scope === "all" || adjustment.scope === selectedScope)
+            ) {
+                nextWeapon = {
+                    ...nextWeapon,
+                    selectedAttackSlideCritMultiplierOverride: adjustment.slideCritMultiplierOverride,
+                };
+            }
             if (adjustment.scope === "normal" && selectedScope === "normal" && adjustment.magazineSizeFlat) {
                 nextWeapon = { ...nextWeapon, magazineSize: nextWeapon.magazineSize + adjustment.magazineSizeFlat };
             }

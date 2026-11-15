@@ -370,6 +370,8 @@ export interface ConditionalState {
     phantasmaChargeAmmo?: number;
     /** Assumed target distance for source effects with an explicit range condition. */
     targetDistanceMeters?: number;
+    /** Assume the player is sliding at impact; selected weapon perks may use this static contact-state condition. */
+    playerSlidingAtImpact?: boolean;
 }
 
 export const DEFAULT_CONDITIONAL_STATE: Readonly<ConditionalState> = Object.freeze({ mode: "realistic" });
@@ -1363,7 +1365,11 @@ export function calculateBuild(
         : 1;
     const comboTiersAboveBase = Math.max(0, meleeComboMultiplier - 1);
     const critChance = weapon.critChance * (1 + critChanceBonus + comboCritChanceBonus * comboTiersAboveBase) + finalCritChanceBonus;
-    const quantizedBaseCritMultiplier = quantizeBaseCriticalDamageMultiplier(weapon.critMultiplier);
+    const baseCritMultiplier = conditionalState.playerSlidingAtImpact &&
+        Number.isFinite(weapon.selectedAttackSlideCritMultiplierOverride)
+        ? weapon.selectedAttackSlideCritMultiplierOverride ?? weapon.critMultiplier
+        : weapon.critMultiplier;
+    const quantizedBaseCritMultiplier = quantizeBaseCriticalDamageMultiplier(baseCritMultiplier);
     const critMultiplier = quantizedBaseCritMultiplier * (1 + critMultBonus) + finalCritMultiplierBonus;
     const averageCritTier = Math.max(0, critChance);
     const statusChance = weapon.statusChance * (

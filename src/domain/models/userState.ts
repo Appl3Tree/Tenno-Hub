@@ -222,6 +222,8 @@ export interface SavedBuildPlannerConfig {
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */
     targetStartsWithHeat?: boolean;
+    /** Assume Kinetic Killer's sliding-at-impact condition is active for each scored Furax attack. */
+    playerSlidingAtImpact?: boolean;
     meleeComboMultiplier?: number;
     /** User-entered ammo charge for Phantasma's alternate fire. */
     phantasmaChargeAmmo?: number;
