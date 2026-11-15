@@ -384,7 +384,7 @@ describe("build optimizer scoring", () => {
             armor: 0,
         });
 
-        expect(overguardTarget.statusImmuneTypes).toContain("radiation");
+        expect(overguardTarget.statusImmuneTypes).not.toContain("radiation");
         expect(overguardTarget.statusStackCaps.cold).toBe(4);
         expect(overguardTarget.statusStackCaps.blast).toBeUndefined();
         expect(overguardTarget.crowdControlImmune).toBe(true);
@@ -2739,7 +2739,7 @@ describe("build optimizer scoring", () => {
             grouped: false,
             crowdControlImmune: true,
         });
-        expect(new Set(target.statusImmuneTypes)).toEqual(new Set(["heat", "viral", "radiation"]));
+        expect(new Set(target.statusImmuneTypes)).toEqual(new Set(["heat", "viral"]));
     });
 
     it("explains main-mod gains on top of fixed effects and the selected arcane", () => {
