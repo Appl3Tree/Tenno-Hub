@@ -629,11 +629,13 @@ const RECORDS: IncarnonWeaponRecord[] = RAW_RECORDS.map((record) => ({
 /**
  * Keep generated evolution text aligned with the current Wiki when its table
  * variable substitution has stale wording or unresolved values. Reviewed
- * 2026-11-15 against the Torid, Burston, Gorgon, and Latron pages.
+ * 2026-11-15 against the Torid, Burston, Gorgon, Latron, and Sicarus pages.
  * https://wiki.warframe.com/w/Torid_Incarnon_Genesis
  * https://wiki.warframe.com/w/Burston_Incarnon_Genesis
  * https://wiki.warframe.com/w/Gorgon_Incarnon_Genesis
  * https://wiki.warframe.com/w/Latron_Incarnon_Genesis
+ * https://wiki.warframe.com/w/Sicarus
+ * https://wiki.warframe.com/w/Update_37
  * Legacy stat wording is normalized according to https://wiki.warframe.com/w/Update_36.
  */
 function withCurrentPatchDescription(weaponName: string, option: RawIncarnonOption): RawIncarnonOption {
@@ -756,6 +758,18 @@ function withCurrentPatchDescription(weaponName: string, option: RawIncarnonOpti
             "tier-2-swift-punishment": { descriptionLines: ["Increase Base Damage by +6.", "With Sprint Speed 1.2 or Higher: +30% Direct Damage per Status Type affecting the target."], notes: ["The effect only requires 1.1 or higher sprint speed."] },
             "tier-3-extended-volley": { descriptionLines: ["Increase Base Magazine Capacity by +15."], notes: ["Does not apply to Incarnon Form's Magazine."] },
             "tier-4-critical-parallel": { descriptionLines: ["Increase Base Critical Chance by +24%.", "Increase Base Critical Damage Multiplier by +0.2x."], notes: [] },
+        },
+        sicarus: {
+            "tier-4-survivor-s-edge": {
+                descriptionLines: ["Increase Base Critical Chance by +12%.", "Increase Base Status Chance by +12%."],
+                notes: [],
+            },
+        },
+        "sicarus prime": {
+            "tier-4-survivor-s-edge": {
+                descriptionLines: ["Increase Base Critical Chance by +9%.", "Increase Base Status Chance by +9%."],
+                notes: [],
+            },
         },
     };
     const currentWikiCorrection = currentWikiStatCorrections[normalizedName]?.[option.id];
