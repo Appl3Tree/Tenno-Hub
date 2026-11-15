@@ -283,6 +283,41 @@ describe("incarnonCatalog", () => {
         expect(prismaAngstrum?.model.unsupportedLines.filter((line) => /increase (?:base )?(?:damage|critical chance|status chance|critical damage multiplier)/i.test(line))).toEqual([]);
     });
 
+    it("uses the Wiki's additive Survivor's Edge status chance for Sicarus and Sicarus Prime", () => {
+        for (const expected of [
+            { name: "Sicarus", statusChanceBonus: 0.12 },
+            { name: "Sicarus Prime", statusChanceBonus: 0.09 },
+        ]) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === expected.name);
+            const record = getIncarnonRecordForWeapon(expected.name);
+            expect(weapon).toBeTruthy();
+            expect(record).toBeTruthy();
+
+            const survivorEdge = record!.tiers.find((tier) => tier.tier === 4)?.options
+                .find((option) => option.id === "tier-4-survivor-s-edge");
+            expect(survivorEdge?.descriptionLines).toContain(`Increase Base Status Chance by +${expected.statusChanceBonus * 100}%.`);
+            expect(survivorEdge?.model.adjustments).toContainEqual(expect.objectContaining({
+                scope: "all",
+                statusChanceFlat: expected.statusChanceBonus,
+            }));
+            expect(survivorEdge?.model.unsupportedLines).not.toContain("Increase Base Status Chance by +12%.");
+            expect(survivorEdge?.model.unsupportedLines).not.toContain("Increase Base Status Chance by +9%.");
+
+            const normalAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            const incarnonAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Incarnon Form");
+            expect(normalAttackIndex).toBeGreaterThanOrEqual(0);
+            expect(incarnonAttackIndex).toBeGreaterThanOrEqual(0);
+            const resolved = resolveIncarnonState(weapon!, normalAttackIndex, {
+                unlockedTier: 4,
+                selectedOptionsByTier: { 4: "tier-4-survivor-s-edge" },
+            });
+            expect(resolved.weapon.attacks[normalAttackIndex]?.statusChance)
+                .toBeCloseTo(weapon!.attacks[normalAttackIndex]!.statusChance + expected.statusChanceBonus, 5);
+            expect(resolved.weapon.attacks[incarnonAttackIndex]?.statusChance)
+                .toBeCloseTo(weapon!.attacks[incarnonAttackIndex]!.statusChance + expected.statusChanceBonus, 5);
+        }
+    });
+
     it("parses corrected Burston, Gorgon, and Latron Wiki values without leaking form-specific magazine notes", () => {
         const burstonValues = [
             { name: "Burston", absoluteDamage: 42, magazine: 21 },
