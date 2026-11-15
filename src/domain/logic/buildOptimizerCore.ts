@@ -754,9 +754,10 @@ function scoreEffects(
         }
     }
     let allEffects = initialEffects;
-    // Initial-state scoring disables all triggered conditionals in calculateBuild,
-    // so resolving whether their required status is reachable cannot change the
-    // result. Avoid the extra preview calculation on this hot path.
+    // Initial-state scoring disables combat-triggered conditionals in
+    // calculateBuild; explicit target-status conditions remain user supplied.
+    // Resolve weapon-generated required damage statuses only when those effects
+    // can be active, avoiding the extra preview calculation on the initial path.
     if (hasStatusGatedConditional && conditionalsCanBeActive) {
         const ungatedEffects = initialEffects.map((effect) => {
             if (!effect?.conditionalEffects?.length) return effect;
@@ -3925,6 +3926,7 @@ function summarizeConditionalEffect(
         conditional.requiresAiming ? "while aiming" : "",
         conditional.maxStacks > 1 ? `up to ${conditional.maxStacks} stacks` : "",
         conditional.requiredStatusType ? `requires ${conditional.requiredStatusType} status` : "",
+        conditional.requiredTargetStatusType ? `requires ${conditional.requiredTargetStatusType} target status` : "",
     ].filter(Boolean);
     const stats = summarizeEffectStats(conditional.stats);
     const details = stats.length > 0 ? stats.join(", ") : "conditional effect";

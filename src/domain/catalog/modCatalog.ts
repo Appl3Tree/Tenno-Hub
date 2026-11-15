@@ -205,7 +205,8 @@ export type ConditionalTrigger =
     | "onWeakPointKill"
     | "onMeleeKill"
     | "onKillOrAssist"
-    | "onConsecutiveThrow";
+    | "onConsecutiveThrow"
+    | "whileTargetHasStatus";
 
 export interface ConditionalEffect {
     trigger: ConditionalTrigger;
@@ -213,6 +214,8 @@ export interface ConditionalEffect {
     requiresAiming: boolean;
     maxStacks: number;
     requiredStatusType?: "impact" | "puncture" | "slash" | "heat" | "cold" | "electricity" | "toxin" | "blast" | "radiation" | "gas" | "magnetic" | "viral" | "corrosive" | "void" | "tau" | "true";
+    /** Named target status required by a passive conditional such as Enduring Affliction. */
+    requiredTargetStatusType?: "lifted";
     stats: Partial<Pick<
         ModEffect,
         | "damageBonus"
@@ -544,6 +547,18 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
         };
     }
     if (rest === "critical damage" || rest === "critical multiplier") return { critMultBonus: scaled };
+    if (rest.replace(/\.$/, "") === "status chance on lifted enemies") {
+        return {
+            conditionalEffects: [{
+                trigger: "whileTargetHasStatus",
+                durationSeconds: 0,
+                requiresAiming: false,
+                maxStacks: 1,
+                requiredTargetStatusType: "lifted",
+                stats: { statusChanceBonus: scaled },
+            }],
+        };
+    }
     if (rest === "status chance") return { statusChanceBonus: scaled };
     if (rest === "multishot") return { multishotBonus: scaled };
     if (rest === "ammo efficiency") return { ammoEfficiencyBonus: scaled };

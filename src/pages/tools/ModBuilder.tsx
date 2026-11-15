@@ -1354,10 +1354,13 @@ function buildMathBreakdown(
             .map(([key, value]) => `${key} ${fmt((value as number) * 100, 2)}%`)
             .join(", ");
         const triggerLabel = conditional.trigger.replace(/([A-Z])/g, " $1").toLowerCase();
+        const targetStatusModel = conditional.requiredTargetStatusType
+            ? ` target status ${conditional.requiredTargetStatusType} is ${uptime > 0 ? "assumed active for this scenario" : "not active in this scenario"}; its duration and renewal are not simulated.`
+            : "";
         const triggerModel = conditional.trigger === "onNonCriticalNoStatusHit"
             ? ` qualifying group chance ${fmt(conditionalQualifyingGroupProbability * 100, 5)}% from ${fmt(stats.critChance * 100, 2)}% crit, ${fmt(stats.statusChance * 100, 2)}% status, and ${fmt(stats.multishot, 3)} multishot; the steady-state estimate uses Poisson arrivals at ${fmt(stats.fireRate * conditionalQualifyingGroupProbability, 5)}/s and one-stack decay per full duration without a trigger. The finite encounter starts at ${timedStackModel?.initialStacks ?? 0} stacks and advances one qualifying attack group at a time. The model treats crit/status rolls as independent per projectile and averages fractional multishot as one extra-projectile chance. Target status immunities and forced weapon procs are applied; DoT ticks and externally applied statuses are excluded.`
             : "";
-        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${triggerModel}`;
+        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${triggerModel}`;
     });
     const customTargetLines = targetProfileOverride ? [
         `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,

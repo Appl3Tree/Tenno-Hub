@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -40,6 +40,43 @@ function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
 }
 
 describe("damage calculation status eligibility", () => {
+    it("models Enduring Affliction as additive Status Chance only for an explicitly Lifted target", () => {
+        const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");
+        expect(gramPrime).toBeDefined();
+        const mod = getModsForWeapon(gramPrime!).find((candidate) => candidate.name === "Enduring Affliction");
+        expect(mod).toBeDefined();
+        expect(mod!.hasDamageEffect).toBe(true);
+        expect(mod!.effectsByRank.map((effect) =>
+            Number((effect.conditionalEffects[0]?.stats.statusChanceBonus ?? 0).toFixed(3)),
+        )).toEqual([0.167, 0.333, 0.5, 0.667, 0.833, 1]);
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+            expect(mod!.effectsByRank[rank].conditionalEffects[0]).toEqual(expect.objectContaining({
+                trigger: "whileTargetHasStatus",
+                requiredTargetStatusType: "lifted",
+            }));
+        }
+
+        const weapon = {
+            ...makeWeapon({ impact: 100 }),
+            category: "Melee" as const,
+            weaponType: "Sword",
+            modCompat: "Melee" as const,
+        };
+        const statusChanceMod = { ...emptyEffect(), statusChanceBonus: 0.5 };
+        const rankFive = mod!.effectsByRank[mod!.fusionLimit];
+        const statusChance = (conditionalState: ConditionalState) =>
+            calculateBuild(weapon, [statusChanceMod, rankFive], "", { conditionalState }).modded.statusChance;
+
+        expect(statusChance({ mode: "initial" })).toBeCloseTo(0.6, 12);
+        expect(statusChance({ mode: "initial", externalStatusTypes: ["lifted"] })).toBeCloseTo(1, 12);
+        expect(statusChance({ mode: "initial", externalStatusTypes: ["lifted", "knockdown"] })).toBeCloseTo(0.6, 12);
+        expect(statusChance({ mode: "fullyStacked" })).toBeCloseTo(0.6, 12);
+        expect(statusChance({ mode: "fullyStacked", externalStatusTypes: ["lifted"] })).toBeCloseTo(1, 12);
+        expect(statusChance({ mode: "realistic", externalStatusTypes: ["lifted"] })).toBeCloseTo(1, 12);
+        expect(statusChance({ mode: "custom", externalStacks: 0, externalStatusTypes: ["lifted"] })).toBeCloseTo(1, 12);
+    });
+
     it("models Seismic Wave on aerial and stance-combo slam attacks", () => {
         const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");
         expect(gramPrime).toBeDefined();

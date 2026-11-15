@@ -726,6 +726,32 @@ describe("build optimizer scoring", () => {
         })).toBeGreaterThan(cleanInitialScore);
     });
 
+    it("only gives Enduring Affliction optimizer value when Lifted is explicitly active", () => {
+        const weapon = makeWeapon({ category: "Melee", weaponType: "Sword", modCompat: "Melee" });
+        const enduringAffliction = getModsForWeapon(weapon).find((candidate) => candidate.name === "Enduring Affliction");
+        expect(enduringAffliction).toBeDefined();
+
+        const score = (effects: ModEffect[], conditionalState: ConditionalState) =>
+            debugScoreBuild(weapon, effects, "scaling", "", null, null, conditionalState);
+        const baseline = score([], { mode: "initial" });
+        expect(score([enduringAffliction!.effect], { mode: "initial" })).toBeCloseTo(baseline, 12);
+        expect(score([enduringAffliction!.effect], {
+            mode: "initial",
+            externalStatusTypes: ["lifted"],
+        })).toBeGreaterThan(baseline);
+
+        const explanation = explainBuild(
+            weapon,
+            [enduringAffliction!],
+            [enduringAffliction!.fusionLimit],
+            "scaling",
+            "",
+            null,
+            { mode: "initial", externalStatusTypes: ["lifted"] },
+        );
+        expect(JSON.stringify(explanation)).toContain("requires lifted target status");
+    });
+
     it("scores Nukor Microwave independently of weapon conditional state", () => {
         const variants = getWeaponCatalog().filter((weapon) =>
             weapon.name === "Nukor" || weapon.name === "Kuva Nukor",

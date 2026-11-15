@@ -523,6 +523,15 @@ export function estimateConditionalUptime(
     magazineSize: number,
     state: ConditionalState = DEFAULT_CONDITIONAL_STATE,
 ): number {
+    if (conditional.trigger === "whileTargetHasStatus") {
+        const statuses = state.externalStatusTypes ?? [];
+        const requiredStatus = conditional.requiredTargetStatusType;
+        if (!requiredStatus || !statuses.includes(requiredStatus)) return 0;
+        // Lifted and Knockdown are mutually exclusive. Accommodate raw/imported
+        // state as well as the normalized status selector used by the UI.
+        if (requiredStatus === "lifted" && statuses.lastIndexOf("knockdown") > statuses.lastIndexOf("lifted")) return 0;
+        return 1;
+    }
     if (state.mode === "initial") return 0;
     if (state.mode === "fullyStacked") return 1;
     if (state.mode === "custom") return Math.max(0, state.externalStacks ?? 0) > 0 ? 1 : 0;
@@ -700,6 +709,7 @@ function estimateConditionalStackFactor(
     state: ConditionalState = DEFAULT_CONDITIONAL_STATE,
     context: ConditionalStackEstimationContext = {},
 ): number {
+    if (conditional.trigger === "whileTargetHasStatus") return 1;
     if (state.mode === "initial") return 0;
     if (state.mode === "fullyStacked") return Math.max(1, conditional.maxStacks ?? 1);
     if (state.mode === "custom") {
@@ -1051,7 +1061,8 @@ export function calculateBuild(
     const conditionalDirectBonusBreakdown = emptyBreakdown();
     for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
         const isTimedHitStack = conditional.trigger === "onNonCriticalNoStatusHit";
-        if (conditionalState.mode === "initial" && !isTimedHitStack) continue;
+        const isExplicitTargetStatusCondition = conditional.trigger === "whileTargetHasStatus";
+        if (conditionalState.mode === "initial" && !isTimedHitStack && !isExplicitTargetStatusCondition) continue;
         const triggerUptime = isTimedHitStack && conditional.requiresAiming
             ? AIMING_UPTIME_ASSUMPTION
             : 1;
