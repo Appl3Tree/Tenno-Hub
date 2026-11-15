@@ -883,6 +883,12 @@ const VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES: Readonly<
     "/Lotus/Weapons/Tenno/LongGuns/PrimeAlternox/PrimeAlternoxWeapon": Object.freeze({
         "alt-fire damage over time": true,
     }),
+    // Azima's deployed magazine turret detonates with a small-radius Blast hit
+    // when its ammunition expires. The row is separate from the turret bullets.
+    // Verified 2026-11-15: https://wiki.warframe.com/w/Azima
+    "/Lotus/Weapons/Tenno/Pistols/SundialGun/SundialPistol": Object.freeze({
+        "turret expiry": true,
+    }),
     // When a player shoots a Quanta cube it detonates in a 6 m radius. Keep
     // that area hit distinct from the cube's direct contact row.
     // Verified 2026-11-15:
