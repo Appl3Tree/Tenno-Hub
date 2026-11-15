@@ -767,6 +767,29 @@ describe("build optimizer scoring", () => {
         }
     });
 
+    it("does not score direct-hit per-status damage bonuses on source-marked AoE attacks", () => {
+        const perStatusBonus = { ...emptyEffect(), directDamagePerStatusBonus: 0.4 };
+        const directWeapon = {
+            ...makeWeapon({ impact: 100, heat: 100 }),
+            statusChance: 1,
+            fireRate: 10,
+            selectedAttackIsAreaDamage: false,
+        };
+        const areaWeapon = { ...directWeapon, selectedAttackIsAreaDamage: true };
+        const score = (weapon: WeaponEntry, effects: ModEffect[]) => debugScoreBuild(
+            weapon,
+            effects,
+            "burst",
+            "Grineer",
+            null,
+            null,
+            { mode: "fullyStacked" },
+        );
+
+        expect(score(directWeapon, [perStatusBonus])).toBeGreaterThan(score(directWeapon, []));
+        expect(score(areaWeapon, [perStatusBonus])).toBeCloseTo(score(areaWeapon, []), 12);
+    });
+
     it("includes the selected heavy attack's active combo tier in exact objective scoring", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
         expect(weapon).toBeTruthy();

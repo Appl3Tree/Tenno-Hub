@@ -289,7 +289,7 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     statusRollsPerAttack?: number;
     /** Forced and status-triggered applications, independent of ordinary proc weighting. */
     forcedStatusApplicationsPerAttackByType?: Partial<Record<StatusDamageType, number>>;
-    /** Target status immunities and encounter-specific stack caps. */
+    /** Target status immunities and encounter-specific stack caps, including the VIP Puncture limit. */
     statusImmuneTypes?: Iterable<StatusDamageType>;
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
     /** Legacy expected single-stack expiry damage seeded by one attack. */

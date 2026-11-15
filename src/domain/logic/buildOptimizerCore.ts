@@ -229,6 +229,7 @@ interface TargetProfile {
     effectiveHealth: number;
     toxinBypassesShields?: boolean;
     statusImmuneTypes?: ReadonlySet<typeof PROC_DAMAGE_KEYS[number]>;
+    /** Target-specific status limits, including VIP Puncture or Overguard Cold caps. */
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
 }
 
