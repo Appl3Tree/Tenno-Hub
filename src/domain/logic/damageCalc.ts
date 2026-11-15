@@ -38,6 +38,10 @@ type DamageKey = DamageType;
 
 const DAMAGE_KEYS: DamageKey[] = [...DAMAGE_TYPES];
 
+// Preserve the Wiki's HCET order for innate primary elements. For Kuva/Tenet
+// weapons this places the earlier of the weapon and progenitor elements
+// second-to-last, with the later HCET element last in the combination queue.
+// https://wiki.warframe.com/w/Damage
 const PRIMARY_ELEMENTS: DamageKey[] = ["heat", "cold", "electricity", "toxin"];
 
 const COMBINED_ELEMENTS: Record<string, DamageKey> = {

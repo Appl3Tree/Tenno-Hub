@@ -4,13 +4,19 @@ Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Buil
 
 ## Latest follow-up (2026-11-15)
 
+### Innate weapon and progenitor element order
+
+The current [Damage Types Wiki page](https://wiki.warframe.com/w/Damage_Types) places modded elements in slot order, followed by innate primary elements in Heat, Cold, Electricity, Toxin order. For Kuva/Tenet weapons with one weapon element and a different progenitor element, the earlier HCET element is second-to-last and the other is last. The calculator already used this order; this follow-up adds regressions for all six innate pairs with slotted-element combinations and a Tenet Cycron case. The current [Tenet Cycron Wiki page](https://wiki.warframe.com/w/Tenet_Cycron) confirms innate Heat and the progenitor bonus.
+
+All 709 tests across 52 files pass. Production build, `validate:sources`, prerequisite audit, mod-effect audit (485/599 parsed, 114 without parsed effects, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass. The existing Vite large-chunk warning remains. Overall Damage 3.0 and optimizer-quality criteria remain open; this closes the innate/progenitor ordering check only.
+
 ### Wiki lookup-input correction and Sicarus Prime Wiseman's Regard
 
 The attached Stance-Average DPS Inputs screenshot shows a superseded panel. The current melee stance view obtains Neutral-combo multipliers and timing from the Wiki reference table and calculates the estimate automatically; players do not enter lookup values. That existing correction is recorded above and was previously verified on port 80.
 
 The current [Sicarus Incarnon Wiki page](https://wiki.warframe.com/w/Sicarus_Incarnon_Genesis) identifies Wiseman's Regard as Prime-only and defines its bonus as up to +40 percentage points of base Status Chance from 30% of current Critical Chance. The generated snapshot had exposed the option for standard Sicarus and left the Prime effect as unparsed prose. The runtime catalog now removes the option from standard Sicarus and parses it for Sicarus Prime. Calculation uses the selected Normal or Incarnon attack row's current modeled Critical Chance, caps the base Status Chance addition at 40 points, and then applies ordinary additive/final Status Chance effects. The picker retains the Wiki caveats and says Critical Chance sources absent from the planner are not inferred.
 
-Regressions cover Prime-only availability, optimizer candidates, each Sicarus Prime attack form's own Critical Chance, mod scaling, the cap, and inactive state without the perk. All 708 tests across 52 files pass. Production build, `validate:sources`, prerequisite audit, mod-effect audit (485/599 parsed, 114 without a parsed effect, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass. Opening the in-app browser on port 80 returned a queued status, so this follow-up has no new visual confirmation. Overall Damage 3.0 and optimizer-quality criteria remain open.
+Regressions cover Prime-only availability, optimizer candidates, each Sicarus Prime attack form's own Critical Chance, mod scaling, the cap, and inactive state without the perk. All 708 tests across 52 files passed for the original build; the follow-up build's suite now passes 709 tests across 52 files. Production build, `validate:sources`, prerequisite audit, mod-effect audit (485/599 parsed, 114 without a parsed effect, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass. PR #84 merged to `main` as `b8b7589`; Pages deployment #162 succeeded. The in-app browser request returned queued, so no new visual confirmation is recorded here. Overall Damage 3.0 and optimizer-quality criteria remain open.
 
 ### Weapon compatibility audit: Perigale and Buzlok (2026-11-15)
 

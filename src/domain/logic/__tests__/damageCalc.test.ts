@@ -1468,6 +1468,66 @@ describe("damage calculation status eligibility", () => {
         expect(result.viral).toBe(0);
     });
 
+    it("orders innate weapon and progenitor elements in Wiki HCET order", () => {
+        const hcet = ["heat", "cold", "electricity", "toxin"] as const;
+        const combinedTypeByPair: Record<string, "blast" | "radiation" | "gas" | "magnetic" | "viral" | "corrosive"> = {
+            "heat+cold": "blast", "cold+heat": "blast",
+            "heat+electricity": "radiation", "electricity+heat": "radiation",
+            "heat+toxin": "gas", "toxin+heat": "gas",
+            "cold+electricity": "magnetic", "electricity+cold": "magnetic",
+            "cold+toxin": "viral", "toxin+cold": "viral",
+            "electricity+toxin": "corrosive", "toxin+electricity": "corrosive",
+        };
+        const elementalEffect = (element: typeof hcet[number]) => {
+            const effect = emptyEffect();
+            if (element === "heat") effect.heatBonus = 1;
+            else if (element === "cold") effect.coldBonus = 1;
+            else if (element === "electricity") effect.electricityBonus = 1;
+            else effect.toxinBonus = 1;
+            return effect;
+        };
+
+        for (let firstIndex = 0; firstIndex < hcet.length; firstIndex += 1) {
+            for (let secondIndex = firstIndex + 1; secondIndex < hcet.length; secondIndex += 1) {
+                const firstInnate = hcet[firstIndex];
+                const secondInnate = hcet[secondIndex];
+                const slottedElement = hcet.find((element) => element !== firstInnate && element !== secondInnate)!;
+                const damage: Partial<WeaponEntry["damage"]> = { impact: 112 };
+                damage[firstInnate] = 8;
+                damage[secondInnate] = 8;
+
+                // A progenitor weapon's two innate primary types follow all
+                // slotted elements; the HCET-first one is encountered first.
+                const result = calculateBuild(makeWeapon(damage), [elementalEffect(slottedElement)]).modded.damageBreakdown;
+                const expectedCombinedType = combinedTypeByPair[`${slottedElement}+${firstInnate}`];
+                expect(expectedCombinedType, `${slottedElement} + ${firstInnate}`).toBeDefined();
+                expect(result[expectedCombinedType]).toBeCloseTo(136, 12);
+                expect(result[secondInnate]).toBeCloseTo(8, 12);
+            }
+        }
+
+        // Tenet Cycron has innate Heat. Its selected Toxin progenitor damage
+        // follows Heat in HCET, so a slotted Cold element combines with Heat
+        // as Blast and leaves Toxin independent.
+        const tenetCycron = getWeaponCatalog().find((weapon) => weapon.name === "Tenet Cycron");
+        expect(tenetCycron).toMatchObject({ isProgenitorWeapon: true });
+        expect(tenetCycron!.damage.heat).toBeGreaterThan(0);
+        const progenitorToxin = tenetCycron!.damage.total * 0.4;
+        const valencedTenetCycron = {
+            ...tenetCycron!,
+            damage: {
+                ...tenetCycron!.damage,
+                toxin: tenetCycron!.damage.toxin + progenitorToxin,
+                total: tenetCycron!.damage.total + progenitorToxin,
+            },
+        };
+        const tenetResult = calculateBuild(valencedTenetCycron, [elementalEffect("cold")]).modded.damageBreakdown;
+        expect(tenetResult.blast).toBeGreaterThan(0);
+        expect(tenetResult.toxin).toBeGreaterThan(0);
+        expect(tenetResult.viral).toBe(0);
+        expect(tenetResult.heat).toBe(0);
+    });
+
     it("uses critical multiplier quantization before relative critical damage bonuses", () => {
         const weapon = { ...makeWeapon({ impact: 100 }), critChance: 1, critMultiplier: 2 };
         const result = calculateBuild(weapon, [{ ...emptyEffect(), critMultBonus: 1 }]).modded;
