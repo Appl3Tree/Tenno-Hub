@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 122297)
-Total output lines: 6747
-
 // src/pages/tools/ModBuilder.tsx
 // Weapon Mod Builder — complete implementation with:
 //   polarity icons · mod rank selection · exilus slot · arcane slots ×2
@@ -3365,7 +3362,1556 @@ export default function ModBuilder() {
                 ...p,
                 weaponRank: 30,
                 hasCatalyst: false,
-                valenceBonusPct…22297 tokens truncated…al stacks</option>
+                valenceBonusPct: 0.25,
+                valenceElement: "heat",
+                optimizeValenceElement: false,
+                incarnonUnlockedTier: 0,
+                incarnonSelectedOptionsByTier: {},
+                optimizeIncarnonSelections: false,
+            }));
+        }
+        setReasoning(null);
+        setReasoningMath(null);
+        setShowMathWindow(false);
+    }
+
+    function handleSelectWeapon(w: WeaponEntry) {
+        setWeapon(w);
+        resetBuildForWeapon(w, { resetConfig: true });
+    }
+
+    const compatMods   = useMemo(() => {
+        if (!weapon) return [];
+        const baseMods = getModsForWeapon(weapon);
+        const customRivens = inventoryCustomRivens
+            .filter((riven: CustomRivenRecord) => !riven.importStatus || riven.importStatus === "ready")
+            .filter((riven: CustomRivenRecord) => customRivenSupportsWeapon(riven, weapon))
+            .map((riven: CustomRivenRecord) => buildCustomRivenEntry(riven));
+        return [...filterBuilderExpertVariants(baseMods), ...customRivens];
+    }, [weapon, inventoryCustomRivens]);
+    const stanceMods   = useMemo(() => {
+        if (!weapon) return [];
+        const mods = getStancesForWeapon(weapon);
+        return filterBuilderExpertVariants(mods);
+    }, [weapon]);
+    const fixedStanceMod = useMemo(() => {
+        if (!weapon) return null;
+        return stanceMods.find((mod) => mod.isBuiltIn) ?? null;
+    }, [weapon, stanceMods]);
+    const weaponArcanes = useMemo(() => weapon ? getArcanesForWeapon(weapon) : [], [weapon]);
+    const hasEnergyScaledArcanes = weaponArcanes.some((entry) => !!entry.energyScaledMultishot);
+    const selectedArcaneEnergyEffect = arcane1?.energyScaledMultishot
+        ? getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, false, arcaneEnergyContext)
+        : null;
+    const warframeEnergyArcanePanel = hasEnergyScaledArcanes ? (
+        <div className="mt-2 space-y-1.5 rounded-lg border border-violet-900/50 bg-violet-950/15 p-2">
+            <div className="text-[10px] font-semibold text-slate-300">Warframe Energy · Primary Overcharge</div>
+            <div className="grid grid-cols-2 gap-2">
+                <label className="block text-[9px] text-slate-400">
+                    Max Energy
+                    <input
+                        id="warframe-max-energy-input"
+                        aria-label="Warframe Maximum Energy for Primary Overcharge"
+                        type="number"
+                        min={0}
+                        max={10000}
+                        step={1}
+                        value={warframeMaxEnergyInput}
+                        onChange={(event) => setWarframeMaxEnergyInput(event.target.value)}
+                        placeholder="Max energy"
+                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600"
+                    />
+                </label>
+                <label className="block text-[9px] text-slate-400">
+                    Current Energy (%)
+                    <input
+                        id="warframe-energy-percent-input"
+                        aria-label="Current Warframe Energy percent for Primary Overcharge"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={warframeEnergyPercentInput}
+                        onChange={(event) => setWarframeEnergyPercentInput(event.target.value)}
+                        placeholder="0–100"
+                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600"
+                    />
+                </label>
+            </div>
+            <p className="text-[9px] leading-relaxed text-slate-500">At 90% current Energy, Primary Overcharge adds 35% of Max Energy as Multishot, up to its rank cap. This is a static scenario; energy use and regeneration during an encounter are not simulated. Both values are saved with this planner build.</p>
+            {(arcane1?.energyScaledMultishot || optArcane) && (warframeMaxEnergy === undefined || warframeEnergyPercent === undefined) && (
+                <p role="status" className="text-[9px] leading-relaxed text-amber-300">Energy-dependent Arcane bonuses are not calculated or considered by Auto Optimize until both values are entered.</p>
+            )}
+            {selectedArcaneEnergyEffect && (
+                <p className="text-[9px] text-violet-300">Selected rank bonus: +{(((selectedArcaneEnergyEffect.multishotBonus ?? 0) * 100).toFixed(1))}% Multishot.</p>
+            )}
+        </div>
+    ) : null;
+    const incarnonRecord = useMemo(() => getIncarnonRecordForWeapon(weapon), [weapon]);
+    const selectedIncarnonTierCount = useMemo(
+        () => getSelectedIncarnonTierCount(buildCfg.incarnonSelectedOptionsByTier),
+        [buildCfg.incarnonSelectedOptionsByTier],
+    );
+    const activeIncarnonTier = useMemo(
+        () => incarnonPickerTier ? incarnonRecord?.tiers.find((tier) => tier.tier === incarnonPickerTier) ?? null : null,
+        [incarnonPickerTier, incarnonRecord],
+    );
+    useEffect(() => {
+        if (!activeIncarnonTier && !showMathWindow) return;
+
+        const dialog = showMathWindow ? mathDialogRef.current : incarnonDialogRef.current;
+        if (!dialog) return;
+
+        const previouslyFocused = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        const previousOverflow = document.documentElement.style.overflow;
+        document.documentElement.style.overflow = "hidden";
+        dialog.focus();
+
+        function onKeyDown(event: KeyboardEvent) {
+            const activeModal = Array.from(document.querySelectorAll<HTMLElement>('[aria-modal="true"]')).at(-1);
+            if (activeModal !== dialog) return;
+
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                if (showMathWindow) setShowMathWindow(false);
+                else setIncarnonPickerTier(null);
+                return;
+            }
+            if (event.key !== "Tab") return;
+
+            const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ));
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialog.focus();
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            } else if (!dialog.contains(document.activeElement)) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
+
+        window.addEventListener("keydown", onKeyDown);
+        return () => {
+            window.removeEventListener("keydown", onKeyDown);
+            document.documentElement.style.overflow = previousOverflow;
+            if (previouslyFocused?.isConnected) previouslyFocused.focus();
+        };
+    }, [activeIncarnonTier, showMathWindow]);
+    useEffect(() => {
+        if (!incarnonPickerTier) return;
+        if (!incarnonRecord?.tiers.some((tier) => tier.tier === incarnonPickerTier)) {
+            setIncarnonPickerTier(null);
+        }
+    }, [incarnonPickerTier, incarnonRecord]);
+    const trackableMods = useMemo(() => {
+        const seen = new Set<string>();
+        const out: ModEntry[] = [];
+        for (const mod of [...compatMods, ...stanceMods]) {
+            if (seen.has(mod.uniqueName)) continue;
+            seen.add(mod.uniqueName);
+            out.push(mod);
+        }
+        return out;
+    }, [compatMods, stanceMods]);
+    const ownedSet     = useMemo(() => new Set(
+        trackableMods
+            .filter(mod => mod.compatBucket === "Riven" || Number(inventoryCounts[`mods:${mod.path}`] ?? inventoryCounts[mod.path] ?? 0) > 0)
+            .map(mod => mod.uniqueName)
+    ), [trackableMods, inventoryCounts]);
+    const ownedModMaxRankByUniqueName = useMemo(() => {
+        const out: Record<string, number> = {};
+        for (const mod of trackableMods) {
+            if (mod.compatBucket === "Riven") {
+                out[mod.uniqueName] = mod.fusionLimit;
+                continue;
+            }
+            if (Number(inventoryCounts[`mods:${mod.path}`] ?? inventoryCounts[mod.path] ?? 0) <= 0) continue;
+            out[mod.uniqueName] = getOwnedModRank(mod.path, mod.fusionLimit, inventoryCounts, inventoryModRanks);
+        }
+        return out;
+    }, [trackableMods, inventoryCounts, inventoryModRanks]);
+    const ownedArcaneUniqueNames = useMemo(() => {
+        const set = new Set<string>();
+        for (const arcane of weaponArcanes) {
+            const totalByCounts = Number(inventoryCounts[`mods:${arcane.uniqueName}`] ?? inventoryCounts[arcane.uniqueName] ?? 0);
+            if (hasOwnedArcane(inventoryArcaneRanks[arcane.uniqueName], totalByCounts)) {
+                set.add(arcane.uniqueName);
+            }
+        }
+        return set;
+    }, [weaponArcanes, inventoryArcaneRanks, inventoryCounts]);
+    const ownedArcaneMaxRankByUniqueName = useMemo(() => {
+        const out: Record<string, number> = {};
+        for (const arcane of weaponArcanes) {
+            const rankCounts = inventoryArcaneRanks[arcane.uniqueName] ?? {};
+            const fallbackCount = Number(inventoryCounts[`mods:${arcane.uniqueName}`] ?? inventoryCounts[arcane.uniqueName] ?? 0);
+            const highestOwnedRank = getHighestOwnedArcaneRankWithFallback(rankCounts, fallbackCount);
+            if (highestOwnedRank !== null) {
+                out[arcane.uniqueName] = Math.min(arcane.maxRank, highestOwnedRank);
+            }
+        }
+        return out;
+    }, [weaponArcanes, inventoryArcaneRanks, inventoryCounts]);
+    const usedGroups   = useMemo(() => {
+        const s = new Set(slots.filter(Boolean).map(m => m!.incompatibilityGroup));
+        if (stanceMod) s.add(stanceMod.incompatibilityGroup);
+        if (exilusMod) s.add(exilusMod.incompatibilityGroup);
+        return s;
+    }, [slots, stanceMod, exilusMod]);
+    const maxOptimizerForma = useMemo(() => maxOptimizerFormaForWeapon(weapon), [weapon]);
+    const optimizerInputSignature = useMemo(() => JSON.stringify({
+        weapon: weapon?.uniqueName,
+        attack: selectedAttackIdx,
+        goal,
+        conditionalState,
+        factionOn,
+        faction,
+        buildCfg,
+        slots: slots.map((mod) => mod?.uniqueName ?? null),
+        ranks,
+        slotPols,
+        stance: [stanceMod?.uniqueName, stanceRank, stancePol],
+        exilus: [hasExilus, exilusMod?.uniqueName, exilusRank, exilusPol],
+        arcane: [arcane1?.uniqueName, arcane1Rank, includeArcaneStats],
+        warframeArmor,
+        warframeMaxEnergy,
+        warframeEnergyPercent,
+        mode: optimizeMode,
+        options: [allowNonMax, onlyOwned, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane],
+        targetProfileOverride,
+        owned: onlyOwned ? [...ownedSet].sort() : [],
+        ownedRanks: onlyOwned ? ownedModMaxRankByUniqueName : {},
+        ownedArcanes: onlyOwned ? [...ownedArcaneUniqueNames].sort() : [],
+        ownedArcaneRanks: onlyOwned ? ownedArcaneMaxRankByUniqueName : {},
+        excluded: [...excluded].sort(),
+        candidates: compatMods.map((mod) => [mod.uniqueName, mod.effect]),
+    }), [
+        weapon, selectedAttackIdx, goal, conditionalState, factionOn, faction, targetProfileOverride, buildCfg,
+        slots, ranks, slotPols, stanceMod, stanceRank, stancePol, hasExilus, exilusMod, exilusRank, exilusPol,
+        arcane1, arcane1Rank, includeArcaneStats, optimizeMode, allowNonMax, onlyOwned, allowCatalyst,
+        warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
+        allowForma, maxFormaAllowed, optExilus, optArcane, ownedSet, ownedModMaxRankByUniqueName,
+        ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded, compatMods,
+    ]);
+    const optimizerInputSignatureRef = useRef(optimizerInputSignature);
+    useEffect(() => {
+        if (
+            optimizing &&
+            !optimizerApplyingRef.current &&
+            optimizerInputSignatureRef.current !== optimizerInputSignature
+        ) cancelOptimization();
+        optimizerInputSignatureRef.current = optimizerInputSignature;
+    }, [optimizerInputSignature, optimizing, cancelOptimization]);
+
+    // Forma count: count slots whose current polarity differs from weapon default
+    const formaCount = useMemo(() => {
+        if (!weapon) return 0;
+        const defaultMainPolarities = [...weapon.polarities];
+        while (defaultMainPolarities.length < SLOT_COUNT) defaultMainPolarities.push("");
+        const includesStance = supportsStanceLikeMods(weapon);
+        const includesExilus = hasExilus || !!exilusMod;
+        const defaults = [
+            ...defaultMainPolarities,
+            ...(includesStance ? [weapon.stancePolarity ?? ""] : []),
+            ...(includesExilus ? [""] : []),
+        ];
+        const current = [
+            ...slotPols,
+            ...(includesStance ? [stancePol] : []),
+            ...(includesExilus ? [exilusPol] : []),
+        ];
+        return countPolarityChanges(defaults, current);
+    }, [weapon, slotPols, stancePol, exilusPol, hasExilus, exilusMod]);
+
+    const currentBuildExport = useMemo(() => buildExportPayload({
+        weapon,
+        selectedAttackIdx,
+        meleeDpsInputs,
+        goal,
+        conditionalState,
+        targetFaction: factionOn ? faction : null,
+        targetProfileOverride,
+        buildCfg,
+        includeArcaneStats,
+        slots,
+        ranks,
+        slotPols,
+        stanceMod,
+        stanceRank,
+        stancePol,
+        formaCount,
+        exilusEnabled: hasExilus,
+        exilusMod,
+        exilusRank,
+        exilusPol,
+        arcane: arcane1,
+        arcaneRank: arcane1Rank,
+        warframeArmor,
+        warframeMaxEnergy,
+        warframeEnergyPercent,
+        optimizeMode,
+        respectCap,
+        allowNonMax,
+        onlyOwned,
+        factionOn,
+        allowCatalyst,
+        allowForma,
+        maxFormaAllowed,
+        optExilus,
+        optArcane,
+        compatMods,
+        weaponArcanes,
+        ownedSet,
+        ownedModMaxRankByUniqueName,
+        ownedArcaneUniqueNames,
+        ownedArcaneMaxRankByUniqueName,
+        excluded,
+    }), [
+        weapon, selectedAttackIdx, goal, conditionalState, factionOn, faction, targetProfileOverride, meleeDpsInputs, buildCfg, includeArcaneStats, warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
+        slots, ranks, slotPols, stanceMod, stanceRank, stancePol, formaCount, hasExilus, exilusMod, exilusRank, exilusPol, arcane1, arcane1Rank,
+        optimizeMode, respectCap, allowNonMax, onlyOwned, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane,
+        compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
+    ]);
+
+    const activeWeaponState = useMemo(() => {
+        if (!weapon) return null;
+        return applyWeaponConfig(weapon, selectedAttackIdx, buildCfg);
+    }, [weapon, selectedAttackIdx, buildCfg]);
+    const activeCalcWeapon = activeWeaponState?.selectedWeapon ?? null;
+    const phantasmaAltFireModelNote = activeCalcWeapon &&
+        (activeCalcWeapon.name === "Phantasma" || activeCalcWeapon.name === "Phantasma Prime") &&
+        /^(plasma bomb|cluster bombs)/i.test(activeCalcWeapon.selectedAttackName ?? "")
+        ? "The selected row scales linearly from its Wiki baseline at 2 ammo using the chosen charge amount; the charge rate is fixed at 11 ammo/sec and is unaffected by fire-rate mods. Each row represents one part of the attack. Magazine-depletion charge-cost changes and the incremental-charge damage bug are not simulated, and the bomb plus five bomblets, projectile travel, and falloff are not combined. Treat these as single-row proxies."
+        : "";
+    const activeIncarnonUnsupportedLines = useMemo(
+        () => activeWeaponState?.appliedIncarnonOptions.flatMap((option) =>
+            option.model.unsupportedLines.map((line) => `${option.name}: ${line}`),
+        ) ?? [],
+        [activeWeaponState],
+    );
+    const activeIncarnonHasExpectedHitProcs = activeWeaponState?.activeIncarnonEffects.some(
+        (effect) => (effect.nonCriticalHitDamageProcs?.length ?? 0) > 0,
+    ) ?? false;
+    const displayedMath = (reasoningContextAtOptimization === currentReasoningContextKey ? reasoningMath : null) ?? currentBuildExport?.math ?? null;
+    async function handleCopyBuildExport() {
+        if (!currentBuildExport) return;
+        const json = JSON.stringify(currentBuildExport, null, 2);
+        await navigator.clipboard.writeText(json);
+        setCopiedExport(true);
+        setTimeout(() => setCopiedExport(false), 2000);
+    }
+
+    async function handleShareBuildImage() {
+        if (!currentBuildExport || sharingBuildImage) return;
+        setSharingBuildImage(true);
+        try {
+            const blob = await generateBuildShareImage(currentBuildExport);
+            const safeWeapon = currentBuildExport.weapon.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+            const safeAttack = (currentBuildExport.weapon.selectedAttack ?? "build")
+                .replace(/[^a-z0-9]+/gi, "-")
+                .replace(/^-+|-+$/g, "")
+                .toLowerCase();
+            const fileName = `${safeWeapon || "weapon"}-${safeAttack || "build"}-build.png`;
+            const file = new File([blob], fileName, { type: "image/png" });
+            const nav = navigator as Navigator & {
+                canShare?: (data?: ShareData) => boolean;
+            };
+
+            if (nav.share && nav.canShare?.({ files: [file] })) {
+                await nav.share({
+                    files: [file],
+                });
+            } else {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+
+            setSharedBuildImage(true);
+            setTimeout(() => setSharedBuildImage(false), 2200);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setSharingBuildImage(false);
+        }
+    }
+
+    function handleSlotChange(i: number, mod: ModEntry | null) {
+        setSlots(p => { const n = [...p]; n[i] = mod; return n; });
+        setRanks(p => { const n = [...p]; n[i] = mod ? mod.fusionLimit : 0; return n; });
+        setReasoning(null);
+        setReasoningMath(null);
+        setShowMathWindow(false);
+    }
+
+    useEffect(() => {
+        if (!weapon || !fixedStanceMod) return;
+        if (stanceMod?.uniqueName === fixedStanceMod.uniqueName && stanceRank === fixedStanceMod.fusionLimit) return;
+        setStanceMod(fixedStanceMod);
+        setStanceRank(fixedStanceMod.fusionLimit);
+    }, [weapon, fixedStanceMod, stanceMod, stanceRank]);
+    function handleRankChange(i: number, r: number) {
+        setRanks(p => { const n = [...p]; n[i] = r; return n; });
+        setReasoning(null);
+        setReasoningMath(null);
+        setShowMathWindow(false);
+    }
+    function handlePolChange(i: number, p: string)  {
+        setSlotPols(p2 => { const n = [...p2]; n[i] = p; return n; });
+        setReasoning(null);
+        setReasoningMath(null);
+        setShowMathWindow(false);
+    }
+    function handleExilusChange(_: number, m: ModEntry | null) {
+        setExilusMod(m); setExilusRank(m ? m.fusionLimit : 0);
+        setReasoning(null);
+        setReasoningMath(null);
+        setShowMathWindow(false);
+    }
+    function getSlotMod(ref: DragSlotRef | null): ModEntry | null {
+        if (!ref) return null;
+        return ref.kind === "main" ? slots[ref.index] : exilusMod;
+    }
+    function getSlotRank(ref: DragSlotRef | null): number {
+        if (!ref) return 0;
+        return ref.kind === "main" ? (ranks[ref.index] ?? 0) : exilusRank;
+    }
+    function canPlaceModInSlot(mod: ModEntry | null, kind: DragSlotKind): boolean {
+        if (!mod) return true;
+        return kind === "main" ? true : !!mod.isExilus;
+    }
+    function canSwapSlots(source: DragSlotRef | null, target: DragSlotRef | null): boolean {
+        if (!source || !target) return false;
+        if (source.kind === target.kind && source.index === target.index) return false;
+        const sourceMod = getSlotMod(source);
+        if (!sourceMod) return false;
+        const targetMod = getSlotMod(target);
+        return canPlaceModInSlot(sourceMod, target.kind) && canPlaceModInSlot(targetMod, source.kind);
+    }
+    function handleDropSwap(target: DragSlotRef) {
+        if (!draggedSlot || !canSwapSlots(draggedSlot, target)) {
+            setDragOverSlot(null);
+            setDraggedSlot(null);
+            return;
+        }
+
+        const source = draggedSlot;
+        const sourceMod = getSlotMod(source);
+        const targetMod = getSlotMod(target);
+        const sourceRank = getSlotRank(source);
+        const targetRank = getSlotRank(target);
+
+        if (source.kind === "main" && target.kind === "main") {
+            setSlots((prev) => {
+                const next = [...prev];
+                next[source.index] = targetMod;
+                next[target.index] = sourceMod;
+                return next;
+            });
+            setRanks((prev) => {
+                const next = [...prev];
+                next[source.index] = targetMod ? targetRank : 0;
+                next[target.index] = sourceMod ? sourceRank : 0;
+                return next;
+            });
+        } else if (source.kind === "main" && target.kind === "exilus") {
+            setSlots((prev) => {
+                const next = [...prev];
+                next[source.index] = targetMod;
+                return next;
+            });
+            setRanks((prev) => {
+                const next = [...prev];
+                next[source.index] = targetMod ? targetRank : 0;
+                return next;
+            });
+            setExilusMod(sourceMod);
+            setExilusRank(sourceMod ? sourceRank : 0);
+        } else if (source.kind === "exilus" && target.kind === "main") {
+            setSlots((prev) => {
+                const next = [...prev];
+                next[target.index] = sourceMod;
+                return next;
+            });
+            setRanks((prev) => {
+                const next = [...prev];
+                next[target.index] = sourceMod ? sourceRank : 0;
+                return next;
+            });
+            setExilusMod(targetMod);
+            setExilusRank(targetMod ? targetRank : 0);
+        } else {
+            setExilusMod(targetMod);
+            setExilusRank(targetMod ? targetRank : 0);
+        }
+
+        setReasoning(null);
+        setReasoningMath(null);
+        setShowMathWindow(false);
+        setDragOverSlot(null);
+        setDraggedSlot(null);
+    }
+    function toggleExclude(uniqueName: string) {
+        setExcluded(previous => {
+            const next = new Set(previous);
+            if (next.has(uniqueName)) next.delete(uniqueName);
+            else next.add(uniqueName);
+            return next;
+        });
+    }
+
+    const capacityCfg: CapacityConfig = {
+        weaponRank: buildCfg.weaponRank, hasCatalyst: buildCfg.hasCatalyst,
+        masteryRank: buildCfg.masteryRank, canOverLevel: weapon?.canOverLevel ?? false,
+    };
+
+    const allSlotsForCap = useMemo(() => {
+        const s = [...slots];
+        if (weapon && supportsStanceLikeMods(weapon) && stanceMod) s.unshift(stanceMod);
+        if (hasExilus) s.push(exilusMod);
+        return s;
+    }, [slots, stanceMod, exilusMod, hasExilus, weapon]);
+    const allPolsForCap  = useMemo(() => {
+        const p = [...slotPols];
+        if (weapon && supportsStanceLikeMods(weapon) && stanceMod) p.unshift(stancePol);
+        if (hasExilus) p.push(exilusPol);
+        return p;
+    }, [slotPols, stancePol, exilusPol, hasExilus, weapon, stanceMod]);
+    const allRanksForCap = useMemo(() => {
+        const r = [...ranks];
+        if (weapon && supportsStanceLikeMods(weapon) && stanceMod) r.unshift(stanceRank);
+        if (hasExilus) r.push(exilusRank);
+        return r;
+    }, [ranks, stanceMod, stanceRank, exilusRank, hasExilus, weapon]);
+    const activeBuildEffects = useMemo(() => {
+        const effects: (ModEffect | null)[] = [
+            ...(activeWeaponState?.activeIncarnonEffects ?? []),
+            ...allSlotsForCap.map((mod, i) => {
+            if (!mod) return null;
+            const r = allRanksForCap[i] ?? mod.fusionLimit;
+            return mod.effectsByRank[r] ?? mod.effect;
+            }),
+        ];
+        if (includeArcaneStats && arcane1) {
+            const ae = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, true, arcaneEnergyContext);
+            if (ae) effects.push({
+                ...emptyEffect(),
+                ...ae,
+                conditionalEffects: [...(ae.conditionalEffects ?? [])],
+            });
+        }
+        return effects;
+    }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
+    const activeBuildEffectSourceLabels = useMemo(() => {
+        const labels = [
+            ...(activeWeaponState?.activeIncarnonEffects ?? []).map((_, index) => `selected Incarnon evolution ${index + 1}`),
+            ...allSlotsForCap.map((mod, i) => {
+                if (!mod) return `slot ${i + 1}`;
+                if (i < SLOT_COUNT) return `${getBuilderDisplayModName(mod)} (slot ${i + 1})`;
+                return `${getBuilderDisplayModName(mod)} (exilus)`;
+            }),
+        ];
+        if (includeArcaneStats && arcane1) labels.push(`${arcane1.name} (arcane)`);
+        return labels;
+    }, [activeWeaponState, allSlotsForCap, includeArcaneStats, arcane1]);
+    const activeTargetAssumptions = useMemo(
+        () => getTargetProfileAssumptions(factionOn ? faction : "", targetProfileOverride),
+        [factionOn, faction, targetProfileOverride],
+    );
+    const activeMetrics = useMemo(
+        () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
+            conditionalState,
+            statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
+            statusStackCaps: activeTargetAssumptions.statusStackCaps,
+        }) : null,
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions],
+    );
+    const phantasmaBeamDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
+        ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
+        : "";
+    const initialTargetMetrics = useMemo(
+        () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
+            conditionalState: { mode: "initial" },
+            statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
+            statusStackCaps: activeTargetAssumptions.statusStackCaps,
+            targetStatusState: "initial",
+        }) : null,
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, activeTargetAssumptions],
+    );
+    const meleeAverageDps = useMemo(() => {
+        if (
+            !weapon || !usesMeleeDamageModel(weapon.category) || !initialTargetMetrics ||
+            !meleeDpsInputs
+        ) return null;
+        return calculateMeleeAverageDps(initialTargetMetrics.modded, {
+            totalDamageMultiplier: meleeDpsInputs.totalDamageMultiplier,
+            totalSlashProcMultiplier: meleeDpsInputs.totalSlashProcMultiplier,
+            baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
+        });
+    }, [weapon, initialTargetMetrics, meleeDpsInputs]);
+    const encounterTargetMetrics = useMemo(
+        () => activeCalcWeapon ? calculateBuildForExpectedEncounter(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
+            conditionalState,
+            statusImmuneTypes: targetStatusImmunities,
+            statusStackCaps: targetProfileOverride?.statusStackCaps,
+            targetStatusState: "initial",
+        }) : null,
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, targetStatusImmunities, targetProfileOverride],
+    );
+    const activeProcMixLabel = activeMetrics
+        ? Object.entries(activeMetrics.modded.procChanceByType)
+            .filter(([, chance]) => (chance ?? 0) > 0)
+            .map(([type, chance]) => `${type[0].toUpperCase()}${type.slice(1)} ${fmt((chance ?? 0) * 100, 1)}%`)
+            .join(" · ") || "No eligible status procs"
+        : "—";
+    const selectedEnemyProfile = useMemo(
+        () => getEnemyProfile(selectedEnemyProfileId),
+        [selectedEnemyProfileId],
+    );
+    const activeTargetAttackInput = useMemo<DirectTargetDamageInput | null>(() => {
+        if (!activeMetrics) return null;
+        const stats = activeMetrics.modded;
+        const factionDamageBonus = factionOn
+            ? activeBuildEffects.reduce((sum, effect) =>
+                sum + (effect?.targetFaction?.toLowerCase() === faction.toLowerCase()
+                    ? effect.factionDamageBonus ?? 0
+                    : 0), 0)
+            : 0;
+        const combinedArmorStrip = 1 - ((1 - stats.heatArmorStrip) * (1 - stats.corrosiveArmorStrip));
+        return {
+            damageByType: stats.damageBreakdownBeforePerStatus,
+            health: activeTargetAssumptions.health,
+            shields: activeTargetAssumptions.shields,
+            overguard: activeTargetAssumptions.overguard,
+            armor: activeTargetAssumptions.armor,
+            armorDamageReductionMultiplier: Math.max(0, 1 - combinedArmorStrip),
+            baseArmorValue: targetProfileOverride?.armorBaseValue ?? activeTargetAssumptions.armor,
+            armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+            shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
+            faction: factionOn ? faction : "",
+            factionDamageBonus,
+            viralHealthDamageBonus: stats.viralHealthDamageBonus,
+            magneticDefenseDamageBonus: stats.magneticShieldDamageBonus,
+            toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
+            damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
+            expectedHitDamageMultiplier: avgHitDamageMultiplier(
+                stats.critChance + stats.punctureCritChanceBonus,
+                stats.critMultiplier + stats.coldCritDamageBonus,
+                stats.nonCriticalHitDamageProcs,
+            ),
+            expectedProjectiles: stats.multishot,
+            expectedDamageMultiplier: stats.damageWeightedMultishot,
+        };
+    }, [activeMetrics, activeBuildEffects, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
+    const activeTargetAttackDamage = useMemo(() => {
+        if (!activeTargetAttackInput || !activeMetrics) return null;
+        const stats = activeMetrics.modded;
+        return calculateDirectDamageToInitialPools({
+            ...activeTargetAttackInput,
+            damageRampMultiplier: stats.firstAttackDamageMultiplier * stats.firstShotMagazineDamageMultiplier,
+        });
+    }, [activeTargetAttackInput, activeMetrics]);
+    const activeTargetAttackSequence = useMemo(() => {
+        if (!activeTargetAttackInput || !activeMetrics) return null;
+        const stats = activeMetrics.modded;
+        return simulateDirectAttackSequence({
+            ...activeTargetAttackInput,
+            enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
+            attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+            shotsPerMagazine: stats.shotsPerMag,
+            infiniteAmmoActive: stats.infiniteAmmoActive,
+            firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
+            lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
+            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+            critChance: stats.critChance + stats.punctureCritChanceBonus,
+            critMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
+            ...(activeCalcWeapon?.selectedAttackUsesMeleeComboMultiplier && activeCalcWeapon
+                ? {
+                    heavyAttackCombo: {
+                        startingPoints: stats.meleeComboPointsBeforeHeavyAttack,
+                        startingMultiplier: stats.meleeComboMultiplier,
+                        pointsPerTier: getMeleeComboRules(activeCalcWeapon).pointsPerTier,
+                        maxMultiplier: getMeleeComboRules(activeCalcWeapon).maxMultiplier,
+                        heavyAttackEfficiency: stats.heavyAttackEfficiency,
+                        initialComboPoints: stats.meleeInitialComboPoints,
+                        startingCritChance: stats.critChance + stats.punctureCritChanceBonus,
+                        critChancePerTier: stats.comboCritChancePerTier,
+                        critDamageMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
+                    },
+                }
+                : {}),
+            ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
+        });
+    }, [activeTargetAttackInput, activeMetrics, activeCalcWeapon, targetProfileOverride]);
+    const activeTargetEncounter = useMemo(() => {
+        if (!encounterTargetMetrics) return null;
+        const stats = encounterTargetMetrics.modded;
+        const factionDamageBonus = factionOn
+            ? activeBuildEffects.reduce((sum, effect) =>
+                sum + (effect?.targetFaction?.toLowerCase() === faction.toLowerCase()
+                    ? effect.factionDamageBonus ?? 0
+                    : 0), 0)
+            : 0;
+        return simulateExpectedWeaponEncounter({
+            damageByType: stats.damageBreakdownBeforePerStatus,
+            rawDamageByType: stats.rawDamageBreakdownBeforePerStatus,
+            baseDamageTotal: stats.baseDamageTotal,
+            health: activeTargetAssumptions.health,
+            shields: activeTargetAssumptions.shields,
+            overguard: activeTargetAssumptions.overguard,
+            maxShields: activeTargetAssumptions.shields,
+            maxOverguard: activeTargetAssumptions.overguard,
+            armor: activeTargetAssumptions.armor,
+            baseArmorValue: targetProfileOverride?.armorBaseValue ?? activeTargetAssumptions.armor,
+            armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+            shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
+            faction: factionOn ? faction : "",
+            factionDamageBonus,
+            toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
+            enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
+            damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
+            critChance: stats.critChance,
+            critMultiplier: stats.critMultiplier,
+            nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
+            expectedProjectiles: stats.multishot,
+            expectedDamageMultiplier: stats.damageWeightedMultishot,
+            attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+            shotsPerMagazine: stats.shotsPerMag,
+            infiniteAmmoActive: stats.infiniteAmmoActive,
+            firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
+            lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
+            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+            ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
+            statusDurationMultiplier: stats.statusDurationMultiplier,
+            dotDamagePerAttackByType: stats.dotDamagePerShotByType,
+            dotDamagePerApplicationByType: Object.fromEntries(
+                Object.entries(stats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
+                    const type = rawType as StatusDamageType;
+                    const applications = stats.averageProcsPerShot * (stats.procChanceByType[type] ?? 0);
+                    return applications > 0 ? [[type, damagePerAttack / applications]] : [];
+                }),
+            ) as Partial<Record<StatusDamageType, number>>,
+            heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
+            heatDotAccumulatorDamagePerTick: stats.dotTickAccumulatorDamageByType.heat,
+            dotSeedDamagePerApplicationByType: stats.dotDamagePerApplicationSeedByType,
+            dotAccumulatorDamagePerApplicationByType: stats.dotDamagePerApplicationAccumulatorByType,
+            statusProcWeightsByType: stats.damageBreakdownBeforePerStatus,
+            statusRollsPerAttack: stats.multishot * stats.statusChance,
+            forcedStatusApplicationsPerAttackByType: stats.unfilteredExtraProcsPerShot as Partial<Record<StatusDamageType, number>>,
+            statusImmuneTypes: targetStatusImmunities,
+            statusStackCaps: targetProfileOverride?.statusStackCaps,
+            blastStackHitDamagePerProc: stats.blastStackHitDamagePerProcBeforeConditionOverload,
+            nearbyBlastEnemyCount: targetProfileOverride?.nearbyBlastEnemyCount,
+            nearbyElectricGasEnemyCount: targetProfileOverride?.nearbyEnemyCount,
+            magneticBreakElectricSourceMultiplier: stats.magneticBreakElectricSourceMultiplier,
+            directDamagePerStatusBonus: stats.directDamagePerStatusBonus,
+            conditionOverloadDamagePerStatusBonus: stats.conditionOverloadApplies
+                ? stats.conditionOverloadDamagePerStatusBonus
+                : 0,
+            externalConditionOverloadStatusTypeCount: externalStatusTypeCount,
+            uniqueStatusProcsPerAttack: activeCalcWeapon?.uniqueStatusProcs,
+            intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
+            intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
+            totalDamageBonus: stats.totalDamageBonus,
+            timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
+        });
+    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount]);
+    const activeEncounterStatusSummary = activeTargetEncounter
+        ? Object.entries(activeTargetEncounter.statusApplicationsByType)
+            .filter(([, count]) => (count ?? 0) >= 0.01)
+            .map(([type, count]) => `${type[0].toUpperCase()}${type.slice(1)} ${fmt(count ?? 0, 1)}`)
+            .join(" · ") || "None"
+        : "—";
+    const activeTargetSummary = selectedEnemyProfile
+        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        : targetProfileOverride
+        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        : factionOn
+            ? `${faction} synthetic faction estimate`
+            : "Balanced synthetic target estimate";
+    const activeDamageTypeSources = useMemo(
+        () => activeCalcWeapon ? buildDamageTypeSourceDescriptions(activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels) : {},
+        [activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels],
+    );
+
+    const capacity = useMemo(() => {
+        if (!weapon) return null;
+        return computeCapacity(capacityCfg, allPolsForCap.map(p => ({ polarity: p })), allSlotsForCap, allRanksForCap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [weapon, allSlotsForCap, allPolsForCap, allRanksForCap, buildCfg]);
+    const displayedCapacity = useMemo(() => {
+        if (!capacity) return null;
+        const total = capacity.totalCapacity + capacity.auraGrant;
+        const remaining = capacity.remainingCapacity;
+        const used = total - remaining;
+        return { total, used, remaining, over: capacity.overCapacity };
+    }, [capacity]);
+
+    async function handleOptimize() {
+        if (!weapon) return;
+        if (onlyOwned && ownedSet.size === 0) return;
+        if (useCustomTargetStats && customTargetStats.health + customTargetStats.shields + customTargetStats.overguard <= 0) {
+            setOptimizerNotice("Enter a positive Health, Shields, or Overguard value for the custom target.");
+            return;
+        }
+        optimizerCancelledRef.current = false;
+        optimizerApplyingRef.current = false;
+        optimizerInputSignatureRef.current = optimizerInputSignature;
+        setOptimizerNotice(null);
+        setOptimizerProgress("Preparing optimizer…");
+        setOptimizing(true);
+        await new Promise(r => setTimeout(r, 10));
+        try {
+            if (optimizerCancelledRef.current) return;
+            const worker = new Worker(new URL("../../workers/buildOptimizer.worker.ts", import.meta.url), { type: "module" });
+            optimizerWorkerRef.current = worker;
+            const optimizeInWorker = (
+                candidateWeapon: WeaponEntry,
+                candidateMods: ModEntry[],
+                candidateGoal: OptimizeGoal,
+                slotCount: number,
+                options: Parameters<typeof optimizeBuild>[4],
+            ) => new Promise<ReturnType<typeof optimizeBuild>>((resolve, reject) => {
+                const id = ++optimizerRequestIdRef.current;
+                pendingWorkerRejectRef.current = reject;
+                worker.onmessage = (event: MessageEvent<{ id: number; result?: ReturnType<typeof optimizeBuild>; error?: string }>) => {
+                    if (event.data.id !== id) return;
+                    pendingWorkerRejectRef.current = null;
+                    if (event.data.error) reject(new Error(event.data.error));
+                    else if (event.data.result) resolve(event.data.result);
+                    else reject(new Error("The optimizer worker returned no result."));
+                };
+                worker.onerror = (event) => {
+                    pendingWorkerRejectRef.current = null;
+                    reject(new Error(event.message || "The optimizer worker failed."));
+                };
+                worker.postMessage({
+                    id,
+                    weapon: candidateWeapon,
+                    availableMods: candidateMods,
+                    goal: candidateGoal,
+                    slotCount,
+                    options,
+                });
+            });
+            const fillMode = optimizeMode === "fill";
+            const optimizeArcaneForRun = optArcane && (!fillMode || !arcane1);
+            const lockedMainSlots = fillMode ? [...slots] : Array(SLOT_COUNT).fill(null);
+            const lockedMainRanks = fillMode ? [...ranks] : Array(SLOT_COUNT).fill(undefined);
+            const lockedSlotMask = fillMode ? slots.map((mod) => !!mod) : Array(SLOT_COUNT).fill(false);
+            const lockedExternalEffects: ModEffect[] = [];
+            let lockedArcaneEffect: ModEffect | null = null;
+            if (fillMode && hasExilus && exilusMod) {
+                lockedExternalEffects.push(exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect);
+            }
+            if (includeArcaneStats && arcane1 && !optimizeArcaneForRun) {
+                const resolved = getArcaneEffectAtRank(arcane1, arcane1Rank, warframeArmor, true, arcaneEnergyContext);
+                if (resolved) {
+                    lockedArcaneEffect = {
+                        ...emptyEffect(),
+                        ...resolved,
+                        conditionalEffects: [...(resolved.conditionalEffects ?? [])],
+                    };
+                    lockedExternalEffects.push(lockedArcaneEffect);
+                }
+            }
+            const lockedIncompatibilityGroups = fillMode
+                ? new Set(slots.filter((mod): mod is ModEntry => !!mod).map((mod) => mod.incompatibilityGroup))
+                : undefined;
+            const lockedUniqueNames = fillMode
+                ? new Set(slots.filter((mod): mod is ModEntry => !!mod).map((mod) => mod.uniqueName))
+                : undefined;
+            const availableFormaBudget = allowForma
+                ? Math.max(0, maxFormaAllowed - formaCount)
+                : maxFormaAllowed;
+            let optimizerStanceMod = stanceMod;
+            let optimizerStanceRank = stanceRank;
+            if (supportsStanceLikeMods(weapon)) {
+                if (!fillMode || !stanceMod) {
+                    const candidateStances = onlyOwned
+                        ? stanceMods.filter(mod => ownedSet.has(mod.uniqueName))
+                        : stanceMods;
+                    const bestStance = candidateStances.reduce<ModEntry | null>((best, current) => {
+                        if (!stancePol) return best;
+                        if (!best) return current;
+                        const bestDrain = effectiveDrain(best, stancePol, best.fusionLimit);
+                        const currentDrain = effectiveDrain(current, stancePol, current.fusionLimit);
+                        return currentDrain < bestDrain ? current : best;
+                    }, null);
+                    optimizerStanceMod = bestStance;
+                    optimizerStanceRank = bestStance
+                        ? Math.min(bestStance.fusionLimit, ownedModMaxRankByUniqueName[bestStance.uniqueName] ?? bestStance.fusionLimit)
+                        : 0;
+                }
+            }
+
+            const scoreOptimizerResult = (
+                candidateWeapon: WeaponEntry,
+                candidateAttackIdx: number,
+                candidateResult: ReturnType<typeof optimizeBuild>,
+                preEquippedEffects: ModEffect[],
+                useFiniteEncounterResult = true,
+            ) => {
+                return scoreOptimizerResultForConfiguration({
+                    weapon: candidateWeapon,
+                    result: candidateResult,
+                    goal,
+                    targetFaction: factionOn ? faction : "",
+                    selectedAttackIdx: candidateAttackIdx,
+                    targetProfileOverride,
+                    conditionalState,
+                    preEquippedEffects,
+                    includeExilus: optExilus,
+                    warframeArmor,
+                    warframeMaxEnergy,
+                    warframeEnergyPercent,
+                    useFiniteEncounterResult,
+                });
+            };
+
+            const runOptimizeForConfig = async (
+                valenceElement: ValenceElement,
+                incarnonCandidate: IncarnonCandidateConfig,
+            ) => {
+                const candidateCfg: BuildCfg = {
+                    ...buildCfg,
+                    valenceElement,
+                    incarnonUnlockedTier: incarnonCandidate.unlockedTier,
+                    incarnonSelectedOptionsByTier: incarnonCandidate.selectedOptionsByTier,
+                };
+                const weaponState = applyWeaponConfig(weapon, selectedAttackIdx, candidateCfg);
+                const weaponForOpt = weaponState.weaponWithIntrinsicOptions;
+                const atk = weaponForOpt.attacks.length > 1 ? weaponForOpt.attacks[selectedAttackIdx] : null;
+
+                // If allowCatalyst, override capacityCfg to hasCatalyst:true
+                const capForOpt = capacityCfg;
+
+                const result = await optimizeInWorker(weaponForOpt, compatMods, goal, SLOT_COUNT, {
+                    ownedModUniqueNames:    onlyOwned ? ownedSet : undefined,
+                    ownedModMaxRankByUniqueName: onlyOwned ? ownedModMaxRankByUniqueName : undefined,
+                    ownedArcaneUniqueNames: onlyOwned ? ownedArcaneUniqueNames : undefined,
+                    ownedArcaneMaxRankByUniqueName: onlyOwned ? ownedArcaneMaxRankByUniqueName : undefined,
+                    excludedModUniqueNames: excluded.size > 0 ? excluded : undefined,
+                    allowNonMaxRank:  allowNonMax,
+                    targetFaction:    factionOn ? faction : "",
+                    targetProfileOverride,
+                    capacityConfig:   capForOpt,
+                    slotPolarities:   slotPols,
+                    defaultSlotPolarities: slotPols,
+                    allowCatalyst,
+                    allowForma,
+                    maxFormaCount: allowForma ? availableFormaBudget : undefined,
+                    optimizeExilus:   fillMode ? (optExilus && hasExilus && !exilusMod ? true : optExilus && !hasExilus) : optExilus,
+                    exilusPolarity:   exilusPol,
+                    optimizeArcane:   optimizeArcaneForRun,
+                    arcaneCandidates: optimizeArcaneForRun ? getArcanesForWeapon(weaponForOpt) : [],
+                    warframeArmor,
+                    warframeMaxEnergy,
+                    warframeEnergyPercent,
+                    buildForAttack:   atk,
+                    conditionalState,
+                    extraCapacitySlots: supportsStanceLikeMods(weapon) && optimizerStanceMod
+                        ? [{ mod: optimizerStanceMod, rank: optimizerStanceRank, polarity: stancePol }]
+                        : undefined,
+                    preEquippedEffects: [...weaponState.activeIncarnonEffects, ...lockedExternalEffects],
+                    lockedSlots: fillMode ? lockedMainSlots : undefined,
+                    lockedSlotRanks: fillMode ? lockedMainRanks : undefined,
+                    lockedSlotMask: fillMode ? lockedSlotMask : undefined,
+                    lockedIncompatibilityGroups,
+                    lockedUniqueNames,
+                });
+
+                const appliedResult = result;
+                const appliedCatalyst = buildCfg.hasCatalyst || result.needsCatalyst;
+                const baseExtraCapacitySlots = supportsStanceLikeMods(weapon) && optimizerStanceMod
+                    ? [{ mod: optimizerStanceMod, rank: optimizerStanceRank, polarity: stancePol }]
+                    : undefined;
+
+                return {
+                    weaponForOpt,
+                    atk,
+                    appliedResult,
+                    appliedCatalyst,
+                    baseExtraCapacitySlots,
+                    score: scoreOptimizerResult(weaponForOpt, selectedAttackIdx, appliedResult, [
+                        ...weaponState.activeIncarnonEffects,
+                        ...lockedExternalEffects,
+                    ]),
+                    valenceElement,
+                    incarnonSelectedOptionsByTier: incarnonCandidate.selectedOptionsByTier,
+                };
+            };
+
+            const valenceElementsToTry = weapon.isProgenitorWeapon && buildCfg.valenceBonusPct > 0 && buildCfg.optimizeValenceElement && buildCfg.weaponRank >= 40
+                ? VALENCE_ELEMENTS.map((entry) => entry.key)
+                : [buildCfg.valenceElement];
+            const incarnonCandidates = buildIncarnonCandidateConfigs(
+                incarnonRecord,
+                buildCfg.incarnonSelectedOptionsByTier,
+                buildCfg.optimizeIncarnonSelections,
+            );
+            const currentIncarnonCandidate: IncarnonCandidateConfig = {
+                unlockedTier: getHighestSelectedIncarnonTier(buildCfg.incarnonSelectedOptionsByTier),
+                selectedOptionsByTier: { ...buildCfg.incarnonSelectedOptionsByTier },
+            };
+            const configSignature = (valenceElement: ValenceElement, candidate: IncarnonCandidateConfig) =>
+                `${valenceElement}|${Object.entries(candidate.selectedOptionsByTier)
+                    .sort(([left], [right]) => Number(left) - Number(right))
+                    .map(([tier, option]) => `${tier}:${option}`)
+                    .join("|")}`;
+            const baselineRuns: Array<Awaited<ReturnType<typeof runOptimizeForConfig>>> = [];
+            let evaluatedConfigs = 0;
+            for (const candidateElement of valenceElementsToTry) {
+                if (optimizerCancelledRef.current) return;
+                setOptimizerProgress(`Evaluating baseline configuration ${evaluatedConfigs + 1} of ${valenceElementsToTry.length}…`);
+                baselineRuns.push(await runOptimizeForConfig(candidateElement, currentIncarnonCandidate));
+                evaluatedConfigs += 1;
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
+            let bestRun = baselineRuns.reduce<Awaited<ReturnType<typeof runOptimizeForConfig>> | null>(
+                (best, run) => !best || run.score > best.score ? run : best,
+                null,
+            );
+            if (!bestRun) {
+                setOptimizerNotice("No legal build fits the current capacity and locked-slot settings.");
+                setOptimizerProgress(null);
+                return;
+            }
+
+            if (buildCfg.optimizeIncarnonSelections && incarnonCandidates.length > 0) {
+                setOptimizerProgress(`Screening ${incarnonCandidates.length * baselineRuns.length} Incarnon paths against the baseline builds…`);
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                const screenedCandidates: Array<{
+                    signature: string;
+                    valenceElement: ValenceElement;
+                    incarnonCandidate: IncarnonCandidateConfig;
+                    score: number;
+                    path?: IncarnonCandidateConfig["selectedOptionsByTier"];
+                }> = [];
+
+                for (const baselineRun of baselineRuns) {
+                    for (const incarnonCandidate of incarnonCandidates) {
+                        if (optimizerCancelledRef.current) return;
+                        if (configSignature(baselineRun.valenceElement, incarnonCandidate) === configSignature(
+                            baselineRun.valenceElement,
+                            { unlockedTier: getHighestSelectedIncarnonTier(baselineRun.incarnonSelectedOptionsByTier), selectedOptionsByTier: baselineRun.incarnonSelectedOptionsByTier },
+                        )) continue;
+
+                        const candidateCfg: BuildCfg = {
+                            ...buildCfg,
+                            valenceElement: baselineRun.valenceElement,
+                            incarnonUnlockedTier: incarnonCandidate.unlockedTier,
+                            incarnonSelectedOptionsByTier: incarnonCandidate.selectedOptionsByTier,
+                        };
+                        const candidateWeaponState = applyWeaponConfig(weapon, selectedAttackIdx, candidateCfg);
+                        screenedCandidates.push({
+                            signature: configSignature(baselineRun.valenceElement, incarnonCandidate),
+                            valenceElement: baselineRun.valenceElement,
+                            incarnonCandidate,
+                            path: incarnonCandidate.selectedOptionsByTier,
+                            score: scoreOptimizerResult(
+                                candidateWeaponState.weaponWithIntrinsicOptions,
+                                selectedAttackIdx,
+                                baselineRun.appliedResult,
+                                [...candidateWeaponState.activeIncarnonEffects, ...lockedExternalEffects],
+                                false,
+                            ),
+                        });
+                    }
+                }
+
+                const baselineSignatures = baselineRuns.map((run) => configSignature(
+                    run.valenceElement,
+                    {
+                        unlockedTier: getHighestSelectedIncarnonTier(run.incarnonSelectedOptionsByTier),
+                        selectedOptionsByTier: run.incarnonSelectedOptionsByTier,
+                    },
+                ));
+                const selectedForRefinement = selectIncarnonSearchShortlist(
+                    screenedCandidates,
+                    baselineSignatures,
+                    INCARNON_PATH_REFINEMENT_LIMIT,
+                );
+
+                for (const candidate of selectedForRefinement) {
+                    if (optimizerCancelledRef.current) return;
+                    setOptimizerProgress(`Refining evolution path ${evaluatedConfigs + 1} of ${baselineRuns.length + selectedForRefinement.length}…`);
+                    const run = await runOptimizeForConfig(candidate.valenceElement, candidate.incarnonCandidate);
+                    if (run.score > bestRun.score) bestRun = run;
+                    evaluatedConfigs += 1;
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                }
+            }
+            if (optimizerCancelledRef.current) return;
+            if (!bestRun || !bestRun.appliedResult.capacityValid) {
+                setOptimizerNotice("No legal build fits the current capacity and locked-slot settings.");
+                setOptimizerProgress(null);
+                return;
+            }
+            optimizerApplyingRef.current = true;
+            const { weaponForOpt, atk, appliedResult, appliedCatalyst, baseExtraCapacitySlots, valenceElement, incarnonSelectedOptionsByTier } = bestRun;
+            if (baseExtraCapacitySlots?.[0]) {
+                setStanceMod(baseExtraCapacitySlots[0].mod);
+                setStanceRank(baseExtraCapacitySlots[0].rank);
+            }
+            if (weapon.isProgenitorWeapon && valenceElement !== buildCfg.valenceElement) {
+                setBuildCfg(p => ({ ...p, valenceElement }));
+            }
+            if (incarnonRecord) {
+                setBuildCfg(p => ({ ...p, incarnonSelectedOptionsByTier }));
+            }
+
+            // Apply exilus mod if optimized
+            if (optExilus) {
+                setHasExilus(true);
+                setExilusMod(appliedResult.exilusMod);
+                setExilusRank(appliedResult.exilusMod ? appliedResult.exilusRank : 0);
+            } else if (!fillMode || !exilusMod) {
+                setHasExilus(false);
+                setExilusMod(null);
+                setExilusRank(0);
+                setExilusPol("");
+            }
+
+            const finalSlotsForCap = [...appliedResult.slots, ...(optExilus ? [appliedResult.exilusMod] : [])];
+            const finalRanksForCap = [...appliedResult.slotRanks, ...(optExilus ? [appliedResult.exilusMod ? appliedResult.exilusRank : 0] : [])];
+            const finalPolsForCap  = [...appliedResult.slotPolarities, ...(optExilus ? [appliedResult.exilusPolarity] : [])];
+
+            if (
+                appliedCatalyst ||
+                appliedResult.needsCatalyst ||
+                (allowCatalyst && shouldAutoInstallCatalyst(capacityCfg, finalPolsForCap, finalSlotsForCap, finalRanksForCap, baseExtraCapacitySlots ?? []))
+            ) {
+                setBuildCfg(p => ({ ...p, hasCatalyst: true }));
+            }
+
+            // The optimizer starts from the polarities already installed on this
+            // build. Apply its result directly so a re-optimization never erases
+            // existing Forma or silently spends beyond the remaining budget.
+            const slotPolsToApply = [...appliedResult.slotPolarities];
+            const stancePolToApply = stancePol;
+            const exilusPolToApply = appliedResult.exilusMod ? appliedResult.exilusPolarity : exilusPol;
+
+            // Apply mod slots. In fill mode, occupied user slots stay authoritative.
+            const nextSlots = (fillMode
+                ? appliedResult.slots.map((mod, i) => (lockedSlotMask[i] ? slots[i] : mod))
+                : [...appliedResult.slots]) as (ModEntry | null)[];
+            const nextRanks = (fillMode
+                ? appliedResult.slotRanks.map((rank, i) => (lockedSlotMask[i] ? (ranks[i] ?? 0) : rank))
+                : [...appliedResult.slotRanks]) as number[];
+            setSlots(nextSlots);
+            setRanks(nextRanks);
+
+            // Apply polarity changes from forma optimizer
+            if (allowForma) {
+                setSlotPols([...slotPolsToApply]);
+                setStancePol(stancePolToApply);
+                setExilusPol(exilusPolToApply);
+            }
+
+            // Apply arcane if optimized
+            if (optimizeArcaneForRun && appliedResult.arcane) {
+                setArcane1(appliedResult.arcane);
+                setArcane1Rank(appliedResult.arcaneRank);
+            }
+
+            const optimizedWeaponState = applyWeaponConfig(weapon, selectedAttackIdx, {
+                ...buildCfg,
+                valenceElement,
+                incarnonSelectedOptionsByTier,
+            });
+            const mathEffects: (ModEffect | null)[] = [
+                ...optimizedWeaponState.activeIncarnonEffects,
+                ...appliedResult.slots.map((m, i) => {
+                if (!m) return null;
+                const r = appliedResult.slotRanks[i] ?? m.fusionLimit;
+                return m.effectsByRank[r] ?? m.effect;
+                }),
+            ];
+            if (optExilus && appliedResult.exilusMod) {
+                mathEffects.push(appliedResult.exilusMod.effectsByRank[appliedResult.exilusRank] ?? appliedResult.exilusMod.effect);
+            }
+            if (includeArcaneStats && optArcane && appliedResult.arcane) {
+                const ae = getArcaneEffectAtRank(appliedResult.arcane, appliedResult.arcaneRank, warframeArmor, true, arcaneEnergyContext);
+                if (ae) mathEffects.push({
+                    ...emptyEffect(),
+                    ...ae,
+                    conditionalEffects: [...(ae.conditionalEffects ?? [])],
+                });
+            }
+            const explanationBaseEffects: (ModEffect | null)[] = [
+                ...optimizedWeaponState.activeIncarnonEffects,
+                ...lockedExternalEffects.filter((effect) => effect !== lockedArcaneEffect),
+            ];
+            if (optExilus && appliedResult.exilusMod) {
+                explanationBaseEffects.push(appliedResult.exilusMod.effectsByRank[appliedResult.exilusRank] ?? appliedResult.exilusMod.effect);
+            }
+            const explanationArcaneEntry = optimizeArcaneForRun ? appliedResult.arcane : includeArcaneStats ? arcane1 : null;
+            const explanationArcaneRank = optimizeArcaneForRun ? appliedResult.arcaneRank : arcane1Rank;
+            const explanationArcane = explanationArcaneEntry
+                ? getArcaneEffectAtRank(explanationArcaneEntry, explanationArcaneRank, warframeArmor, true, arcaneEnergyContext)
+                : null;
+            setReasoning(explainBuild(
+                weaponForOpt,
+                appliedResult.mods,
+                appliedResult.ranks,
+                goal,
+                factionOn ? faction : "",
+                atk,
+                conditionalState,
+                targetProfileOverride,
+                {
+                    baseEffects: explanationBaseEffects,
+                    arcaneEffect: explanationArcane,
+                    arcaneName: explanationArcaneEntry?.name,
+                    arcaneRank: explanationArcaneEntry ? explanationArcaneRank : undefined,
+                    objectiveEncounter: goal === "timeToKill" && appliedResult.encounterScore !== undefined
+                        ? {
+                            damagePerSecond: appliedResult.encounterScore,
+                            timeToKillSeconds: appliedResult.encounterTimeToKillSeconds ?? null,
+                            refined: appliedResult.encounterRefined ?? false,
+                            candidatesEvaluated: appliedResult.encounterCandidatesEvaluated ?? 0,
+                        }
+                        : undefined,
+                },
+            ));
+            setReasoningContextAtOptimization(currentReasoningContextKey);
+            const mathWeapon = makeSelectedAttackWeapon(weaponForOpt, selectedAttackIdx);
+            setReasoningMath(buildMathBreakdown(mathWeapon, mathEffects, factionOn ? faction : "", conditionalState, targetProfileOverride, meleeDpsInputs));
+            setOptimizerProgress(null);
+        } catch (error) {
+            if (!optimizerCancelledRef.current) {
+                setOptimizerNotice(error instanceof Error ? error.message : String(error));
+                setOptimizerProgress(null);
+            }
+        } finally {
+            optimizerApplyingRef.current = false;
+            optimizerWorkerRef.current?.terminate();
+            optimizerWorkerRef.current = null;
+            pendingWorkerRejectRef.current = null;
+            setOptimizing(false);
+        }
+    }
+
+    function handleLoadBuild(build: SavedBuild) {
+        if (!weapon) return;
+        const mods = build.slotModUniqueNames.map(un => compatMods.find(m => m.uniqueName === un) ?? null);
+        const ns   = [...mods, ...Array(SLOT_COUNT).fill(null)].slice(0, SLOT_COUNT) as (ModEntry | null)[];
+        setSlots(ns);
+        setRanks(ns.map((m, i) => m ? (build.slotRanks?.[i] ?? m.fusionLimit) : 0));
+        setSlotPols([...build.slotPolarities, ...Array(SLOT_COUNT).fill("")].slice(0, SLOT_COUNT));
+            setBuildCfg(p => ({
+                ...p,
+            weaponRank: build.weaponRank,
+            hasCatalyst: build.hasCatalyst,
+            valenceBonusPct: build.valenceBonusPct ?? p.valenceBonusPct,
+            valenceElement: (build.valenceElement as ValenceElement | undefined) ?? p.valenceElement,
+            optimizeValenceElement: build.optimizeValenceElement ?? false,
+            incarnonUnlockedTier: build.incarnonSelectedOptionsByTier
+                ? getHighestSelectedIncarnonTier(build.incarnonSelectedOptionsByTier)
+                : (build.incarnonUnlockedTier ?? p.incarnonUnlockedTier),
+            incarnonSelectedOptionsByTier: build.incarnonSelectedOptionsByTier ?? p.incarnonSelectedOptionsByTier,
+            optimizeIncarnonSelections: build.optimizeIncarnonSelections ?? false,
+        }));
+        if (build.stanceModUniqueName) {
+            const sm = stanceMods.find(m => m.uniqueName === build.stanceModUniqueName) ?? null;
+            setStanceMod(sm);
+            setStanceRank(sm ? (build.stanceRank ?? sm.fusionLimit) : 0);
+        } else {
+            setStanceMod(null);
+            setStanceRank(0);
+        }
+        setStancePol(build.stancePol ?? weapon.stancePolarity ?? "");
+        setHasExilus(build.hasExilus ?? false);
+        if (build.exilusModUniqueName) {
+            const em = compatMods.find(m => m.uniqueName === build.exilusModUniqueName) ?? null;
+            setExilusMod(em); setExilusRank(em ? (build.exilusRank ?? em.fusionLimit) : 0);
+        }
+        setExilusPol(build.exilusPol ?? "");
+        if (build.arcane1UniqueName) {
+            const a = weaponArcanes.find(a => a.uniqueName === build.arcane1UniqueName) ?? null;
+            setArcane1(a); setArcane1Rank(build.arcane1Rank ?? 0);
+        }
+        const plannerConfig = build.plannerConfig;
+        // Older or imported builds without planner settings must not inherit a
+        // stale external status assumption from the previously loaded build.
+        setExternalStatusTypeCount(0);
+        setWarframeArmorInput(readWarframeArmor(build.plannerConfig?.warframeArmor)?.toString() ?? "");
+        setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
+        setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
+        if (plannerConfig) {
+            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill") setGoal(plannerConfig.goal);
+            const conditionalModes: ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
+            if (plannerConfig.conditionalMode && conditionalModes.includes(plannerConfig.conditionalMode)) {
+                setConditionalMode(plannerConfig.conditionalMode);
+            }
+            if (Number.isFinite(plannerConfig.externalConditionalStacks)) {
+                setExternalConditionalStacks(Math.max(0, Math.min(20, plannerConfig.externalConditionalStacks ?? 1)));
+            }
+            setExternalStatusTypeCount(Number.isFinite(plannerConfig.externalStatusTypeCount)
+                ? Math.max(0, Math.min(16, Math.floor(plannerConfig.externalStatusTypeCount ?? 0)))
+                : 0);
+            setMeleeComboMultiplier(Number.isFinite(plannerConfig.meleeComboMultiplier)
+                ? clampMeleeComboMultiplier(weapon, plannerConfig.meleeComboMultiplier ?? 1)
+                : 1);
+            setPhantasmaChargeAmmo(Number.isFinite(plannerConfig.phantasmaChargeAmmo)
+                ? Math.max(2, Math.min(50, Math.round(plannerConfig.phantasmaChargeAmmo ?? 2)))
+                : 2);
+            const attackIndexByName = plannerConfig.attackName
+                ? weapon.attacks.findIndex((attack) => attack.name === plannerConfig.attackName)
+                : -1;
+            const storedAttackIndex = plannerConfig.attackIndex;
+            setSelectedAttackIdx(attackIndexByName >= 0
+                ? attackIndexByName
+                : Number.isInteger(storedAttackIndex) && (storedAttackIndex ?? -1) >= 0 && (storedAttackIndex ?? 0) < weapon.attacks.length
+                    ? storedAttackIndex ?? 0
+                    : 0);
+
+            const target = plannerConfig.target;
+            setFactionOn(target?.enabled ?? false);
+            setFaction(target?.faction || "Grineer");
+            setSelectedEnemyProfileId(target?.enemyProfileId && getEnemyProfile(target.enemyProfileId)
+                ? target.enemyProfileId
+                : "");
+            setUseCustomTargetStats(target?.useCustomStats ?? false);
+            setIsEximus(target?.isEximus ?? false);
+            setBossBlastStackCap(target?.bossBlastStackCap ?? false);
+            setIsSteelPath(target?.isSteelPath ?? false);
+            if (target?.baseStats) {
+                const safeStat = (value: number, fallback: number) =>
+                    Number.isFinite(value) ? Math.max(0, Math.min(1_000_000_000, value)) : fallback;
+                setCustomTargetStats({
+                    health: safeStat(target.baseStats.health, 25000),
+                    shields: safeStat(target.baseStats.shields, 0),
+                    overguard: safeStat(target.baseStats.overguard, 0),
+                    armor: safeStat(target.baseStats.armor, 2700),
+                });
+            }
+            setScaleCustomTargetByLevel(target?.scaleByLevel ?? false);
+            const scalingFactions: EnemyScalingFaction[] = [
+                "grineer", "corpus", "infested", "corrupted", "murmur", "sentient", "anarchs", "unaffiliated", "techrot",
+            ];
+            setEnemyScalingFaction(scalingFactions.includes(target?.scalingFaction as EnemyScalingFaction)
+                ? target!.scalingFaction as EnemyScalingFaction
+                : "grineer");
+            const safeLevel = (value: number, fallback: number) =>
+                Number.isFinite(value) ? Math.max(1, Math.min(9999, Math.floor(value))) : fallback;
+            setEnemyBaseLevel(safeLevel(target?.baseLevel ?? 1, 1));
+            setEnemyCurrentLevel(safeLevel(target?.currentLevel ?? 30, 30));
+            setCustomToxinBypassesShields(target?.toxinBypassesShields ?? true);
+            setEnemyShieldGateHitMode(target?.enemyShieldGateHitMode === "weakspot" || target?.enemyShieldGateHitMode === "blockedArea"
+                ? target.enemyShieldGateHitMode
+                : "body");
+            setNearbyEnemyCount(Number.isFinite(target?.nearbyEnemyCount)
+                ? Math.max(0, Math.min(20, Math.floor(target?.nearbyEnemyCount ?? 0)))
+                : 0);
+            setNearbyBlastEnemyCount(Number.isFinite(target?.nearbyBlastEnemyCount)
+                ? Math.max(0, Math.min(20, Math.floor(target?.nearbyBlastEnemyCount ?? 0)))
+                : 0);
+            setTargetStatusImmunities((target?.statusImmunities ?? [])
+                .filter((type): type is StatusDamageType =>
+                    (STATUS_DAMAGE_TYPES as readonly string[]).includes(type)));
+
+            const options = plannerConfig.optimizerOptions;
+            if (options) {
+                setAllowNonMax(options.allowNonMax ?? false);
+                setOnlyOwned(options.onlyOwned ?? false);
+                setAllowCatalyst(options.allowCatalyst ?? false);
+                setAllowForma(options.allowForma ?? false);
+                setMaxFormaAllowed(Number.isInteger(options.maxFormaAllowed)
+                    ? Math.max(1, Math.min(maxOptimizerFormaForWeapon(weapon), options.maxFormaAllowed ?? 1))
+                    : maxOptimizerFormaForWeapon(weapon));
+                setOptExilus(options.optimizeExilus ?? false);
+                setOptArcane(options.optimizeArcane ?? false);
+                setExcluded(new Set((options.excludedModUniqueNames ?? []).filter((name) => typeof name === "string")));
+            }
+        } else {
+            // Old saved builds have no target snapshot. Do not accidentally apply
+            // whichever experimental target happened to be selected at load time.
+            setFactionOn(false);
+            setSelectedEnemyProfileId("");
+            setUseCustomTargetStats(false);
+            setIsEximus(false);
+            setBossBlastStackCap(false);
+            setNearbyEnemyCount(0);
+            setNearbyBlastEnemyCount(0);
+            setTargetStatusImmunities([]);
+        }
+        setTab("build");
+    }
+
+    return (
+        <div className="space-y-4">
+            {/* Tabs */}
+            <WorkspaceSegmented className="flex-wrap">
+                {(["build","saves","owned","ownedArcanes","exclude"] as const).map(t => (
+                    <WorkspaceSegmentedButton key={t} onClick={() => (weapon || t === "build") && setTab(t)}
+                        active={tab === t}
+                        disabled={!weapon && t !== "build"}
+                        className={["rounded-lg px-3 py-1.5 text-xs font-semibold border transition-colors",
+                            tab === t ? "border-slate-100 bg-slate-100 text-slate-900" : "border-slate-700 bg-slate-950/40 text-slate-400 hover:bg-slate-900",
+                            !weapon && t !== "build" ? "opacity-40 cursor-not-allowed" : ""].join(" ")}>
+                        {t === "build" ? "Build" : t === "saves" ? "Saved Builds" : t === "owned" ? "Owned Mods" : t === "ownedArcanes" ? "Owned Arcanes" : `Excluded${excluded.size ? ` (${excluded.size})` : ""}`}
+                    </WorkspaceSegmentedButton>
+                ))}
+            </WorkspaceSegmented>
+
+            {weapon && tab === "owned"   && <OwnedModsPanel availableMods={trackableMods} />}
+            {weapon && tab === "ownedArcanes" && <OwnedArcanesPanel weapon={weapon} />}
+            {weapon && tab === "saves"   && <SavedBuildsPanel weapon={weapon} availableMods={compatMods} currentSlots={slots} currentRanks={ranks}
+                currentPolarities={slotPols} currentCfg={buildCfg}
+                stanceMod={stanceMod} stanceRank={stanceRank} stancePol={stancePol}
+                exilusMod={exilusMod} exilusPol={exilusPol}
+                arcane1={arcane1} arcane1Rank={arcane1Rank}
+                targetFaction={factionOn ? faction : ""} conditionalState={conditionalState} targetProfileOverride={targetProfileOverride}
+                plannerConfig={savedPlannerConfig}
+                hasExilus={hasExilus} onLoad={handleLoadBuild} />}
+            {weapon && tab === "exclude" && <ExclusionList allMods={compatMods} excluded={excluded} onToggle={toggleExclude} />}
+
+            {tab === "build" && (
+                <>
+                            <div className="rounded-[28px] border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] shadow-[var(--wf-shadow-panel)] overflow-visible">
+                                <div className="border-b border-slate-800/80 bg-slate-950/70 px-4 py-3">
+                                    <div className="flex flex-wrap items-start gap-3 justify-between">
+                                        <div className="min-w-[min(100%,360px)] flex-1">
+                                            <div className="text-[11px] uppercase tracking-[0.24em] text-[color:var(--wf-warning)]">Arsenal Modding</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                    <div className="w-[360px] max-w-full">
+                                                        <WeaponSelector selected={weapon} onSelect={handleSelectWeapon} />
+                                                    </div>
+                                                    {weapon && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setBuildCfg(p => ({ ...p, hasCatalyst: !p.hasCatalyst }))}
+                                                            className={[
+                                                                "rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wide transition-colors",
+                                                                buildCfg.hasCatalyst
+                                                                    ? "border-amber-700/60 bg-amber-950/30 text-amber-300"
+                                                                    : "border-slate-700 bg-slate-900/70 text-slate-300 hover:border-slate-500 hover:text-slate-100",
+                                                            ].join(" ")}
+                                                            title="Marks whether this weapon already has an Orokin Catalyst installed."
+                                                        >
+                                                            Catalyst
+                                                        </button>
+                                                    )}
+                                                {weapon && formaCount > 0 && (
+                                                    <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1 text-[10px] uppercase tracking-wide text-slate-300">
+                                                        {formaCount} forma
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2 justify-end">
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {GOAL_OPTIONS.map(g => (
+                                                    <GoalChip
+                                                        key={g.key}
+                                                        label={g.label}
+                                                        desc={g.desc}
+                                                        active={goal === g.key}
+                                                        onClick={() => setGoal(g.key)}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <button
+                                                onClick={() => setShowOptimizeOptions(v => !v)}
+                                                className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
+                                            >
+                                                Options {showOptimizeOptions ? "▴" : "▾"}
+                                            </button>
+                                            <div className="flex items-stretch overflow-hidden rounded-xl border border-amber-600/60 bg-amber-950/30">
+                                                <button onClick={optimizing ? cancelOptimization : handleOptimize} disabled={!optimizing && !weapon}
+                                                    className={[
+                                                        "px-4 py-2 text-sm transition-colors font-semibold disabled:opacity-50",
+                                                        optimizing ? "text-rose-300 hover:bg-rose-950/50" : "text-amber-300 hover:bg-amber-900/40",
+                                                    ].join(" ")}>
+                                                    {optimizing ? "Cancel Optimization" : optimizeMode === "fill" ? "Fill & Optimize" : "Optimize Build"}
+                                                </button>
+                                                <div className="relative w-10 border-l border-amber-600/40">
+                                                    <select
+                                                        value={optimizeMode}
+                                                        onChange={(e) => setOptimizeMode(e.target.value as OptimizeMode)}
+                                                        disabled={optimizing}
+                                                        className="h-full w-full appearance-none bg-transparent text-transparent outline-none"
+                                                        aria-label="Optimization mode"
+                                                    >
+                                                        <option value="optimize" className="bg-slate-950 text-slate-100">Optimize</option>
+                                                        <option value="fill" className="bg-slate-950 text-slate-100">Fill & Optimize</option>
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex w-full items-center justify-center text-amber-200">
+                                                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+                                                            <path d="M5 6.5L8 3.5L11 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                            <path d="M5 9.5L8 12.5L11 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={handleCopyBuildExport}
+                                                disabled={!currentBuildExport}
+                                                className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100 disabled:opacity-50"
+                                            >
+                                                {copiedExport ? "Copied Build JSON" : "Copy Build JSON"}
+                                            </button>
+                                            <button
+                                                onClick={handleShareBuildImage}
+                                                disabled={!currentBuildExport || sharingBuildImage}
+                                                className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100 disabled:opacity-50"
+                                            >
+                                                {sharingBuildImage ? "Generating Image…" : sharedBuildImage ? "Shared Build Image" : "Share Build Image"}
+                                            </button>
+                                            <button
+                                                onClick={() => weapon && resetBuildForWeapon(weapon)}
+                                                disabled={!weapon}
+                                                className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100 disabled:opacity-50"
+                                            >
+                                                Reset Build
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {(optimizerProgress || optimizerNotice) && (
+                                        <div className="mt-2 text-right text-[11px]" role={optimizerNotice ? "alert" : "status"}>
+                                            {optimizerNotice
+                                                ? <span className="text-amber-300">{optimizerNotice}</span>
+                                                : <span className="text-slate-400">{optimizerProgress}</span>}
+                                        </div>
+                                    )}
+                                    {showOptimizeOptions && (
+                                        <div className="mt-3 rounded-2xl border border-slate-800/80 bg-slate-950/30 p-3">
+                                            <p className="mb-2 text-[11px] text-slate-400">Capacity is enforced for every optimized build. Catalyst and Forma are included only when their options are enabled.</p>
+                                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                                <label htmlFor="conditional-state" className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Conditional effects</label>
+                                                <select
+                                                    id="conditional-state"
+                                                    value={conditionalMode}
+                                                    onChange={(event) => setConditionalMode(event.target.value as ConditionalState["mode"])}
+                                                    className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                >
+                                                    <option value="initial">Initial state</option>
+                                                    <option value="realistic">Realistic ramp-up estimate</option>
+                                                    <option value="fullyStacked">Fully stacked scenario</option>
+                                                    <option value="custom">External stacks</option>
                                                 </select>
                                                 {conditionalMode === "custom" && (
                                                     <label className="flex items-center gap-2 text-[10px] text-slate-400">
