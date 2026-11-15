@@ -136,13 +136,43 @@ describe("weapon catalog stance inference", () => {
     it("keeps standard compatible mods available to every weapon in the builder catalog", () => {
         const isTrainingVariant = (path: string) => /(?:^|\/)(?:Beginner|Intermediate|Expert)(?:\/|$)/i.test(path)
             || /(?:Beginner|Intermediate|Expert)$/i.test(path);
-        const failures: Array<{ weapon: string; modCompat: string; builderModCount: number }> = [];
+        const isFlawedVariant = (path: string) => /(?:^|\/)Beginner(?:\/|$)/i.test(path) || /Beginner$/i.test(path);
+        const failures: Array<{
+            weapon: string;
+            modCompat: string;
+            builderModCount: number;
+            missingStandardCounterparts: string[];
+            flawedBeforeStandard: string[];
+        }> = [];
 
         for (const weapon of getWeaponCatalog()) {
             // Owned Mods and the manual picker use this same filtered catalog pool.
             const builderMods = filterBuilderExpertVariants(getModsForWeapon(weapon));
-            if (builderMods.some((mod) => !isTrainingVariant(mod.path))) continue;
-            failures.push({ weapon: weapon.name, modCompat: weapon.modCompat, builderModCount: builderMods.length });
+            const displayMods = sortBuilderModsForDisplay(builderMods);
+            const missingStandardCounterparts: string[] = [];
+            const flawedBeforeStandard: string[] = [];
+
+            for (const flawed of builderMods.filter((mod) => isFlawedVariant(mod.path))) {
+                const standard = builderMods.find((mod) => mod.name === flawed.name && !isTrainingVariant(mod.path));
+                if (!standard) {
+                    missingStandardCounterparts.push(flawed.name);
+                    continue;
+                }
+                if (displayMods.indexOf(standard) > displayMods.indexOf(flawed)) {
+                    flawedBeforeStandard.push(flawed.name);
+                }
+            }
+
+            if (builderMods.some((mod) => !isTrainingVariant(mod.path))
+                && missingStandardCounterparts.length === 0
+                && flawedBeforeStandard.length === 0) continue;
+            failures.push({
+                weapon: weapon.name,
+                modCompat: weapon.modCompat,
+                builderModCount: builderMods.length,
+                missingStandardCounterparts,
+                flawedBeforeStandard,
+            });
         }
 
         expect(failures).toEqual([]);

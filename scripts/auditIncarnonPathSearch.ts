@@ -26,6 +26,12 @@ const SCENARIOS = {
         candidateModNames: ["Galvanized Chamber", "Hunter Munitions", "Malignant Force", "Serration"],
         candidateArcaneNames: ["Primary Deadhead", "Primary Merciless"],
     },
+    "Vasto Prime": {
+        attackName: "Incarnon Form",
+        targetFaction: "Grineer",
+        candidateModNames: ["Galvanized Diffusion", "Hornet Strike", "Pathogen Rounds", "Target Cracker"],
+        candidateArcaneNames: ["Secondary Deadhead", "Secondary Merciless"],
+    },
 } as const;
 const WEAPON_NAME = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9).trim() || "Laetum";
 const scenario = SCENARIOS[WEAPON_NAME as keyof typeof SCENARIOS];
