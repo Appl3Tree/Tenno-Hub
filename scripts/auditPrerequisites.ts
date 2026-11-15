@@ -1,4 +1,5 @@
 import { PREREQ_REGISTRY } from "../src/catalog/prereqs/prereqRegistry";
+import { buildPrerequisiteRelationshipAudit, findPrerequisiteRelationshipEvidenceGaps } from "../src/catalog/prereqs/prerequisiteRelationshipAudit";
 import { MILESTONE_REGISTRY } from "../src/catalog/prereqs/milestoneRegistry";
 import { SOURCE_INDEX } from "../src/catalog/sources/sourceCatalog";
 import { STAR_CHART_DATA } from "../src/domain/catalog/starChart";
@@ -19,6 +20,7 @@ const missingRefs: string[] = [];
 const selfReferences: string[] = [];
 const duplicateEdges: string[] = [];
 const conditionMissingRefs: string[] = [];
+const progressionMissingRefs: string[] = [];
 const chartNodeIds = new Set(STAR_CHART_DATA.nodes.map((node) => node.id));
 const chartPlanetIds = new Set(STAR_CHART_DATA.planets.map((planet) => planet.id));
 const syndicateIds = new Set(Object.values(SY));
@@ -30,7 +32,8 @@ for (const def of PREREQ_REGISTRY) {
                 : [],
     );
     const requiredAndAny = [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...conditionParents];
-    if (new Set(requiredAndAny).size !== requiredAndAny.length) {
+    const allParents = [...requiredAndAny, ...(def.progressionAfter ?? [])];
+    if (new Set(allParents).size !== allParents.length) {
         duplicateEdges.push(def.id);
     }
     for (const id of requiredAndAny) {
@@ -39,6 +42,9 @@ for (const def of PREREQ_REGISTRY) {
         const list = dependents.get(id) ?? [];
         list.push(def.id);
         dependents.set(id, list);
+    }
+    for (const id of def.progressionAfter ?? []) {
+        if (!idSet.has(id)) progressionMissingRefs.push(`${def.id} -> ${id}`);
     }
     for (const condition of def.conditions ?? []) {
         if (condition.type === "mastery_rank" && (!Number.isInteger(condition.value) || condition.value < 0)) {
@@ -106,7 +112,7 @@ function visit(id: string) {
             : condition.type === "junction_complete" ? [condition.junctionId]
                 : [],
     );
-    for (const parent of [...(def?.prerequisites ?? []), ...(def?.anyPrerequisites ?? []), ...conditionParents]) {
+    for (const parent of [...(def?.prerequisites ?? []), ...(def?.anyPrerequisites ?? []), ...conditionParents, ...(def?.progressionAfter ?? [])]) {
         if (idSet.has(parent)) visit(parent);
     }
     stack.pop();
@@ -177,6 +183,7 @@ const explicitlyRequiredRedundancies = new Set([
     `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX}`,
     `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX_FINALE}`,
     `${PR.SYNDICATE_VOX_RANK1} -> ${PR.VOX_SOLARIS}`,
+    `${PR.ACTIVITY_DUVIRI_STEEL_PATH} -> ${PR.DUVIRI_PARADOX}`,
 ]);
 const unapprovedRedundantEdges = redundantEdges.filter((edge) => !explicitlyRequiredRedundancies.has(edge));
 
@@ -211,7 +218,27 @@ const chartReferenceIssues = STAR_CHART_DATA.nodes.flatMap((node) => [
 
 const byCategory = new Map<string, number>();
 for (const def of PREREQ_REGISTRY) byCategory.set(def.category, (byCategory.get(def.category) ?? 0) + 1);
-const roots = PREREQ_REGISTRY.filter((def) => def.prerequisites.length === 0 && !(def.anyPrerequisites?.length) && !(def.conditions?.length));
+const roots = PREREQ_REGISTRY.filter((def) => def.prerequisites.length === 0
+    && !(def.anyPrerequisites?.length)
+    && !(def.conditions?.length)
+    && !(def.progressionAfter?.length));
+function reachesAwakening(id: string, visiting = new Set<string>()): boolean {
+    if (id === PR.AWAKENING) return true;
+    if (visiting.has(id)) return false;
+    visiting.add(id);
+    const def = registryById.get(id);
+    if (!def) return false;
+    const conditionParents = (def.conditions ?? []).flatMap((condition) =>
+        condition.type === "quest_complete" ? [condition.prereqId]
+            : condition.type === "junction_complete" ? [condition.junctionId]
+                : [],
+    );
+    const parents = [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...conditionParents, ...(def.progressionAfter ?? [])];
+    return parents.some((parent) => reachesAwakening(parent, visiting));
+}
+const disconnectedFromAwakening = PREREQ_REGISTRY
+    .filter((def) => !reachesAwakening(def.id))
+    .map((def) => def.id);
 const entriesWithoutEvidence = PREREQ_REGISTRY.filter((def) => !def.evidence?.length).map((def) => def.id);
 const rowsWithRelease = PREREQ_REGISTRY.filter((def) => !!def.introducedIn);
 const introducedAfterUpdate41 = rowsWithRelease.filter((def) => {
@@ -231,6 +258,21 @@ const referencesWithoutEvidence = gatedEntriesWithoutEvidence.reduce((count, id)
     const def = PREREQ_REGISTRY.find((entry) => entry.id === id)!;
     return count + def.prerequisites.length + (def.anyPrerequisites?.length ?? 0) + (def.conditions?.length ?? 0);
 }, 0);
+const relationshipAudit = buildPrerequisiteRelationshipAudit(PREREQ_REGISTRY);
+const blockingRelationshipAudit = relationshipAudit.filter((row) => row.blocking);
+const relationshipEvidenceGaps = findPrerequisiteRelationshipEvidenceGaps(relationshipAudit);
+const sourceGatePatterns = new Map<string, { count: number; examples: string[] }>();
+let sourceRelationshipCount = 0;
+for (const [sourceId, source] of Object.entries(SOURCE_INDEX)) {
+    const prereqIds = [...(source.prereqIds ?? [])].sort();
+    if (prereqIds.length === 0) continue;
+    sourceRelationshipCount += prereqIds.length;
+    const pattern = prereqIds.join(" & ");
+    const group = sourceGatePatterns.get(pattern) ?? { count: 0, examples: [] };
+    group.count += 1;
+    if (group.examples.length < 3) group.examples.push(sourceId);
+    sourceGatePatterns.set(pattern, group);
+}
 const invalidEvidence = PREREQ_REGISTRY.flatMap((def) => (def.evidence ?? []).flatMap((entry, index) => {
     const validDate = /^\d{4}-\d{2}-\d{2}$/.test(entry.verifiedOn)
         && !Number.isNaN(Date.parse(`${entry.verifiedOn}T00:00:00Z`));
@@ -255,12 +297,17 @@ const lines = [
     `- Registry entries: ${PREREQ_REGISTRY.length}`,
     `- Direct required edges: ${PREREQ_REGISTRY.reduce((n, def) => n + def.prerequisites.length, 0)}`,
     `- Alternative prerequisite references: ${PREREQ_REGISTRY.reduce((n, def) => n + (def.anyPrerequisites?.length ?? 0), 0)}`,
+    `- Typed blocking conditions: ${PREREQ_REGISTRY.reduce((n, def) => n + (def.conditions?.length ?? 0), 0)}`,
+    `- Blocking relationships in edge matrix: ${blockingRelationshipAudit.length}`,
+    `- Non-blocking onboarding links: ${PREREQ_REGISTRY.reduce((n, def) => n + (def.progressionAfter?.length ?? 0), 0)}`,
     `- Milestone rollups: ${MILESTONE_REGISTRY.length}`,
     `- Source catalog entries: ${Object.keys(SOURCE_INDEX).length}`,
+    `- Source-catalog gate relationships: ${sourceRelationshipCount} across ${sourceGatePatterns.size} exact gate patterns`,
     `- Star Chart nodes: ${STAR_CHART_DATA.nodes.length}`,
     `- Star Chart junctions: ${STAR_CHART_DATA.nodes.filter((node) => node.nodeType === "junction").length}`,
     `- Prerequisite categories: ${[...byCategory.entries()].map(([category, count]) => `${category} ${count}`).join("; ")}`,
     `- Root entries: ${roots.map((def) => def.id).join(", ") || "none"}`,
+    `- Entries not connected to Awakening: ${disconnectedFromAwakening.length ? disconnectedFromAwakening.join(", ") : "none"}`,
     `- Entries with release metadata: ${rowsWithRelease.length}`,
     `- Entries introduced after the Update 41 baseline: ${introducedAfterUpdate41.length}${introducedAfterUpdate41.length ? ` (${[...postCutoffByCategory.entries()].map(([category, count]) => `${category} ${count}`).join("; ")})` : ""}`,
     `- Duplicate IDs: ${duplicates.length ? duplicates.join(", ") : "none"}`,
@@ -269,6 +316,7 @@ const lines = [
     `- Self-references: ${selfReferences.length ? selfReferences.join(", ") : "none"}`,
     `- Duplicate direct relationships: ${duplicateEdges.length ? duplicateEdges.join(", ") : "none"}`,
     `- Unresolved prerequisite references: ${missingRefs.length ? missingRefs.join("; ") : "none"}`,
+    `- Unresolved onboarding references: ${progressionMissingRefs.length ? progressionMissingRefs.join("; ") : "none"}`,
     `- Unresolved source-catalog references: ${sourceMissingRefs.length ? sourceMissingRefs.join("; ") : "none"}`,
     `- Unresolved milestone references: ${milestoneMissingRefs.length ? milestoneMissingRefs.join("; ") : "none"}`,
     `- Invalid condition references or values: ${conditionMissingRefs.length ? conditionMissingRefs.join("; ") : "none"}`,
@@ -281,14 +329,61 @@ const lines = [
     `- Entries without per-entry evidence metadata: ${entriesWithoutEvidence.length}`,
     `- Gated entries without per-entry evidence: ${gatedEntriesWithoutEvidence.length}`,
     `- Gated entries without current required/conditional evidence: ${gatedEntriesWithoutCurrentEvidence.length ? gatedEntriesWithoutCurrentEvidence.join(", ") : "none"}`,
+    `- Blocking relationships without current supporting evidence: ${relationshipEvidenceGaps.length ? relationshipEvidenceGaps.join(", ") : "none"}`,
     `- Direct relationships / conditions on entries without evidence: ${referencesWithoutEvidence}`,
     `- Invalid evidence records: ${invalidEvidence.length ? invalidEvidence.join("; ") : "none"}`,
+    "",
+    "## Relationship Evidence Matrix",
+    "",
+    "Each blocking AND edge, OR alternative, and typed condition has its own row. The source note is repeated beside every relationship it supports; onboarding-order links are listed separately as nonblocking.",
+    "",
+    "| Target | Relationship | Type | Evidence checked | Decision |",
+    "|---|---|---|---|---|",
+];
+
+for (const row of relationshipAudit) {
+    const evidence = row.blocking
+        ? row.evidence.map((entry) => `[${entry.kind}](${entry.url}) (${entry.verifiedOn}; ${entry.classification}): ${entry.note}`).join("; ") || "MISSING"
+        : "Nonblocking onboarding order; no game requirement asserted";
+    const decision = row.kind === "required-and"
+        ? "Retain as required AND gate"
+        : row.kind === "alternative-or"
+            ? "Retain as an alternative route"
+            : row.kind === "typed-condition"
+                ? "Retain as a typed access condition"
+                : "Nonblocking discovery order";
+    const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ");
+    lines.push(`| \`${cell(row.targetId)}\` ${cell(row.targetLabel)} | ${cell(row.relationshipKey)} · ${cell(row.requirement)} | ${row.kind} | ${cell(evidence)} | ${decision} |`);
+}
+
+lines.push(
+    "",
+    "## Acquisition Source Gate Patterns",
+    "",
+    "The source catalog contains many generated rows that share the same location-specific gate set. This table groups exact gate sets, reports how many source rows use each set, and gives sample source IDs so every inferred source relationship can be reviewed by rule family.",
+    "",
+    "| Gate set | Source rows | Sample source IDs | Supporting gate evidence |",
+    "|---|---:|---|---|",
+);
+
+for (const [pattern, group] of [...sourceGatePatterns.entries()].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))) {
+    const parentEvidence = pattern.split(" & ").flatMap((id) => {
+        const parent = registryById.get(id);
+        return (parent?.evidence ?? [])
+            .filter((entry) => entry.classification === "required" || entry.classification === "conditional")
+            .map((entry) => `[${parent?.label ?? id}](${entry.url})`);
+    });
+    const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ");
+    lines.push(`| ${cell(pattern.split(" & ").map((id) => registryById.get(id)?.label ?? id).join(" AND "))} | ${group.count} | ${cell(group.examples.join(", "))} | ${cell([...new Set(parentEvidence)].join("; ") || "No linked current gate evidence")} |`);
+}
+
+lines.push(
     "",
     "## Tracked Entries",
     "",
     "| Identifier | Name | Category | Required (AND) | Alternative (OR) | Typed conditions (AND) | Direct dependents | Completion source | Evidence / release metadata |",
     "|---|---|---|---|---|---|---|---|---|",
-];
+);
 
 for (const def of PREREQ_REGISTRY) {
     const completion = def.validatedBySyndicate
@@ -330,6 +425,7 @@ for (const def of PREREQ_REGISTRY) {
 
 console.log(lines.join("\n"));
 
-if (duplicates.length || duplicateMilestoneIds.length || duplicateLabels.length || selfReferences.length || duplicateEdges.length || missingRefs.length || sourceMissingRefs.length || milestoneMissingRefs.length || conditionMissingRefs.length || cyclicComponents.length || unapprovedRedundantEdges.length || junctionIssues.length || duplicateChartNodeIds.length || chartReferenceIssues.length || entriesWithoutEvidence.length || gatedEntriesWithoutEvidence.length || gatedEntriesWithoutCurrentEvidence.length || invalidEvidence.length) {
+if (duplicates.length || duplicateMilestoneIds.length || duplicateLabels.length || selfReferences.length || duplicateEdges.length || missingRefs.length || progressionMissingRefs.length || disconnectedFromAwakening.length || roots.length !== 1 || roots[0]?.id !== PR.AWAKENING || sourceMissingRefs.length || milestoneMissingRefs.length || conditionMissingRefs.length || cyclicComponents.length || unapprovedRedundantEdges.length || junctionIssues.length || duplicateChartNodeIds.length || chartReferenceIssues.length || entriesWithoutEvidence.length || gatedEntriesWithoutEvidence.length || gatedEntriesWithoutCurrentEvidence.length || relationshipEvidenceGaps.length || invalidEvidence.length) {
     process.exitCode = 1;
 }
+
