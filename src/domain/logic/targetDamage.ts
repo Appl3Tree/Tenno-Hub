@@ -742,9 +742,9 @@ export function simulateExpectedWeaponEncounter(
         const canReweight = input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
         let totalWeight = 0;
         const immuneTypes = new Set(statusImmuneTypes);
-        // Enemy Overguard blocks Radiation's confusion effect, while Magnetic
-        // has no defensive effect once both Overguard and Shields are gone.
-        if (remainingPools.overguard > 0) immuneTypes.add("radiation");
+        // Radiation can still be applied under Overguard; its effects remain
+        // suppressed until the Overguard pool is removed. Magnetic has no
+        // defensive effect once both Overguard and Shields are gone.
         if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
         if (canReweight) {
             totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
@@ -829,7 +829,6 @@ export function simulateExpectedWeaponEncounter(
             const duration = STATUS_EFFECT_RULES[type].durationSeconds * durationMultiplier;
             if (applications <= 0 || (type !== "blast" && duration <= 0) || statusImmuneTypes.has(type)) continue;
             if (type === "cold" && coldFreezeUntil !== null && attackTime < coldFreezeUntil - 1e-9) continue;
-            if (type === "radiation" && remainingPools.overguard > 0) continue;
             if (type === "magnetic" && remainingPools.overguard <= 0 && remainingPools.shields <= 0) continue;
 
             let cap = STATUS_EFFECT_RULES[type].maxStacks ?? Number.POSITIVE_INFINITY;
@@ -981,6 +980,22 @@ export function simulateExpectedWeaponEncounter(
                     }
                 }
                 if (gasCloudGroup) updateGasCloudActiveStacks(gasCloudGroup, addedStacks);
+            } else if (type === "impact" || type === "radiation") {
+                // The current Wiki says new Impact/Radiation stacks replace
+                // the oldest stack after their target-specific cap is reached.
+                addedStacks = Math.min(applications, cap);
+                let replacedStacks = Math.max(0, queue.totalStacks + addedStacks - cap);
+                while (replacedStacks > 1e-9 && queue.head < queue.entries.length) {
+                    const oldest = queue.entries[queue.head];
+                    const removedStacks = Math.min(oldest.stacks, replacedStacks);
+                    oldest.stacks -= removedStacks;
+                    queue.totalStacks = Math.max(0, queue.totalStacks - removedStacks);
+                    replacedStacks -= removedStacks;
+                    if (oldest.stacks <= 1e-9) {
+                        removeStatusPresence(queue, oldest.presenceProbability);
+                        queue.head++;
+                    }
+                }
             } else {
                 addedStacks = Math.min(applications, Math.max(0, cap - queue.totalStacks));
             }
@@ -996,7 +1011,11 @@ export function simulateExpectedWeaponEncounter(
             });
             addStatusPresence(queue, presenceProbability);
             queue.totalStacks += addedStacks;
-            statusApplicationsByType[type] = (statusApplicationsByType[type] ?? 0) + addedStacks;
+            const recordedApplications = type === "impact" || type === "radiation"
+                ? (cap > 0 ? applications : 0)
+                : addedStacks;
+            statusApplicationsByType[type] =
+                (statusApplicationsByType[type] ?? 0) + recordedApplications;
 
             if (type === "cold" && cap >= 10 && queue.totalStacks >= 10 && coldFreezeUntil === null) {
                 coldFreezeUntil = attackTime +

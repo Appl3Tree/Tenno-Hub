@@ -380,19 +380,19 @@ Incarnon damage accuracy follow-up (2026-11-11): a unique extra-projectile damag
   - Scope: custom targets can include 0–20 additional same-profile enemies assumed to remain inside the active Electric/Gas cloud radius. Optimizer score multiplies only Electric and Gas DoT ticks; it does not simulate neighbor pools/statuses, positions, or Gas radius growth. Default is zero.
 - [x] Add bounded Blast cap/death radial handling as conditional AoE/utility
   - Scope: custom targets can include 0–20 same-profile neighbors. The finite encounter applies the primary target's cap/death `3 × sum(H)` radial through each neighbor's Blast defenses and reports collateral separately from primary TTK. Optimizer scoring estimates cap-radial value from Poisson proc arrivals; death-triggered value, neighbor statuses/positions, and chained deaths remain unsupported. Default is zero.
-- [ ] Add per-target state simulation for:
+- [x] Add bounded per-target state simulation for the effects below; expected-value behavior and unsupported utility are scoped per type:
   - [x] Slash (target-local Bleed procs keep independent six-tick timers, bypass Armor, and resolve against Shields/Health; there is no damage cap at ten stacks—the Wiki's ten-number limit is display-only. Proc rolls remain expected-value/mean-field.)
   - [x] Heat (mean-field armor strip; DoT group refresh remains unmodeled)
   - [x] Electric (target-local independent six-second proc timers resolve as one same-second pulse; configured neighbor pools take bounded collateral damage. Neighbor status/proc and stun histories, positions, geometry, and crowd control are not simulated. [Wiki](https://wiki.warframe.com/w/Damage/Electricity_Damage))
   - [x] Toxin (target-local Poison procs keep independent six-tick timers, bypass Shields but not Overguard, and resolve through the configured pools; there is no damage cap at ten stacks—the Wiki's ten-number limit is display-only. Proc rolls remain expected-value/mean-field.)
-  - [ ] Gas
+  - [x] Gas (target-local independent six-second clouds keep six ticks at 0–5s; the 11th stack replaces the oldest, and the host's cloud continues damaging configured neighbor pools after the host dies. Radius growth/positions and neighbor-specific status histories are not simulated. [Wiki](https://wiki.warframe.com/w/Damage/Gas_Damage))
   - [x] Viral (mean-field stacks and Health amplification)
   - [x] Corrosive (mean-field stacks and armor strip)
   - [x] Cold (mean-field stacks, target caps, and crit support)
   - [x] Blast (expected stack timers, 0.3× expiry payout, cap payout, and configured-neighbor cap/death radial; neighbor status state and chained deaths remain open)
   - [x] Magnetic (mean-field stacks and Shield/Overguard amplification)
-  - [ ] Radiation
-  - [ ] Impact
+  - [x] Radiation (target-local 12-second stacks replace the oldest after ten; applications are retained under Overguard while effects are suppressed. Ally targeting/damage and boss-specific caps/damage intake are not simulated. [Wiki](https://wiki.warframe.com/w/Damage/Radiation_Damage))
+  - [x] Impact (target-local six-second, five-stack state replaces the oldest at cap; Mercy threshold and stagger immunity are disclosed, but eligible-target outcomes and crowd-control utility are not simulated. [Wiki](https://wiki.warframe.com/w/Damage/Impact_Damage))
   - [x] Puncture (mean-field stacks and crit support)
 - [ ] Add target/profile toggles:
   - [x] Armored (custom target pools expose current/base Armor and the verified level curve)
