@@ -18,6 +18,7 @@ import {
   CollectionModeButton,
   CollectionRefineBand,
   CollectionRefineGroup,
+  CollectionSortHeader,
   CollectionScrollSurface,
   type CollectionActiveFilter,
 } from "../components/collection/CollectionLedgerShell";
@@ -169,7 +170,21 @@ function getSupplementalRivenWeapons() {
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-type ModSortKey = "az" | "release-newest" | "release-oldest" | "rarity-asc" | "rarity-desc" | "rank-asc" | "rank-desc";
+type ModSortKey =
+  | "az"
+  | "za"
+  | "release-newest"
+  | "release-oldest"
+  | "polarity-asc"
+  | "polarity-desc"
+  | "rarity-asc"
+  | "rarity-desc"
+  | "count-asc"
+  | "count-desc"
+  | "rank-asc"
+  | "rank-desc"
+  | "owned-rank-asc"
+  | "owned-rank-desc";
 
 const ALL_MODS_BY_PATH: Record<string, AllModEntry> = {};
 // Name-based fallback — used when mods.json path doesn't match All.json uniqueName
@@ -2318,10 +2333,17 @@ const LEDGER_ROW_HEIGHT = 56;
 const LEDGER_OVERSCAN = 8;
 const MOD_SORT_OPTIONS: Array<{ value: ModSortKey; label: string }> = [
   { value: "az", label: "Name A→Z" },
+  { value: "za", label: "Name Z→A" },
   { value: "release-newest", label: "Release: Newest first" },
   { value: "release-oldest", label: "Release: Oldest first" },
+  { value: "polarity-asc", label: "Polarity: A→Z" },
+  { value: "polarity-desc", label: "Polarity: Z→A" },
   { value: "rarity-asc", label: "Rarity: Common → Legendary" },
   { value: "rarity-desc", label: "Rarity: Legendary → Common" },
+  { value: "count-desc", label: "Count: High → Low" },
+  { value: "count-asc", label: "Count: Low → High" },
+  { value: "owned-rank-asc", label: "Owned Rank: Low → High" },
+  { value: "owned-rank-desc", label: "Owned Rank: High → Low" },
   { value: "rank-asc", label: "Max Rank: Low → High" },
   { value: "rank-desc", label: "Max Rank: High → Low" },
 ];
@@ -2496,23 +2518,52 @@ function ModsPage() {
     }
     list = [...deduped.values()];
 
+    const compareNames = (a: ModEntry, b: ModEntry) =>
+      getDisplayModName(a).localeCompare(getDisplayModName(b), undefined, { numeric: true, sensitivity: "base" }) ||
+      a.path.localeCompare(b.path);
+
     list.sort((a, b) => {
+      if (sortKey === "az" || sortKey === "za") {
+        const nameOrder = compareNames(a, b);
+        return sortKey === "az" ? nameOrder : -nameOrder;
+      }
       if (sortKey === "release-newest" || sortKey === "release-oldest") {
         const aRelease = getSortableReleaseDate((ALL_MODS_BY_PATH[a.path] ?? ALL_MODS_BY_NAME[a.name])?.releaseDate, sortKey === "release-oldest" ? "oldest" : "newest");
         const bRelease = getSortableReleaseDate((ALL_MODS_BY_PATH[b.path] ?? ALL_MODS_BY_NAME[b.name])?.releaseDate, sortKey === "release-oldest" ? "oldest" : "newest");
         if (aRelease !== bRelease) return sortKey === "release-newest" ? (bRelease > aRelease ? 1 : -1) : (aRelease > bRelease ? 1 : -1);
+      }
+      if (sortKey === "polarity-asc" || sortKey === "polarity-desc") {
+        const aPolarity = a.data?.ArtifactPolarity ?? toAP((ALL_MODS_BY_PATH[a.path] ?? ALL_MODS_BY_NAME[a.name])?.polarity);
+        const bPolarity = b.data?.ArtifactPolarity ?? toAP((ALL_MODS_BY_PATH[b.path] ?? ALL_MODS_BY_NAME[b.name])?.polarity);
+        if (!!aPolarity !== !!bPolarity) return aPolarity ? -1 : 1;
+        if (aPolarity && bPolarity) {
+          const polarityOrder = polarityLabel(aPolarity).localeCompare(polarityLabel(bPolarity));
+          if (polarityOrder !== 0) return sortKey === "polarity-asc" ? polarityOrder : -polarityOrder;
+        }
       }
       if (sortKey === "rarity-asc" || sortKey === "rarity-desc") {
         const aRarity = rarityRank(modRarity(a));
         const bRarity = rarityRank(modRarity(b));
         if (aRarity !== bRarity) return sortKey === "rarity-asc" ? aRarity - bRarity : bRarity - aRarity;
       }
+      if (sortKey === "count-asc" || sortKey === "count-desc") {
+        const aCount = Number(counts[modKey(a.path)] ?? 0);
+        const bCount = Number(counts[modKey(b.path)] ?? 0);
+        if (aCount !== bCount) return sortKey === "count-asc" ? aCount - bCount : bCount - aCount;
+      }
       if (sortKey === "rank-asc" || sortKey === "rank-desc") {
         const aRank = modMaxRank(a);
         const bRank = modMaxRank(b);
         if (aRank !== bRank) return sortKey === "rank-asc" ? aRank - bRank : bRank - aRank;
       }
-      return a.name.localeCompare(b.name);
+      if (sortKey === "owned-rank-asc" || sortKey === "owned-rank-desc") {
+        const aCount = Number(counts[modKey(a.path)] ?? 0);
+        const bCount = Number(counts[modKey(b.path)] ?? 0);
+        const aRank = aCount > 0 ? clampModOwnedRank(modMaxRank(a), modRanksMap[a.path]) : -1;
+        const bRank = bCount > 0 ? clampModOwnedRank(modMaxRank(b), modRanksMap[b.path]) : -1;
+        if (aRank !== bRank) return sortKey === "owned-rank-asc" ? aRank - bRank : bRank - aRank;
+      }
+      return compareNames(a, b);
     });
 
     return list;
@@ -2527,6 +2578,7 @@ function ModsPage() {
     includedParazonFilters,
     includedPolarities,
     modGroup,
+    modRanksMap,
     ownershipFilter,
     query,
     sortKey,
@@ -2555,6 +2607,13 @@ function ModsPage() {
     countTriStateFilters(parazonFilters) +
     (ownershipFilter !== "all" ? 1 : 0);
   const modBrowseGridTemplate = "minmax(260px,1.7fr) 140px 140px 110px 120px 120px 40px";
+  const toggleModSort = (ascending: ModSortKey, descending: ModSortKey, initial: "ascending" | "descending" = "ascending") => {
+    setSortKey((current) => {
+      if (current === ascending) return descending;
+      if (current === descending) return ascending;
+      return initial === "ascending" ? ascending : descending;
+    });
+  };
 
   const resetFilters = () => {
     setModGroup("all");
@@ -2922,21 +2981,68 @@ function ModsPage() {
               </div>
             ) : (
               <div className="border-t border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-bg-canvas)]">
-                <div className="min-w-[980px]">
+                <div role="table" aria-label="Mods catalog results" className="min-w-[980px]">
                   <div
+                    role="row"
                     className="sticky top-36 z-20 grid gap-2 border-b border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--wf-text-dim)] backdrop-blur sm:top-44 lg:top-28"
                     style={{ gridTemplateColumns: modBrowseGridTemplate }}
                   >
-                    <div>Item</div>
-                    <div>Release</div>
-                    <div>Polarity</div>
-                    <div>Rarity</div>
-                    <div>Count</div>
-                    <div>Rank</div>
-                    <div />
+                    <CollectionSortHeader
+                      label="Item"
+                      active={sortKey === "az" || sortKey === "za"}
+                      direction={sortKey === "za" ? "descending" : "ascending"}
+                      ascendingLabel="A to Z"
+                      descendingLabel="Z to A"
+                      onClick={() => toggleModSort("az", "za")}
+                    />
+                    <CollectionSortHeader
+                      label="Release"
+                      active={sortKey === "release-newest" || sortKey === "release-oldest"}
+                      direction={sortKey === "release-oldest" ? "ascending" : "descending"}
+                      initialDirection="descending"
+                      ascendingLabel="Oldest first"
+                      descendingLabel="Newest first"
+                      onClick={() => toggleModSort("release-oldest", "release-newest", "descending")}
+                    />
+                    <CollectionSortHeader
+                      label="Polarity"
+                      active={sortKey === "polarity-asc" || sortKey === "polarity-desc"}
+                      direction={sortKey === "polarity-desc" ? "descending" : "ascending"}
+                      ascendingLabel="A to Z"
+                      descendingLabel="Z to A"
+                      onClick={() => toggleModSort("polarity-asc", "polarity-desc")}
+                    />
+                    <CollectionSortHeader
+                      label="Rarity"
+                      active={sortKey === "rarity-asc" || sortKey === "rarity-desc"}
+                      direction={sortKey === "rarity-desc" ? "descending" : "ascending"}
+                      ascendingLabel="Common to Legendary"
+                      descendingLabel="Legendary to Common"
+                      onClick={() => toggleModSort("rarity-asc", "rarity-desc")}
+                    />
+                    <CollectionSortHeader
+                      label="Count"
+                      active={sortKey === "count-asc" || sortKey === "count-desc"}
+                      direction={sortKey === "count-asc" ? "ascending" : "descending"}
+                      initialDirection="descending"
+                      ascendingLabel="Low to High"
+                      descendingLabel="High to Low"
+                      onClick={() => toggleModSort("count-asc", "count-desc", "descending")}
+                    />
+                    <CollectionSortHeader
+                      label="Rank"
+                      active={sortKey === "owned-rank-asc" || sortKey === "owned-rank-desc"}
+                      direction={sortKey === "owned-rank-desc" ? "descending" : "ascending"}
+                      initialDirection="descending"
+                      ascendingLabel="Low to High"
+                      descendingLabel="High to Low"
+                      onClick={() => toggleModSort("owned-rank-asc", "owned-rank-desc", "descending")}
+                    />
+                    <div role="columnheader" aria-label="Actions" />
                   </div>
-                  <div ref={rowsAnchorRef} className="relative" style={{ height: filteredMods.length * LEDGER_ROW_HEIGHT }}>
+                  <div ref={rowsAnchorRef} role="rowgroup" className="relative" style={{ height: filteredMods.length * LEDGER_ROW_HEIGHT }}>
                     <div
+                      role="presentation"
                       className="absolute left-0 right-0 px-4 py-2"
                       style={{ transform: `translateY(${windowState.start * LEDGER_ROW_HEIGHT}px)` }}
                     >
@@ -2951,7 +3057,8 @@ function ModsPage() {
                         const ownedRank = ownedCount > 0 ? clampModOwnedRank(maxRank, modRanksMap[entry.path]) : 0;
                         const rankDistribution = formatModRankCounts(modRankCountsMap[entry.path], modUnknownRankCountsMap[entry.path] ?? 0);
                         return (
-                          <div key={entry.path} className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: modBrowseGridTemplate }}>
+                          <div key={entry.path} role="row" className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: modBrowseGridTemplate }}>
+                            <div role="cell" className="min-w-0">
                             <button
                               className={[
                                 "flex min-w-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
@@ -2963,10 +3070,11 @@ function ModsPage() {
                             >
                               <span className="truncate font-medium">{getDisplayModName(entry)}</span>
                             </button>
-                            <div className="px-2 text-sm text-slate-300">
+                            </div>
+                            <div role="cell" className="px-2 text-sm text-slate-300">
                               {formatReleaseDate(allEntry?.releaseDate) ?? "—"}
                             </div>
-                            <div className="px-2 text-sm text-slate-300">
+                            <div role="cell" className="px-2 text-sm text-slate-300">
                               <div className="flex items-center gap-2">
                                 {polarity ? (
                                   <>
@@ -2987,10 +3095,10 @@ function ModsPage() {
                                 )}
                               </div>
                             </div>
-                            <div className={["px-2 text-sm font-medium", rarityColor(rarity)].join(" ")}>
+                            <div role="cell" className={["px-2 text-sm font-medium", rarityColor(rarity)].join(" ")}>
                               {rarity ? rarity.charAt(0) + rarity.slice(1).toLowerCase() : "—"}
                             </div>
-                            <div className="flex shrink-0 flex-col items-center" onClick={(event) => event.stopPropagation()}>
+                            <div role="cell" className="flex shrink-0 flex-col items-center" onClick={(event) => event.stopPropagation()}>
                               <div className="flex items-center">
                                 <button
                                   className="flex h-[38px] w-6 items-center justify-center rounded-l border border-r-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
@@ -3022,7 +3130,7 @@ function ModsPage() {
                                 </span>
                               ) : null}
                             </div>
-                            <div className="flex items-center shrink-0" onClick={(event) => event.stopPropagation()}>
+                            <div role="cell" className="flex items-center shrink-0" onClick={(event) => event.stopPropagation()}>
                               <button
                                 className="flex h-[38px] w-6 items-center justify-center rounded-l border border-r-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
                                 disabled={ownedCount <= 0 || ownedRank <= 0}
@@ -3041,7 +3149,7 @@ function ModsPage() {
                                 +
                               </button>
                             </div>
-                            <div className="flex justify-center gap-2">
+                            <div role="cell" className="flex justify-center gap-2">
                               <button
                                 className="rounded-lg border border-cyan-700/50 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-300 hover:bg-cyan-950/35"
                                 onClick={(event) => {
@@ -3070,3 +3178,4 @@ function ModsPage() {
 }
 
 export default ModsPage;
+
