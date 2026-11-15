@@ -1,6 +1,6 @@
 import type { ModEffect } from "./modCatalog";
 
-const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
+const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
     ["headshotMultiplierBonus", "Headshot multiplier bonus"],
@@ -43,6 +43,9 @@ export function getUnmodeledDamageEffectLines(
 ): string[] {
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
         .filter((line) => DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    if (lines.some((line) => /\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b/i.test(line))) {
+        lines.push("Tennokai opportunity timing and attack-chain cadence are not modeled or scored.");
+    }
     if (lines.some((line) => /\bentropy\b/i.test(line))) {
         lines.push("Entropy syndicate side effect is not modeled.");
     }

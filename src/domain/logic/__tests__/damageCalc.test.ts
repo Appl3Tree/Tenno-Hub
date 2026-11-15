@@ -39,6 +39,35 @@ function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
     };
 }
 
+describe("Tennokai mod catalog coverage", () => {
+    it("keeps Mentor's Legacy selectable and labels unsupported Tennokai timing", () => {
+        const meleeWeapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(meleeWeapon).toBeDefined();
+        const meleeMods = getModsForWeapon(meleeWeapon!);
+        const tennokaiNames = [
+            "Condition's Perfection",
+            "Discipline's Merit",
+            "Dreamer's Wrath",
+            "Master's Edge",
+            "Mentor's Legacy",
+            "Opportunity's Reach",
+            "Truth's Flame",
+        ];
+        const tennokaiMods = tennokaiNames.map((name) => meleeMods.find((mod) => mod.name === name));
+
+        expect(tennokaiMods.every(Boolean)).toBe(true);
+        const mentor = tennokaiMods[4]!;
+        expect(mentor).toMatchObject({ fusionLimit: 0, isExilus: true, hasDamageEffect: false });
+        expect(mentor.statsTextByRank).toEqual(["Enables Tennokai."]);
+
+        for (const mod of tennokaiMods) {
+            expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit)).toContain(
+                "Tennokai opportunity timing and attack-chain cadence are not modeled or scored.",
+            );
+        }
+    });
+});
+
 describe("damage calculation status eligibility", () => {
     it("models Enduring Affliction as additive Status Chance only for an explicitly Lifted target", () => {
         const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");

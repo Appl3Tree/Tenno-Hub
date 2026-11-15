@@ -1,7 +1,7 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Sentient Surge, Ocucor, Proton Jet, and Proton Snap pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
+ * The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Tennokai, Sentient Surge, Ocucor, Proton Jet, and Proton Snap pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
  * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
  * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
  * Damage quantization follows the
@@ -45,6 +45,9 @@ export const DAMAGE_RULESET = Object.freeze({
         protonSnap: "https://wiki.warframe.com/w/Proton_Snap",
         melee: "https://wiki.warframe.com/w/Melee",
         meleeUpdate35: "https://wiki.warframe.com/w/Update_35",
+        tennokai: "https://wiki.warframe.com/w/Melee#Tennokai",
+        tennokaiMods: "https://wiki.warframe.com/w/Tennokai_Mods",
+        truthsFlame: "https://wiki.warframe.com/w/Truth%27s_Flame",
         puncture: "https://wiki.warframe.com/w/Damage/Puncture_Damage",
         cold: "https://wiki.warframe.com/w/Damage/Cold_Damage",
         status: "https://wiki.warframe.com/w/Status_Effect",
@@ -91,6 +94,7 @@ export const DAMAGE_RULESET = Object.freeze({
         "Galvanized Reflex's On Melee Kill effect adds 20 Initial Combo per stack for 20s, up to four stacks. The selected conditional state applies this bonus to the modeled starting combo; the Realistic state uses the shared 60% kill uptime and 70% stack-cap heuristic (33.6 points at the four-stack maximum), not a target-specific kill history. The finite status encounter and optimizer still hold that starting combo tier across attacks.",
         "Amanata Pressure contributes one uniformly distributed expected proc across Impact, Puncture, Slash, Heat, Cold, Electricity, Toxin, Blast, Radiation, Gas, Magnetic, Viral, and Corrosive on selected heavy-attack rows at 8x combo or higher. Its combo threshold and one-proc distribution are modeled for the primary target. DPS, optimizer scoring, and finite status encounters keep that starting tier static across repeated hits; status histories on other enemies hit by the heavy slam are not evolved.",
         "The optional melee stance-average DPS estimate uses the selected stance's Wiki Neutral-combo direct and forced-Slash multipliers and approximate timing; 58 currently cataloged stance mods have source rows. Direct combo damage uses the modded quantized hit; forced Slash uses the current Bleed tick seed (base-damage effects, crit, faction, and Status Damage) without physical or elemental damage mods, then applies the Wiki-weighted hits and duration-adjusted ticks. The Wiki warns its comparison formula omits stance physical-damage bonuses. Stance hit sequences beyond Neutral, combo generation and decay, target defenses, and status history are excluded; the optimizer's Burst/Sustained objectives remain attack-rate proxies for melee.",
+        "Tennokai mods unlock opportunities from qualifying direct melee hits; the current Wiki describes a 15% base chance and 2-second window, with Discipline's Merit replacing random opportunities with one every four melee hits. The calculator does not simulate qualifying-hit cadence, window consumption, faster Tennokai wind-up, retained combo, Tennokai-only damage/crit/status bonuses, Opportunity's Reach range/window effects, or Truth's Flame kill chaining and failure curse. Those source lines remain explicitly unmodeled, and affected ranks are excluded from Auto Optimize. Mentor's Legacy has no rank-stat block in the upstream export; it is retained as a zero-rank manual-pick record but does not contribute a modeled damage bonus.",
     ]),
 });
 

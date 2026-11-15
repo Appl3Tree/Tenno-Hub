@@ -3,6 +3,14 @@
 Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
 ## Latest follow-up (2026-11-15)
+### Tennokai manual-picker coverage (2026-11-15)
+
+The current [Melee Tennokai section](https://wiki.warframe.com/w/Melee#Tennokai) describes opportunities from qualifying direct melee hits, with a 15% base chance and a 2-second window; the [Update 35 notes](https://wiki.warframe.com/w/Update_35) specify Discipline's Merit changes that to every four melee hits. The [Tennokai Mods](https://wiki.warframe.com/w/Tennokai_Mods) list includes Mentor's Legacy, whose upstream item record has no rank-stat block, so the catalog had silently omitted it before the manual picker. The catalog now preserves its exact zero-rank record and labels its unmodeled Tennokai behavior.
+
+All seven Tennokai mod records now trigger a visible unmodeled-cadence explanation for their opportunity, attack-only bonus, range/window, or kill/curse lines. Their unsupported ranks remain outside Auto Optimize; the optimizer does not treat the Tennokai bonus as active on every heavy attack. In particular, [Truth's Flame](https://wiki.warframe.com/w/Truth%27s_Flame) has kill-chain damage and a failed-kill self-curse/combo reset that require encounter history the current model does not simulate.
+
+The regression exercises the same `getModsForWeapon` catalog path used by the manual picker, verifies Mentor's Legacy is Exilus/rank 0, and requires the cadence limitation on all seven records. The ruleset now stores the Wiki sources and explicit limits. All 679 tests across 52 files pass; the production build, `validate:sources`, mod-effect audit (481 parsed / 599 records, 118 without a parsed effect, 86 review candidates, zero weapon pools without parsed damage), focused ESLint, and `git diff --check` pass. The broad Damage 3.0 assignment remains open.
+
 ### Wiki-backed Sentient Surge and Ocucor modeling (2026-11-15)
 
 The current [Sentient Surge Wiki page](https://wiki.warframe.com/w/Sentient_Surge) lists six ranks of magazine refill and additive Critical/Status Chance per active tendril. The [Ocucor page](https://wiki.warframe.com/w/Ocucor) caps the tendrils at four and says they reset when the magazine is reloaded or emptied. All six bundled catalog ranks are now parsed: rank 0–5 gives 3–20% reserve-ammo refill per kill and +10–60% additive Critical and Status Chance per tendril, up to +240% each at four tendrils. The mod is no longer excluded from Auto Optimize.

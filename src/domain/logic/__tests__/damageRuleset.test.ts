@@ -33,6 +33,18 @@ describe("Damage 3.0 shared rules", () => {
         )).toBe(true);
     });
 
+    it("records Tennokai's Wiki sources and unmodeled cadence boundary", () => {
+        expect(DAMAGE_RULESET.sources.tennokai).toBe("https://wiki.warframe.com/w/Melee#Tennokai");
+        expect(DAMAGE_RULESET.sources.tennokaiMods).toBe("https://wiki.warframe.com/w/Tennokai_Mods");
+        expect(DAMAGE_RULESET.sources.truthsFlame).toBe("https://wiki.warframe.com/w/Truth%27s_Flame");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("qualifying direct melee hits") &&
+            entry.includes("15% base chance and 2-second window") &&
+            entry.includes("Tennokai-only damage/crit/status bonuses") &&
+            entry.includes("affected ranks are excluded from Auto Optimize"),
+        )).toBe(true);
+    });
+
     it("records Sentient Surge's source-backed stack and magazine limitations", () => {
         expect(DAMAGE_RULESET.sources.sentientSurge).toBe("https://wiki.warframe.com/w/Sentient_Surge");
         expect(DAMAGE_RULESET.sources.ocucor).toBe("https://wiki.warframe.com/w/Ocucor");

@@ -187,6 +187,7 @@ const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjecti
 const SENTIENT_SURGE_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveOcucorAugmentMod";
 const PROTON_JET_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModB";
 const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
+const MENTOR_LEGACY_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/TennokaiBaseMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
     "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
@@ -1186,7 +1187,8 @@ function buildCaches(): ModCaches {
         const drain = rawBaseDrain + fl;
         const isAura = rawCompat === "AURA" || rawBaseDrain < 0;
         const isStance = String(item.type ?? "") === "Stance Mod" || String(item.type ?? "") === "Posture Mod";
-        if ((!levelStats || levelStats.length === 0) && !isStance) return null;
+        const isMentorsLegacy = path === MENTOR_LEGACY_PATH;
+        if ((!levelStats || levelStats.length === 0) && !isStance && !isMentorsLegacy) return null;
         // Use the shared utility flag for weapon exilus mods, plus WFCD's native flag for Warframe exilus.
         const isWeaponUtility = !!item.isUtility && !isAura &&
             (bucket === "Rifle" || bucket === "Shotgun" || bucket === "Pistol" ||
@@ -1195,7 +1197,15 @@ function buildCaches(): ModCaches {
         const isExilus = !!item.isExilus || isWeaponUtility;
 
         // Build effects at every rank 0..fusionLimit
-        const parsedLevelStats = levelStats ?? [];
+        // The Wiki lists Mentor's Legacy as a rank-0 Tennokai-enabling mod,
+        // while the upstream item export omits its otherwise empty rankStats.
+        // Keep it selectable in the manual melee picker; Tennokai cadence and
+        // its attack-specific effects remain explicitly unmodeled.
+        const parsedLevelStats = levelStats?.length
+            ? levelStats
+            : isMentorsLegacy
+                ? [{ stats: ["Enables Tennokai."] }]
+                : [];
         const unparsedStatsByRank: string[][] = [];
         const effectsByRank: ModEffect[] = parsedLevelStats.map(ls => {
             let e = emptyEffect();
