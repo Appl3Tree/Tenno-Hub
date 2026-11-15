@@ -3,6 +3,14 @@
 Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Build Planner assignment. It is not a completion claim.
 
 ## Latest follow-up (2026-11-15)
+### Wiki-backed Sentient Surge and Ocucor modeling (2026-11-15)
+
+The current [Sentient Surge Wiki page](https://wiki.warframe.com/w/Sentient_Surge) lists six ranks of magazine refill and additive Critical/Status Chance per active tendril. The [Ocucor page](https://wiki.warframe.com/w/Ocucor) caps the tendrils at four and says they reset when the magazine is reloaded or emptied. All six bundled catalog ranks are now parsed: rank 0–5 gives 3–20% reserve-ammo refill per kill and +10–60% additive Critical and Status Chance per tendril, up to +240% each at four tendrils. The mod is no longer excluded from Auto Optimize.
+
+The planner loads the rank data automatically. Initial assumes zero tendrils, Fully stacked assumes four, Custom uses the entered count capped at four, and Realistic uses the shared 70%-of-cap stack heuristic (2.8 tendrils); that heuristic is an explicit planner approximation, not a Wiki claim. The Options note and calculation trace disclose this, the magazine reset boundary, the fact that the refill uses reserve ammo, and the exclusion of extra tendril hits and multi-target kill chains from the single-target score. Kill cadence, magazine usage, and reset timing are not simulated.
+
+Regression coverage checks every rank, source lines, additive Crit/Status stacking, each conditional state, the four-tendril cap, source/limitation records, and Auto Optimize eligibility. Release checks pass: 673 tests across 52 files, npm run build, npm run validate:sources, mod-effect coverage audit (479 parsed damage/performance records; 86 flagged review candidates), focused ESLint, and CRLF-aware git diff --check. Overall task remains open for the broader mechanic catalog, global/joint optimization quality, objective-equivalent Underframe comparisons, stochastic histories, and cold/mobile/cross-device Worker measurements.
+
 ### Wiki stance Slash-seed correction (2026-11-15)
 
 The live [Wiki Stance Comparison table](https://wiki.warframe.com/w/Stance#Comparison) was reread in the in-app browser. It gives forced Slash multipliers as the sum of combo hit multipliers × hits × 0.35 × six ticks; its adjacent note says to use melee's modded damage while excluding physical and elemental damage bonuses. The [Damage over Time page](https://wiki.warframe.com/w/Damage_over_Time#DoT_Damage_Scaling) confirms Slash procs are not increased by physical damage mods, while base damage bonuses, crits, Status Damage, and faction damage affect the resulting proc. The stance estimator previously multiplied the Slash term by the full final hit damage, so elemental/physical mods incorrectly inflated Bleed.

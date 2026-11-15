@@ -351,6 +351,54 @@ describe("damage calculation status eligibility", () => {
         expect(bioticStacked.statusChance).toBeGreaterThan(bioticInitial.statusChance);
     });
 
+    it("parses Wiki-backed Sentient Surge ranks and applies its capped active-tendril bonuses", () => {
+        const ocucor = getWeaponCatalog().find((candidate) => candidate.name === "Ocucor");
+        expect(ocucor).toBeDefined();
+        const sentientSurge = getModsForWeapon(ocucor!).find((candidate) => candidate.name === "Sentient Surge");
+        expect(sentientSurge).toBeDefined();
+        expect(sentientSurge!.effectsByRank.map((effect) => effect.sentientSurgeMagazineRefillPerKill))
+            .toEqual([0.03, 0.06, 0.09, 0.12, 0.15, 0.2]);
+        expect(sentientSurge!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.stats))
+            .toEqual([0.1, 0.2, 0.3, 0.4, 0.5, 0.6].map((bonus) => ({
+                critChanceBonus: bonus,
+                statusChanceBonus: bonus,
+            })));
+        for (let rank = 0; rank <= sentientSurge!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(sentientSurge!, rank)).toEqual([]);
+            expect(sentientSurge!.effectsByRank[rank].conditionalEffects[0]).toMatchObject({
+                trigger: "onOcucorTendrilKill",
+                maxStacks: 4,
+                durationSeconds: 0,
+            });
+        }
+
+        const effect = sentientSurge!.effect;
+        const initial = calculateBuild(ocucor!, [effect], "", { conditionalState: { mode: "initial" } }).modded;
+        const realistic = calculateBuild(ocucor!, [effect], "", { conditionalState: { mode: "realistic" } }).modded;
+        const fullyStacked = calculateBuild(ocucor!, [effect], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+        const customTwo = calculateBuild(ocucor!, [effect], "", {
+            conditionalState: { mode: "custom", externalStacks: 2 },
+        }).modded;
+        const customOverCap = calculateBuild(ocucor!, [effect], "", {
+            conditionalState: { mode: "custom", externalStacks: 9 },
+        }).modded;
+        expect(initial.critChance).toBeCloseTo(ocucor!.critChance, 12);
+        expect(initial.statusChance).toBeCloseTo(ocucor!.statusChance, 12);
+        expect(realistic.critChance).toBeCloseTo(ocucor!.critChance * (1 + 0.6 * 2.8), 12);
+        expect(realistic.statusChance).toBeCloseTo(ocucor!.statusChance * (1 + 0.6 * 2.8), 12);
+        expect(fullyStacked.critChance).toBeCloseTo(ocucor!.critChance * 3.4, 12);
+        expect(fullyStacked.statusChance).toBeCloseTo(ocucor!.statusChance * 3.4, 12);
+        expect(customTwo.critChance).toBeCloseTo(ocucor!.critChance * 2.2, 12);
+        expect(customOverCap.critChance).toBeCloseTo(fullyStacked.critChance, 12);
+
+        const otherCritAndStatusMod = { ...emptyEffect(), critChanceBonus: 1.5, statusChanceBonus: 1.65 };
+        const additive = calculateBuild(ocucor!, [otherCritAndStatusMod, effect], "", {
+            conditionalState: { mode: "fullyStacked" },
+        }).modded;
+        expect(additive.critChance).toBeCloseTo(ocucor!.critChance * (1 + 1.5 + 2.4), 12);
+        expect(additive.statusChance).toBeCloseTo(ocucor!.statusChance * (1 + 1.65 + 2.4), 12);
+    });
+
     it("parses and applies Shattering Impact only to quantized Impact melee hits", () => {
         const skana = getWeaponCatalog().find((candidate) => candidate.name === "Skana");
         expect(skana).toBeDefined();

@@ -53,6 +53,7 @@ export function getUnmodeledDamageEffectLines(
 export function emptyEffect(): ModEffect {
     return {
         damageBonus: 0, firstShotMagazineDamageBonus: 0, lastShotMagazineDamageBonus: 0,
+        sentientSurgeMagazineRefillPerKill: 0,
         shatteringImpactBaseArmorPerHit: 0, impactBonus: 0, punctureBonus: 0, slashBonus: 0,
         heavyAttackDamageBonus: 0,
         slamAttackDamageBonus: 0,

@@ -33,6 +33,17 @@ describe("Damage 3.0 shared rules", () => {
         )).toBe(true);
     });
 
+    it("records Sentient Surge's source-backed stack and magazine limitations", () => {
+        expect(DAMAGE_RULESET.sources.sentientSurge).toBe("https://wiki.warframe.com/w/Sentient_Surge");
+        expect(DAMAGE_RULESET.sources.ocucor).toBe("https://wiki.warframe.com/w/Ocucor");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Sentient Surge uses each catalog rank's Wiki-backed additive Critical Chance and Status Chance bonus per active Ocucor tendril"),
+        )).toBe(true);
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Extra tendril beams, their follow-on target damage, and multi-target kill chains are not simulated."),
+        )).toBe(true);
+    });
+
     it("records Burning Hate's Wiki source and proc-timing boundary", () => {
         expect(DAMAGE_RULESET.sources.burningHate).toBe("https://wiki.warframe.com/w/Burning_Hate");
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>

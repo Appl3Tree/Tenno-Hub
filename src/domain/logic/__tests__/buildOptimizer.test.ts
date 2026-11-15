@@ -520,6 +520,18 @@ describe("build optimizer scoring", () => {
         expect(result.arcane).toBeNull();
     });
 
+    it("keeps Wiki-complete Sentient Surge available to Ocucor Auto Optimize", () => {
+        const ocucor = getWeaponCatalog().find((candidate) => candidate.name === "Ocucor");
+        expect(ocucor).toBeDefined();
+        const sentientSurge = getModsForWeapon(ocucor!).find((candidate) => candidate.name === "Sentient Surge");
+        expect(sentientSurge).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(sentientSurge!, sentientSurge!.fusionLimit)).toEqual([]);
+
+        const result = optimizeBuild(ocucor!, [sentientSurge!], "burst", 1, { allowForma: false });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots).toContain(sentientSurge);
+    });
+
     it("parses Critical Focus's aimed critical chance and critical damage", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Corvas Prime");
         expect(weapon).toBeTruthy();

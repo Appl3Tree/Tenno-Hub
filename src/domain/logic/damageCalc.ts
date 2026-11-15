@@ -570,6 +570,11 @@ export function estimateConditionalUptime(
         case "onKill":
             uptime = ON_KILL_UPTIME_ASSUMPTION;
             break;
+        case "onOcucorTendrilKill":
+            // Tendril bonuses remain active until the Ocucor magazine is reloaded
+            // or emptied. The stack estimate below supplies the ramp approximation.
+            uptime = 1;
+            break;
         case "onHeadshot":
             uptime = ON_HEADSHOT_UPTIME_ASSUMPTION;
             break;
@@ -732,6 +737,11 @@ function estimateConditionalStackFactor(
         case "onMeleeKill":
         case "onKillOrAssist":
             return Math.max(1, conditional.maxStacks * 0.7);
+        case "onOcucorTendrilKill":
+            // Shared realistic heuristic: assume 70% of the four persistent
+            // tendril stacks on average; kill cadence and magazine resets are
+            // not simulated.
+            return Math.max(0, Math.min(conditional.maxStacks, conditional.maxStacks * 0.7));
         case "onHeadshotKill":
         case "onWeakPointKill":
             return Math.max(1, conditional.maxStacks * 0.5);

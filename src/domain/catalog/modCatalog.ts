@@ -68,6 +68,8 @@ export interface ModEffect {
     firstShotMagazineDamageBonus: number;
     /** Bonus damage on one hit of the final ammo-consuming shot in each eligible magazine. */
     lastShotMagazineDamageBonus: number;
+    /** Sentient Surge magazine portion refilled from reserves per qualifying kill; displayed, not scored. */
+    sentientSurgeMagazineRefillPerKill: number;
     /** Permanent base armor removed by Shattering Impact on each qualifying melee hit. */
     shatteringImpactBaseArmorPerHit: number;
     impactBonus: number;
@@ -182,6 +184,7 @@ const MAIMING_STRIKE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/SlideAttackCritCha
 const BURNING_HATE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveStalkerScytheAugmentMod";
 const PROTOTYPE_SHOCK_COILS_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
 const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjectileMod";
+const SENTIENT_SURGE_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveOcucorAugmentMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
     "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
@@ -206,6 +209,7 @@ export type ConditionalTrigger =
     | "onMeleeKill"
     | "onKillOrAssist"
     | "onConsecutiveThrow"
+    | "onOcucorTendrilKill"
     | "whileTargetHasStatus";
 
 export interface ConditionalEffect {
@@ -1306,6 +1310,43 @@ function buildCaches(): ModCaches {
                         stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim() !== text,
                     );
                     break;
+                }
+            });
+        }
+        if (path === SENTIENT_SURGE_PATH) {
+            // The source export combines both effects into one sentence. Read each
+            // catalog rank directly, keep the reserve-ammo refill as display-only,
+            // and model the additive Crit/Status bonuses per active Ocucor tendril.
+            // https://wiki.warframe.com/w/Sentient_Surge
+            // https://wiki.warframe.com/w/Ocucor
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect) return;
+                for (const rawStat of levelStat.stats ?? []) {
+                    const text = stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    const refillMatch = text.match(/Each target eliminated refills (\d+(?:\.\d+)?)% of Ocucor's magazine/i);
+                    const bonusMatch = text.match(/Status Chance and Critical Chance are increased by (\d+(?:\.\d+)?)% for each Tendril active/i);
+                    if (refillMatch) {
+                        rankEffect.sentientSurgeMagazineRefillPerKill = Number(refillMatch[1]) / 100;
+                    }
+                    if (bonusMatch) {
+                        const perTendrilBonus = Number(bonusMatch[1]) / 100;
+                        rankEffect.conditionalEffects = [{
+                            trigger: "onOcucorTendrilKill",
+                            durationSeconds: 0,
+                            requiresAiming: false,
+                            maxStacks: 4,
+                            stats: {
+                                critChanceBonus: perTendrilBonus,
+                                statusChanceBonus: perTendrilBonus,
+                            },
+                        }];
+                    }
+                    if (refillMatch || bonusMatch) {
+                        unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                            stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim() !== text,
+                        );
+                    }
                 }
             });
         }

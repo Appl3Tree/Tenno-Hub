@@ -968,6 +968,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
     return effects.reduce((acc, effect) => {
         if (!effect) return acc;
         acc.damageBonus += effect.damageBonus ?? 0;
+        acc.sentientSurgeMagazineRefillPerKill += effect.sentientSurgeMagazineRefillPerKill ?? 0;
         acc.conditionOverloadDamagePerStatusBonus += effect.conditionOverloadDamagePerStatusBonus ?? 0;
         acc.impactBonus += effect.impactBonus ?? 0;
         acc.punctureBonus += effect.punctureBonus ?? 0;
@@ -1005,6 +1006,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         return acc;
     }, {
         damageBonus: 0,
+        sentientSurgeMagazineRefillPerKill: 0,
         conditionOverloadDamagePerStatusBonus: 0,
         impactBonus: 0,
         punctureBonus: 0,
@@ -1362,6 +1364,24 @@ function buildMathBreakdown(
             : "";
         return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${triggerModel}`;
     });
+    if (conditionalEntries.some((conditional) => conditional.trigger === "onOcucorTendrilKill")) {
+        const ocucorTendrilCondition = conditionalEntries.find((conditional) => conditional.trigger === "onOcucorTendrilKill")!;
+        const modeledTendrils = estimateConditionalUptime(
+            ocucorTendrilCondition,
+            baselineRateForConditionals,
+            baseMagazineForConditionals,
+            conditionalState,
+        ) * estimateConditionalStackFactor(
+            ocucorTendrilCondition,
+            baselineRateForConditionals,
+            baseMagazineForConditionals,
+            conditionalState,
+        );
+        conditionalLines.push(
+            "Sentient Surge stack assumption = " + fmt(modeledTendrils, 2) +
+            " active tendrils; Realistic uses the disclosed 70%-of-four heuristic. Wiki tendrils reset on reload or an empty magazine, but kill cadence/reset timing are not simulated; the finite encounter holds the selected stack estimate constant.",
+        );
+    }
     const customTargetLines = targetProfileOverride ? [
         `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,
         ...(targetProfileOverride.description ? [targetProfileOverride.description] : []),
@@ -1445,6 +1465,9 @@ function buildMathBreakdown(
         {
             title: "Damage Bonuses",
             lines: [
+                ...(totals.sentientSurgeMagazineRefillPerKill > 0
+                    ? ["Sentient Surge refills " + fmt(totals.sentientSurgeMagazineRefillPerKill * 100, 0) + "% of the magazine from reserve ammo per target eliminated; this refill is displayed but excluded from the single-target score."]
+                    : []),
                 `Damage bonus = ${fmt(totals.damageBonus * 100, 3)}% | impact bonus = ${fmt(totals.impactBonus * 100, 3)}% | puncture bonus = ${fmt(totals.punctureBonus * 100, 3)}% | slash bonus = ${fmt(totals.slashBonus * 100, 3)}%`,
                 ...(stats.slamAttackDamageMultiplier > 1
                     ? [`Selected slam damage multiplier = ×${fmt(stats.slamAttackDamageMultiplier, 5)} (multiplicative Slam Damage category)`]
@@ -3966,6 +3989,17 @@ export default function ModBuilder() {
         }
         return effects;
     }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
+    const sentientSurgeRefillPerKill = activeBuildEffects.reduce(
+        (total, effect) => total + (effect?.sentientSurgeMagazineRefillPerKill ?? 0),
+        0,
+    );
+    const sentientSurgeActiveTendrils = conditionalMode === "initial"
+        ? 0
+        : conditionalMode === "fullyStacked"
+            ? 4
+            : conditionalMode === "custom"
+                ? Math.max(0, Math.min(4, externalConditionalStacks))
+                : 2.8;
     const activeBuildEffectSourceLabels = useMemo(() => {
         const labels = [
             ...(activeWeaponState?.activeIncarnonEffects ?? []).map((_, index) => `selected Incarnon evolution ${index + 1}`),
@@ -4968,6 +5002,12 @@ export default function ModBuilder() {
                                                     <option value="fullyStacked">Fully stacked scenario</option>
                                                     <option value="custom">External stacks</option>
                                                 </select>
+                                                {sentientSurgeRefillPerKill > 0 && (
+                                                    <p role="note" className="basis-full text-[10px] leading-relaxed text-slate-400">
+                                                        Sentient Surge uses Wiki-backed rank values automatically: this scenario assumes {sentientSurgeActiveTendrils.toFixed(1)} active tendrils (four maximum). Realistic uses a 70%-of-cap estimate. Tendrils reset on reload or an empty magazine; kill cadence and reset timing are not simulated. The {Math.round(sentientSurgeRefillPerKill * 100)}% kill refill comes from reserve ammo, and extra tendril damage against other targets is outside the single-target score.{" "}
+                                                        <a href="https://wiki.warframe.com/w/Sentient_Surge" target="_blank" rel="noreferrer" className="underline decoration-slate-600 underline-offset-2 hover:text-slate-200">WARFRAME Wiki: Sentient Surge</a>
+                                                    </p>
+                                                )}
                                                 {conditionalMode === "custom" && (
                                                     <label className="flex items-center gap-2 text-[10px] text-slate-400">
                                                         <span>Maintained stacks per effect</span>
