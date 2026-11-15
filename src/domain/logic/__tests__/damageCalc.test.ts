@@ -123,6 +123,43 @@ describe("Spring-Loaded Broadhead Wiki modeling", () => {
     });
 });
 
+describe("Cull the Weak Wiki modeling", () => {
+    it("parses every rank and applies the bonus only to non-critical hits", () => {
+        const chesaClaws = getWeaponCatalog().find((candidate) => candidate.name === "Chesa Claws");
+        expect(chesaClaws).toBeDefined();
+
+        const mod = getModsForWeapon(chesaClaws!).find((candidate) => candidate.name.toLowerCase() === "cull the weak");
+        expect(mod).toBeDefined();
+        expect(mod!.effectsByRank.map((effect) => effect.nonCriticalHitDamageProcs)).toEqual(
+            [0.4, 0.8, 1.2, 1.6, 2, 2.4].map((damageBonus) => [{ chance: 1, damageBonus }]),
+        );
+        expect(mod!.effectsByRank.map((effect) => effect.conditionOverloadDamagePerStatusBonus)).toEqual(
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        );
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+        }
+
+        const maxRankEffect = {
+            ...mod!.effectsByRank[mod!.fusionLimit],
+            conditionOverloadDamagePerStatusBonus: 0,
+        };
+        const halfCriticalWeapon = { ...makeWeapon({ impact: 100 }), critChance: 0.5 };
+        const halfCriticalBaseline = calculateBuild(halfCriticalWeapon, []).modded;
+        const halfCriticalStats = calculateBuild(halfCriticalWeapon, [maxRankEffect]).modded;
+        expect(halfCriticalStats.averageShotDamage - halfCriticalBaseline.averageShotDamage).toBeCloseTo(
+            halfCriticalStats.totalDamage * halfCriticalStats.damageWeightedMultishot *
+                (1 - halfCriticalStats.critChance) * 2.4,
+            8,
+        );
+
+        const alwaysCriticalWeapon = { ...makeWeapon({ impact: 100 }), critChance: 1.5 };
+        const alwaysCriticalBaseline = calculateBuild(alwaysCriticalWeapon, []).modded;
+        const alwaysCriticalStats = calculateBuild(alwaysCriticalWeapon, [maxRankEffect]).modded;
+        expect(alwaysCriticalStats.averageShotDamage).toBeCloseTo(alwaysCriticalBaseline.averageShotDamage, 8);
+    });
+});
+
 describe("damage calculation status eligibility", () => {
     it("models Enduring Affliction as additive Status Chance only for an explicitly Lifted target", () => {
         const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");

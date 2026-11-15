@@ -518,6 +518,15 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     // stat string starting with "and +N" (e.g. " and +50% Status Chance for 20s.").
     // Processed "A and B" splits from explodeStatLines never start with "and".
     if (/^\s*and\s+[+-]?\d/i.test(clean)) return {};
+    // The WARFRAME Wiki lists Cull the Weak's second line as "Non-Critical hits deal
+    // +240% damage" at max rank (40% at rank 0). This is damage on non-critical hits,
+    // not a general damage bonus.
+    const nonCriticalDamage = clean.match(/^Non[-\s]?Critical hits? deal \+?(\d+(?:\.\d+)?)% damage\.?$/i);
+    if (nonCriticalDamage) {
+        return {
+            nonCriticalHitDamageProcs: [{ chance: 1, damageBonus: Number(nonCriticalDamage[1]) / 100 }],
+        };
+    }
     const stackMatch = clean.match(/stacks?\s+up\s+to\s+(\d+)x/i);
     const stackMult = options?.applyStackMultiplier === false
         ? 1
@@ -708,6 +717,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             out.independentStatusProcChanceByType = merged;
         } else if (k === "conditionalEffects") {
             out.conditionalEffects = [...(out.conditionalEffects ?? []), ...((partial.conditionalEffects ?? []) as ConditionalEffect[])];
+        } else if (k === "nonCriticalHitDamageProcs") {
+            out.nonCriticalHitDamageProcs = [...(out.nonCriticalHitDamageProcs ?? []), ...((partial.nonCriticalHitDamageProcs ?? []) as NonCriticalHitDamageProc[])];
         } else if (k === "impactStatusExtraProcLowFireRateThreshold" || k === "impactStatusExtraProcLowFireRateMultiplier") {
             (out[k] as number) = Math.max(((out[k] as number) ?? 0), ((partial[k] as number) ?? 0));
         } else {
