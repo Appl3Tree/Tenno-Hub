@@ -3842,6 +3842,15 @@ export function optimizeBuildCore(
     slotCount: number,
     opts: OptimizerOptions = {},
 ): OptimizeResult {
+    const autoSpoolTimingLimitation = opts.buildForAttack?.autoSpoolTimingLimitation ??
+        weapon.selectedAttackAutoSpoolTimingLimitation;
+    if (goal === "timeToKill" && autoSpoolTimingLimitation) {
+        throw new Error(
+            `Expected TTK is unavailable for ${weapon.selectedAttackName ?? opts.buildForAttack?.name ?? weapon.name}: ` +
+            `${autoSpoolTimingLimitation.reason} Wiki: ${autoSpoolTimingLimitation.sourceUrl}`,
+        );
+    }
+
     const maxOnlyOpts: OptimizerOptions = { ...opts, allowNonMaxRank: false };
     const maxOnlyResult = optimizeBuildInternal(weapon, availableMods, goal, slotCount, maxOnlyOpts);
 

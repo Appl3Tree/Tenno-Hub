@@ -1575,7 +1575,9 @@ describe("build optimizer scoring", () => {
             const attack = weapon!.attacks[attackIndex]!;
             const selected = withSelectedAttack(weapon!, attackIndex);
 
-            expect(attack.trigger, `${weaponName} / ${attackName}`).toBe("Auto-Spool");
+            expect(attack.trigger, `${weaponName} / ${attackName}`).toBe(
+                weaponName === "Coda Bubonico" ? "Auto" : "Auto-Spool",
+            );
             expect(attack.autoSpoolCadence).toMatchObject({
                 roundsToFullRate,
                 startingRateFraction,
@@ -1585,10 +1587,86 @@ describe("build optimizer scoring", () => {
             expect(selected.selectedAttackAutoSpoolCadence).toEqual(attack.autoSpoolCadence);
         }
 
+        const wikiAutoSpoolModes = [
+            ["Gorgon", "Fully Spooled"],
+            ["Gorgon Wraith", "Fully Spooled"],
+            ["Prisma Gorgon", "Fully Spooled"],
+            ["Soma", "Fully Spooled"],
+            ["Soma Prime", "Fully Spooled"],
+            ["Supra", "Fully Spooled"],
+            ["Supra Vandal", "Fully Spooled"],
+            ["Tenora", "Fully Spooled"],
+            ["Tenora Prime", "Fully Spooled"],
+            ["Kohm", "Fully Spooled"],
+            ["Kuva Kohm", "Fully Spooled"],
+            ["Aksomati", "Fully Spooled"],
+            ["Aksomati Prime", "Fully Spooled"],
+            ["Cestra", "Normal Attack"],
+            ["Kohmak", "Fully Spooled"],
+            ["Secura Dual Cestra", "Normal Attack"],
+            ["Twin Kohmak", "Fully Spooled"],
+            ["Deth Machine Rifle", "Normal Attack"],
+            ["Deth Machine Rifle Prime", "Normal Attack"],
+            ["Grattler", "Projectile Impact"],
+            ["Grattler", "Explosion"],
+            ["Imperator Vandal", "Normal Attack"],
+            ["Phaedra", "Normal Attack"],
+        ] as const;
+        for (const [weaponName, attackName] of wikiAutoSpoolModes) {
+            const weapon = catalog.find((entry) => entry.name === weaponName);
+            expect(weapon, `Wiki Auto-Spool weapon ${weaponName}`).toBeTruthy();
+            const attack = weapon!.attacks.find((entry) => entry.name === attackName);
+            expect(attack, `${weaponName} / ${attackName}`).toBeTruthy();
+            expect(attack?.trigger, `${weaponName} / ${attackName}`).toBe("Auto-Spool");
+            expect(
+                Boolean(attack?.autoSpoolCadence) !== Boolean(attack?.autoSpoolTimingLimitation),
+                `${weaponName} / ${attackName} must be supported or carry an explicit limitation`,
+            ).toBe(true);
+        }
+
         const gorgon = catalog.find((entry) => entry.name === "Gorgon")!;
         const incarnonIndex = gorgon.attacks.findIndex((attack) => attack.name === "Incarnon Form");
         expect(withSelectedAttack(gorgon, incarnonIndex).trigger).not.toBe("Auto-Spool");
         expect(withSelectedAttack(gorgon, incarnonIndex).selectedAttackAutoSpoolCadence).toBeUndefined();
+    });
+
+    it("withholds finite Auto-Spool timing when source-backed cadence or variable shots are incomplete", () => {
+        const catalog = getWeaponCatalog();
+        const limitedModes = [
+            ["Kohm", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Kohm"],
+            ["Kuva Kohm", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Kuva_Kohm"],
+            ["Kohmak", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Kohmak"],
+            ["Twin Kohmak", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Twin_Kohmak"],
+            ["Aksomati Prime", "Fully Spooled", "11-round", "https://wiki.warframe.com/w/Aksomati_Prime"],
+            ["Deth Machine Rifle", "Normal Attack", "Auto-Spool", "https://wiki.warframe.com/w/Deth_Machine_Rifle"],
+            ["Deth Machine Rifle Prime", "Normal Attack", "Auto-Spool", "https://wiki.warframe.com/w/Deth_Machine_Rifle_Prime"],
+        ] as const;
+
+        for (const [weaponName, attackName, reasonFragment, sourceUrl] of limitedModes) {
+            const weapon = catalog.find((entry) => entry.name === weaponName);
+            expect(weapon, weaponName).toBeTruthy();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+            expect(attackIndex, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(0);
+            const attack = weapon!.attacks[attackIndex]!;
+            const selected = withSelectedAttack(weapon!, attackIndex);
+
+            expect(attack.trigger, `${weaponName} / ${attackName}`).toBe("Auto-Spool");
+            expect(attack.autoSpoolCadence).toBeUndefined();
+            expect(attack.autoSpoolTimingLimitation?.reason).toContain(reasonFragment);
+            expect(attack.autoSpoolTimingLimitation?.sourceUrl).toBe(sourceUrl);
+            expect(selected.selectedAttackAutoSpoolTimingLimitation).toEqual(attack.autoSpoolTimingLimitation);
+            expect(calculateBuild(selected, []).modded.fireRate).toBeCloseTo(attack.speed, 5);
+            expect(() => optimizeBuild(selected, [], "timeToKill", 8, { buildForAttack: attack }))
+                .toThrow(/Expected TTK is unavailable/);
+            expect(() => optimizeBuild(selected, [], "burst", 8, { buildForAttack: attack })).not.toThrow();
+        }
+
+        for (const weaponName of ["Kohm", "Kuva Kohm", "Kohmak", "Twin Kohmak"]) {
+            const weapon = catalog.find((entry) => entry.name === weaponName)!;
+            const singlePelletIndex = weapon.attacks.findIndex((attack) => attack.name === "Single Pellet");
+            expect(singlePelletIndex, `${weaponName} unspooled profile`).toBeGreaterThanOrEqual(0);
+            expect(withSelectedAttack(weapon, singlePelletIndex).selectedAttackAutoSpoolTimingLimitation).toBeUndefined();
+        }
     });
 
     it("uses Auto-Spool timing when the optimizer scores a target-specific encounter", () => {
@@ -2200,8 +2278,9 @@ describe("build optimizer scoring", () => {
                 weaponName: "Perigale Prime",
                 targetFaction: "Grineer",
                 targetProfileOverride: { health: 50000, shields: 0, overguard: 0, armor: 1800 },
-                modNames: ["Serration", "Split Chamber", "Vital Sense", "Malignant Force"],
+                modNames: ["Serration", "Split Chamber", "Vital Sense", "Malignant Force", "Heavy Caliber", "Hunter Munitions", "Point Strike"],
                 arcaneNames: ["Primary Merciless", "Primary Deadhead"],
+                slotCount: 5,
             },
             {
                 weaponName: "Cedo",
@@ -2214,7 +2293,7 @@ describe("build optimizer scoring", () => {
                     armor: 1400,
                     statusStackCaps: { cold: 4 },
                 },
-                modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast"],
+                modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast", "Primed Charged Shell", "Vigilante Armaments"],
                 arcaneNames: ["Primary Merciless", "Primary Frostbite"],
             },
             {
@@ -2222,7 +2301,7 @@ describe("build optimizer scoring", () => {
                 attackName: "Plasma Bomb Explosion",
                 targetFaction: "Grineer",
                 targetProfileOverride: { health: 18000, shields: 0, overguard: 0, armor: 1300 },
-                modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast"],
+                modNames: ["Primed Point Blank", "Hell's Chamber", "Toxic Barrage", "Frigid Blast", "Blaze", "Vigilante Armaments"],
                 arcaneNames: ["Primary Merciless", "Primary Frostbite"],
             },
             {
@@ -2236,7 +2315,7 @@ describe("build optimizer scoring", () => {
                     armor: 0,
                     toxinBypassesShields: true,
                 },
-                modNames: ["Hornet Strike", "Barrel Diffusion", "Galvanized Diffusion", "Pistol Pestilence"],
+                modNames: ["Hornet Strike", "Barrel Diffusion", "Galvanized Diffusion", "Pistol Pestilence", "Lethal Torrent", "Pistol Elementalist"],
                 arcaneNames: ["Secondary Merciless", "Secondary Encumber"],
             },
             {
@@ -2250,7 +2329,7 @@ describe("build optimizer scoring", () => {
                     armor: 1100,
                     statusStackCaps: { cold: 4 },
                 },
-                modNames: ["Primed Pressure Point", "Blood Rush", "Organ Shatter", "Condition Overload"],
+                modNames: ["Primed Pressure Point", "Blood Rush", "Organ Shatter", "Condition Overload", "Primed Reach", "Gladiator Might"],
                 arcaneNames: ["Melee Animosity", "Melee Exposure"],
             },
             {
@@ -2259,11 +2338,10 @@ describe("build optimizer scoring", () => {
                 incarnonForm: true,
                 targetFaction: "Grineer",
                 targetProfileOverride: { health: 83818, shields: 0, overguard: 0, armor: 2700 },
-                modNames: ["Galvanized Diffusion", "Hornet Strike", "Pathogen Rounds", "Target Cracker"],
+                modNames: ["Galvanized Diffusion", "Hornet Strike", "Pathogen Rounds", "Target Cracker", "Pistol Pestilence", "Primed Heated Charge"],
                 arcaneNames: ["Secondary Merciless", "Secondary Deadhead"],
             },
         ] as const;
-        const slotCount = 3;
         const betterEncounter = (
             candidate: ReturnType<typeof debugScoreExpectedEncounter>,
             incumbent: ReturnType<typeof debugScoreExpectedEncounter>,
@@ -2275,6 +2353,7 @@ describe("build optimizer scoring", () => {
             : incumbent.timeToKillSeconds === null && candidate.damagePerSecond > incumbent.damagePerSecond + 1e-9;
 
         for (const scenario of scenarios) {
+            const slotCount = "slotCount" in scenario ? scenario.slotCount : 4;
             const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
             expect(weapon, scenario.weaponName).toBeTruthy();
             const candidates = scenario.modNames.map((name) => {
@@ -2317,7 +2396,7 @@ describe("build optimizer scoring", () => {
             const slotPolarities = Array.from({ length: slotCount }, (_, index) => weapon!.polarities[index] ?? "");
             const capacityConfig = {
                 weaponRank: 30,
-                hasCatalyst: true,
+                hasCatalyst: false,
                 masteryRank: 30,
                 canOverLevel: weapon!.canOverLevel,
             };
@@ -2329,7 +2408,7 @@ describe("build optimizer scoring", () => {
             );
             const enumerate = (remaining: typeof candidates, ordered: typeof candidates) => {
                 const ranks = ordered.map((mod) => mod.fusionLimit);
-                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, false);
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, 3);
                 const capacity = computeCapacity(
                     capacityConfig,
                     placement.resultPolarities.map((polarity) => ({ polarity })),
@@ -2376,7 +2455,8 @@ describe("build optimizer scoring", () => {
                 capacityConfig,
                 slotPolarities,
                 defaultSlotPolarities: slotPolarities,
-                allowForma: false,
+                allowForma: true,
+                maxFormaCount: 3,
                 optimizeExilus: false,
                 optimizeArcane: true,
                 arcaneCandidates,
@@ -2399,6 +2479,8 @@ describe("build optimizer scoring", () => {
             );
 
             expect(optimized.capacityValid, scenario.weaponName).toBe(true);
+            expect(countPolarityChanges(slotPolarities, optimized.slotPolarities), scenario.weaponName)
+                .toBeLessThanOrEqual(3);
             expect(
                 optimizedScore.timeToKillSeconds,
                 `${scenario.weaponName}: optimizer TTK should match the exhaustive legal subset`,

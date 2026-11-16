@@ -158,5 +158,6 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackChargeDamageBaseAmmoCost: attack.chargeDamageBaseAmmoCost,
         selectedAttackDamageRamp: attack.damageRamp,
         selectedAttackAutoSpoolCadence: attack.autoSpoolCadence,
+        selectedAttackAutoSpoolTimingLimitation: attack.autoSpoolTimingLimitation,
     };
 }

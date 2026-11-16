@@ -120,6 +120,30 @@ describe("Damage 3.0 shared rules", () => {
         expect(quantizeDamageContribution(0.25, 0)).toBe(0.25);
     });
 
+    it("matches the Wiki's mixed physical-damage quantization example against an Infested target", () => {
+        // WARFRAME Wiki Damage/Calculation's 100 base-damage example quantizes
+        // 30 Impact / 30 Puncture / 40 Slash to 31.25 / 31.25 / 40.625.
+        // Its Charger example then applies the current +50% Infested Slash
+        // damage modifier for 123.4375 total damage.
+        const baseDamage = 100;
+        const quantizedImpact = quantizeDamageContribution(30, baseDamage);
+        const quantizedPuncture = quantizeDamageContribution(30, baseDamage);
+        const quantizedSlash = quantizeDamageContribution(40, baseDamage);
+
+        expect([quantizedImpact, quantizedPuncture, quantizedSlash]).toEqual([31.25, 31.25, 40.625]);
+        expect(factionDamageTypeModifier("infested", "slash")).toBe(0.5);
+        const chargerDamage = applyHealthDamageTypeModifiers({
+            impact: quantizedImpact,
+            puncture: quantizedPuncture,
+            slash: quantizedSlash,
+        }, "infested");
+
+        expect(chargerDamage.impact).toBe(31.25);
+        expect(chargerDamage.puncture).toBe(31.25);
+        expect(chargerDamage.slash).toBe(60.9375);
+        expect(Object.values(chargerDamage).reduce((sum, damage) => sum + damage, 0)).toBe(123.4375);
+    });
+
     it("quantizes the weapon base critical multiplier through the 12-bit game encoding", () => {
         expect(quantizeBaseCriticalDamageMultiplier(2)).toBeCloseTo(256 * 32 / 4095, 6);
         expect(quantizeBaseCriticalDamageMultiplier(-1)).toBe(0);
