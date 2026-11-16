@@ -12,7 +12,7 @@
 // Additionally, weapon-specific augments (e.g. compatName "Hek") are surfaced
 // when the selected weapon's name matches the compat name.
 
-import { ACID_SHELLS_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, emptyEffect, VOLATILE_VARIANT_MOD_PATH } from "./modEffectUtils";
+import { ACID_SHELLS_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, emptyEffect, VOLATILE_VARIANT_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "./modEffectUtils";
 export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
@@ -34,6 +34,14 @@ const ACID_SHELLS_WIKI_RANKS = [
     { corrosiveDamage: 300, healthPercent: 30, radiusMeters: 10 },
     { corrosiveDamage: 375, healthPercent: 37.5, radiusMeters: 12.5 },
     { corrosiveDamage: 450, healthPercent: 45, radiusMeters: 15 },
+];
+const VULCAN_BLITZ_WIKI_RANKS = [
+    { blastDamage: 50, healthPercent: 10, radiusMeters: 1 },
+    { blastDamage: 100, healthPercent: 20, radiusMeters: 2 },
+    { blastDamage: 150, healthPercent: 30, radiusMeters: 3 },
+    { blastDamage: 200, healthPercent: 40, radiusMeters: 4 },
+    { blastDamage: 250, healthPercent: 50, radiusMeters: 5 },
+    { blastDamage: 300, healthPercent: 60, radiusMeters: 6 },
 ];
 const MODS_META = MODS_RAW as Record<string, {
     name?: string;
@@ -1321,6 +1329,19 @@ function buildCaches(): ModCaches {
                 ];
             });
         }
+        if (path === VULCAN_BLITZ_MOD_PATH) {
+            // The current Wiki rank table scales the explosion radius from 1m
+            // to 6m. The generated card description incorrectly shows 6m at
+            // every rank. Keep the kill explosion out of ordinary hit scoring.
+            // https://wiki.warframe.com/w/Vulcan_Blitz
+            VULCAN_BLITZ_WIKI_RANKS.forEach((wikiRank, rank) => {
+                if (!effectsByRank[rank]) return;
+                effectsByRank[rank] = emptyEffect();
+                unparsedStatsByRank[rank] = [
+                    `On death: ${wikiRank.blastDamage} Blast Damage + ${wikiRank.healthPercent}% of enemy max Health; ${wikiRank.radiusMeters}m radius.`,
+                ];
+            });
+        }
         if (path === VOLATILE_VARIANT_MOD_PATH) {
             // The Wiki says this additive Status Chance applies only to Volatile
             // Variant's explosion. Apply it only when the selected attack row is
@@ -1600,6 +1621,13 @@ function buildCaches(): ModCaches {
                 if (rank >= statsTextByRank.length) return;
                 statsTextByRank[rank] =
                     `On death: ${wikiRank.corrosiveDamage} Corrosive Damage + ${wikiRank.healthPercent}% of enemy max Health as Blast Damage; ${wikiRank.radiusMeters}m radius`;
+            });
+        }
+        if (path === VULCAN_BLITZ_MOD_PATH) {
+            VULCAN_BLITZ_WIKI_RANKS.forEach((wikiRank, rank) => {
+                if (rank >= statsTextByRank.length) return;
+                statsTextByRank[rank] =
+                    `On death: ${wikiRank.blastDamage} Blast Damage + ${wikiRank.healthPercent}% of enemy max Health; ${wikiRank.radiusMeters}m radius`;
             });
         }
         if (path === COMBUSTION_BEAM_MOD_PATH) {

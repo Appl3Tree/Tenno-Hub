@@ -682,6 +682,19 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Vulcan Blitz out of Auto Optimize until its kill explosion is modeled", () => {
+        const jatKittag = getWeaponCatalog().find((candidate) => candidate.name === "Jat Kittag");
+        expect(jatKittag).toBeDefined();
+        const vulcanBlitz = getModsForWeapon(jatKittag!).find((mod) => mod.name === "Vulcan Blitz");
+        expect(vulcanBlitz).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(vulcanBlitz!, vulcanBlitz!.fusionLimit)).toContain(
+            "Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.",
+        );
+
+        const result = optimizeBuild(jatKittag!, [vulcanBlitz!], "meleeDps", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
     it("does not optimize an owned Arcane rank whose hit-location bonus is unscored", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
         const primaryDeadhead = getArcanesByWeaponCategory("Primary").find((arcane) => arcane.name === "Primary Deadhead");
