@@ -15,12 +15,18 @@ import {
     type DamageType,
     type StatusDamageType,
 } from "./damageRuleset";
-import type { WeaponAutoSpoolCadenceRule, WeaponDamageRampRule, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
+import type {
+    WeaponAutoSpoolCadenceRule,
+    WeaponAutoSpoolShotSequenceRule,
+    WeaponDamageRampRule,
+    WeaponUniqueStatusType,
+} from "../catalog/weaponCatalog";
 import {
     getHeavyAttackRetainedComboPoints,
     INITIAL_COMBO_REGEN_POINTS_PER_SECOND,
 } from "../catalog/weaponRules";
 import { advanceDamageRampMultiplier, getInitialDamageRampMultiplier } from "./weaponDamageRamp";
+import { getAutoSpoolShotSequenceState } from "./weaponAutoSpool";
 import { avgHitDamageMultiplier } from "./damageCalc";
 import type { TimedConditionalDamageStack } from "./damageCalc";
 import type { NonCriticalHitDamageProc } from "../catalog/modCatalog";
@@ -214,6 +220,8 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     burstCycleRate?: number;
     /** Wiki-backed Auto-Spool fire-rate cadence for this selected attack. */
     autoSpoolCadenceRule?: WeaponAutoSpoolCadenceRule;
+    /** Wiki-backed per-shot projectile and ammo ramp for this selected attack. */
+    autoSpoolShotSequenceRule?: WeaponAutoSpoolShotSequenceRule;
     /** Combo consumption/recovery for repeated selected Heavy Attacks. */
     heavyAttackCombo?: {
         /** Combo points available before the first hit. */
@@ -277,6 +285,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     burstCycleRate?: number;
     /** Wiki-backed Auto-Spool fire-rate cadence for this selected attack. */
     autoSpoolCadenceRule?: WeaponAutoSpoolCadenceRule;
+    /** Wiki-backed per-shot projectile and ammo ramp for this selected attack. */
+    autoSpoolShotSequenceRule?: WeaponAutoSpoolShotSequenceRule;
     /** Hit behavior during the short enemy Shield Gate. Defaults to an ordinary body hit. */
     enemyShieldGateHitMode?: "body" | "weakspot" | "blockedArea";
     /** Status duration multiplier used when resolving the build's DoT totals. */
@@ -771,7 +781,7 @@ export function simulateExpectedWeaponEncounter(
         statusStackQueues.delete("blast");
     };
 
-    const expectedStatusApplicationsForCurrentPools = () => {
+    const expectedStatusApplicationsForCurrentPools = (currentProjectileCount: number) => {
         const ordinaryApplications: Partial<Record<StatusDamageType, number>> = {};
         const forcedApplications: Partial<Record<StatusDamageType, number>> = {};
         const applications: Partial<Record<StatusDamageType, number>> = {};
@@ -810,9 +820,13 @@ export function simulateExpectedWeaponEncounter(
             }
         }
 
+        const baseProjectileCount = Math.max(1, finiteNonNegative(input.expectedProjectiles ?? 1));
+        const projectileRatio = input.autoSpoolShotSequenceRule
+            ? Math.max(0, currentProjectileCount / baseProjectileCount)
+            : 1;
         for (const [type, rawApplications] of Object.entries(input.forcedStatusApplicationsPerAttackByType ?? {}) as Array<[StatusDamageType, number]>) {
             if (immuneTypes.has(type)) continue;
-            const count = finiteNonNegative(rawApplications);
+            const count = finiteNonNegative(rawApplications) * projectileRatio;
             if (count > 0) forcedApplications[type] = count;
         }
 
@@ -835,7 +849,7 @@ export function simulateExpectedWeaponEncounter(
             // so retain their explicit Poisson mean-field approximation.
             const ordinaryPresence = canReweight
                 ? probabilityAtLeastOneWeightedStatusType(
-                    input.expectedProjectiles ?? 1,
+                    currentProjectileCount,
                     input.statusRollsPerAttack ?? 0,
                     totalWeight > 0
                         ? finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0) / totalWeight
@@ -1345,13 +1359,36 @@ export function simulateExpectedWeaponEncounter(
             expireStatusStacks(now);
             const statusDamageMultiplierAtAttackStart = activeStatusDamageMultiplier();
             const attackDamageRampMultiplier = rampMultiplierForAttack(attackTime, attackIndex);
+            const shotSequenceState = input.autoSpoolShotSequenceRule
+                ? getAutoSpoolShotSequenceState(
+                    input.autoSpoolShotSequenceRule,
+                    attackIndex % shotsPerMagazine,
+                )
+                : null;
+            const projectileRatio = shotSequenceState?.projectileRatio ?? 1;
+            const attackExpectedProjectiles = Math.max(
+                0,
+                finiteNonNegative(input.expectedProjectiles ?? input.autoSpoolShotSequenceRule?.maxProjectiles ?? 1) * projectileRatio,
+            );
+            const attackExpectedDamageMultiplier = Math.max(
+                0,
+                finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ??
+                    input.autoSpoolShotSequenceRule?.maxProjectiles ?? 1) * projectileRatio,
+            );
+            const attackInput = shotSequenceState
+                ? {
+                    ...input,
+                    expectedProjectiles: attackExpectedProjectiles,
+                    expectedDamageMultiplier: attackExpectedDamageMultiplier,
+                }
+                : input;
             const firstShotMagazineDamageMultiplier = !input.infiniteAmmoActive && attackIndex % shotsPerMagazine === 0
                 ? 1 + finiteNonNegative(input.firstShotMagazineDamageBonus ?? 0)
                 : 1;
             const lastShotMagazineDamageMultiplier = !input.infiniteAmmoActive &&
                 attackIndex % shotsPerMagazine === shotsPerMagazine - 1
                 ? 1 + finiteNonNegative(input.lastShotMagazineDamageBonus ?? 0) /
-                    Math.max(1, finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ?? 1))
+                    Math.max(1, attackExpectedDamageMultiplier)
                 : 1;
             const attackDamageMultiplier =
                 attackDamageRampMultiplier * firstShotMagazineDamageMultiplier * lastShotMagazineDamageMultiplier;
@@ -1384,7 +1421,7 @@ export function simulateExpectedWeaponEncounter(
             ])) as Partial<Record<DamageType, number>>;
             const poolsBeforeAttack = { ...remainingPools };
             const result = calculateDirectDamageToInitialPools({
-                ...input,
+                ...attackInput,
                 ...statusModifiers,
                 damageByType,
                 damageRampMultiplier: attackDamageMultiplier,
@@ -1417,7 +1454,7 @@ export function simulateExpectedWeaponEncounter(
                 remainingBaseArmor = Math.max(
                     0,
                     remainingBaseArmor - finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) *
-                        finiteNonNegative(input.expectedProjectiles ?? 1),
+                        attackExpectedProjectiles,
                 );
                 armorAfterBaseStrip = armorFromRemainingBase(
                     initialArmor,
@@ -1437,7 +1474,7 @@ export function simulateExpectedWeaponEncounter(
             if (sumPools(appliedDirectDamage) > 0) activateTargetStatusDamageVulnerability();
             attacks++;
             attackIndex++;
-            const attackStatusState = expectedStatusApplicationsForCurrentPools();
+            const attackStatusState = expectedStatusApplicationsForCurrentPools(attackExpectedProjectiles);
             const gasCloudGroup = scheduleAttackDots(
                 attackTime,
                 attackStatusState.applications,
@@ -1631,12 +1668,9 @@ export function simulateDirectAttackSequence(
     const lastShotMagazineDamageBonus = input.infiniteAmmoActive
         ? 0
         : finiteNonNegative(input.lastShotMagazineDamageBonus ?? 0);
-    const expectedProjectiles = Math.max(
-        1,
-        finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ?? 1),
-    );
     if (
         input.damageRampRule ||
+        input.autoSpoolShotSequenceRule ||
         input.heavyAttackCombo ||
         firstShotMagazineDamageBonus > 0 ||
         lastShotMagazineDamageBonus > 0 ||
@@ -1695,6 +1729,22 @@ export function simulateDirectAttackSequence(
                 }
             }
             previousAttackTime = attackTime;
+            const shotSequenceState = input.autoSpoolShotSequenceRule
+                ? getAutoSpoolShotSequenceState(
+                    input.autoSpoolShotSequenceRule,
+                    index % shotsPerMagazine,
+                )
+                : null;
+            const projectileRatio = shotSequenceState?.projectileRatio ?? 1;
+            const attackExpectedProjectiles = Math.max(
+                0,
+                finiteNonNegative(input.expectedProjectiles ?? input.autoSpoolShotSequenceRule?.maxProjectiles ?? 1) * projectileRatio,
+            );
+            const attackExpectedDamageMultiplier = Math.max(
+                0,
+                finiteNonNegative(input.expectedDamageMultiplier ?? input.expectedProjectiles ??
+                    input.autoSpoolShotSequenceRule?.maxProjectiles ?? 1) * projectileRatio,
+            );
             let currentComboMultiplier = combo?.startingMultiplier ?? 1;
             let expectedHitDamageMultiplier = input.expectedHitDamageMultiplier;
             let damageByType = input.damageByType;
@@ -1726,11 +1776,13 @@ export function simulateDirectAttackSequence(
                 ...input,
                 armor: armorAfterBaseStrip,
                 damageByType,
+                expectedProjectiles: attackExpectedProjectiles,
+                expectedDamageMultiplier: attackExpectedDamageMultiplier,
                 expectedHitDamageMultiplier,
                 damageRampMultiplier: rampMultiplier *
                     (index % shotsPerMagazine === 0 ? 1 + firstShotMagazineDamageBonus : 1) *
                     (index % shotsPerMagazine === shotsPerMagazine - 1
-                        ? 1 + lastShotMagazineDamageBonus / expectedProjectiles
+                        ? 1 + lastShotMagazineDamageBonus / Math.max(1, attackExpectedDamageMultiplier)
                         : 1),
                 health: remainingPools.health,
                 shields: remainingPools.shields,
@@ -1759,7 +1811,7 @@ export function simulateDirectAttackSequence(
                 remainingBaseArmor = Math.max(
                     0,
                     remainingBaseArmor - finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) *
-                        finiteNonNegative(input.expectedProjectiles ?? 1),
+                        attackExpectedProjectiles,
                 );
                 armorAfterBaseStrip = armorFromRemainingBase(
                     initialArmor,

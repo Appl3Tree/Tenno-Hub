@@ -1507,9 +1507,13 @@ function buildMathBreakdown(
         }
         if (weapon.selectedAttackAutoSpoolCadence) {
             const cadence = weapon.selectedAttackAutoSpoolCadence;
+            const shotSequence = weapon.selectedAttackAutoSpoolShotSequence;
             return [
                 `${rateLabel} = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(stats.fireRate, 5)}/s at full spool. Wiki theoretical weapon comparisons use the fully spooled Arsenal rate.`,
                 `Finite attack timing starts with the first hit at 0s, then applies the Wiki cadence for ${cadence.roundsToFullRate} shots: ${fmt(cadence.startingRateFraction * 100, 3)}% starting rate + ${fmt(cadence.rateIncreasePerShotFraction * 100, 4)} percentage points per shot, capped at full rate. The model assumes the spool resets after an empty magazine; spool-down between trigger releases, accuracy/recoil changes, and miss probability are not simulated. Wiki: ${cadence.sourceUrl}`,
+                ...(shotSequence ? [
+                    `The finite sequence starts at 1 pellet and adds ${fmt(shotSequence.projectilesAddedPerShot, 0)} per consecutive shot, to ${fmt(shotSequence.maxProjectiles, 0)}. Per-pellet Status Chance scales inversely with pellet count. The Wiki gives the starting and fully spooled ammo costs, but not every intermediate cost: this model linearly scales the exact maximum cost of ${fmt(shotSequence.ammoCostAtMaximumProjectiles, 4)} ammo by pellet count, with a ${fmt(shotSequence.minimumAmmoCostPerShot, 0)}-ammo minimum. That interpolation is an inference, and fractional ammo carries across shots. The steady profile uses the Wiki's rounded ${fmt(shotSequence.fullySpooledMagazineAmmoCost ?? shotSequence.ammoCostAtMaximumProjectiles, 2)}-ammo cost and has ${fmt(stats.shotsPerMag, 0)} attacks per magazine; the finite from-rest sequence estimates ${fmt(stats.finiteShotsPerMag, 0)} attacks. Wiki: ${shotSequence.sourceUrl}`,
+                ] : []),
             ];
         }
         if (weapon.selectedAttackAutoSpoolTimingLimitation) {
@@ -1684,6 +1688,8 @@ function buildMathBreakdown(
                     ] : []),
                     stats.infiniteAmmoActive
                         ? "Shots per magazine = unbounded while the Gale Force buff is assumed active; no reload interruption is modeled."
+                        : weapon.selectedAttackAutoSpoolShotSequence
+                        ? `Fully-spooled magazine attacks = ${fmt(stats.shotsPerMag, 0)} at ${fmt(weapon.selectedAttackAutoSpoolShotSequence.fullySpooledMagazineAmmoCost ?? weapon.selectedAttackAutoSpoolShotSequence.ammoCostAtMaximumProjectiles, 2)} ammo per attack. For finite attacks from rest, the sequence estimates ${fmt(stats.finiteShotsPerMag, 0)} shots before the next modeled ammo cost exceeds ${fmt(stats.magazineSize, 5)} capacity. Intermediate costs use the exact ${fmt(weapon.selectedAttackAutoSpoolShotSequence.ammoCostAtMaximumProjectiles, 4)}-ammo full-spool endpoint, are linearly interpolated by pellet count, have a ${fmt(weapon.selectedAttackAutoSpoolShotSequence.minimumAmmoCostPerShot, 0)}-ammo minimum, and carry fractional ammo between shots. This interpolation is an inference, not a Wiki per-shot table.`
                         : stats.ammoEfficiencyBonus > 0
                         ? `Shots per magazine = ceil(${fmt(stats.magazineSize, 5)} ÷ (${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)}))) = ${fmt(stats.shotsPerMag, 5)}; ammo-efficiency fractional remainder is carried into the next shot.`
                         : `Shots per magazine = ${fmt(stats.magazineSize, 5)} ÷ (${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)})) = ${fmt(stats.shotsPerMag, 5)}`,
@@ -4273,9 +4279,10 @@ export default function ModBuilder() {
             enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
-            shotsPerMagazine: stats.shotsPerMag,
+            autoSpoolShotSequenceRule: activeCalcWeapon?.selectedAttackAutoSpoolShotSequence,
+            shotsPerMagazine: stats.finiteShotsPerMag,
             attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
-                ? stats.shotsPerMag
+                ? stats.finiteShotsPerMag
                 : undefined,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
@@ -4336,9 +4343,10 @@ export default function ModBuilder() {
             singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
-            shotsPerMagazine: stats.shotsPerMag,
+            autoSpoolShotSequenceRule: activeCalcWeapon?.selectedAttackAutoSpoolShotSequence,
+            shotsPerMagazine: stats.finiteShotsPerMag,
             attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
-                ? stats.shotsPerMag
+                ? stats.finiteShotsPerMag
                 : undefined,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
@@ -6767,6 +6775,8 @@ export default function ModBuilder() {
                                                 ? "Bow attacks fire one arrow per charge/reload cycle. The repeating bow rate already includes this cycle, so it is not counted again as magazine downtime."
                                                 : stats.infiniteAmmoActive
                                                     ? "Gale Force is assumed maintained, so ammo does not run out and no reload occurs."
+                                                : weapon.selectedAttackAutoSpoolShotSequence
+                                                    ? `Fully-spooled attack count at constant Wiki-listed ammo cost. The finite encounter starts from rest and estimates ${fmt(stats.finiteShotsPerMag, 0)} attacks as pellets and ammo cost spool up; its intermediate ammo costs use a documented model inference.`
                                                 : usesHitTerminology(weapon.category)
                                                     ? "Effective attack count before any reload-like interruption. For melee this is mostly a placeholder value."
                                                     : "Number of trigger pulls available before reloading.",

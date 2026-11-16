@@ -5,7 +5,11 @@ import {
     simulateDirectAttackSequence,
     simulateExpectedWeaponEncounter,
 } from "../targetDamage";
-import type { WeaponAutoSpoolCadenceRule, WeaponDamageRampRule } from "../../catalog/weaponCatalog";
+import type {
+    WeaponAutoSpoolCadenceRule,
+    WeaponAutoSpoolShotSequenceRule,
+    WeaponDamageRampRule,
+} from "../../catalog/weaponCatalog";
 
 const phantasmaRamp: WeaponDamageRampRule = {
     minimumDamageMultiplier: 0.15,
@@ -18,6 +22,19 @@ const testAutoSpoolCadence: WeaponAutoSpoolCadenceRule = {
     startingRateFraction: 0.5,
     rateIncreasePerShotFraction: 0.25,
     sourceUrl: "https://wiki.warframe.com/w/Fire_Rate",
+};
+const kohmakAutoSpoolCadence: WeaponAutoSpoolCadenceRule = {
+    roundsToFullRate: 4,
+    startingRateFraction: 0.20,
+    rateIncreasePerShotFraction: 0.32,
+    sourceUrl: "https://wiki.warframe.com/w/Kohmak",
+};
+const kohmakShotSequence: WeaponAutoSpoolShotSequenceRule = {
+    maxProjectiles: 5,
+    projectilesAddedPerShot: 1,
+    ammoCostAtMaximumProjectiles: 5 / 3,
+    minimumAmmoCostPerShot: 1,
+    sourceUrl: "https://wiki.warframe.com/w/Kohmak",
 };
 
 describe("target damage progress across defense pools", () => {
@@ -85,6 +102,56 @@ describe("target damage progress across defense pools", () => {
             maxDurationSeconds: 10,
         });
         expect(reloaded.timeToKillSeconds).toBeCloseTo(14 / 3, 8);
+    });
+
+    it("evolves Kohmak pellet damage and per-pellet status through the finite sequence", () => {
+        const directSequence = simulateDirectAttackSequence({
+            damageByType: { impact: 10 },
+            health: 150,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 5,
+            expectedDamageMultiplier: 5,
+            attackIntervalSeconds: 0.2,
+            autoSpoolCadenceRule: kohmakAutoSpoolCadence,
+            autoSpoolShotSequenceRule: kohmakShotSequence,
+            shotsPerMagazine: 25,
+            reloadDurationSeconds: 2,
+        });
+
+        expect(directSequence.attacksToKill).toBe(5);
+        expect(directSequence.damageByPool.health).toBeCloseTo(150, 8);
+        expect(directSequence.timeToKillSeconds).toBeCloseTo(
+            1 / (5 * 0.52) + 1 / (5 * 0.84) + 1 / 5 + 1 / 5,
+            8,
+        );
+
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 10 },
+            health: 1_000_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 5,
+            expectedDamageMultiplier: 5,
+            attackIntervalSeconds: 0.2,
+            autoSpoolCadenceRule: kohmakAutoSpoolCadence,
+            autoSpoolShotSequenceRule: kohmakShotSequence,
+            shotsPerMagazine: 25,
+            statusProcWeightsByType: { slash: 1 },
+            statusRollsPerAttack: 0.69,
+            attackCountLimit: 5,
+            maxAttacks: 5,
+            maxDurationSeconds: 10,
+        });
+
+        // One pellet begins at 69% status; by five pellets each has 13.8%.
+        // Both yield the same 0.69 expected status applications per attack.
+        expect(encounter.attacks).toBe(5);
+        expect(encounter.statusApplicationsByType.slash).toBeCloseTo(5 * 0.69, 8);
     });
 
     it("activates Burning Hate after a qualifying hit and boosts only later procs", () => {
