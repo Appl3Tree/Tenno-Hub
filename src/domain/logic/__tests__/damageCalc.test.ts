@@ -2668,6 +2668,30 @@ describe("damage calculation status eligibility", () => {
         }
     });
 
+    it("uses Wiki single-pellet and fully-spooled multishot for the Kohm family", () => {
+        const expectedByWeapon = [
+            ["Kohm", 12],
+            ["Kuva Kohm", 12],
+            ["Kohmak", 5],
+            ["Twin Kohmak", 5],
+        ] as const;
+
+        for (const [weaponName, fullySpooledMultishot] of expectedByWeapon) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+
+            for (const [attackName, multishot] of [["Single Pellet", 1], ["Fully Spooled", fullySpooledMultishot]] as const) {
+                const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+                expect(attackIndex, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(0);
+                const selected = withSelectedAttack(weapon!, attackIndex);
+
+                expect(selected.multishot, `${weaponName} / ${attackName} selected`).toBe(multishot);
+                expect(calculateBuild(selected, []).modded.multishot, `${weaponName} / ${attackName} calculated`)
+                    .toBe(multishot);
+            }
+        }
+    });
+
     it("uses Phantasma's Wiki ammo costs for beam ticks and alternate-fire rows", () => {
         const weapons = getWeaponCatalog();
         for (const weaponName of ["Phantasma", "Phantasma Prime"]) {

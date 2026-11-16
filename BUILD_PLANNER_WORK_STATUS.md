@@ -9,15 +9,15 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - Use current Warframe Wiki data for mechanics and calculated values. Do not ask the player to research or enter reference-table values.
 - Use the Codex in-app browser for browser QA. Do not use Brave.
 - The local dev app is on port 80: `http://localhost/Tenno-Hub/`.
-- Merge and deploy each clean release milestone so the user can manually test the live app while work continues. PR #93 is the latest delivered milestone.
+- Merge and deploy each clean release milestone so the user can manually test the live app while work continues. PR #94 is the latest delivered milestone.
 - Continue the full Build Planner objective from the pasted specification; this checkpoint does not reduce its scope.
 
 ## Current repository and delivery state
 
-- Branch: `codex/perigale-visibility-followup`, based on `origin/main` at `d0e1c8c` — merged PR #93, Wiki Auto-Spool finite timing. Local `main` still points to `ffa1ff1` and is one squash merge behind.
-- Recent delivered checkpoints: PR #89 (`b444ed2`, Wiki-backed stance DPS), PR #90 (`43b9eeb`, reset Owned Mods search on weapon changes), PR #91 (`4da8e0b`, Semi-Auto cap and reset manual picker search on weapon changes), PR #92 (`ffa1ff1`, Cannonade lock), and PR #93 (`d0e1c8c`, Auto-Spool finite timing).
-- PR #93 Pages deployment run `43832645316` succeeded for `d0e1c8c4bfd70bba1549f2adff944d85ecb48fa1`; the live app is available at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/) and the local dev app remains at `http://localhost/Tenno-Hub/`.
-- PR #93 Auto-Spool release checks: 728 tests / 52 files; production build (118,038-byte optimizer Worker); source validation; prerequisite audit; mod-effect audit (485/599 parsed, 114 without parsed effects, 83 review candidates, zero weapon pools without parsed damage); focused ESLint; CRLF-aware diff check; and a 20-run Soma Prime benchmark. Vite's existing large-chunk warning remains. A new unmerged follow-up extends Auto-Spool coverage and blocks finite estimates where the current model would misrepresent per-shot behavior; see the candidate checkpoint below.
+- Branch: `codex/variable-autospool-sequences`, based on `origin/main` at `0a16a51` — merged PR #94. Local `main` is synced to the same commit.
+- Recent delivered checkpoints: PR #89 (`b444ed2`, Wiki-backed stance DPS), PR #90 (`43b9eeb`, reset Owned Mods search on weapon changes), PR #91 (`4da8e0b`, Semi-Auto cap and reset manual picker search on weapon changes), PR #92 (`ffa1ff1`, Cannonade lock), PR #93 (`d0e1c8c`, finite Auto-Spool timing), and PR #94 (`0a16a51`, Auto-Spool coverage and finite-estimate boundaries).
+- PR #94 Pages deployment run `43844245087` succeeded for `0a16a5122a5c990207297f8bc98c94f5835fce59`; the live app is available at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/) and the local dev app remains at `http://localhost/Tenno-Hub/`.
+- PR #94 release checks: 730 tests / 52 files; production build (118,365-byte optimizer Worker); `validate:sources`; prerequisite audit; mod-effect audit (485/599 parsed, 114 without parsed effects, 83 review candidates, 26 partial and 57 fully unparsed, zero weapon pools without parsed damage); focused ESLint; and CRLF-aware diff check. Vite's existing large-chunk warning remains. The in-app browser open requests for local and production URLs returned `queued`; no fresh visual QA is claimed.
 - Do not touch or clean the existing untracked `.tmp/` directory or `epitaph-cpu.cpuprofile` without a task-specific reason.
 
 ## Immediate screenshot issue: stance calculation inputs
@@ -31,6 +31,14 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - Perigale Prime only showed Flawed mods in Build Planner → Owned Mods and the manual picker, per the user's report. Catalog compatibility was fixed and broad regressions verify every visible Flawed mod has a standard counterpart first; clean catalog has 107 Perigale-compatible entries. Weapon-switch search reset is also delivered.
 - Current source inspection: `OwnedModsPanel` receives the weapon's `trackableMods` (compatible mods plus stance), while manual ModSlot pickers receive `compatMods` and pass `onlyOwned={false}`. Both use the same `getModsForWeapon` compatibility path; Owned Mods counts do not filter list visibility. The catalog regression currently finds 107 compatible Perigale Prime entries and standard Serration beside Serration (Flawed). This makes a stale served bundle, profile-loaded weapon/catalog state, or a profile-specific filter/state interaction more likely than a clean-catalog compatibility omission, but it is not yet a reproduced cause.
 - The clean profile/catalog check does not prove the user's profile state is fixed. Keep this item open until the profile-specific discrepancy is reproduced or explained; don't claim resolution from catalog evidence alone. The user already identified the exact affected screens, so do not ask that again.
+
+## In-progress Wiki attack-multishot correction (2026-11-16)
+
+- The current [Kohm](https://wiki.warframe.com/w/Kohm), [Kuva Kohm](https://wiki.warframe.com/w/Kuva_Kohm), [Kohmak](https://wiki.warframe.com/w/Kohmak), and [Twin Kohmak](https://wiki.warframe.com/w/Twin_Kohmak) Wiki tables show one projectile in `Single Pellet` mode and 12/12/5/5 pellets in `Fully Spooled` mode.
+- The bundled upstream records omit multishot on both attack rows and fall back to a weapon-level value. That incorrectly gave `Single Pellet` 9 pellets for Kohm/Kuva Kohm and 5 for Kohmak/Twin Kohmak; the same source value understated each Kohm's full-spool count at 9 instead of 12. `weaponCatalog.ts` now overrides multishot per attack row, and a damage-calculator regression asserts the selected and calculated values across all eight cases.
+- Validation on the current branch: 731 tests / 52 files; production build and TypeScript; `validate:sources`; prerequisite audit; mod-effect audit (485/599 parsed, 114 without parsed effects, 83 review candidates, zero weapon pools without parsed damage); focused ESLint; and CRLF-aware diff check all pass. The existing Vite large-chunk warning remains.
+- This corrects steady-state attack-mode damage and the single-pellet profile. Finite Auto-Spool remains withheld for these weapons until the complete per-shot fire-rate, pellet/status, and ammo-consumption sequence is represented and independently verified.
+- Release has not yet been merged. Browser QA was requested in Codex's in-app browser for `http://localhost/Tenno-Hub/`; the open call returned `queued`, so no new rendered interaction is recorded.
 
 ## Latest implementation checkpoint (2026-11-16)
 
@@ -48,15 +56,15 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - Codex's in-app browser open request for `http://localhost/Tenno-Hub/` is queued. No fresh rendered interaction or screenshot is available from the exposed browser tools, so this checkpoint does not claim visual QA.
 - PR #93 was squash-merged as `d0e1c8c`; GitHub Pages deployment #171 (`43832645316`) succeeded. The production link is [Tenno-Hub](https://appl3tree.github.io/Tenno-Hub/); the local port-80 app has also been requested in Codex's in-app browser. Continue with the profile-specific Perigale investigation and the unfinished full Damage 3.0, optimizer-quality, Underframe, performance, save/load, and browser QA requirements below.
 
-## Current release candidate (2026-11-16): Auto-Spool coverage and finite-estimate boundaries
+## Latest delivered checkpoint (2026-11-16): Auto-Spool coverage and finite-estimate boundaries
 
 - Regression coverage now enumerates all 23 attack modes on the current [Fire Rate Wiki page](https://wiki.warframe.com/w/Fire_Rate), requiring each to have either a supported cadence or an explicit finite-timing limitation. The Coda Bubonico primary attack is an additional Wiki-backed rate-ramp case and retains the Wiki's `Auto` trigger label.
 - Rate-only attack rows use the source-backed ramp with modded fire rate. For Kohm, Kuva Kohm, Kohmak, and Twin Kohmak, the Wiki describes evolving pellet count, ammo cost, and (for the Kuva/pistol variants) per-pellet Status Chance. The finite simulator does not yet update those values per shot, so Expected TTK and direct attack sequences are withheld rather than using the Fully Spooled profile on the first hit. The separate Single Pellet attacks remain selectable.
 - Aksomati Prime's page lists an 11-round spool but not the starting-rate fraction and per-shot rate increment needed for finite timing; the Deth Machine Rifle pages confirm a spool-up without the required cadence values. Their finite timing is also withheld. These limits do not affect the fully-spooled steady-state Arsenal statistics.
 - The optimizer rejects Expected TTK for an affected attack with its reason and Wiki source. The UI and math trace explain the boundary without asking the player to provide reference data. Regressions cover all listed modes, source links, selection propagation, unsupported TTK rejection, Burst objective availability, and Coda Bubonico's trigger label.
-- Validation: focused tests 3/3; full suite 730 tests / 52 files; production build and TypeScript pass after the final UI copy edit; `validate:sources` and `audit:prerequisites` pass; mod-effect audit 485/599 parsed, 114 without effects, 83 review candidates (26 partial, 57 fully unparsed), zero weapon pools without parsed damage; focused ESLint and CRLF-aware diff check pass. Current production optimizer Worker: 118,365 bytes. Vite's existing large-chunk warning remains.
-- Codex's in-app browser request for `http://localhost/Tenno-Hub/` returned `queued`; no rendered screenshot or visual interaction was available, so this candidate does not claim fresh visual QA.
-- Next: commit, merge, and deploy this clean milestone for live manual testing, then continue the variable-pellet encounter model, the unresolved profile-specific Perigale report, and the remaining full objective.
+- Validation: focused tests 3/3; full suite 730 tests / 52 files; production build and TypeScript pass after the final UI copy edit; `validate:sources` and `audit:prerequisites` pass; mod-effect audit 485/599 parsed, 114 without effects, 83 review candidates (26 partial, 57 fully unparsed), zero weapon pools without parsed damage; focused ESLint and CRLF-aware diff check pass. Production optimizer Worker: 118,365 bytes. Vite's existing large-chunk warning remains.
+- PR #94 was squash-merged as `0a16a51`; GitHub Pages deployment #172 (`43844245087`) succeeded. The production app was opened in Codex's in-app browser; the tool returned `queued`, so no rendered screenshot or visual interaction is recorded.
+- Next: implement and independently validate the per-shot variable pellet/ammo encounter model, reproduce or explain the profile-specific Perigale report, and continue the remaining full objective. This delivered checkpoint does not close either item.
 
 ## Latest math-validation follow-up (2026-11-16): Wiki mixed-damage example
 

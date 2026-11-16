@@ -1464,6 +1464,32 @@ const VERIFIED_ATTACK_FORCED_PROC_DISTRIBUTION_OVERRIDES: Readonly<Record<
 
 /** Current Wiki-verified base multishot for attack rows whose fire modes differ. */
 const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
+    // The upstream snapshot exposes the fully-spooled pellet count as the
+    // weapon-level multishot value (and has stale values for Kohm/Kuva Kohm).
+    // The Wiki lists one pellet for the Single Pellet row and 12/5 for each
+    // Fully Spooled row. Keep attack-mode values explicit so both the
+    // calculator and optimizer use the selected mode's actual pellet count.
+    // Verified 2026-11-16:
+    // https://wiki.warframe.com/w/Kohm
+    // https://wiki.warframe.com/w/Kuva_Kohm
+    // https://wiki.warframe.com/w/Kohmak
+    // https://wiki.warframe.com/w/Twin_Kohmak
+    "/Lotus/Weapons/Grineer/LongGuns/GrnSpark/GrnSparkRifle": Object.freeze({
+        "single pellet": 1,
+        "fully spooled": 12,
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Kohm/KuvaKohm": Object.freeze({
+        "single pellet": 1,
+        "fully spooled": 12,
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/GrnKohmPistol/GrnKohmPistol": Object.freeze({
+        "single pellet": 1,
+        "fully spooled": 5,
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/GrnDWUniques/GrnTwinKohmaks": Object.freeze({
+        "single pellet": 1,
+        "fully spooled": 5,
+    }),
     // Vasto Incarnon attacks fire six pellets per each of six burst rounds.
     // Verified 2026-11-15: https://wiki.warframe.com/w/Vasto_Incarnon_Genesis
     "/Lotus/Weapons/Tenno/Pistol/RevolverPistol": Object.freeze({
