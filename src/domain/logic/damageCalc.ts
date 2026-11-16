@@ -626,7 +626,8 @@ export function estimateConditionalUptime(
         case "onKill":
             // The target-specific stack estimator already incorporates the
             // fraction of time the kill buff remains active.
-            uptime = Number.isFinite(context.expectedKillRatePerSecond)
+            uptime = (conditional.stats.directDamagePerStatusBonus ?? 0) > 0 &&
+                Number.isFinite(context.expectedKillRatePerSecond)
                 ? 1
                 : ON_KILL_UPTIME_ASSUMPTION;
             break;
@@ -808,7 +809,11 @@ function estimateConditionalStackFactor(
             conditional.maxStacks,
         );
     }
-    if (conditional.trigger === "onKill" && Number.isFinite(context.expectedKillRatePerSecond)) {
+    if (
+        conditional.trigger === "onKill" &&
+        (conditional.stats.directDamagePerStatusBonus ?? 0) > 0 &&
+        Number.isFinite(context.expectedKillRatePerSecond)
+    ) {
         return estimateDeterministicKillStackCount(
             Math.max(0, context.expectedKillRatePerSecond ?? 0),
             conditional.durationSeconds,

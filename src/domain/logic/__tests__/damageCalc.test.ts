@@ -752,6 +752,31 @@ describe("damage calculation status eligibility", () => {
         expect(fullyStacked.directDamagePerStatusBonus).toBeCloseTo(0.8, 6);
     });
 
+    it("keeps unrelated on-kill conditionals on their generic estimate when Galvanized cadence is supplied", () => {
+        const weapon = makeWeapon({ impact: 100 });
+        const unrelatedOnKillEffect: ModEffect = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onKill",
+                durationSeconds: 20,
+                maxStacks: 3,
+                requiresAiming: false,
+                stats: { damageBonus: 0.5 },
+            }],
+        };
+        const withoutKillCadence = calculateBuild(weapon, [unrelatedOnKillEffect], "", {
+            conditionalState: { mode: "realistic" },
+        }).modded;
+        const withGalvanizedKillCadence = calculateBuild(weapon, [unrelatedOnKillEffect], "", {
+            conditionalState: { mode: "realistic" },
+            expectedKillRatePerSecond: 1 / 10,
+        }).modded;
+
+        expect(withGalvanizedKillCadence.damageBreakdownBeforePerStatus)
+            .toEqual(withoutKillCadence.damageBreakdownBeforePerStatus);
+        expect(withGalvanizedKillCadence.directDamagePerStatusBonus).toBe(0);
+    });
+
     it("does not apply heavy-attack critical chance to a Glaive's direct throw", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Glaive Prime");
         expect(weapon).toBeDefined();
