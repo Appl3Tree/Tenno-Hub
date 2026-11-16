@@ -1,12 +1,13 @@
 import { performance } from "node:perf_hooks";
 import { getArcanesForWeapon, type ArcaneEntry } from "../src/domain/catalog/arcaneCatalog";
-import { filterBuilderExpertVariants, getModsForWeapon } from "../src/domain/catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon } from "../src/domain/catalog/modCatalog";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../src/domain/catalog/weaponCatalog";
 import { countPolarityChanges, effectiveDrain, totalModCapacity } from "../src/domain/logic/capacityCalc";
 import { optimizeBuild, type OptimizeGoal, type OptimizeResult } from "../src/domain/logic/buildOptimizer";
 import { debugScoreBuild, debugScoreExpectedEncounter, type ConditionalState } from "../src/domain/logic/buildOptimizerCore";
 import { getArcaneEffectAtRank } from "../src/domain/logic/arcaneEffects";
 import type { ModEffect } from "../src/domain/catalog/modCatalog";
+import { getWikiMeleeStanceCombo } from "../src/domain/catalog/meleeStanceCombos";
 
 interface BenchmarkCase {
     weaponName: string;
@@ -14,6 +15,7 @@ interface BenchmarkCase {
     category: string;
     goal: OptimizeGoal;
     targetFaction: string;
+    stanceName?: string;
     targetDistanceMeters?: number;
     warframeMaxEnergy?: number;
     warframeEnergyPercent?: number;
@@ -70,6 +72,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Kuva Hek", category: "progenitor shotgun", goal: "scaling", targetFaction: "Grineer" },
     { weaponName: "Torid", category: "Incarnon base mode", goal: "scaling", targetFaction: "Corpus" },
     { weaponName: "Broken War", category: "melee (attack-rate proxy)", goal: "burst", targetFaction: "Grineer" },
+    { weaponName: "Broken War", category: "Wiki Neutral-combo DPS", goal: "meleeDps", targetFaction: "", stanceName: "Crimson Dervish" },
     { weaponName: "Corvas Prime", category: "archgun", goal: "burst", targetFaction: "Corpus" },
     { weaponName: "Verglas Prime", category: "companion weapon", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Phantasma Prime", attackName: "Beam", category: "shotgun continuous beam", goal: "scaling", targetFaction: "Grineer" },
@@ -127,6 +130,7 @@ function calculateResultScore(
     targetFaction: string,
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
+    meleeStanceCombo?: ReturnType<typeof getWikiMeleeStanceCombo>,
 ): number {
     return calculateScoreWithArcane(
         weapon,
@@ -138,6 +142,7 @@ function calculateResultScore(
         result.arcaneRank,
         warframeMaxEnergy,
         warframeEnergyPercent,
+        meleeStanceCombo ?? undefined,
     );
 }
 
@@ -151,6 +156,7 @@ function calculateScoreWithArcane(
     arcaneRank: number,
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
+    meleeStanceCombo?: ReturnType<typeof getWikiMeleeStanceCombo>,
 ): number {
     const effects: (ModEffect | null)[] = result.slots.map((mod, index) => {
         if (!mod) return null;
@@ -163,7 +169,7 @@ function calculateScoreWithArcane(
     const arcaneEffect = arcane
         ? getArcaneEffectAtRank(arcane, arcaneRank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent })
         : null;
-    return debugScoreBuild(withSelectedAttack(weapon, selectedAttackIdx), effects, goal, targetFaction, arcaneEffect, undefined, conditionalState);
+    return debugScoreBuild(withSelectedAttack(weapon, selectedAttackIdx), effects, goal, targetFaction, arcaneEffect, undefined, conditionalState, meleeStanceCombo ?? undefined);
 }
 
 function auditArcaneSelectionOnFinalMods(
@@ -175,6 +181,7 @@ function auditArcaneSelectionOnFinalMods(
     arcaneCandidates: ArcaneEntry[],
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
+    meleeStanceCombo?: ReturnType<typeof getWikiMeleeStanceCombo>,
 ): {
     isBest: boolean;
     gapPct: number;
@@ -247,15 +254,15 @@ function auditArcaneSelectionOnFinalMods(
         };
     }
 
-    const selectedScore = calculateResultScore(weapon, selectedAttackIdx, result, goal, targetFaction, warframeMaxEnergy, warframeEnergyPercent);
-    let bestScore = calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, null, 0, warframeMaxEnergy, warframeEnergyPercent);
+    const selectedScore = calculateResultScore(weapon, selectedAttackIdx, result, goal, targetFaction, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo);
+    let bestScore = calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, null, 0, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo);
     for (const arcane of arcaneCandidates) {
         for (let rank = 0; rank <= arcane.maxRank; rank++) {
             const effect = getArcaneEffectAtRank(arcane, rank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent });
             if (!effect) continue;
             bestScore = Math.max(
                 bestScore,
-                calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, arcane, rank, warframeMaxEnergy, warframeEnergyPercent),
+                calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, arcane, rank, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo),
             );
         }
     }
@@ -311,6 +318,15 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
     }
     const selectedAttack = weapon.attacks[selectedAttackIdx] ?? null;
     const buildForAttack = weapon.attacks.length > 1 ? selectedAttack : null;
+    const stanceMod = benchmarkCase.stanceName
+        ? getStancesForWeapon(weapon).find((mod) => mod.name === benchmarkCase.stanceName) ?? null
+        : null;
+    const meleeStanceCombo = benchmarkCase.stanceName
+        ? getWikiMeleeStanceCombo(benchmarkCase.stanceName)
+        : null;
+    if (benchmarkCase.goal === "meleeDps" && (!stanceMod || !meleeStanceCombo)) {
+        throw new Error(`Wiki stance benchmark data is missing for ${benchmarkCase.weaponName} / ${benchmarkCase.stanceName ?? "unknown stance"}`);
+    }
     const runs: BenchmarkRun[] = [];
     for (let runIndex = 0; runIndex < RUNS; runIndex++) {
         const startedAt = performance.now();
@@ -319,6 +335,10 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
             warframeMaxEnergy: benchmarkCase.warframeMaxEnergy,
             warframeEnergyPercent: benchmarkCase.warframeEnergyPercent,
             conditionalState,
+            meleeStanceCombo: meleeStanceCombo ?? undefined,
+            extraCapacitySlots: stanceMod
+                ? [{ mod: stanceMod, rank: stanceMod.fusionLimit, polarity: weapon.stancePolarity ?? "" }]
+                : undefined,
             allowNonMaxRank: false,
             allowCatalyst: true,
             allowForma: true,
@@ -341,6 +361,8 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
             ? effectiveDrain(mod, result.slotPolarities[index] ?? "", result.slotRanks[index] ?? mod.fusionLimit)
             : 0), 0) + (result.exilusMod
             ? effectiveDrain(result.exilusMod, result.exilusPolarity, result.exilusRank)
+            : 0) + (stanceMod
+            ? effectiveDrain(stanceMod, weapon.stancePolarity ?? "", stanceMod.fusionLimit)
             : 0);
         const arcaneAudit = verifyArcaneSelection && optimizeArcane
             ? auditArcaneSelectionOnFinalMods(
@@ -352,6 +374,7 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
                 arcaneCandidates,
                 benchmarkCase.warframeMaxEnergy,
                 benchmarkCase.warframeEnergyPercent,
+                meleeStanceCombo,
             )
             : null;
         runs.push({
@@ -364,6 +387,7 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
                 benchmarkCase.targetFaction,
                 benchmarkCase.warframeMaxEnergy,
                 benchmarkCase.warframeEnergyPercent,
+                meleeStanceCombo,
             ),
             encounterDamagePerSecond: result.encounterScore ?? null,
             encounterTimeToKillSeconds: result.encounterTimeToKillSeconds ?? null,
@@ -483,7 +507,7 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
         } : undefined,
     });
     process.stderr.write(
-        `  median ${percentile(elapsed, 0.5).toFixed(1)} ms, p95 ${percentile(elapsed, 0.95).toFixed(1)} ms, ${runs[0]?.formaCount ?? 0} Forma, legal=${runs.every((run) => run.legal)}${benchmarkCase.goal === "timeToKill" ? `, expected TTK=${runs[0]?.encounterTimeToKillSeconds ?? "capped"}s` : ""}\n`,
+        `  median ${percentile(elapsed, 0.5).toFixed(1)} ms, p95 ${percentile(elapsed, 0.95).toFixed(1)} ms, ${runs[0]?.formaCount ?? 0} Forma, legal=${runs.every((run) => run.legal)}${benchmarkCase.goal === "timeToKill" ? `, expected TTK=${runs[0]?.encounterTimeToKillSeconds ?? "capped"}s` : ""}${benchmarkCase.stanceName ? `, stance=${benchmarkCase.stanceName}` : ""}\n`,
     );
 }
 

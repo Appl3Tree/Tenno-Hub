@@ -3,6 +3,7 @@ import { getArcanesForWeapon } from "../catalog/arcaneCatalog";
 import { withSelectedAttack, type WeaponEntry } from "../catalog/weaponCatalog";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
 import type { ConditionalState } from "./damageCalc";
+import type { MeleeAverageDpsParameters } from "./damageCalc";
 import {
     debugScoreBuild,
     debugScoreExpectedEncounter,
@@ -49,6 +50,7 @@ export interface OptimizerConfigurationScoreInput {
     warframeMaxEnergy?: number;
     warframeEnergyPercent?: number;
     useFiniteEncounterResult?: boolean;
+    meleeStanceCombo?: MeleeAverageDpsParameters;
 }
 
 /** Score one optimizer result against another configured weapon state. */
@@ -100,5 +102,6 @@ export function scoreOptimizerResultForConfiguration(input: OptimizerConfigurati
         arcaneEffect,
         input.targetProfileOverride,
         input.conditionalState,
+        input.meleeStanceCombo,
     );
 }
