@@ -1,8 +1,14 @@
 # Build Planner Optimizer Benchmark
 
-Run date: 2026-11-15; current full-width refresh: 2026-11-13
+Run date: 2026-11-16; current full-width refresh: 2026-11-15
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
+
+## Wiki Auto-Spool finite-encounter case (2026-11-16)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=20 --weapon="Soma Prime" --goal=timeToKill`. This targeted case was added to the benchmark harness so source-backed Auto-Spool timing participates in exact encounter scoring and repeatable latency measurements. It used the Grineer faction preset, Initial conditional state, MR 30, Catalyst, Exilus/Arcane optimization, 107 filtered mod candidates, 14 Arcane candidates, and a three-Forma limit. Every run evaluated 158 exact encounter candidates and returned the same legal two-Forma build: Heavy Caliber R10, Vital Sense R5, Primed Cryo Rounds R10, Malignant Force R3, Thermite Rounds R3, Hata-Satya R5, Split Chamber R5, and Vile Acceleration R5. The build used 59/60 capacity, selected no Arcane, and modeled 1.333146 s TTK / 18,752.64 damage per second.
+
+Across 20 desktop Node runs, optimizer latency was 3.429 s median, 3.703 s p95, 3.135 s minimum, and 4.019 s maximum. The repeated output was stable and legal. This is one weapon/target/goal scenario and a small latency sample; it does not establish global optimality, compare against the prior optimizer or Underframe, or measure browser Worker startup, UI responsiveness, or mobile performance. The evaluator assumes the first hit at 0s and resets spool after an empty magazine; spool-down retention, variable multishot/ammo spool modes, and hit probability remain unsupported.
 
 ## Wiki Neutral-combo DPS objective (2026-11-15)
 

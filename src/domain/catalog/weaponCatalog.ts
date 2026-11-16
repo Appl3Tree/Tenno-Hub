@@ -57,6 +57,17 @@ export interface WeaponDamageRampRule {
     decayToMinimumSeconds: number;
 }
 
+export interface WeaponAutoSpoolCadenceRule {
+    /** Number of consecutive shots before the weapon reaches its listed rate. */
+    roundsToFullRate: number;
+    /** Fire-rate fraction at spool start, before per-shot increments. */
+    startingRateFraction: number;
+    /** Fire-rate fraction added after each subsequent shot. */
+    rateIncreasePerShotFraction: number;
+    /** Current Wiki page documenting this weapon's spool cadence. */
+    sourceUrl: string;
+}
+
 export interface WeaponDamage {
     total: number;
     impact: number;
@@ -103,6 +114,8 @@ export interface WeaponAttack {
     chargeDamageBaseAmmoCost?: number;
     /** Verified time-based damage behavior for this named attack. */
     damageRamp?: WeaponDamageRampRule;
+    /** Wiki-sourced Fire Rate ramp for Auto-Spool attack rows. */
+    autoSpoolCadence?: WeaponAutoSpoolCadenceRule;
     /** Forced status effects per projectile/hit, independent of status chance and damage weights. */
     forcedProcs?: WeaponForcedProcs;
     /** Guaranteed non-damage status types that count as unique Galvanized/CO states. */
@@ -210,6 +223,8 @@ export interface WeaponEntry {
     selectedAttackChargeDamageBaseAmmoCost?: number;
     /** Time-based damage behavior carried from the selected attack row. */
     selectedAttackDamageRamp?: WeaponDamageRampRule;
+    /** Fire Rate ramp carried from the selected Auto-Spool attack row. */
+    selectedAttackAutoSpoolCadence?: WeaponAutoSpoolCadenceRule;
 }
 
 export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
@@ -327,6 +342,83 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on mode": "Special",
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on radial attack": "Special",
 });
+
+const autoSpoolCadence = (
+    roundsToFullRate: number,
+    startingRateFraction: number,
+    rateIncreasePerShotFraction: number,
+    sourceUrl: string,
+): WeaponAutoSpoolCadenceRule => Object.freeze({
+    roundsToFullRate,
+    startingRateFraction,
+    rateIncreasePerShotFraction,
+    sourceUrl,
+});
+
+/**
+ * The upstream item snapshot labels several Auto-Spool weapons as plain Auto.
+ * These attack-specific Wiki records restore their trigger and rate-only spool
+ * cadence. Variable-pellet weapons are intentionally excluded until their
+ * per-round multishot, ammo, and status behavior can change with the spool.
+ */
+const VERIFIED_ATTACK_AUTO_SPOOL_OVERRIDES: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponAutoSpoolCadenceRule>>
+>> = Object.freeze({
+    "/Lotus/Weapons/Tenno/Rifle/HeavyRifle": Object.freeze({
+        "fully spooled": autoSpoolCadence(9, 0.20, 0.10667, "https://wiki.warframe.com/w/Gorgon"),
+    }),
+    "/Lotus/Weapons/Grineer/LongGuns/WraithGorgon/WraithGorgon": Object.freeze({
+        "fully spooled": autoSpoolCadence(6, 0.20, 0.16, "https://wiki.warframe.com/w/Gorgon_Wraith"),
+    }),
+    "/Lotus/Weapons/Grineer/LongGuns/VoidTraderGorgon/VTGorgon": Object.freeze({
+        "fully spooled": autoSpoolCadence(7, 0.20, 0.1333, "https://wiki.warframe.com/w/Prisma_Gorgon"),
+    }),
+    "/Lotus/Weapons/Tenno/Rifle/TennoAR": Object.freeze({
+        "fully spooled": autoSpoolCadence(6, 0.25, 0.15, "https://wiki.warframe.com/w/Soma"),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeSoma/PrimeSomaRifle": Object.freeze({
+        "fully spooled": autoSpoolCadence(4, 0.25, 0.30, "https://wiki.warframe.com/w/Soma_Prime"),
+    }),
+    "/Lotus/Weapons/ClanTech/Energy/CrpHeavyRifle": Object.freeze({
+        "fully spooled": autoSpoolCadence(5, 0.10, 0.225, "https://wiki.warframe.com/w/Supra"),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/Machinegun/SupraVandal": Object.freeze({
+        "fully spooled": autoSpoolCadence(4, 0.40, 0.20, "https://wiki.warframe.com/w/Supra_Vandal"),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/TnBardRifle/TnBardRifle": Object.freeze({
+        "fully spooled": autoSpoolCadence(9, 0.40, 0.075, "https://wiki.warframe.com/w/Tenora"),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeTenora/TenoraPrimeWeapon": Object.freeze({
+        "fully spooled": autoSpoolCadence(9, 0.40, 0.075, "https://wiki.warframe.com/w/Tenora_Prime"),
+    }),
+    "/Lotus/Weapons/Tenno/Pistols/SomaSidearm/AkimboSomaPistols": Object.freeze({
+        "fully spooled": autoSpoolCadence(6, 0.25, 0.15, "https://wiki.warframe.com/w/Aksomati"),
+    }),
+    "/Lotus/Weapons/Corpus/Pistols/CorpusMinigun/CorpusMinigun": Object.freeze({
+        "normal attack": autoSpoolCadence(6, 0.60, 0.08, "https://wiki.warframe.com/w/Cestra"),
+    }),
+    "/Lotus/Weapons/Syndicates/PerrinSequence/Pistols/PSDualCestra": Object.freeze({
+        "normal attack": autoSpoolCadence(5, 0.60, 0.08, "https://wiki.warframe.com/w/Secura_Dual_Cestra"),
+    }),
+    "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon": Object.freeze({
+        "auto": autoSpoolCadence(7, 0.30, 0.1167, "https://wiki.warframe.com/w/Coda_Bubonico"),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/RepurposedGrineerAntiAircraftGun/ArchGRNAAGun": Object.freeze({
+        "projectile impact": autoSpoolCadence(4, 0.40, 0.20, "https://wiki.warframe.com/w/Grattler"),
+        "explosion": autoSpoolCadence(4, 0.40, 0.20, "https://wiki.warframe.com/w/Grattler"),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ArchLongRifle/ArchLongRifle": Object.freeze({
+        "normal attack": autoSpoolCadence(11, 0.50, 0.05, "https://wiki.warframe.com/w/Phaedra"),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/FoldingMachineGun/ArchMachineGunVandal": Object.freeze({
+        "normal attack": autoSpoolCadence(16, 0.5333, 0.0311, "https://wiki.warframe.com/w/Imperator_Vandal"),
+    }),
+});
+
+function getAutoSpoolCadence(uniqueName: string, attackName: string): WeaponAutoSpoolCadenceRule | undefined {
+    return VERIFIED_ATTACK_AUTO_SPOOL_OVERRIDES[uniqueName]?.[attackName.trim().toLowerCase()];
+}
 
 const ATTACK_CHARGE_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon": 0.25,
@@ -1583,7 +1675,10 @@ export function getWeaponCatalog(): WeaponEntry[] {
         const stanceClasses = inferStanceClasses(item, exaltedType);
         const fireRate = n(item.fireRate) || 1;
         const attacks = parsedAttacks.map((attack, attackIndex) => {
-            const attackTrigger = resolveAttackTrigger(uniqueName, attack.name, attackIndex, trigger);
+            const autoSpoolCadence = getAutoSpoolCadence(uniqueName, attack.name);
+            const attackTrigger = autoSpoolCadence
+                ? "Auto-Spool"
+                : resolveAttackTrigger(uniqueName, attack.name, attackIndex, trigger);
             const burst = resolveAttackBurstRule(
                 uniqueName,
                 attack.name,
@@ -1598,6 +1693,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 ...attack,
                 trigger: burst ? "Burst" : attackTrigger,
                 chargeTime,
+                ...(autoSpoolCadence ? { autoSpoolCadence } : {}),
                 ...(burst ? { burstCount: burst.count, burstDelay: burst.delay } : {}),
             };
         });
@@ -1624,7 +1720,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
             hasExplicitMagazineSize,
             reloadTime:    VERIFIED_WEAPON_RELOAD_TIME_OVERRIDES[uniqueName] ?? n(item.reloadTime),
             multishot:     n(item.multishot) || 1,
-            trigger,
+            trigger: firstAttack?.trigger === "Auto-Spool" ? "Auto-Spool" : trigger,
             chargeTime:    resolveChargeTime(trigger, rawAttacks),
             burstCount: burstDelay === undefined ? undefined : burstCount,
             burstCycleRate: burstDelay === undefined ? undefined : burstCycleRate,
