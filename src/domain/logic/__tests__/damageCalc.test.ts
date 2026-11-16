@@ -1859,6 +1859,35 @@ describe("damage calculation status eligibility", () => {
         expect(negativeFiftyPercentFireRate).toBeCloseTo(3 / (1 / 2.5 + 2 * 0.06), 8);
     });
 
+    it("caps Semi-Auto effective fire rate at 10 trigger pulls per second", () => {
+        const weapon: WeaponEntry = {
+            ...makeWeapon({ impact: 100 }),
+            trigger: "Semi",
+            fireRate: 8,
+        };
+        const noBonus = calculateBuild(weapon, []).modded.fireRate;
+        const twentyFivePercentBonus = calculateBuild(weapon, [{ ...emptyEffect(), fireRateBonus: 0.25 }]).modded.fireRate;
+        const oneHundredPercentBonus = calculateBuild(weapon, [{ ...emptyEffect(), fireRateBonus: 1 }]).modded.fireRate;
+        const negativeFiftyPercentBonus = calculateBuild(weapon, [{ ...emptyEffect(), fireRateBonus: -0.5 }]).modded.fireRate;
+        const wikiNameVariant = calculateBuild({ ...weapon, trigger: "Semi-Auto" }, [{ ...emptyEffect(), fireRateBonus: 1 }]).modded.fireRate;
+
+        expect(noBonus).toBe(8);
+        expect(twentyFivePercentBonus).toBe(10);
+        expect(oneHundredPercentBonus).toBe(10);
+        expect(negativeFiftyPercentBonus).toBe(4);
+        expect(wikiNameVariant).toBe(10);
+    });
+
+    it.each(["Auto", "Duplex", "Held"])("keeps %s fire rate linearly modded without the Semi cap", (trigger) => {
+        const weapon: WeaponEntry = {
+            ...makeWeapon({ impact: 100 }),
+            trigger,
+            fireRate: 8,
+        };
+
+        expect(calculateBuild(weapon, [{ ...emptyEffect(), fireRateBonus: 0.5 }]).modded.fireRate).toBe(12);
+    });
+
     it("supports explicit initial, realistic, fully stacked, and externally maintained conditional states", () => {
         const weapon = makeWeapon({ toxin: 100 });
         const conditionalDamage = {

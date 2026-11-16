@@ -1482,6 +1482,13 @@ function buildMathBreakdown(
                 "Bow repeating rate already includes post-shot reload, so magazine duty cycle stays at 1 and does not count that delay twice.",
             ];
         }
+        if (/^(?:semi|semi[- ]?auto)$/i.test(weapon.trigger.trim())) {
+            const moddedFireRate = Math.max(0.05, weapon.fireRate * (1 + fireRateBonus));
+            return [
+                `${rateLabel} before the trigger limit = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(moddedFireRate, 5)}/s`,
+                `Semi-Auto effective fire rate = min(${fmt(moddedFireRate, 5)}, 10/s) = ${fmt(stats.fireRate, 5)}/s. The WARFRAME Wiki caps Semi-Auto weapons at 10 rounds/s and this estimate assumes perfect trigger cadence: https://wiki.warframe.com/w/Fire_Rate`,
+            ];
+        }
         if (weapon.trigger === "Charge" && weapon.chargeTime) {
             return [
                 `Modded charge time = ${fmt(weapon.chargeTime, 5)} ÷ (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(weapon.chargeTime / Math.max(0.0001, 1 + fireRateBonus), 5)}`,
@@ -6312,7 +6319,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -6343,7 +6350,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -6370,7 +6377,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot key={i} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -6439,7 +6446,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot key={i} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -6512,7 +6519,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}
