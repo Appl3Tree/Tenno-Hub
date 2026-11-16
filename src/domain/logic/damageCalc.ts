@@ -27,6 +27,10 @@ import {
 } from "./damageRuleset";
 import { calculateDamageRampMultipliers } from "./weaponDamageRamp";
 import {
+    getAutoSpoolMagazineAttackCount,
+    getFullySpooledMagazineAttackCount,
+} from "./weaponAutoSpool";
+import {
     filterExternalStatusTypesForTarget,
     getDirectDamageEligibleStatusTypes,
     isUniqueStatusType,
@@ -238,7 +242,10 @@ export interface ModdedWeaponStats {
     damageWeightedMultishot: number;
     /** Additive unique bonus applied only to projectiles beyond base multishot. */
     multishotDamageBonus: number;
+    /** Magazine attack count for the selected fully-spooled attack profile. */
     shotsPerMag: number;
+    /** Fresh-magazine attack count for finite attack sequences such as Auto-Spool. */
+    finiteShotsPerMag: number;
     damageBreakdown: Record<DamageKey, number>;
     totalDamage: number;
     procChanceByType: Partial<Record<DamageKey, number>>;
@@ -1443,10 +1450,24 @@ export function calculateBuild(
     // fraction below one ammo as the next shot. Preserve the historical
     // magazine/cost ratio without efficiency; round up only when efficiency
     // introduces a fractional-ammo remainder.
-    const calculatedShotsPerMag = ammoEfficiencyBonus > 0
-        ? Math.max(1, Math.ceil(unroundedShotsPerMag - 1e-9))
-        : unroundedShotsPerMag;
+    const calculatedShotsPerMag = weapon.selectedAttackAutoSpoolShotSequence
+        ? getFullySpooledMagazineAttackCount(
+            weapon.selectedAttackAutoSpoolShotSequence,
+            magazineSize,
+            ammoEfficiencyBonus,
+        )
+        : ammoEfficiencyBonus > 0
+            ? Math.max(1, Math.ceil(unroundedShotsPerMag - 1e-9))
+            : unroundedShotsPerMag;
+    const calculatedFiniteShotsPerMag = weapon.selectedAttackAutoSpoolShotSequence
+        ? getAutoSpoolMagazineAttackCount(
+            weapon.selectedAttackAutoSpoolShotSequence,
+            magazineSize,
+            ammoEfficiencyBonus,
+        )
+        : calculatedShotsPerMag;
     const shotsPerMag = infiniteAmmoActive ? Number.MAX_SAFE_INTEGER : calculatedShotsPerMag;
+    const finiteShotsPerMag = infiniteAmmoActive ? Number.MAX_SAFE_INTEGER : calculatedFiniteShotsPerMag;
     const activeFirstShotMagazineDamageBonus = ignoresReloadAndMagazine || infiniteAmmoActive
         ? 0
         : Math.max(0, firstShotMagazineDamageBonus);
@@ -2042,6 +2063,7 @@ export function calculateBuild(
         damageWeightedMultishot,
         multishotDamageBonus,
         shotsPerMag,
+        finiteShotsPerMag,
         damageBreakdown,
         totalDamage: totalDamageOf(damageBreakdown),
         procChanceByType,

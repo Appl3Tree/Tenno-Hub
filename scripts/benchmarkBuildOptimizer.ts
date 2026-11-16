@@ -104,6 +104,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Lex Prime", category: "Expected TTK Synth Charge secondary", goal: "timeToKill", targetFaction: "Corpus" },
     { weaponName: "Akjagara Prime", category: "Range Advantage distance conditional", goal: "burst", targetFaction: "Grineer", targetDistanceMeters: 15 },
     { weaponName: "Soma Prime", category: "Wiki Auto-Spool finite-encounter timing", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Kuva Kohm", attackName: "Fully Spooled", category: "Wiki Auto-Spool pellet/status/ammo finite sequence", goal: "timeToKill", targetFaction: "Grineer" },
 ];
 const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9).trim().toLowerCase();
 const requestedAttack = process.argv.find((arg) => arg.startsWith("--attack="))?.slice(9).trim().toLowerCase();

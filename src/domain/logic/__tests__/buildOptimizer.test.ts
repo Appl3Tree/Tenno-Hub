@@ -1558,8 +1558,11 @@ describe("build optimizer scoring", () => {
             ["Tenora", "Fully Spooled", 9, 0.40, 0.075],
             ["Tenora Prime", "Fully Spooled", 9, 0.40, 0.075],
             ["Aksomati", "Fully Spooled", 6, 0.25, 0.15],
+            ["Kohmak", "Fully Spooled", 4, 0.20, 0.32],
             ["Cestra", "Normal Attack", 6, 0.60, 0.08],
             ["Secura Dual Cestra", "Normal Attack", 5, 0.60, 0.08],
+            ["Twin Kohmak", "Fully Spooled", 11, 0.20, 0.08],
+            ["Kuva Kohm", "Fully Spooled", 5, 0.20, 0.20],
             ["Coda Bubonico", "Auto", 7, 0.30, 0.1167],
             ["Grattler", "Projectile Impact", 4, 0.40, 0.20],
             ["Grattler", "Explosion", 4, 0.40, 0.20],
@@ -1633,10 +1636,7 @@ describe("build optimizer scoring", () => {
     it("withholds finite Auto-Spool timing when source-backed cadence or variable shots are incomplete", () => {
         const catalog = getWeaponCatalog();
         const limitedModes = [
-            ["Kohm", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Kohm"],
-            ["Kuva Kohm", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Kuva_Kohm"],
-            ["Kohmak", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Kohmak"],
-            ["Twin Kohmak", "Fully Spooled", "ammo cost", "https://wiki.warframe.com/w/Twin_Kohmak"],
+            ["Kohm", "Fully Spooled", "starting fire-rate fraction", "https://wiki.warframe.com/w/Kohm"],
             ["Aksomati Prime", "Fully Spooled", "11-round", "https://wiki.warframe.com/w/Aksomati_Prime"],
             ["Deth Machine Rifle", "Normal Attack", "Auto-Spool", "https://wiki.warframe.com/w/Deth_Machine_Rifle"],
             ["Deth Machine Rifle Prime", "Normal Attack", "Auto-Spool", "https://wiki.warframe.com/w/Deth_Machine_Rifle_Prime"],
@@ -1666,6 +1666,44 @@ describe("build optimizer scoring", () => {
             const singlePelletIndex = weapon.attacks.findIndex((attack) => attack.name === "Single Pellet");
             expect(singlePelletIndex, `${weaponName} unspooled profile`).toBeGreaterThanOrEqual(0);
             expect(withSelectedAttack(weapon, singlePelletIndex).selectedAttackAutoSpoolTimingLimitation).toBeUndefined();
+        }
+    });
+
+    it("models Wiki-backed Auto-Spool pellet, status, rate, and fresh-magazine ramps", () => {
+        const catalog = getWeaponCatalog();
+        const cases = [
+            ["Kohmak", 40, 25, 4, 0.32, "https://wiki.warframe.com/w/Kohmak"],
+            ["Twin Kohmak", 80, 49, 11, 0.08, "https://wiki.warframe.com/w/Twin_Kohmak"],
+            ["Kuva Kohm", 209, 57, 5, 0.20, "https://wiki.warframe.com/w/Kuva_Kohm"],
+        ] as const;
+
+        for (const [weaponName, magazineSize, expectedShots, roundsToFullRate, rateIncrease, sourceUrl] of cases) {
+            const weapon = catalog.find((entry) => entry.name === weaponName)!;
+            const attackIndex = weapon.attacks.findIndex((attack) => attack.name === "Fully Spooled");
+            expect(attackIndex, weaponName).toBeGreaterThanOrEqual(0);
+            const attack = weapon.attacks[attackIndex]!;
+            const selected = withSelectedAttack(weapon, attackIndex);
+            const stats = calculateBuild(selected, []).modded;
+
+            expect(attack.autoSpoolCadence).toMatchObject({ roundsToFullRate, rateIncreasePerShotFraction: rateIncrease });
+            expect(attack.autoSpoolCadence?.sourceUrl).toBe(sourceUrl);
+            const expectedMaxProjectiles = weaponName === "Kuva Kohm" ? 12 : 5;
+            const expectedAmmoCost = weaponName === "Kuva Kohm" ? 4 : 5 / 3;
+            const expectedDisplayedAmmoCost = weaponName === "Kuva Kohm" ? 4 : 1.67;
+            const expectedFullySpooledShots = weaponName === "Kuva Kohm" ? 52 : weaponName === "Twin Kohmak" ? 47 : 23;
+            expect(attack.autoSpoolShotSequence).toMatchObject({
+                maxProjectiles: expectedMaxProjectiles,
+                projectilesAddedPerShot: 1,
+                ammoCostAtMaximumProjectiles: expectedAmmoCost,
+                minimumAmmoCostPerShot: 1,
+                sourceUrl,
+                ...(weaponName === "Kuva Kohm" ? {} : { fullySpooledMagazineAmmoCost: expectedDisplayedAmmoCost }),
+            });
+            expect(selected.selectedAttackAutoSpoolTimingLimitation).toBeUndefined();
+            expect(stats.magazineSize).toBe(magazineSize);
+            expect(stats.shotsPerMag).toBe(expectedFullySpooledShots);
+            expect(stats.finiteShotsPerMag).toBe(expectedShots);
+            expect(() => optimizeBuild(selected, [], "timeToKill", 8, { buildForAttack: attack })).not.toThrow();
         }
     });
 

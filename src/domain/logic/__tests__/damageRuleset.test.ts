@@ -42,6 +42,14 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.knownLimitations.some((entry) => entry.includes("Cannonade's fire-rate lock remain unmodeled"))).toBe(false);
     });
 
+    it("documents the supported variable Auto-Spool sequences and the standard Kohm boundary", () => {
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("Variable pellet, per-pellet Status Chance, ammo-cost, and rate ramps are modeled for Kohmak, Twin Kohmak, and Kuva Kohm") &&
+            entry.includes("linearly inferred from Wiki endpoint costs") &&
+            entry.includes("Standard Kohm finite timing remains unavailable"),
+        )).toBe(true);
+    });
+
     it("records Range Advantage's Wiki distance condition and single-target boundary", () => {
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
             entry.includes("Range Advantage uses the Wiki's rank-scaled +50% to +300% additive Damage") &&

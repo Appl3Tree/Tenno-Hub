@@ -68,6 +68,21 @@ export interface WeaponAutoSpoolCadenceRule {
     sourceUrl: string;
 }
 
+export interface WeaponAutoSpoolShotSequenceRule {
+    /** Maximum innate pellets/projectiles once the weapon is fully spooled. */
+    maxProjectiles: number;
+    /** Innate projectiles added by each consecutive shot, before the maximum. */
+    projectilesAddedPerShot: number;
+    /** Ammo cost at the maximum projectile count. */
+    ammoCostAtMaximumProjectiles: number;
+    /** Rounded Wiki ammo-cost display used for steady full-spool magazine counts. */
+    fullySpooledMagazineAmmoCost?: number;
+    /** Minimum ammo cost for a shot, including the one-pellet profile. */
+    minimumAmmoCostPerShot: number;
+    /** Current Wiki page documenting this projectile/ammo sequence. */
+    sourceUrl: string;
+}
+
 export interface WeaponAutoSpoolTimingLimitation {
     /** Current Wiki page confirming the Auto-Spool behavior and this boundary. */
     sourceUrl: string;
@@ -123,6 +138,8 @@ export interface WeaponAttack {
     damageRamp?: WeaponDamageRampRule;
     /** Wiki-sourced Fire Rate ramp for Auto-Spool attack rows. */
     autoSpoolCadence?: WeaponAutoSpoolCadenceRule;
+    /** Wiki-sourced per-shot projectile and ammo ramp for Auto-Spool attack rows. */
+    autoSpoolShotSequence?: WeaponAutoSpoolShotSequenceRule;
     /** Explicit finite-timing boundary for Wiki-confirmed Auto-Spool rows without a complete supported cadence. */
     autoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Forced status effects per projectile/hit, independent of status chance and damage weights. */
@@ -234,6 +251,8 @@ export interface WeaponEntry {
     selectedAttackDamageRamp?: WeaponDamageRampRule;
     /** Fire Rate ramp carried from the selected Auto-Spool attack row. */
     selectedAttackAutoSpoolCadence?: WeaponAutoSpoolCadenceRule;
+    /** Per-shot projectile and ammo ramp carried from the selected attack row. */
+    selectedAttackAutoSpoolShotSequence?: WeaponAutoSpoolShotSequenceRule;
     /** Why finite attack timing is unavailable for this selected Auto-Spool row. */
     selectedAttackAutoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
 }
@@ -366,6 +385,22 @@ const autoSpoolCadence = (
     sourceUrl,
 });
 
+const autoSpoolShotSequence = (
+    maxProjectiles: number,
+    projectilesAddedPerShot: number,
+    ammoCostAtMaximumProjectiles: number,
+    minimumAmmoCostPerShot: number,
+    sourceUrl: string,
+    fullySpooledMagazineAmmoCost?: number,
+): WeaponAutoSpoolShotSequenceRule => Object.freeze({
+    maxProjectiles,
+    projectilesAddedPerShot,
+    ammoCostAtMaximumProjectiles,
+    minimumAmmoCostPerShot,
+    sourceUrl,
+    ...(fullySpooledMagazineAmmoCost === undefined ? {} : { fullySpooledMagazineAmmoCost }),
+});
+
 const autoSpoolTimingLimitation = (
     sourceUrl: string,
     reason: string,
@@ -420,6 +455,15 @@ const VERIFIED_ATTACK_AUTO_SPOOL_OVERRIDES: Readonly<Record<
     "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon": Object.freeze({
         "auto": autoSpoolCadence(7, 0.30, 0.1167, "https://wiki.warframe.com/w/Coda_Bubonico"),
     }),
+    "/Lotus/Weapons/Grineer/Pistols/GrnKohmPistol/GrnKohmPistol": Object.freeze({
+        "fully spooled": autoSpoolCadence(4, 0.20, 0.32, "https://wiki.warframe.com/w/Kohmak"),
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/GrnDWUniques/GrnTwinKohmaks": Object.freeze({
+        "fully spooled": autoSpoolCadence(11, 0.20, 0.08, "https://wiki.warframe.com/w/Twin_Kohmak"),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Kohm/KuvaKohm": Object.freeze({
+        "fully spooled": autoSpoolCadence(5, 0.20, 0.20, "https://wiki.warframe.com/w/Kuva_Kohm"),
+    }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/RepurposedGrineerAntiAircraftGun/ArchGRNAAGun": Object.freeze({
         "projectile impact": autoSpoolCadence(4, 0.40, 0.20, "https://wiki.warframe.com/w/Grattler"),
         "explosion": autoSpoolCadence(4, 0.40, 0.20, "https://wiki.warframe.com/w/Grattler"),
@@ -446,25 +490,7 @@ const VERIFIED_ATTACK_AUTO_SPOOL_TIMING_LIMITATIONS: Readonly<Record<
     "/Lotus/Weapons/Grineer/LongGuns/GrnSpark/GrnSparkRifle": Object.freeze({
         "fully spooled": autoSpoolTimingLimitation(
             "https://wiki.warframe.com/w/Kohm",
-            "The pellet count and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
-        ),
-    }),
-    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Kohm/KuvaKohm": Object.freeze({
-        "fully spooled": autoSpoolTimingLimitation(
-            "https://wiki.warframe.com/w/Kuva_Kohm",
-            "The pellet count, per-pellet Status Chance, and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
-        ),
-    }),
-    "/Lotus/Weapons/Grineer/Pistols/GrnKohmPistol/GrnKohmPistol": Object.freeze({
-        "fully spooled": autoSpoolTimingLimitation(
-            "https://wiki.warframe.com/w/Kohmak",
-            "The pellet count, per-pellet Status Chance, and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
-        ),
-    }),
-    "/Lotus/Weapons/Grineer/Pistols/GrnDWUniques/GrnTwinKohmaks": Object.freeze({
-        "fully spooled": autoSpoolTimingLimitation(
-            "https://wiki.warframe.com/w/Twin_Kohmak",
-            "The pellet count, per-pellet Status Chance, and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
+            "The Wiki documents the pellet and ammo ramp but does not give the starting fire-rate fraction and per-shot increments needed to model the full finite sequence.",
         ),
     }),
     "/Lotus/Weapons/Tenno/Pistols/PrimeAksomati/PrimeAksomati": Object.freeze({
@@ -489,6 +515,36 @@ const VERIFIED_ATTACK_AUTO_SPOOL_TIMING_LIMITATIONS: Readonly<Record<
 
 function getAutoSpoolCadence(uniqueName: string, attackName: string): WeaponAutoSpoolCadenceRule | undefined {
     return VERIFIED_ATTACK_AUTO_SPOOL_OVERRIDES[uniqueName]?.[attackName.trim().toLowerCase()];
+}
+
+const VERIFIED_ATTACK_AUTO_SPOOL_SHOT_SEQUENCE_OVERRIDES: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponAutoSpoolShotSequenceRule>>
+>> = Object.freeze({
+    // These Fully Spooled rows add one pellet per consecutive shot. Each Wiki
+    // page gives the one-pellet and fully-spooled ammo costs; intermediate
+    // costs are inferred by linear scaling with a one-ammo floor. That model
+    // reproduces the Wiki's 25-shot and 49-shot Kohmak-family magazine notes.
+    // Kuva Kohm's fresh-magazine count remains model-derived; its Wiki page
+    // gives the fully-spooled magazine count instead.
+    // https://wiki.warframe.com/w/Kohmak
+    // https://wiki.warframe.com/w/Twin_Kohmak
+    "/Lotus/Weapons/Grineer/Pistols/GrnKohmPistol/GrnKohmPistol": Object.freeze({
+        "fully spooled": autoSpoolShotSequence(5, 1, 5 / 3, 1, "https://wiki.warframe.com/w/Kohmak", 1.67),
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/GrnDWUniques/GrnTwinKohmaks": Object.freeze({
+        "fully spooled": autoSpoolShotSequence(5, 1, 5 / 3, 1, "https://wiki.warframe.com/w/Twin_Kohmak", 1.67),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Kohm/KuvaKohm": Object.freeze({
+        "fully spooled": autoSpoolShotSequence(12, 1, 4, 1, "https://wiki.warframe.com/w/Kuva_Kohm"),
+    }),
+});
+
+function getAutoSpoolShotSequence(
+    uniqueName: string,
+    attackName: string,
+): WeaponAutoSpoolShotSequenceRule | undefined {
+    return VERIFIED_ATTACK_AUTO_SPOOL_SHOT_SEQUENCE_OVERRIDES[uniqueName]?.[attackName.trim().toLowerCase()];
 }
 
 function getAutoSpoolTimingLimitation(uniqueName: string, attackName: string): WeaponAutoSpoolTimingLimitation | undefined {
@@ -1777,13 +1833,14 @@ export function getWeaponCatalog(): WeaponEntry[] {
         const fireRate = n(item.fireRate) || 1;
         const attacks = parsedAttacks.map((attack, attackIndex) => {
             const autoSpoolCadence = getAutoSpoolCadence(uniqueName, attack.name);
+            const autoSpoolShotSequence = getAutoSpoolShotSequence(uniqueName, attack.name);
             const autoSpoolTimingLimitation = getAutoSpoolTimingLimitation(uniqueName, attack.name);
             const resolvedAttackTrigger = resolveAttackTrigger(uniqueName, attack.name, attackIndex, trigger);
             const isCodaBubonicoAutoAttack = uniqueName === "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon" &&
                 attack.name.trim().toLowerCase() === "auto";
             const attackTrigger = isCodaBubonicoAutoAttack
                 ? resolvedAttackTrigger
-                : autoSpoolCadence || autoSpoolTimingLimitation
+                : autoSpoolCadence || autoSpoolShotSequence || autoSpoolTimingLimitation
                     ? "Auto-Spool"
                     : resolvedAttackTrigger;
             const burst = resolveAttackBurstRule(
@@ -1801,6 +1858,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 trigger: burst ? "Burst" : attackTrigger,
                 chargeTime,
                 ...(autoSpoolCadence ? { autoSpoolCadence } : {}),
+                ...(autoSpoolShotSequence ? { autoSpoolShotSequence } : {}),
                 ...(autoSpoolTimingLimitation ? { autoSpoolTimingLimitation } : {}),
                 ...(burst ? { burstCount: burst.count, burstDelay: burst.delay } : {}),
             };
