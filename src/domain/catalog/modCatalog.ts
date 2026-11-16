@@ -119,6 +119,8 @@ export interface ModEffect {
     /** Unique damage bonus applied only to projectiles beyond the weapon's base multishot. */
     multishotDamageBonus: number;
     fireRateBonus: number;
+    /** Cannonade mods lock ranged Fire Rate to the weapon's unmodified value. */
+    fireRateLocked: boolean;
     magazineBonus: number;
     reloadSpeedBonus: number;
     attackSpeedBonus: number;
@@ -760,6 +762,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             out.conditionalEffects = [...(out.conditionalEffects ?? []), ...((partial.conditionalEffects ?? []) as ConditionalEffect[])];
         } else if (k === "nonCriticalHitDamageProcs") {
             out.nonCriticalHitDamageProcs = [...(out.nonCriticalHitDamageProcs ?? []), ...((partial.nonCriticalHitDamageProcs ?? []) as NonCriticalHitDamageProc[])];
+        } else if (k === "fireRateLocked") {
+            out.fireRateLocked = out.fireRateLocked || partial.fireRateLocked === true;
         } else if (k === "impactStatusExtraProcLowFireRateThreshold" || k === "impactStatusExtraProcLowFireRateMultiplier") {
             (out[k] as number) = Math.max(((out[k] as number) ?? 0), ((partial[k] as number) ?? 0));
         } else {
@@ -1242,6 +1246,7 @@ function buildCaches(): ModCaches {
         const fl = Number(item.fusionLimit ?? 0);
         const rawBaseDrain = Number(item.baseDrain ?? 2);
         const drain = rawBaseDrain + fl;
+        const locksFireRate = /fire rate cannot be modified/i.test(String(item.description ?? ""));
         const isAura = rawCompat === "AURA" || rawBaseDrain < 0;
         const isStance = String(item.type ?? "") === "Stance Mod" || String(item.type ?? "") === "Posture Mod";
         const isMentorsLegacy = path === MENTOR_LEGACY_PATH;
@@ -1289,6 +1294,12 @@ function buildCaches(): ModCaches {
             unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
+        if (locksFireRate) {
+            // Cannonade's lock applies at every rank and ignores both positive
+            // and negative Fire Rate changes while equipped.
+            // https://wiki.warframe.com/w/Cannonade_Mods
+            effectsByRank.forEach((effect) => { effect.fireRateLocked = true; });
+        }
         if (path === VOLATILE_VARIANT_MOD_PATH) {
             // The Wiki says this additive Status Chance applies only to Volatile
             // Variant's explosion. Apply it only when the selected attack row is
@@ -1582,6 +1593,13 @@ function buildCaches(): ModCaches {
         }
         if (statsTextByRank.length === 0) {
             for (let i = 0; i <= fl; i++) statsTextByRank.push("Stance Mod");
+        }
+        if (locksFireRate) {
+            for (let rank = 0; rank < statsTextByRank.length; rank++) {
+                statsTextByRank[rank] = [statsTextByRank[rank], "Fire Rate locked; positive and negative modifiers ignored"]
+                    .filter(Boolean)
+                    .join(" · ");
+            }
         }
         const statsLabel = statsTextByRank[fl] ?? statsTextByRank[statsTextByRank.length - 1] ?? (isStance ? "Stance Mod" : "");
 

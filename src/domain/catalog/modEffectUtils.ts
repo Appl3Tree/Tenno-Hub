@@ -84,7 +84,7 @@ export function emptyEffect(): ModEffect {
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0, finalCritMultiplierBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
-        multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, magazineBonus: 0,
+        multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, fireRateLocked: false, magazineBonus: 0,
         reloadSpeedBonus: 0, attackSpeedBonus: 0,
         statusDurationBonus: 0, statusDamageBonus: 0, targetStatusDamageVulnerabilityBonus: 0,
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
