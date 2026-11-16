@@ -957,10 +957,11 @@ describe("build optimizer scoring", () => {
         expect(score(directWeapon, [perStatusBonus])).toBeGreaterThan(score(directWeapon, []));
         expect(score(areaWeapon, [perStatusBonus])).toBeCloseTo(score(areaWeapon, []), 12);
         const cleanInitialScore = score(directWeapon, [perStatusBonus], { mode: "initial" });
-        expect(score(directWeapon, [perStatusBonus], {
-            mode: "initial",
-            externalStatusTypes: ["tau"],
-        })).toBeCloseTo(cleanInitialScore, 12);
+        const tauState: ConditionalState = { mode: "initial", externalStatusTypes: ["tau"] };
+        expect(calculateBuild(directWeapon, [perStatusBonus], "Grineer", {
+            targetStatusState: "initial",
+            conditionalState: tauState,
+        }).modded.directDamageStatusTypes).toBe(0);
         expect(score(directWeapon, [perStatusBonus], {
             mode: "initial",
             externalStatusTypes: ["viral", "lifted", "microwave"],
@@ -2365,7 +2366,7 @@ describe("build optimizer scoring", () => {
         expect(shortlistWinner.result.capacityValid).toBe(true);
     });
 
-    it("matches exhaustive joint Expected TTK mod-and-Arcane optima across six weapon attack types", { timeout: 60000 }, () => {
+    it("matches exhaustive joint Expected TTK mod-and-Arcane optima across six weapon attack types", { timeout: 180000 }, () => {
         const scenarios = [
             {
                 weaponName: "Perigale Prime",

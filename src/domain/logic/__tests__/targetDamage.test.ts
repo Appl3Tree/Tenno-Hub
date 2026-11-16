@@ -207,6 +207,77 @@ describe("target damage progress across defense pools", () => {
         expect(mixedStatuses.directDamageByPool.health).toBeCloseTo(500, 8);
     });
 
+    it("carries expected Tau vulnerability between sequential multishot instances", () => {
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            rawDamageByType: { impact: 100 },
+            baseDamageTotal: 100,
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 3,
+            expectedDamageMultiplier: 3,
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 3,
+            reloadDurationSeconds: 0,
+            statusProcWeightsByType: { impact: 50, tau: 50 },
+            statusRollsPerAttack: 3,
+            directDamagePerStatusBonus: 1,
+            attackCountLimit: 1,
+            maxDurationSeconds: 1,
+        });
+
+        // Each projectile begins with one status roll. Expected Tau stacks of
+        // 0.5 and then 1 increase later Impact presence to 51.25% and 52.5%.
+        // Tau is excluded from Galvanized counts and does not amplify itself.
+        expect(encounter.directDamageByPool.health).toBeCloseTo(425.625, 8);
+        expect(encounter.statusApplicationsByType.tau).toBeCloseTo(1.5, 8);
+        expect(encounter.statusApplicationsByType.impact).toBeCloseTo(1.575, 8);
+
+        const tauOnly = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 2,
+            expectedDamageMultiplier: 2,
+            attackIntervalSeconds: 1,
+            statusProcWeightsByType: { tau: 100 },
+            statusRollsPerAttack: 2,
+            directDamagePerStatusBonus: 1,
+            attackCountLimit: 1,
+            maxDurationSeconds: 1,
+        });
+        expect(tauOnly.directDamageByPool.health).toBeCloseTo(200, 8);
+        expect(tauOnly.statusApplicationsByType.tau).toBeCloseTo(2, 8);
+    });
+
+    it("treats a selected external Tau status as one maintained vulnerability stack", () => {
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 1,
+            expectedDamageMultiplier: 1,
+            attackIntervalSeconds: 1,
+            externalStatusTypes: ["tau"],
+            statusProcWeightsByType: { impact: 100 },
+            statusRollsPerAttack: 1,
+            attackCountLimit: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 1,
+        });
+
+        expect(encounter.statusApplicationsByType.impact).toBeCloseTo(1.1, 8);
+    });
+
     it("activates Burning Hate after a qualifying hit and boosts only later procs", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { impact: 1 },
