@@ -2307,6 +2307,7 @@ function expectedEncounterScoreForEffects(
         expectedDamageMultiplier: stats.damageWeightedMultishot,
         singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
         attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+        autoSpoolCadenceRule: weapon.selectedAttackAutoSpoolCadence,
         shotsPerMagazine: stats.shotsPerMag,
         attackCountLimit: weapon.selectedAttackIsIncarnon && weapon.selectedAttackIncarnonAmmoCapacity !== undefined
             ? stats.shotsPerMag

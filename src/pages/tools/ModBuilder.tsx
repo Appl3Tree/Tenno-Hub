@@ -1505,6 +1505,13 @@ function buildMathBreakdown(
                 `Effective fire rate (Charge) = 1 ÷ (modded charge time + 1 ÷ modded fire rate) = ${fmt(stats.fireRate, 5)}`,
             ];
         }
+        if (weapon.selectedAttackAutoSpoolCadence) {
+            const cadence = weapon.selectedAttackAutoSpoolCadence;
+            return [
+                `${rateLabel} = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(stats.fireRate, 5)}/s at full spool. Wiki theoretical weapon comparisons use the fully spooled Arsenal rate.`,
+                `Finite attack timing starts with the first hit at 0s, then applies the Wiki cadence for ${cadence.roundsToFullRate} shots: ${fmt(cadence.startingRateFraction * 100, 3)}% starting rate + ${fmt(cadence.rateIncreasePerShotFraction * 100, 4)} percentage points per shot, capped at full rate. The model assumes the spool resets after an empty magazine; spool-down between trigger releases, accuracy/recoil changes, and miss probability are not simulated. Wiki: ${cadence.sourceUrl}`,
+            ];
+        }
         return [`${rateLabel} = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(stats.fireRate, 5)}`];
     })();
     const sections: BuildMathSection[] = [
@@ -4254,6 +4261,7 @@ export default function ModBuilder() {
             ...activeTargetAttackInput,
             enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+            autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
             shotsPerMagazine: stats.shotsPerMag,
             attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
                 ? stats.shotsPerMag
@@ -4316,6 +4324,7 @@ export default function ModBuilder() {
             expectedDamageMultiplier: stats.damageWeightedMultishot,
             singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+            autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
             shotsPerMagazine: stats.shotsPerMag,
             attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
                 ? stats.shotsPerMag

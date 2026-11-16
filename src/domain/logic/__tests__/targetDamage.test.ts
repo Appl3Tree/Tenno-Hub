@@ -5,7 +5,7 @@ import {
     simulateDirectAttackSequence,
     simulateExpectedWeaponEncounter,
 } from "../targetDamage";
-import type { WeaponDamageRampRule } from "../../catalog/weaponCatalog";
+import type { WeaponAutoSpoolCadenceRule, WeaponDamageRampRule } from "../../catalog/weaponCatalog";
 
 const phantasmaRamp: WeaponDamageRampRule = {
     minimumDamageMultiplier: 0.15,
@@ -13,8 +13,80 @@ const phantasmaRamp: WeaponDamageRampRule = {
     idleBeforeDecaySeconds: 0.8,
     decayToMinimumSeconds: 2,
 };
+const testAutoSpoolCadence: WeaponAutoSpoolCadenceRule = {
+    roundsToFullRate: 3,
+    startingRateFraction: 0.5,
+    rateIncreasePerShotFraction: 0.25,
+    sourceUrl: "https://wiki.warframe.com/w/Fire_Rate",
+};
 
 describe("target damage progress across defense pools", () => {
+    it("uses the Wiki Auto-Spool rate ramp for finite target timing", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            health: 4,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            autoSpoolCadenceRule: testAutoSpoolCadence,
+            infiniteAmmoActive: true,
+            maxAttacks: 4,
+            maxDurationSeconds: 10,
+        });
+
+        // Four hits land at 0, 4/3, 7/3, and 10/3 seconds after the
+        // first immediate hit, with rate capped once the third shot is fired.
+        expect(result.timeToKillSeconds).toBeCloseTo(10 / 3, 8);
+
+        const directSequence = simulateDirectAttackSequence({
+            damageByType: { impact: 1 },
+            health: 4,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            autoSpoolCadenceRule: testAutoSpoolCadence,
+        });
+        expect(directSequence.attacksToKill).toBe(4);
+        expect(directSequence.timeToKillSeconds).toBeCloseTo(10 / 3, 8);
+    });
+
+    it("scales Auto-Spool intervals with modded fire rate and resets the ramp after reload", () => {
+        const doubledRate = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            health: 4,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 0.5,
+            autoSpoolCadenceRule: testAutoSpoolCadence,
+            infiniteAmmoActive: true,
+            maxAttacks: 4,
+            maxDurationSeconds: 10,
+        });
+        expect(doubledRate.timeToKillSeconds).toBeCloseTo(5 / 3, 8);
+
+        const reloaded = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            health: 4,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            autoSpoolCadenceRule: testAutoSpoolCadence,
+            shotsPerMagazine: 2,
+            reloadDurationSeconds: 1,
+            maxAttacks: 4,
+            maxDurationSeconds: 10,
+        });
+        expect(reloaded.timeToKillSeconds).toBeCloseTo(14 / 3, 8);
+    });
+
     it("activates Burning Hate after a qualifying hit and boosts only later procs", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { impact: 1 },

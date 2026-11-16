@@ -1545,6 +1545,69 @@ describe("build optimizer scoring", () => {
         expect(perigalePrimeStats.shotsPerMag).toBe(16);
     });
 
+    it("applies Wiki Auto-Spool cadence only to source-verified attack modes", () => {
+        const catalog = getWeaponCatalog();
+        const verifiedModes = [
+            ["Gorgon", "Fully Spooled", 9, 0.20, 0.10667],
+            ["Gorgon Wraith", "Fully Spooled", 6, 0.20, 0.16],
+            ["Prisma Gorgon", "Fully Spooled", 7, 0.20, 0.1333],
+            ["Soma", "Fully Spooled", 6, 0.25, 0.15],
+            ["Soma Prime", "Fully Spooled", 4, 0.25, 0.30],
+            ["Supra", "Fully Spooled", 5, 0.10, 0.225],
+            ["Supra Vandal", "Fully Spooled", 4, 0.40, 0.20],
+            ["Tenora", "Fully Spooled", 9, 0.40, 0.075],
+            ["Tenora Prime", "Fully Spooled", 9, 0.40, 0.075],
+            ["Aksomati", "Fully Spooled", 6, 0.25, 0.15],
+            ["Cestra", "Normal Attack", 6, 0.60, 0.08],
+            ["Secura Dual Cestra", "Normal Attack", 5, 0.60, 0.08],
+            ["Coda Bubonico", "Auto", 7, 0.30, 0.1167],
+            ["Grattler", "Projectile Impact", 4, 0.40, 0.20],
+            ["Grattler", "Explosion", 4, 0.40, 0.20],
+            ["Phaedra", "Normal Attack", 11, 0.50, 0.05],
+            ["Imperator Vandal", "Normal Attack", 16, 0.5333, 0.0311],
+        ] as const;
+
+        for (const [weaponName, attackName, roundsToFullRate, startingRateFraction, rateIncreasePerShotFraction] of verifiedModes) {
+            const weapon = catalog.find((entry) => entry.name === weaponName);
+            expect(weapon, weaponName).toBeTruthy();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+            expect(attackIndex, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(0);
+            const attack = weapon!.attacks[attackIndex]!;
+            const selected = withSelectedAttack(weapon!, attackIndex);
+
+            expect(attack.trigger, `${weaponName} / ${attackName}`).toBe("Auto-Spool");
+            expect(attack.autoSpoolCadence).toMatchObject({
+                roundsToFullRate,
+                startingRateFraction,
+                rateIncreasePerShotFraction,
+            });
+            expect(attack.autoSpoolCadence?.sourceUrl).toMatch(/^https:\/\/wiki\.warframe\.com\//);
+            expect(selected.selectedAttackAutoSpoolCadence).toEqual(attack.autoSpoolCadence);
+        }
+
+        const gorgon = catalog.find((entry) => entry.name === "Gorgon")!;
+        const incarnonIndex = gorgon.attacks.findIndex((attack) => attack.name === "Incarnon Form");
+        expect(withSelectedAttack(gorgon, incarnonIndex).trigger).not.toBe("Auto-Spool");
+        expect(withSelectedAttack(gorgon, incarnonIndex).selectedAttackAutoSpoolCadence).toBeUndefined();
+    });
+
+    it("uses Auto-Spool timing when the optimizer scores a target-specific encounter", () => {
+        const soma = getWeaponCatalog().find((entry) => entry.name === "Soma")!;
+        const selected = withSelectedAttack(soma, soma.attacks.findIndex((attack) => attack.name === "Fully Spooled"));
+        const target = { health: 45, shields: 0, overguard: 0, armor: 0 };
+        const withSpool = debugEvaluateExpectedEncounter(selected, [], "", target, { mode: "initial" });
+        const steadyRateOnly = debugEvaluateExpectedEncounter({
+            ...selected,
+            selectedAttackAutoSpoolCadence: undefined,
+        }, [], "", target, { mode: "initial" });
+
+        expect(selected.trigger).toBe("Auto-Spool");
+        expect(calculateBuild(selected, []).modded.fireRate).toBe(15);
+        expect(withSpool.timeToKillSeconds).not.toBeNull();
+        expect(steadyRateOnly.timeToKillSeconds).not.toBeNull();
+        expect(withSpool.timeToKillSeconds!).toBeGreaterThan(steadyRateOnly.timeToKillSeconds!);
+    });
+
     it("keeps standard sniper mods visible beside flawed variants for Perigale Prime", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Perigale Prime");
         expect(weapon).toBeTruthy();

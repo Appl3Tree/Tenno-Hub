@@ -15,7 +15,7 @@ import {
     type DamageType,
     type StatusDamageType,
 } from "./damageRuleset";
-import type { WeaponDamageRampRule, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
+import type { WeaponAutoSpoolCadenceRule, WeaponDamageRampRule, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
 import {
     getHeavyAttackRetainedComboPoints,
     INITIAL_COMBO_REGEN_POINTS_PER_SECOND,
@@ -212,6 +212,8 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     burstDelaySeconds?: number;
     /** Burst-start frequency, after fire-rate modifiers. */
     burstCycleRate?: number;
+    /** Wiki-backed Auto-Spool fire-rate cadence for this selected attack. */
+    autoSpoolCadenceRule?: WeaponAutoSpoolCadenceRule;
     /** Combo consumption/recovery for repeated selected Heavy Attacks. */
     heavyAttackCombo?: {
         /** Combo points available before the first hit. */
@@ -273,6 +275,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     burstDelaySeconds?: number;
     /** Burst-start frequency, after fire-rate modifiers. */
     burstCycleRate?: number;
+    /** Wiki-backed Auto-Spool fire-rate cadence for this selected attack. */
+    autoSpoolCadenceRule?: WeaponAutoSpoolCadenceRule;
     /** Hit behavior during the short enemy Shield Gate. Defaults to an ordinary body hit. */
     enemyShieldGateHitMode?: "body" | "weakspot" | "blockedArea";
     /** Status duration multiplier used when resolving the build's DoT totals. */
@@ -1210,6 +1214,7 @@ export function simulateExpectedWeaponEncounter(
         burstCount: input.burstCount,
         burstDelaySeconds: input.burstDelaySeconds,
         burstCycleRate: input.burstCycleRate,
+        autoSpoolCadenceRule: input.autoSpoolCadenceRule,
     });
 
     const rampMultiplierForAttack = (attackTime: number, index: number): number => {
@@ -1656,6 +1661,7 @@ export function simulateDirectAttackSequence(
                 burstCount: input.burstCount,
                 burstDelaySeconds: input.burstDelaySeconds,
                 burstCycleRate: input.burstCycleRate,
+                autoSpoolCadenceRule: input.autoSpoolCadenceRule,
             });
             if (!Number.isFinite(attackTime) || (index > 0 && attackInterval <= 0)) break;
             if (previousAttackTime !== null) {
@@ -1863,6 +1869,7 @@ export function simulateDirectAttackSequence(
                 burstCount: input.burstCount,
                 burstDelaySeconds: input.burstDelaySeconds,
                 burstCycleRate: input.burstCycleRate,
+                autoSpoolCadenceRule: input.autoSpoolCadenceRule,
             });
             const gateEndTime = lastAttackTime + ENEMY_SHIELD_GATE_DURATION_SECONDS;
             const gateDamageMultiplier = input.enemyShieldGateHitMode === "blockedArea"
@@ -1877,6 +1884,7 @@ export function simulateDirectAttackSequence(
                     burstCount: input.burstCount,
                     burstDelaySeconds: input.burstDelaySeconds,
                     burstCycleRate: input.burstCycleRate,
+                    autoSpoolCadenceRule: input.autoSpoolCadenceRule,
                 });
                 if (!Number.isFinite(attackTime) || attackTime >= gateEndTime - 1e-9) break;
                 const appliedHealthDamage = Math.min(
@@ -1914,6 +1922,7 @@ export function simulateDirectAttackSequence(
                     burstCount: input.burstCount,
                     burstDelaySeconds: input.burstDelaySeconds,
                     burstCycleRate: input.burstCycleRate,
+                    autoSpoolCadenceRule: input.autoSpoolCadenceRule,
                 });
         return {
             attacksToKill,
@@ -2001,6 +2010,41 @@ interface AttackEventTiming {
     burstCount?: number;
     burstDelaySeconds?: number;
     burstCycleRate?: number;
+    autoSpoolCadenceRule?: WeaponAutoSpoolCadenceRule;
+}
+
+const autoSpoolIntervalRatePrefixCache = new WeakMap<WeaponAutoSpoolCadenceRule, readonly number[]>();
+
+function getAutoSpoolIntervalRatePrefixes(rule: WeaponAutoSpoolCadenceRule): readonly number[] {
+    const cached = autoSpoolIntervalRatePrefixCache.get(rule);
+    if (cached) return cached;
+
+    const roundsToFullRate = Math.max(1, Math.floor(finiteNonNegative(rule.roundsToFullRate)));
+    const startingRateFraction = finiteNonNegative(rule.startingRateFraction);
+    const rateIncreasePerShotFraction = finiteNonNegative(rule.rateIncreasePerShotFraction);
+    const prefixes = [0];
+    // The simulator emits the first hit at t=0. An interval after k previous
+    // hits therefore uses the starting rate plus k Wiki-listed increments.
+    for (let roundsFired = 1; roundsFired <= roundsToFullRate; roundsFired++) {
+        const rateFraction = roundsFired >= roundsToFullRate
+            ? 1
+            : Math.min(1, startingRateFraction + roundsFired * rateIncreasePerShotFraction);
+        prefixes.push(prefixes[prefixes.length - 1] + 1 / Math.max(0.05, rateFraction));
+    }
+
+    autoSpoolIntervalRatePrefixCache.set(rule, prefixes);
+    return prefixes;
+}
+
+function sumAutoSpoolIntervals(
+    intervalCount: number,
+    baseIntervalSeconds: number,
+    rule: WeaponAutoSpoolCadenceRule,
+): number {
+    const prefixes = getAutoSpoolIntervalRatePrefixes(rule);
+    const rampIntervals = Math.min(intervalCount, prefixes.length - 1);
+    const fullRateIntervals = Math.max(0, intervalCount - rampIntervals);
+    return baseIntervalSeconds * (prefixes[rampIntervals] + fullRateIntervals);
 }
 
 /** Time from the first damage event to an indexed event, including burst gaps and reloads. */
@@ -2012,6 +2056,24 @@ function attackEventTime(index: number, timing: AttackEventTiming): number {
     const burstDelay = finiteNonNegative(timing.burstDelaySeconds ?? 0);
     const burstCycleRate = finiteNonNegative(timing.burstCycleRate ?? 0);
     if (burstCount <= 1 || burstCycleRate <= 0) {
+        const spoolRule = timing.autoSpoolCadenceRule;
+        if (spoolRule) {
+            const shotsPerMagazine = Math.max(1, Math.floor(timing.shotsPerMagazine));
+            const magazineIndex = Math.floor(index / shotsPerMagazine);
+            const shotInMagazine = index % shotsPerMagazine;
+            const magazineIntervalSeconds = sumAutoSpoolIntervals(
+                shotsPerMagazine,
+                timing.attackIntervalSeconds,
+                spoolRule,
+            );
+            const currentMagazineIntervalSeconds = sumAutoSpoolIntervals(
+                shotInMagazine,
+                timing.attackIntervalSeconds,
+                spoolRule,
+            );
+            return magazineIndex * (magazineIntervalSeconds + timing.reloadDurationSeconds) +
+                currentMagazineIntervalSeconds;
+        }
         return index * timing.attackIntervalSeconds +
             Math.floor(index / timing.shotsPerMagazine) * timing.reloadDurationSeconds;
     }
