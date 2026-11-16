@@ -81,7 +81,7 @@ export const DAMAGE_RULESET = Object.freeze({
         "Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE. The damage model suppresses these bonuses on attack rows marked AoE by the source or a Wiki-verified attack override; attack rows without either classification remain uncertain. Galvanized kill-stack progression and within-volley multishot status sequencing are approximated by the selected conditional state and mean-field status model.",
         "Condition Overload counts damage-type statuses including Tau plus Microwave, Lifted, and Knockdown; Galvanized Aptitude/Savvy/Shot count Microwave, Lifted, and Knockdown but their current Wiki lists exclude Tau. Cedo's intrinsic per-unique-status passive uses the broader CO-style status count, including Tau. Lifted and Knockdown cannot coexist. Named external status inputs are deduplicated against weapon-generated states and applied to the applicable bonus counts; they are assumed maintained for the encounter and do not simulate their other effects. Weapon-generated Knockdown/Lifted triggers and a universal Knockdown expiry remain unsupported.",
         "Enduring Affliction adds its rank-scaled Status Chance bonus additively with other Status Chance bonuses only while the target is Lifted. This requires an explicitly selected Lifted target status; the model does not assume the condition from Fully Stacked and does not simulate Lifted duration or renewal.",
-        "The current DoT path applies the documented binary32 tick accumulator and faction double-dip order; average crit seeds, forced-proc grouping, and encounter-time stack state remain approximations. The finite encounter models same-source Heat stack accumulation, shared tick cadence, duration refresh, and armor-strip ramp/recovery; simultaneous Electricity ticks share a pulse while retaining separate timers. Configured 0–20 same-profile neighbors receive scheduled Electricity/Gas tick damage through their own evolving pools, and Gas ticks continue after the host dies. Gas replacement at its ten-stack cap cancels/reduces the oldest cloud's pending tick damage. Neighbor status histories, positioning, chain geometry, and Gas radius growth are not modeled; cross-source Heat inheritance remains unsupported. Per-attack forced-proc counts are source-annotated for Glaive Prime and Pathocyst variants, but coverage across other weapons and melee stances remains incomplete. Blast records an expected pre-defense hit value H and applies each stack's max(1, 0.3H) payout to the afflicted target at expiry or cap. At cap and primary-target death it also applies the separate 3×sum(H) radial to configured Blast neighbors through their defenses. Optimizer crowd scoring uses configured Electric/Gas counts and estimates Blast cap-radial value with a Poisson arrival proxy; it does not score death-triggered Blast value or evolve neighbor pools.",
+        "The current DoT path applies the documented binary32 tick accumulator and faction double-dip order; average crit seeds, forced-proc grouping, and encounter-time stack state remain approximations. The finite encounter models same-source Heat stack accumulation, shared tick cadence, duration refresh, and armor-strip ramp/recovery; simultaneous Electricity ticks share a pulse while retaining separate timers. Configured 0–3m same-profile neighbors receive Electricity/Gas ticks through their own evolving pools; a separate Gas 3–6m annulus count uses active-stack cloud radius and area-uniform expected coverage. Gas ticks continue after the host dies, and replacement at the ten-stack cap cancels/reduces the oldest cloud's pending tick damage. Exact neighbor positions, neighbor statuses, chain geometry, and changing neighbor populations are not modeled; cross-source Heat inheritance remains unsupported. Per-attack forced-proc counts are source-annotated for Glaive Prime and Pathocyst variants, but coverage across other weapons and melee stances remains incomplete. Blast records an expected pre-defense hit value H and applies each stack's max(1, 0.3H) payout to the afflicted target at expiry or cap. At cap and primary-target death it also applies the separate 3×sum(H) radial to configured Blast neighbors through their defenses. Optimizer crowd scoring uses configured 0–3m Electric/Gas neighbors, area-uniform outer-ring Gas coverage from the steady-state radius, and estimates Blast cap-radial value with a Poisson arrival proxy; it does not score death-triggered Blast value or evolve neighbor pools.",
         "Burning Hate applies its rank-scaled, permanent target-side Status Damage vulnerability after Hate damages a Heat-afflicted enemy. The finite encounter advances activation after each Hate damage event, snapshots the multiplier when each status proc is applied, and does not retroactively amplify earlier proc ticks; expected trigger probabilities and starting external Heat presence use a mean-field model. External Heat's own tick history and armor-strip contribution are not simulated, and status histories on nearby enemies do not inherit the vulnerability.",
         "Puncture lasts 10 seconds with five stacks on ordinary targets: it reduces enemy outgoing attack damage by 40% at one stack and 10 percentage points per additional stack up to 80%. The status panel displays the mean-field outgoing-damage reduction, but the planner does not simulate enemy attacks or score this defensive value. Its offensive support grants +5 percentage points of critical chance to incoming weapon hits per stack up to +25%, additive after mods, but not to Area-of-Effect damage or Warframe abilities. The damage model uses expected Puncture stacks for weapon attack rows; rows marked as AoE by the source or a Wiki-verified override are excluded, while unclassified rows remain uncertain. For an Overguarded VIP, the user can select the Wiki-documented three-stack cap in custom target settings; VIP identity is not inferred automatically.",
         "Impact status lasts 6 seconds and stacks to five; repeat procs extend its stagger. Ospreys, bosses, and Tenno are immune to that stagger. On heavy Mercy-eligible units, each stack raises the Mercy health threshold by 8 percentage points to +40%; Corpus/Eximus with all Shields removed can be eligible at 100% Health. The panel reports only the expected threshold bonus: target eligibility, stagger immunity, shield state, and Mercy outcomes are not modeled, and this utility is not scored by the optimizer.",
@@ -196,6 +196,51 @@ export const STATUS_EFFECT_RULES: Readonly<Record<StatusDamageType, StatusEffect
     void: { durationSeconds: 3, maxStacks: null, firstTickSeconds: null, dotCoefficient: null },
     tau: { durationSeconds: 8, maxStacks: 10, firstTickSeconds: null, dotCoefficient: null },
 });
+
+export const GAS_CLOUD_BASE_RADIUS_METERS = 3;
+export const GAS_CLOUD_MAX_RADIUS_METERS = 6;
+export const GAS_CLOUD_RADIUS_PER_STACK_METERS = 0.3;
+
+/** Keep the modeled 0–3m pool and 3–6m Gas annulus within the shared 20-target limit. */
+export function normalizeElectricGasNeighborCounts(innerCount?: number, outerCount?: number): {
+    innerCount: number;
+    outerCount: number;
+} {
+    const normalizedInnerCount = Number.isFinite(innerCount)
+        ? Math.max(0, Math.min(20, Math.floor(innerCount ?? 0)))
+        : 0;
+    const normalizedOuterCount = Number.isFinite(outerCount)
+        ? Math.max(0, Math.min(20 - normalizedInnerCount, Math.floor(outerCount ?? 0)))
+        : 0;
+    return { innerCount: normalizedInnerCount, outerCount: normalizedOuterCount };
+}
+
+/**
+ * Wiki-backed Gas radius estimate: start from the 3m base cloud and add 0.3m
+ * for each active Gas proc, capped at 6m. Fractional stacks are retained for
+ * expected-value calculations; the finite encounter passes its mean-field
+ * active stack count here.
+ */
+export function gasCloudRadiusFromStacks(stacks: number): number {
+    if (!Number.isFinite(stacks) || stacks <= 0) return 0;
+    const activeStacks = Math.min(10, stacks);
+    return Math.min(
+        GAS_CLOUD_MAX_RADIUS_METERS,
+        GAS_CLOUD_BASE_RADIUS_METERS + activeStacks * GAS_CLOUD_RADIUS_PER_STACK_METERS,
+    );
+}
+
+/**
+ * Expected coverage of the 3–6m Gas annulus if its configured neighbors are
+ * uniformly distributed by area. The 0–3m neighbors are modeled separately.
+ */
+export function gasCloudOuterAnnulusCoverage(radiusMeters: number): number {
+    if (!Number.isFinite(radiusMeters) || radiusMeters <= GAS_CLOUD_BASE_RADIUS_METERS) return 0;
+    const radius = Math.min(GAS_CLOUD_MAX_RADIUS_METERS, radiusMeters);
+    const baseArea = GAS_CLOUD_BASE_RADIUS_METERS ** 2;
+    const annulusArea = GAS_CLOUD_MAX_RADIUS_METERS ** 2 - baseArea;
+    return Math.max(0, Math.min(1, (radius ** 2 - baseArea) / annulusArea));
+}
 
 /** Blast's single-target stack payout at expiry/cap is an individual payout. */
 export function blastStackExpiryDamage(hitDamage: number): number {

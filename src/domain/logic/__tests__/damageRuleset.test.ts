@@ -12,6 +12,9 @@ import {
     countStatusDamageTicks,
     enemyArmorDamageMultiplier,
     factionDamageTypeModifier,
+    gasCloudOuterAnnulusCoverage,
+    gasCloudRadiusFromStacks,
+    normalizeElectricGasNeighborCounts,
     probabilityAtLeastOneStatusProc,
     quantizeDamageContribution,
     quantizeBaseCriticalDamageMultiplier,
@@ -170,6 +173,27 @@ describe("Damage 3.0 shared rules", () => {
         expect(blastStackExpiryDamage(2)).toBe(1);
         expect(blastStackExpiryDamage(-2)).toBe(0);
         expect(blastStackCapDetonationDamage(33)).toBe(99);
+    });
+
+    it("grows Gas cloud radius by active stacks and estimates uniform outer-ring coverage", () => {
+        expect(gasCloudRadiusFromStacks(0)).toBe(0);
+        expect(gasCloudRadiusFromStacks(1)).toBeCloseTo(3.3, 12);
+        expect(gasCloudRadiusFromStacks(5)).toBeCloseTo(4.5, 12);
+        expect(gasCloudRadiusFromStacks(10)).toBe(6);
+        expect(gasCloudRadiusFromStacks(20)).toBe(6);
+        expect(gasCloudRadiusFromStacks(Number.NaN)).toBe(0);
+
+        expect(gasCloudOuterAnnulusCoverage(3)).toBe(0);
+        expect(gasCloudOuterAnnulusCoverage(4.5)).toBeCloseTo(5 / 12, 12);
+        expect(gasCloudOuterAnnulusCoverage(6)).toBe(1);
+        expect(gasCloudOuterAnnulusCoverage(Number.NaN)).toBe(0);
+    });
+
+    it("normalizes inner and outer Electric/Gas neighbor counts to one shared limit", () => {
+        expect(normalizeElectricGasNeighborCounts(4.9, 8.9)).toEqual({ innerCount: 4, outerCount: 8 });
+        expect(normalizeElectricGasNeighborCounts(18.9, 8.9)).toEqual({ innerCount: 18, outerCount: 2 });
+        expect(normalizeElectricGasNeighborCounts(99, 2)).toEqual({ innerCount: 20, outerCount: 0 });
+        expect(normalizeElectricGasNeighborCounts(-3, Number.NaN)).toEqual({ innerCount: 0, outerCount: 0 });
     });
 
     it("computes the chance of at least one weighted status across multishot rolls", () => {

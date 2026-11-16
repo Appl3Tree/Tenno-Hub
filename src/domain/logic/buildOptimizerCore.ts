@@ -27,6 +27,8 @@ import {
     DAMAGE_TYPES,
     STATUS_DAMAGE_TYPES,
     STATUS_EFFECT_RULES,
+    gasCloudOuterAnnulusCoverage,
+    normalizeElectricGasNeighborCounts,
     factionDamageTypeModifier,
     enemyArmorDamageMultiplier,
     type DamageType,
@@ -261,8 +263,10 @@ export interface TargetProfileOverride {
     toxinBypassesShields?: boolean;
     /** Enemy Shield Gate behavior assumed for each direct attack in the finite encounter. */
     enemyShieldGateHitMode?: "body" | "weakspot" | "blockedArea";
-    /** Additional same-profile enemies assumed to be inside active Electric/Gas clouds. */
+    /** Additional same-profile neighbors inside the 3m base range of Electricity/Gas. */
     nearbyEnemyCount?: number;
+    /** Additional same-profile Gas neighbors in the 3–6m annulus. */
+    nearbyGasOuterEnemyCount?: number;
     /** Additional same-profile enemies assumed to be inside Blast's 5m radial. */
     nearbyBlastEnemyCount?: number;
     statusImmuneTypes?: Iterable<typeof PROC_DAMAGE_KEYS[number]>;
@@ -838,7 +842,11 @@ function scoreEffects(
     const dotDutyCycle = goal === "burst"
         ? (modded.fireRate > 0 ? modded.burstFireRate / modded.fireRate : 0)
         : sustainedDutyCycle;
-    const nearbyEnemyCount = normalizeNearbyEnemyCount(targetProfileOverride?.nearbyEnemyCount);
+    const { innerCount: nearbyEnemyCount, outerCount: nearbyGasOuterEnemyCount } =
+        normalizeElectricGasNeighborCounts(
+            targetProfileOverride?.nearbyEnemyCount,
+            targetProfileOverride?.nearbyGasOuterEnemyCount,
+        );
     let score = 0;
 
     const getPoolProgress = (type: DamageType, slashBleed: boolean, includeFactionMod: boolean): number => {
@@ -865,9 +873,12 @@ function scoreEffects(
         if (directDamageRate > 0) score += directDamageRate * getPoolProgress(type, false, true);
         const dotDamageRate = (modded.dotDpsByType[type as StatusDamageType] ?? 0) * dotDutyCycle * damageRampMultiplier;
         if (dotDamageRate > 0) {
-            const areaTargetCount = type === "electricity" || type === "gas"
+            const areaTargetCount = type === "electricity"
                 ? 1 + nearbyEnemyCount
-                : 1;
+                : type === "gas"
+                    ? 1 + nearbyEnemyCount + nearbyGasOuterEnemyCount *
+                        gasCloudOuterAnnulusCoverage(modded.gasCloudRadius)
+                    : 1;
             score += dotDamageRate * getPoolProgress(type, type === "slash", false) * areaTargetCount;
         }
     }
@@ -2335,6 +2346,7 @@ function expectedEncounterScoreForEffects(
         blastStackHitDamagePerProc: stats.blastStackHitDamagePerProcBeforeConditionOverload,
         nearbyBlastEnemyCount: targetProfileOverride?.nearbyBlastEnemyCount,
         nearbyElectricGasEnemyCount: targetProfileOverride?.nearbyEnemyCount,
+        nearbyGasOuterEnemyCount: targetProfileOverride?.nearbyGasOuterEnemyCount,
         magneticBreakElectricSourceMultiplier: stats.magneticBreakElectricSourceMultiplier,
         directDamagePerStatusBonus: stats.directDamagePerStatusBonus,
         conditionOverloadDamagePerStatusBonus: stats.conditionOverloadApplies
@@ -4095,9 +4107,13 @@ export function explainBuild(
     const targetLabel = goal === "meleeDps"
         ? `using the selected Wiki Neutral-combo estimate${targetFaction ? ` and ${targetFaction} faction mod` : ""}`
         : targetFaction ? `vs ${targetFaction}` : "against the balanced target estimate";
-    const nearbyEnemyCount = normalizeNearbyEnemyCount(targetProfileOverride?.nearbyEnemyCount);
+    const { innerCount: nearbyEnemyCount, outerCount: nearbyGasOuterEnemyCount } =
+        normalizeElectricGasNeighborCounts(
+            targetProfileOverride?.nearbyEnemyCount,
+            targetProfileOverride?.nearbyGasOuterEnemyCount,
+        );
     const targetDetail = goal !== "meleeDps" && targetProfileOverride
-        ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} for Electric/Gas status damage` : ""}`
+        ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}`
         : "";
     const scoreLabel = goal === "timeToKill"
         ? "Screening proxy score"

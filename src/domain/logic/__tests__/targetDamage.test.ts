@@ -1038,6 +1038,52 @@ describe("finite expected-value weapon encounters", () => {
         expect(result.electricGasCollateralDamageByPool.health).toBeCloseTo(6, 12);
     });
 
+    it("scales Gas outer-ring collateral by active-stack radius and keeps Electricity inside 3m", () => {
+        const simulateGas = (stacks: number, maxDurationSeconds = 6, attackIntervalSeconds = 10, maxAttacks = 1) =>
+            simulateExpectedWeaponEncounter({
+                damageByType: {},
+                health: 100_000,
+                shields: 0,
+                overguard: 0,
+                armor: 0,
+                faction: "",
+                attackIntervalSeconds,
+                maxAttacks,
+                maxDurationSeconds,
+                dotDamagePerAttackByType: { gas: stacks * 6 },
+                dotDamagePerApplicationByType: { gas: 6 },
+                expectedStatusApplicationsPerAttackByType: { gas: stacks },
+                nearbyGasOuterEnemyCount: 1,
+            });
+
+        const oneStack = simulateGas(1);
+        const tenStacks = simulateGas(10);
+        const growingStacks = simulateGas(1, 0.5, 0.5, 2);
+
+        // One stack makes a 3.3m cloud, covering 7% of a uniform 3–6m annulus.
+        expect(oneStack.electricGasCollateralDamageByPool.health).toBeCloseTo(0.42, 10);
+        // Ten active stacks reach 6m and cover the configured outer target.
+        expect(tenStacks.electricGasCollateralDamageByPool.health).toBeCloseTo(60, 10);
+        // The second proc expands the cloud before its immediate tick at t=0.5.
+        expect(growingStacks.electricGasCollateralDamageByPool.health).toBeCloseTo(0.07 + (3.6 ** 2 - 3 ** 2) / (6 ** 2 - 3 ** 2), 10);
+
+        const electricityOnly = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 100_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 10,
+            maxAttacks: 1,
+            maxDurationSeconds: 1,
+            dotDamagePerAttackByType: { electricity: 6 },
+            nearbyGasOuterEnemyCount: 1,
+        });
+        expect(electricityOnly.electricGasCollateralEnemyCount).toBe(1);
+        expect(electricityOnly.electricGasCollateralDamageByPool.health).toBe(0);
+    });
+
     it("applies multiple Electricity stacks as one damage pulse per second", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: {},

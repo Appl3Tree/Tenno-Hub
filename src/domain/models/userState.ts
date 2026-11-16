@@ -205,8 +205,10 @@ export interface SavedBuildTargetConfig {
     toxinBypassesShields: boolean;
     /** Attack-hit behavior assumed during the enemy Shield Gate. */
     enemyShieldGateHitMode?: "body" | "weakspot" | "blockedArea";
-    /** Same-profile enemies assumed to be inside an active Electric/Gas status radius. */
+    /** Same-profile enemies assumed to be within the 3m base Electric/Gas radius. */
     nearbyEnemyCount?: number;
+    /** Same-profile enemies in the 3–6m Gas annulus, uniformly distributed by area. */
+    nearbyGasOuterEnemyCount?: number;
     /** Same-profile enemies assumed to be within Blast's 5m cap/death radial. */
     nearbyBlastEnemyCount?: number;
     statusImmunities: string[];

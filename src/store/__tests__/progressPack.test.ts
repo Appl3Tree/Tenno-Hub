@@ -9,6 +9,50 @@ import { migrateToUserStateV2 } from "../migrations";
 import { PR } from "../../domain/ids/prereqIds";
 
 describe("progress pack inventory serialization", () => {
+    it("preserves saved Gas annulus neighbors through profile export and restore", () => {
+        const source = makeDefaultState();
+        source.modBuilder = {
+            ownedModNames: [],
+            savedBuilds: [{
+                id: "gas-annulus-build",
+                name: "Gas annulus",
+                weaponUniqueName: "/Lotus/Weapons/TestWeapon",
+                weaponName: "Test Weapon",
+                slotModUniqueNames: [],
+                slotPolarities: [],
+                weaponRank: 30,
+                hasCatalyst: false,
+                hasExilus: false,
+                createdAt: "2026-11-16T00:00:00.000Z",
+                plannerConfig: {
+                    goal: "timeToKill",
+                    target: {
+                        enabled: true,
+                        faction: "Grineer",
+                        useCustomStats: true,
+                        baseStats: { health: 1000, shields: 0, overguard: 0, armor: 0 },
+                        scaleByLevel: false,
+                        scalingFaction: "grineer",
+                        baseLevel: 1,
+                        currentLevel: 30,
+                        toxinBypassesShields: true,
+                        nearbyEnemyCount: 2,
+                        nearbyGasOuterEnemyCount: 7,
+                        statusImmunities: [],
+                    },
+                },
+            }],
+        };
+
+        const parsed = ProgressPackSchemaV2.parse(JSON.parse(JSON.stringify(source)));
+        const restored = replaceProgressPackState(parsed);
+
+        expect(restored.modBuilder?.savedBuilds[0].plannerConfig?.target).toMatchObject({
+            nearbyEnemyCount: 2,
+            nearbyGasOuterEnemyCount: 7,
+        });
+    });
+
     it("preserves rotation-scoped event completions and legacy IDs through a Progress Pack", () => {
         const source = makeDefaultState();
         source.worldState = {
