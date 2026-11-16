@@ -382,6 +382,106 @@ describe("Beast Claw Conditioning Wiki conversion", () => {
     });
 });
 
+describe("Beast Claw elemental conversion Wiki rules", () => {
+    const conversionCases = [
+        { name: "Burning Claws", conversion: "heat", damageBonusKey: "heatBonus" },
+        { name: "Chilling Claws", conversion: "cold", damageBonusKey: "coldBonus" },
+        { name: "Shocking Claws", conversion: "electricity", damageBonusKey: "electricityBonus" },
+        { name: "Sepsis Claws", conversion: "toxin", damageBonusKey: "toxinBonus" },
+    ] as const;
+
+    it("parses every rank, keeps all four mods claw-only, and preserves their shared incompatibility", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
+        const brokenWar = getWeaponCatalog().find((weapon) => weapon.name === "Broken War");
+        expect(claw).toBeDefined();
+        expect(brokenWar).toBeDefined();
+
+        const clawMods = getModsForWeapon(claw!);
+        const conversionMods = conversionCases.map(({ name, conversion, damageBonusKey }) => {
+            const mod = clawMods.find((candidate) => candidate.name === name);
+            expect(mod).toBeDefined();
+            expect(mod!.fusionLimit).toBe(10);
+            expect(mod!.effectsByRank).toHaveLength(11);
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                const effect = mod!.effectsByRank[rank];
+                expect(effect.elementalDamageConversion).toBe(conversion);
+                expect(effect[damageBonusKey]).toBeCloseTo((rank + 1) * 0.3, 10);
+                expect(effect.statusChanceBonus).toBeCloseTo((rank + 1) * 0.3, 10);
+                expect((mod!.unparsedStatsByRank?.[rank] ?? []).some((line) => /Converts all elemental damage/i.test(line))).toBe(false);
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+            }
+            return mod!;
+        });
+
+        expect(new Set(conversionMods.map((mod) => mod.incompatibilityGroup)).size).toBe(1);
+        const conditioning = clawMods.find((mod) => mod.name === "Brute Conditioning");
+        expect(conditioning).toBeDefined();
+        expect(conversionMods[0].incompatibilityGroup).not.toBe(conditioning!.incompatibilityGroup);
+        expect(getModsForWeapon(brokenWar!).some((mod) => conversionCases.some(({ name }) => name === mod.name))).toBe(false);
+    });
+
+    it("converts all claw primary elements and elemental mods while preserving secondary damage", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
+        expect(claw).toBeDefined();
+        const weapon: WeaponEntry = {
+            ...claw!,
+            damage: {
+                ...claw!.damage,
+                impact: 10,
+                puncture: 20,
+                slash: 30,
+                heat: 5,
+                cold: 7,
+                electricity: 9,
+                toxin: 11,
+                radiation: 13,
+                magnetic: 17,
+                total: 122,
+            },
+            statusChance: 1,
+        };
+        const secondaryBonus = { ...emptyEffect(), radiationBonus: 0.5, magneticBonus: 0.4 };
+        const otherPrimaryBonuses = { ...emptyEffect(), heatBonus: 0.6, toxinBonus: 0.9 };
+        const basePrimaryDamage = 5 + 7 + 9 + 11;
+        const allPrimaryModBonus = 3.3 + 0.6 + 0.9;
+
+        for (const { name, conversion } of conversionCases) {
+            const mod = getModsForWeapon(claw!).find((candidate) => candidate.name === name);
+            expect(mod).toBeDefined();
+            const stats = calculateBuild(weapon, [mod!.effectsByRank[mod!.fusionLimit], otherPrimaryBonuses, secondaryBonus]).modded;
+            expect(stats.elementalDamageConversion).toBe(conversion);
+            expect(stats.baseDamageTotal).toBe(122);
+            expect(stats.rawDamageBreakdown[conversion]).toBeCloseTo(basePrimaryDamage + 122 * allPrimaryModBonus, 8);
+            for (const primaryType of ["heat", "cold", "electricity", "toxin"] as const) {
+                if (primaryType === conversion) continue;
+                expect(stats.rawDamageBreakdown[primaryType]).toBe(0);
+            }
+            expect(stats.rawDamageBreakdown.radiation).toBeCloseTo(13 + 122 * 0.5, 8);
+            expect(stats.rawDamageBreakdown.magnetic).toBeCloseTo(17 + 122 * 0.4, 8);
+            expect(stats.rawDamageBreakdown.impact).toBe(10);
+            expect(stats.rawDamageBreakdown.puncture).toBe(20);
+            expect(stats.rawDamageBreakdown.slash).toBe(30);
+            expect(stats.statusChance).toBeCloseTo(weapon.statusChance * 4.3, 10);
+        }
+
+        const burning = getModsForWeapon(claw!).find((candidate) => candidate.name === "Burning Claws")!;
+        const convertedHeat = calculateBuild(weapon, [
+            burning.effectsByRank[burning.fusionLimit], otherPrimaryBonuses, secondaryBonus,
+        ]).modded;
+        const equivalentWeapon: WeaponEntry = {
+            ...weapon,
+            damage: { ...weapon.damage, heat: basePrimaryDamage, cold: 0, electricity: 0, toxin: 0 },
+        };
+        const equivalentHeatBonus = calculateBuild(equivalentWeapon, [{
+            ...emptyEffect(),
+            heatBonus: allPrimaryModBonus,
+            statusChanceBonus: 3.3,
+        }]).modded;
+        expect(convertedHeat.dotTickDamagePerProcByType.heat)
+            .toBeCloseTo(equivalentHeatBonus.dotTickDamagePerProcByType.heat!, 8);
+    });
+});
+
 describe("Spring-Loaded Broadhead Wiki modeling", () => {
     it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
         const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
@@ -3811,4 +3911,3 @@ describe("melee combo-scaled mod calculations", () => {
         expect(stats.gasCloudRadius).toBeCloseTo(gasCloudRadiusFromStacks(stats.expectedStacksByType.gas ?? 0), 12);
     });
 });
-
