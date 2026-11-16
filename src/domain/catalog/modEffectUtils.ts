@@ -5,6 +5,7 @@ export const ACID_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Shotgun/Event/ProjectN
 export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamExplodeOnDeath";
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
 export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
+export const VILE_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveEmbolistAugmentMod";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -27,6 +28,16 @@ export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | nul
     ];
 
     for (const source of sources) {
+        const statusSpreadChance = Number(source.stats.aoeElementalStatusSpreadChance ?? 0);
+        const statusSpreadRadius = Number(source.stats.aoeElementalStatusSpreadRadius ?? 0);
+        if (statusSpreadChance > 0 || statusSpreadRadius > 0) {
+            // Melee Influence copies elemental hits and status effects across
+            // nearby targets; the current score has no neighboring status history.
+            // https://wiki.warframe.com/w/Melee_Influence
+            lines.push(
+                `${source.label}: Elemental status spread and its neighboring-target damage/proc histories are not modeled; this single-target score ignores the effect.`,
+            );
+        }
         if (source.label === "Effect") {
             for (const conditional of effect.conditionalEffects ?? []) {
                 if (conditional.trigger === "afterJumpLanding") {
@@ -70,6 +81,11 @@ export function getUnmodeledDamageEffectLines(
     }
     if (mod.path === VULCAN_BLITZ_MOD_PATH) {
         lines.push("Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.");
+    }
+    if (mod.path === VILE_DISCHARGE_MOD_PATH) {
+        // Vile Discharge needs a timed build-up/release encounter, not a static
+        // per-hit damage bonus. https://wiki.warframe.com/w/Vile_Discharge
+        lines.push("Vile Discharge's accumulated primary-fire/DoT charge, Alt-Fire timing, and 6m Toxin explosion are not simulated, so Auto Optimize skips this mod.");
     }
     if (lines.some((line) => /\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b/i.test(line))) {
         lines.push("Tennokai opportunity timing and attack-chain cadence are not modeled or scored.");
