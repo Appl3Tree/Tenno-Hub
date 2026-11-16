@@ -9,14 +9,15 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - Use current Warframe Wiki data for mechanics and calculated values. Do not ask the player to research or enter reference-table values.
 - Use the Codex in-app browser for browser QA. Do not use Brave.
 - The local dev app is on port 80: `http://localhost/Tenno-Hub/`.
-- Merge and deploy each clean release milestone so the user can manually test the live app while work continues. PR #100 (`80e6924239e71b58321356ea8abe6e55315038a0`) is merged and Pages deployment #179 (`43901332895`) succeeded.
-- Current next item: expand the Realistic Galvanized exact mod/Arcane Expected TTK oracle with a slower direct-hit target that exercises partial per-status stacks, then continue sourced status/timing and optimizer-quality checks.
+- Merge and deploy each clean release milestone so the user can manually test the live app while work continues. PR #102 (commit `301a1f16ecf11619a31cb3bffb8d73580c7b945b`) is merged; Pages deployment [#181](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43918477053) succeeded.
+- Current next item: audit the next source-backed on-kill explosion candidate from the mod-effect coverage list, then continue broader Wiki mechanics, optimizer-quality, Underframe, and cold/mobile checks. Perigale Prime is resolved and closed.
 - Continue the full Build Planner objective from the pasted specification; this checkpoint does not reduce its scope.
 
 ## Current repository and delivery state
 
-- Current checkout: local Git metadata still points to `6ce21f7` because `.git` is read-only here; the working files include PR #100's merged changes. GitHub `main` is at `80e6924239e71b58321356ea8abe6e55315038a0`.
+- Current checkout: local Git metadata still points to `6ce21f7` because `.git` is read-only here; working files include the PR #102 changes. GitHub `main` is at `301a1f16ecf11619a31cb3bffb8d73580c7b945b`.
 - Recent delivered checkpoints: PR #89 (`b444ed2`, Wiki-backed stance DPS), PR #90 (`43b9eeb`, reset Owned Mods search on weapon changes), PR #91 (`4da8e0b`, Semi-Auto cap and reset manual picker search on weapon changes), PR #92 (`ffa1ff1`, Cannonade lock), PR #93 (`d0e1c8c`, finite Auto-Spool timing), PR #94 (`0a16a51`, Auto-Spool coverage and finite-estimate boundaries), PR #95 (`06c0576`, Kohm-family attack multishot correction), PR #96 (`05d3e0c`, variable Auto-Spool sequences), PR #97 (`03d8848`, Gas radius and neighbor damage), PR #98 (`26c99e4`, Galvanized same-trigger status damage), PR #99 (`b824cb7`, same-trigger Tau vulnerability), and PR #100 (`80e6924`, Blast on-death radial scoring). PR #101 (`747db076`, Galvanized per-status kill-stack lifecycle) was squash-merged; Pages deployment #180 (`43913555161`) succeeded.
+- PR #102 (Realistic Galvanized finite Expected TTK scoring) was squash-merged as `301a1f1`; GitHub Pages deployment [#181](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43918477053) succeeded.
 - PR #94 Pages deployment run `43844245087` succeeded for `0a16a5122a5c990207297f8bc98c94f5835fce59`; the live app is available at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/) and the local dev app remains at `http://localhost/Tenno-Hub/`.
 - PR #95 Pages deployment run [#173](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43847329726) succeeded for `06c057651aeb4521e4974ee2dff6c4afa1ce6b04`; production is live at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/).
 - PR #96 was squash-merged as `05d3e0c`; Pages deployment run [#174](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43858063267) succeeded. The production app is available at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/). Local port 80 and production were opened in Codex's in-app browser; both requests returned `queued`, so no new rendered interaction is claimed.
@@ -156,12 +157,30 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - PR #101 was squash-merged as `747db076ab33a8b0cbd3daf1a91d59b3bf925b94`; Pages deployment [#180](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43913555161) succeeded. Production is live at [Tenno-Hub](https://appl3tree.github.io/Tenno-Hub/). The refreshed production URL was opened in Codex's in-app browser; the request returned queued without a rendered screenshot.
 - Next: add a slower direct-hit oracle target to exercise partial Galvanized per-status stacks and cadence feedback. Cross-source Heat inheritance remains unresolved in the Wiki and is not inferred.
 
+## Latest exact Realistic Galvanized Expected TTK scoring (2026-11-16)
+
+- The optimizer's exact finite Expected TTK evaluator now iterates its expected kill cadence and supplies `1 / TTK` to the same repeated-target Galvanized stack estimator used by the planner. Candidate evaluation, Arcane comparison, shortlist refinement, and final rescoring all use this path; the fast broad search still uses its sustained-cadence proxy.
+- The exhaustive legal joint mod/Arcane regression now covers seven attack profiles, including direct Cedo Normal Attack in Realistic state. It compares both TTK and DPS, with three slots, four catalog mods, and every Primary Frostbite rank. A separate regression confirms the supplied kill rate does not change unrelated on-kill effects.
+- The full suite passes 755 tests / 53 files (121.10s). The production build passes with a 127,749-byte optimizer Worker and the existing Vite large-chunk warning. Source validation, prerequisite and mod-effect audits, focused ESLint, and CRLF-aware diff check pass.
+- Three Cedo Expected TTK runs returned legal three-Forma builds: direct Normal Attack 0.6550159s TTK (3,600.3ms median / 3,740.7ms maximum), and Glaive Radial Attack 3.6842105s TTK (3,189.7ms / 3,751.7ms). A separate one-run direct confirmation selected Galvanized Savvy R10 and Primary Frostbite R5 at 59/60 capacity. These are bounded desktop Node results; the Glaive radial path does not use per-status kill cadence.
+- PR [#102](https://github.com/Appl3Tree/Tenno-Hub/pull/102) was squash-merged at `301a1f16ecf11619a31cb3bffb8d73580c7b945b`; Pages deployment [#181](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43918477053) succeeded. No visual QA is claimed until the in-app browser provides a rendered result.
+- Follow-up complete: expanded the exhaustive oracle with a slower Realistic Cedo direct-hit target and a forced Galvanized Savvy build taking 43.4146s, corresponding to 20/Ttk = 0.4607 average stacks under the Wiki's 20-second duration / two-stack cap. The isolated exhaustive-oracle test passed (59.15s); the full suite has not yet been rerun with this expanded scenario. Random proc and per-target expiration histories remain unmodeled.
+
+## Acid Shells Wiki audit (2026-11-16)
+
+- The current [Acid Shells Wiki page](https://wiki.warframe.com/w/Acid_Shells) gives ranks 0–5 as 75/150/225/300/375/450 flat Corrosive damage, 7.5/15/22.5/30/37.5/45% of enemy max Health as Blast damage, and 2.5/5/7.5/10/12.5/15m radius. The generated export has stale percentage values (8/15/23/30/38/45%) and incorrectly shows 10m at every rank.
+- The Wiki also requires enemy death, linear falloff, line of sight, mode-dependent max-Health scaling (18% in Steel Path; other modes can differ), no crit/status procs, and allows chain explosions. The current calculator and optimizer do not model this effect. Keep it excluded from Auto Optimize and show corrected Wiki rank text plus an explicit unsupported-effect explanation rather than scoring a partial approximation.
+- The catalog now overrides all six stale generated rank labels with the Wiki's flat Corrosive damage, max-Health percentage, and radius values for Sobek and Kuva Sobek. It deliberately clears generic damage parsing because the on-death Blast/Corrosive event is not ordinary weapon damage.
+- Every rank carries an explicit unsupported-effect warning. The manual picker and equipped-mod details disclose that the explosion is not scored and Auto Optimize skips it. No partial Acid Shells damage is claimed.
+- A focused catalog regression verifies all rank labels for both weapons, zero parsed damage effects, the warning at every rank, and exclusion from unrelated weapons. Release validation passes: full suite 756 tests / 53 files (110.86s); TypeScript and production build (128,035-byte optimizer Worker; existing Vite large-chunk warning); `validate:sources`; prerequisite audit (227 entries, no unresolved references or cycles); mod-effect audit (694 weapons, 599 mods, 485 parsed, 114 without parsed effects, 83 review candidates, 26 partial / 57 fully unparsed, zero weapon pools without parsed damage); focused ESLint; and CRLF-aware diff check. The in-app browser request for port 80 returned `queued`, so no rendered QA is claimed.
+
+
 ## Remaining work on the full objective
 
 Continue from the open items in `AGENTS.md` and the pasted specification, with evidence-backed progress. Major unfinished acceptance areas include:
 
 - Broader current Damage 3.0 research and independent tests, including status histories/DoT, defense interactions, attack timing, and weapon-specific effects.
-- Mod/arcane/evolution source coverage and unsupported-effect handling.
+- Mod/arcane/evolution source coverage and unsupported-effect handling; Acid Shells rank text and safe exclusion are the next bounded change.
 - Optimizer quality and joint/global search evidence beyond bounded Burst pools; the HiGHS shortlist fit comparison is complete and no solver dependency was adopted.
 - Broad same-assumption Underframe comparisons, benchmark corpus quality, and optimizer latency including cold/mobile/cross-device cases.
 - Full browser walkthrough, saved build comparison/reload coverage, and responsive checks in the in-app browser.
@@ -170,3 +189,4 @@ Continue from the open items in `AGENTS.md` and the pasted specification, with e
 ## Anti-loop rule
 
 Before acting on an older comment, check this file and the corresponding `AGENTS.md` entry. If an item is marked done, don't repeat its fix or report it as new work. Only reopen it when current source, current served UI, a regression, or new user evidence contradicts the recorded result. Update this checkpoint after each meaningful milestone with what changed, what was verified, and the next concrete item.
+

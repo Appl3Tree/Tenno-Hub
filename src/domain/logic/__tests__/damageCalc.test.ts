@@ -85,6 +85,41 @@ describe("Tennokai mod catalog coverage", () => {
     });
 });
 
+describe("Acid Shells Wiki rank display and safe scoring exclusion", () => {
+    it("shows the current rank table while keeping the death explosion unmodeled", () => {
+        const catalog = getWeaponCatalog();
+        const sobek = catalog.find((weapon) => weapon.name === "Sobek");
+        const kuvaSobek = catalog.find((weapon) => weapon.name === "Kuva Sobek");
+        const braton = catalog.find((weapon) => weapon.name === "Braton Prime");
+        expect(sobek).toBeDefined();
+        expect(kuvaSobek).toBeDefined();
+        expect(braton).toBeDefined();
+
+        const expectedRankText = [
+            "On death: 75 Corrosive Damage + 7.5% of enemy max Health as Blast Damage; 2.5m radius",
+            "On death: 150 Corrosive Damage + 15% of enemy max Health as Blast Damage; 5m radius",
+            "On death: 225 Corrosive Damage + 22.5% of enemy max Health as Blast Damage; 7.5m radius",
+            "On death: 300 Corrosive Damage + 30% of enemy max Health as Blast Damage; 10m radius",
+            "On death: 375 Corrosive Damage + 37.5% of enemy max Health as Blast Damage; 12.5m radius",
+            "On death: 450 Corrosive Damage + 45% of enemy max Health as Blast Damage; 15m radius",
+        ];
+        const warning = "Acid Shells' on-death explosion is not scored; its falloff, line-of-sight checks, mode-specific max-Health scaling, and chain explosions are not modeled, so Auto Optimize skips the mod.";
+
+        for (const weapon of [sobek!, kuvaSobek!]) {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Acid Shells");
+            expect(mod).toBeDefined();
+            expect(mod!.statsTextByRank).toEqual(expectedRankText);
+            expect(mod!.hasDamageEffect).toBe(false);
+            expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.blastBonus === 0 && effect.corrosiveBonus === 0)).toBe(true);
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+            }
+        }
+
+        expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Acid Shells")).toBe(false);
+    });
+});
+
 describe("Spring-Loaded Broadhead Wiki modeling", () => {
     it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
         const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
@@ -3514,3 +3549,4 @@ describe("melee combo-scaled mod calculations", () => {
         expect(stats.gasCloudRadius).toBeCloseTo(gasCloudRadiusFromStacks(stats.expectedStacksByType.gas ?? 0), 12);
     });
 });
+

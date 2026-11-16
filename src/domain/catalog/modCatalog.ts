@@ -12,7 +12,7 @@
 // Additionally, weapon-specific augments (e.g. compatName "Hek") are surfaced
 // when the selected weapon's name matches the compat name.
 
-import { emptyEffect, VOLATILE_VARIANT_MOD_PATH } from "./modEffectUtils";
+import { ACID_SHELLS_MOD_PATH, emptyEffect, VOLATILE_VARIANT_MOD_PATH } from "./modEffectUtils";
 export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
@@ -27,6 +27,14 @@ import {
 } from "./weaponCatalog";
 
 const ALL = ALL_RAW as Record<string, unknown>[];
+const ACID_SHELLS_WIKI_RANKS = [
+    { corrosiveDamage: 75, healthPercent: 7.5, radiusMeters: 2.5 },
+    { corrosiveDamage: 150, healthPercent: 15, radiusMeters: 5 },
+    { corrosiveDamage: 225, healthPercent: 22.5, radiusMeters: 7.5 },
+    { corrosiveDamage: 300, healthPercent: 30, radiusMeters: 10 },
+    { corrosiveDamage: 375, healthPercent: 37.5, radiusMeters: 12.5 },
+    { corrosiveDamage: 450, healthPercent: 45, radiusMeters: 15 },
+];
 const MODS_META = MODS_RAW as Record<string, {
     name?: string;
     path?: string;
@@ -1300,6 +1308,19 @@ function buildCaches(): ModCaches {
             // https://wiki.warframe.com/w/Cannonade_Mods
             effectsByRank.forEach((effect) => { effect.fireRateLocked = true; });
         }
+        if (path === ACID_SHELLS_MOD_PATH) {
+            // The generated export currently has stale percent-health and radius
+            // ranks. Keep the corrected Wiki text available without treating the
+            // death explosion as a normal weapon damage bonus.
+            // https://wiki.warframe.com/w/Acid_Shells
+            ACID_SHELLS_WIKI_RANKS.forEach((wikiRank, rank) => {
+                if (!effectsByRank[rank]) return;
+                effectsByRank[rank] = emptyEffect();
+                unparsedStatsByRank[rank] = [
+                    `On death: ${wikiRank.corrosiveDamage} Corrosive Damage + ${wikiRank.healthPercent}% of enemy max Health as Blast Damage; ${wikiRank.radiusMeters}m radius.`,
+                ];
+            });
+        }
         if (path === VOLATILE_VARIANT_MOD_PATH) {
             // The Wiki says this additive Status Chance applies only to Volatile
             // Variant's explosion. Apply it only when the selected attack row is
@@ -1574,6 +1595,13 @@ function buildCaches(): ModCaches {
                 .filter(Boolean)
                 .join("  ·  ")
         );
+        if (path === ACID_SHELLS_MOD_PATH) {
+            ACID_SHELLS_WIKI_RANKS.forEach((wikiRank, rank) => {
+                if (rank >= statsTextByRank.length) return;
+                statsTextByRank[rank] =
+                    `On death: ${wikiRank.corrosiveDamage} Corrosive Damage + ${wikiRank.healthPercent}% of enemy max Health as Blast Damage; ${wikiRank.radiusMeters}m radius`;
+            });
+        }
         // Keep the repaired damage type visible everywhere the source stat is
         // presented, including the picker and equipped-mod summary.
         if (path.toLowerCase().endsWith("/primaryhuntermunitionsmod")) {

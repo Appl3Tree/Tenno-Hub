@@ -2448,7 +2448,7 @@ describe("build optimizer scoring", () => {
         expect(shortlistWinner.result.capacityValid).toBe(true);
     });
 
-    it("matches exhaustive joint Expected TTK mod-and-Arcane optima across seven weapon attack types including Realistic Galvanized", { timeout: 180000 }, () => {
+    it("matches exhaustive joint Expected TTK mod-and-Arcane optima across eight weapon attack profiles including partial Galvanized stacks", { timeout: 180000 }, () => {
         const scenarios = [
             {
                 weaponName: "Perigale Prime",
@@ -2527,6 +2527,16 @@ describe("build optimizer scoring", () => {
                 arcaneNames: ["Primary Frostbite"],
                 slotCount: 3,
             },
+            {
+                weaponName: "Cedo",
+                attackName: "Normal Attack",
+                targetFaction: "Grineer",
+                targetProfileOverride: { health: 100000, shields: 0, overguard: 0, armor: 3000 },
+                conditionalState: { mode: "realistic" },
+                modNames: ["Galvanized Savvy", "Primed Point Blank", "Toxic Barrage", "Primed Charged Shell"],
+                arcaneNames: ["Primary Frostbite"],
+                slotCount: 3,
+            },
         ] as const;
         const betterEncounter = (
             candidate: ReturnType<typeof debugScoreExpectedEncounter>,
@@ -2577,6 +2587,29 @@ describe("build optimizer scoring", () => {
                 ? withSelectedAttack(scoringBaseWeapon, attackIndex)
                 : scoringBaseWeapon;
             const optimizerAttack = attack ? scoringBaseWeapon.attacks[attackIndex] ?? null : null;
+            if (
+                scenario.weaponName === "Cedo" &&
+                "conditionalState" in scenario &&
+                scenario.targetProfileOverride.health === 100000
+            ) {
+                const partialStackEffects = ["Galvanized Savvy", "Toxic Barrage", "Primed Charged Shell"].map((name) => {
+                    const mod = candidates.find((candidate) => candidate.name === name)!;
+                    return mod.effectsByRank[mod.fusionLimit] ?? mod.effect;
+                });
+                const partialStackArcane = arcaneOptions.find((option) =>
+                    option.arcane?.name === "Primary Frostbite" && option.rank === 5,
+                )?.effect;
+                const partialStackScore = debugScoreExpectedEncounter(
+                    scoringWeapon,
+                    partialStackEffects,
+                    scenario.targetFaction,
+                    scenario.targetProfileOverride,
+                    conditionalState,
+                    partialStackArcane,
+                );
+                // Galvanized Savvy caps at two stacks and lasts 20s; a >20s cycle keeps its modeled average below one stack.
+                expect(partialStackScore.timeToKillSeconds).toBeGreaterThan(20);
+            }
             if ("incarnonForm" in scenario) {
                 expect(scoringWeapon.selectedAttackIncarnonAmmoCapacity, scenario.weaponName).toBe(24);
             }
@@ -4928,3 +4961,4 @@ describe("damage calculation ramp interactions", () => {
         expect(quickdrawBuild.sustainedDPS).toBeCloseTo(noReloadBuild.sustainedDPS, 6);
     });
 });
+
