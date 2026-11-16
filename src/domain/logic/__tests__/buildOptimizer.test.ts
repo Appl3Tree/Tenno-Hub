@@ -1886,6 +1886,61 @@ describe("build optimizer scoring", () => {
         expect(result.encounterTimeToKillSeconds!).toBeLessThanOrEqual(screeningEncounter.timeToKillSeconds!);
     });
 
+    it("scores same-trigger Galvanized direct damage in the Expected TTK objective", () => {
+        const baseWeapon = makeWeapon();
+        const weapon = makeWeapon({
+            damage: {
+                ...baseWeapon.damage,
+                total: 100,
+                impact: 100,
+                puncture: 0,
+                slash: 0,
+                heat: 0,
+                cold: 0,
+                electricity: 0,
+                toxin: 0,
+                blast: 0,
+                radiation: 0,
+                gas: 0,
+                magnetic: 0,
+                viral: 0,
+                corrosive: 0,
+                void: 0,
+                tau: 0,
+                true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 1,
+            multishot: 3,
+            fireRate: 1,
+            magazineSize: 10,
+            reloadTime: 0,
+        });
+        const target = { health: 1_000, shields: 0, overguard: 0, armor: 0 };
+        const conditionalState = { mode: "fullyStacked" as const };
+        const galvanizedMod = filterBuilderExpertVariants(getModsForWeapon(weapon))
+            .find((mod) => mod.name === "Galvanized Aptitude");
+        expect(galvanizedMod).toBeDefined();
+        const galvanizedBonus = galvanizedMod!.effectsByRank[galvanizedMod!.fusionLimit] ?? galvanizedMod!.effect;
+        const withoutGalvanized = debugEvaluateExpectedEncounter(
+            weapon,
+            [],
+            "Grineer",
+            target,
+            conditionalState,
+        );
+        const withGalvanized = debugEvaluateExpectedEncounter(
+            weapon,
+            [galvanizedBonus],
+            "Grineer",
+            target,
+            conditionalState,
+        );
+        expect(withoutGalvanized.timeToKillSeconds).toBeCloseTo(2, 8);
+        expect(withGalvanized.timeToKillSeconds).toBeCloseTo(1, 8);
+    });
+
     it("reserves finite-TTK refinement for tempo candidates that the proxy undervalues", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
         expect(weapon).toBeTruthy();
