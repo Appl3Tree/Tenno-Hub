@@ -9,15 +9,16 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - Use current Warframe Wiki data for mechanics and calculated values. Do not ask the player to research or enter reference-table values.
 - Use the Codex in-app browser for browser QA. Do not use Brave.
 - The local dev app is on port 80: `http://localhost/Tenno-Hub/`.
-- Merge and deploy each clean release milestone so the user can manually test the live app while work continues. PR #102 (commit `301a1f16ecf11619a31cb3bffb8d73580c7b945b`) is merged; Pages deployment [#181](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43918477053) succeeded.
-- Current next item: audit the next source-backed on-kill explosion candidate from the mod-effect coverage list, then continue broader Wiki mechanics, optimizer-quality, Underframe, and cold/mobile checks. Perigale Prime is resolved and closed.
+- Merge and deploy each clean release milestone so the user can manually test the live app while work continues. PR #103 (commit `433fd57c6c2d7b1c4ff9df862714c037bf1c38ac`) is merged; Pages deployment [#182](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43925773829) succeeded.
+- Current next item: audit the next source-backed on-kill explosion candidate (Thermagnetic Shells), then continue broader Wiki mechanics, optimizer-quality, Underframe, and cold/mobile checks. Combustion Beam has been audited and safely excluded from scoring. Perigale Prime is resolved and closed.
 - Continue the full Build Planner objective from the pasted specification; this checkpoint does not reduce its scope.
 
 ## Current repository and delivery state
 
-- Current checkout: local Git metadata still points to `6ce21f7` because `.git` is read-only here; working files include the PR #102 changes. GitHub `main` is at `301a1f16ecf11619a31cb3bffb8d73580c7b945b`.
+- Current checkout: local Git metadata still points to `6ce21f7` because `.git` is read-only here; working files include the PR #103 changes. GitHub `main` is at `433fd57c6c2d7b1c4ff9df862714c037bf1c38ac`.
 - Recent delivered checkpoints: PR #89 (`b444ed2`, Wiki-backed stance DPS), PR #90 (`43b9eeb`, reset Owned Mods search on weapon changes), PR #91 (`4da8e0b`, Semi-Auto cap and reset manual picker search on weapon changes), PR #92 (`ffa1ff1`, Cannonade lock), PR #93 (`d0e1c8c`, finite Auto-Spool timing), PR #94 (`0a16a51`, Auto-Spool coverage and finite-estimate boundaries), PR #95 (`06c0576`, Kohm-family attack multishot correction), PR #96 (`05d3e0c`, variable Auto-Spool sequences), PR #97 (`03d8848`, Gas radius and neighbor damage), PR #98 (`26c99e4`, Galvanized same-trigger status damage), PR #99 (`b824cb7`, same-trigger Tau vulnerability), and PR #100 (`80e6924`, Blast on-death radial scoring). PR #101 (`747db076`, Galvanized per-status kill-stack lifecycle) was squash-merged; Pages deployment #180 (`43913555161`) succeeded.
 - PR #102 (Realistic Galvanized finite Expected TTK scoring) was squash-merged as `301a1f1`; GitHub Pages deployment [#181](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43918477053) succeeded.
+- PR [#103](https://github.com/Appl3Tree/Tenno-Hub/pull/103) (Acid Shells Wiki rank correction and slower Galvanized partial-stack oracle) was squash-merged as `433fd57`; Pages deployment [#182](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43925773829) completed successfully. The cache-busted production URL was opened in Codex's in-app browser; the request returned `queued`, without a rendered screenshot.
 - PR #94 Pages deployment run `43844245087` succeeded for `0a16a5122a5c990207297f8bc98c94f5835fce59`; the live app is available at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/) and the local dev app remains at `http://localhost/Tenno-Hub/`.
 - PR #95 Pages deployment run [#173](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43847329726) succeeded for `06c057651aeb4521e4974ee2dff6c4afa1ce6b04`; production is live at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/).
 - PR #96 was squash-merged as `05d3e0c`; Pages deployment run [#174](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/43858063267) succeeded. The production app is available at [Tenno-Hub on GitHub Pages](https://appl3tree.github.io/Tenno-Hub/). Local port 80 and production were opened in Codex's in-app browser; both requests returned `queued`, so no new rendered interaction is claimed.
@@ -175,12 +176,18 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - A focused catalog regression verifies all rank labels for both weapons, zero parsed damage effects, the warning at every rank, and exclusion from unrelated weapons. Release validation passes: full suite 756 tests / 53 files (110.86s); TypeScript and production build (128,035-byte optimizer Worker; existing Vite large-chunk warning); `validate:sources`; prerequisite audit (227 entries, no unresolved references or cycles); mod-effect audit (694 weapons, 599 mods, 485 parsed, 114 without parsed effects, 83 review candidates, 26 partial / 57 fully unparsed, zero weapon pools without parsed damage); focused ESLint; and CRLF-aware diff check. The in-app browser request for port 80 returned `queued`, so no rendered QA is claimed.
 
 
+## Combustion Beam Wiki audit and safe scoring exclusion (2026-11-16)
+
+- Current [Primary Mods](https://wiki.warframe.com/w/Primary_Mods) data describes Combustion Beam as a beam-weapon kill explosion dealing Blast damage after death. Current [Module:Mods/data](https://wiki.warframe.com/w/Module%3AMods/data) lists the `BEAM` compatibility tag, corpse-explosion damage/radius upgrade types, and 600 damage at max rank. The bundled Wiki rank lines give 100/200/300/400/500/600 damage at ranks 0–5; the UI now identifies those values as Blast damage.
+- The current sources reviewed here do not establish enough of the explosion's radius/falloff and line-of-sight rules, damage attribution/scaling, and chain behavior to score it safely. The mod remains available for compatible beam weapons, but its on-kill explosion has no calculator effect, displays an explicit limitation, and is skipped by Auto Optimize.
+- Regressions check all six displayed ranks, no partial Blast bonus, a visible warning at every rank, compatibility with Amprex but not Braton Prime, and exclusion from Auto Optimize. Full validation passes: 758 tests / 53 files; TypeScript and production build (128,321-byte optimizer Worker; existing Vite large-chunk warning); `validate:sources`; prerequisite audit (227 entries, no unresolved references/cycles); mod-effect audit (694 weapons / 599 mods / 485 parsed / 114 no effect / 83 review candidates / zero empty weapon pools); focused ESLint; and CRLF-aware diff check. Port-80 in-app-browser open returned `queued`, without rendered visual QA.
+
 ## Remaining work on the full objective
 
 Continue from the open items in `AGENTS.md` and the pasted specification, with evidence-backed progress. Major unfinished acceptance areas include:
 
 - Broader current Damage 3.0 research and independent tests, including status histories/DoT, defense interactions, attack timing, and weapon-specific effects.
-- Mod/arcane/evolution source coverage and unsupported-effect handling; Acid Shells rank text and safe exclusion are the next bounded change.
+- Mod/arcane/evolution source coverage and unsupported-effect handling; audit current Wiki-backed on-kill explosions, then implement only where the full damage and propagation behavior is supported.
 - Optimizer quality and joint/global search evidence beyond bounded Burst pools; the HiGHS shortlist fit comparison is complete and no solver dependency was adopted.
 - Broad same-assumption Underframe comparisons, benchmark corpus quality, and optimizer latency including cold/mobile/cross-device cases.
 - Full browser walkthrough, saved build comparison/reload coverage, and responsive checks in the in-app browser.

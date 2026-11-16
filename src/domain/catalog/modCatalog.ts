@@ -12,7 +12,7 @@
 // Additionally, weapon-specific augments (e.g. compatName "Hek") are surfaced
 // when the selected weapon's name matches the compat name.
 
-import { ACID_SHELLS_MOD_PATH, emptyEffect, VOLATILE_VARIANT_MOD_PATH } from "./modEffectUtils";
+import { ACID_SHELLS_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, emptyEffect, VOLATILE_VARIANT_MOD_PATH } from "./modEffectUtils";
 export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
@@ -1600,6 +1600,16 @@ function buildCaches(): ModCaches {
                 if (rank >= statsTextByRank.length) return;
                 statsTextByRank[rank] =
                     `On death: ${wikiRank.corrosiveDamage} Corrosive Damage + ${wikiRank.healthPercent}% of enemy max Health as Blast Damage; ${wikiRank.radiusMeters}m radius`;
+            });
+        }
+        if (path === COMBUSTION_BEAM_MOD_PATH) {
+            // The current Wiki identifies the damage as Blast and lists 600 at
+            // max rank. The per-rank damage lines are already ingested from its
+            // mod table; keep the effect out of scoring until its death-radius,
+            // attribution, and propagation behavior are modeled.
+            statsTextByRank.forEach((line, rank) => {
+                const damage = line.match(/dealing\s+([\d,]+)\s+Damage\s+shortly after death/i)?.[1];
+                if (damage) statsTextByRank[rank] = `On Beam weapon kill: ${damage} Blast Damage shortly after death`;
             });
         }
         // Keep the repaired damage type visible everywhere the source stat is
