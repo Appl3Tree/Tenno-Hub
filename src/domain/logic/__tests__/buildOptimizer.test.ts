@@ -695,6 +695,20 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Vile Discharge out of Auto Optimize until its charge-and-discharge sequence is modeled", () => {
+        const embolist = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
+        expect(embolist).toBeDefined();
+        const vileDischarge = getModsForWeapon(embolist!).find((mod) => mod.name === "Vile Discharge");
+        expect(vileDischarge).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(vileDischarge!, vileDischarge!.fusionLimit)).toContain(
+            "Vile Discharge's accumulated primary-fire/DoT charge, Alt-Fire timing, and 6m Toxin explosion are not simulated, so Auto Optimize skips this mod.",
+        );
+
+        const result = optimizeBuild(embolist!, [vileDischarge!], "burst", 1, { allowForma: false });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
     it("keeps Wiki-modeled Nightwatch Napalm eligible and scores it in finite Expected TTK", () => {
         const kuvaOgris = getWeaponCatalog().find((candidate) => candidate.name === "Kuva Ogris");
         expect(kuvaOgris).toBeDefined();
@@ -760,6 +774,25 @@ describe("build optimizer scoring", () => {
             arcaneCandidates: [primaryDeadhead!],
             ownedArcaneUniqueNames: new Set([primaryDeadhead!.uniqueName]),
             ownedArcaneMaxRankByUniqueName: { [primaryDeadhead!.uniqueName]: primaryDeadhead!.maxRank },
+        });
+        expect(result.arcane).toBeNull();
+    });
+
+    it("discloses and excludes Melee Influence until nearby status spread is modeled", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const meleeInfluence = getArcanesForWeapon(weapon!).find((arcane) => arcane.name === "Melee Influence");
+        expect(meleeInfluence).toBeDefined();
+        const maxRankEffect = meleeInfluence!.optimizerEffectByRank[meleeInfluence!.maxRank];
+        expect(maxRankEffect.aoeElementalStatusSpreadChance).toBeCloseTo(0.2);
+        expect(maxRankEffect.aoeElementalStatusSpreadRadius).toBe(20);
+        expect(getUnmodeledScoringEffectLines(maxRankEffect)).toContain(
+            "Effect: Elemental status spread and its neighboring-target damage/proc histories are not modeled; this single-target score ignores the effect.",
+        );
+
+        const result = optimizeBuild(weapon!, [], "burst", 0, {
+            optimizeArcane: true,
+            arcaneCandidates: [meleeInfluence!],
         });
         expect(result.arcane).toBeNull();
     });

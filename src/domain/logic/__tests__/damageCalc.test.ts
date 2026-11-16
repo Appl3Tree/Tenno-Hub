@@ -149,6 +149,34 @@ describe("Combustion Beam Wiki rank display and safe scoring exclusion", () => {
     });
 });
 
+describe("Vile Discharge Wiki charge caps and safe scoring exclusion", () => {
+    it("shows each stored-damage cap and explains why the discharge is not scored", () => {
+        const embolist = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
+        const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(embolist).toBeDefined();
+        expect(braton).toBeDefined();
+
+        const mod = getModsForWeapon(embolist!).find((candidate) => candidate.name === "Vile Discharge");
+        expect(mod).toBeDefined();
+        expect(mod!.statsTextByRank).toEqual([
+            "Damage is accumulated up to 5,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
+            "Damage is accumulated up to 10,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
+            "Damage is accumulated up to 15,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
+            "Damage is accumulated up to 20,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
+            "Damage is accumulated up to 25,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
+            "Damage is accumulated up to 30,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
+        ]);
+        expect(mod!.hasDamageEffect).toBe(false);
+        expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.toxinBonus === 0)).toBe(true);
+
+        const warning = "Vile Discharge's accumulated primary-fire/DoT charge, Alt-Fire timing, and 6m Toxin explosion are not simulated, so Auto Optimize skips this mod.";
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+        }
+        expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Vile Discharge")).toBe(false);
+    });
+});
+
 describe("Vulcan Blitz Wiki rank radius correction and safe scoring exclusion", () => {
     it("uses every current Wiki rank radius and leaves the on-death explosion out of damage scoring", () => {
         const jatKittag = getWeaponCatalog().find((weapon) => weapon.name === "Jat Kittag");

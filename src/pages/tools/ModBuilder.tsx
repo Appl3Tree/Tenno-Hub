@@ -2701,7 +2701,7 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
 
             {arcane && unmodeledSelectedEffectLines.length > 0 && (
                 <p role="note" className="px-3 pb-2 text-[9px] leading-relaxed text-amber-300">
-                    Not included in damage scoring: {unmodeledSelectedEffectLines.join(" · ")} Auto Optimize skips this Arcane until hit-location context is modeled.
+                    Not included in damage scoring: {unmodeledSelectedEffectLines.join(" · ")} Auto Optimize skips this Arcane for unsupported effects.
                 </p>
             )}
 
@@ -2727,7 +2727,9 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-0.5 truncate">{a.statsLabel}</div>
                                 {getUnmodeledScoringEffectLines(a.optimizerEffectByRank[a.maxRank] ?? a.permanentEffectByRank[a.maxRank]).length > 0 && (
-                                    <div className="text-[9px] text-amber-300 mt-0.5">Contains a parsed headshot/weak-point effect not included in scoring; Auto Optimize skips it.</div>
+                                    <div className="text-[9px] text-amber-300 mt-0.5">
+                                        Not all effects are included in scoring; Auto Optimize skips this Arcane for unsupported effects.
+                                    </div>
                                 )}
                             </button>
                         ))}
