@@ -104,6 +104,18 @@ const RAILJACK_SKILLS: IntrinsicSkill[] = [
     },
 ];
 
+const RAILJACK_SKILLS_IN_GAME_ORDER = [
+    "LPS_TACTICAL",
+    "LPS_PILOTING",
+    "LPS_GUNNERY",
+    "LPS_ENGINEERING",
+    "LPS_COMMAND",
+].map((key) => {
+    const skill = RAILJACK_SKILLS.find((candidate) => candidate.key === key);
+    if (!skill) throw new Error(`Missing Railjack intrinsic data for ${key}`);
+    return skill;
+});
+
 const RAILJACK_COST_PER_RANK = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512];
 
 const DUVIRI_SKILLS: IntrinsicSkill[] = [
@@ -200,7 +212,7 @@ export function getIntrinsicModeData(mode: IntrinsicsMode) {
         ? {
             title: "Railjack Intrinsics",
             warning: "Intrinsic investments cannot be reset — choose carefully.",
-            skills: RAILJACK_SKILLS,
+            skills: RAILJACK_SKILLS_IN_GAME_ORDER,
             costPerRank: RAILJACK_COST_PER_RANK,
         }
         : {
@@ -354,7 +366,7 @@ function IntrinsicFlipCard({
                     </div>
 
                     <div className={["mt-1 text-xs font-semibold uppercase tracking-[0.2em]", clr.text].join(" ")}>{skill.label}</div>
-                    <div className="mt-1 min-h-8 max-w-full px-1 text-[10px] leading-4 text-slate-500">{skill.description}</div>
+                    <div className="mt-1 h-8 min-h-8 w-full max-w-full overflow-hidden px-1 text-[10px] leading-4 text-slate-500 line-clamp-2">{skill.description}</div>
                     <div className="relative mt-2 flex h-36 w-36 items-center justify-center">
                         <IntrinsicProgressRing rank={rank} color={clr.hex} />
                         <span className="absolute text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">{skill.label.slice(0, 3)}</span>
@@ -363,13 +375,13 @@ function IntrinsicFlipCard({
                         <span className="font-mono text-4xl font-semibold leading-none text-slate-100">{rank}</span>
                         <span className="font-mono text-xs text-slate-500">/ {MAX_RANK}</span>
                     </div>
-                    <div className="mt-2 w-full rounded-lg border border-slate-800 bg-slate-950/55 px-3 py-2 text-left">
+                    <div className="mt-2 h-[5.75rem] w-full shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-950/55 px-3 py-2 text-left">
                         <div className="flex items-center justify-between gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                             <span>{nextRank === null ? "Max rank" : `Next rank · R${nextRank}`}</span>
                             {nextCost !== null && <span>{nextCost.toLocaleString()} pts</span>}
                         </div>
-                        <div className="mt-1 truncate text-[11px] font-semibold text-slate-200">{nextReward ? nextReward.split(" — ")[0] : "All ranks acquired"}</div>
-                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-slate-500">{nextReward && nextReward.includes(" — ") ? nextReward.slice(nextReward.indexOf(" — ") + 3) : nextReward ?? "This discipline is fully ranked."}</p>
+                        <div className="mt-1 h-4 truncate text-[11px] font-semibold text-slate-200">{nextReward ? nextReward.split(" — ")[0] : "All ranks acquired"}</div>
+                        <p className="mt-0.5 h-8 line-clamp-2 text-[10px] leading-4 text-slate-500">{nextReward && nextReward.includes(" — ") ? nextReward.slice(nextReward.indexOf(" — ") + 3) : nextReward ?? "This discipline is fully ranked."}</p>
                     </div>
                     <div className="mt-1 text-[9px] text-slate-600">{currentCost.toLocaleString()} / {totalCost.toLocaleString()} points invested</div>
                     <button
