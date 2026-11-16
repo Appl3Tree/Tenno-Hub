@@ -149,6 +149,35 @@ describe("Combustion Beam Wiki rank display and safe scoring exclusion", () => {
     });
 });
 
+describe("Vulcan Blitz Wiki rank radius correction and safe scoring exclusion", () => {
+    it("uses every current Wiki rank radius and leaves the on-death explosion out of damage scoring", () => {
+        const jatKittag = getWeaponCatalog().find((weapon) => weapon.name === "Jat Kittag");
+        const jatKusar = getWeaponCatalog().find((weapon) => weapon.name === "Jat Kusar");
+        expect(jatKittag).toBeDefined();
+        expect(jatKusar).toBeDefined();
+
+        const mod = getModsForWeapon(jatKittag!).find((candidate) => candidate.name === "Vulcan Blitz");
+        expect(mod).toBeDefined();
+        expect(mod!.fusionLimit).toBe(5);
+        expect(mod!.statsTextByRank).toEqual([
+            "On death: 50 Blast Damage + 10% of enemy max Health; 1m radius",
+            "On death: 100 Blast Damage + 20% of enemy max Health; 2m radius",
+            "On death: 150 Blast Damage + 30% of enemy max Health; 3m radius",
+            "On death: 200 Blast Damage + 40% of enemy max Health; 4m radius",
+            "On death: 250 Blast Damage + 50% of enemy max Health; 5m radius",
+            "On death: 300 Blast Damage + 60% of enemy max Health; 6m radius",
+        ]);
+        expect(mod!.hasDamageEffect).toBe(false);
+        expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.blastBonus === 0)).toBe(true);
+
+        const warning = "Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.";
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+        }
+        expect(getModsForWeapon(jatKusar!).some((candidate) => candidate.name === "Vulcan Blitz")).toBe(false);
+    });
+});
+
 describe("Spring-Loaded Broadhead Wiki modeling", () => {
     it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
         const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
