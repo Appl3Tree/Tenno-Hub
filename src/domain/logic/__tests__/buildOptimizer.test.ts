@@ -60,6 +60,26 @@ function makeWeapon(overrides: Partial<WeaponEntry> = {}): WeaponEntry {
     };
 }
 
+describe("Beast Claw Conditioning optimizer legality", () => {
+    it("never selects more than one of the mutually exclusive Conditioning mods", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
+        expect(claw).toBeDefined();
+        const names = new Set(["Brute Conditioning", "Disabling Conditioning", "Precision Conditioning"]);
+        const candidates = getModsForWeapon(claw!).filter((mod) => names.has(mod.name));
+        expect(candidates).toHaveLength(3);
+        expect(new Set(candidates.map((mod) => mod.incompatibilityGroup)).size).toBe(1);
+
+        const optimized = optimizeBuild(claw!, candidates, "burst", 3, {
+            slotPolarities: ["", "", ""],
+            defaultSlotPolarities: ["", "", ""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        });
+        expect(optimized.mods.filter((mod) => mod && names.has(mod.name))).toHaveLength(1);
+    });
+});
+
 function poissonProbabilityAtLeastForTest(mean: number, threshold: number): number {
     if (threshold <= 0) return 1;
     let probability = Math.exp(-mean);
@@ -5084,3 +5104,4 @@ describe("damage calculation ramp interactions", () => {
         expect(quickdrawBuild.sustainedDPS).toBeCloseTo(noReloadBuild.sustainedDPS, 6);
     });
 });
+

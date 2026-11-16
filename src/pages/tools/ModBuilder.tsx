@@ -92,6 +92,11 @@ const COMBINED_ELEMENT_PARENTS: Record<string, [string, string]> = {
     viral:     ["cold", "toxin"],
     corrosive: ["electricity", "toxin"],
 };
+const BEAST_CLAW_CONDITIONING_WIKI_URL: Record<"impact" | "puncture" | "slash", string> = {
+    impact: "https://wiki.warframe.com/w/Brute_Conditioning",
+    puncture: "https://wiki.warframe.com/w/Disabling_Conditioning",
+    slash: "https://wiki.warframe.com/w/Precision_Conditioning",
+};
 
 function effectiveBurstTiming(weapon: WeaponEntry | null | undefined, effectiveFireRate: number) {
     const burstCount = weapon?.burstCount;
@@ -1268,10 +1273,23 @@ function buildCombinedRawBreakdown(
     const totals = sumEffects(effects);
     const baseDamage = weapon.damage.total;
     const moddedBaseDamage = baseDamage * (1 + totals.damageBonus);
+    const physicalDamageConversion = effects.find((effect) => effect?.physicalDamageConversion)?.physicalDamageConversion;
+    const basePhysicalDamage = weapon.damage.impact + weapon.damage.puncture + weapon.damage.slash;
+    const physicalBaseByType = physicalDamageConversion
+        ? {
+            impact: physicalDamageConversion === "impact" ? basePhysicalDamage : 0,
+            puncture: physicalDamageConversion === "puncture" ? basePhysicalDamage : 0,
+            slash: physicalDamageConversion === "slash" ? basePhysicalDamage : 0,
+        }
+        : {
+            impact: weapon.damage.impact,
+            puncture: weapon.damage.puncture,
+            slash: weapon.damage.slash,
+        };
     const physicalRaw = {
-        impact: weapon.damage.impact * (1 + totals.impactBonus) * (1 + totals.damageBonus),
-        puncture: weapon.damage.puncture * (1 + totals.punctureBonus) * (1 + totals.damageBonus),
-        slash: weapon.damage.slash * (1 + totals.slashBonus) * (1 + totals.damageBonus),
+        impact: physicalBaseByType.impact * (1 + totals.impactBonus) * (1 + totals.damageBonus),
+        puncture: physicalBaseByType.puncture * (1 + totals.punctureBonus) * (1 + totals.damageBonus),
+        slash: physicalBaseByType.slash * (1 + totals.slashBonus) * (1 + totals.damageBonus),
     };
     const queue: Array<{ type: string; value: number; order: number }> = [];
     effects.forEach((effect, index) => {
@@ -1420,8 +1438,15 @@ function buildDamageTypeSourceDescriptions(
         index += 1;
     }
 
-    for (const key of ["impact", "puncture", "slash"] as const) {
-        if (weapon.damage[key] > 0) descriptions[key] = `${capitalizeDamageType(key)} comes from the weapon's base physical damage.`;
+    const physicalDamageConversion = effects.find((effect) => effect?.physicalDamageConversion)?.physicalDamageConversion;
+    if (physicalDamageConversion) {
+        const conversionSourceIndex = effects.findIndex((effect) => Boolean(effect?.physicalDamageConversion));
+        const conversionSource = sanitizeDamageSourceLabel(sourceLabels[conversionSourceIndex] ?? "the Conditioning mod");
+        descriptions[physicalDamageConversion] = `Base Impact, Puncture, and Slash damage is converted to ${capitalizeDamageType(physicalDamageConversion)} by ${conversionSource}; elemental damage is unchanged.`;
+    } else {
+        for (const key of ["impact", "puncture", "slash"] as const) {
+            if (weapon.damage[key] > 0) descriptions[key] = `${capitalizeDamageType(key)} comes from the weapon's base physical damage.`;
+        }
     }
 
     return descriptions;
@@ -1819,6 +1844,9 @@ function buildMathBreakdown(
                     ? ["Condition Overload is disabled for this selected source-marked area, slam, or glaive heavy-throw attack."]
                     : []),
                 `Physical raw values before quantization = impact ${fmt(rawBreakdown.physicalRaw.impact, 5)}, puncture ${fmt(rawBreakdown.physicalRaw.puncture, 5)}, slash ${fmt(rawBreakdown.physicalRaw.slash, 5)}`,
+                ...(stats.physicalDamageConversion
+                    ? [`Wiki Conditioning rule: base Impact + Puncture + Slash damage converts to ${capitalizeDamageType(stats.physicalDamageConversion)}; elemental damage remains unchanged. ${BEAST_CLAW_CONDITIONING_WIKI_URL[stats.physicalDamageConversion]}`]
+                    : []),
                 `Element queue before combination = ${rawBreakdown.orderedElementQueue.map((entry) => `${entry.type} ${fmt(entry.value, 5)} (order ${entry.order})`).join(" | ") || "none"}`,
                 `Combined base damage breakdown before Condition Overload and direct-only per-status bonuses = ${nonZeroRawEntries.map(([type, value]) => `${type} ${fmt(value, 5)}`).join(", ") || "none"}`,
                 stats.directDamagePerStatusMultiplier !== 1
@@ -6480,6 +6508,12 @@ export default function ModBuilder() {
                                                                             />
                                                                         );
                                                                     })}
+                                                                {activeMetrics.modded.physicalDamageConversion && (
+                                                                    <div role="note" className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                                                                        Beast Claw Conditioning converts all base physical damage to {capitalizeDamageType(activeMetrics.modded.physicalDamageConversion)}; elemental damage is unchanged.{" "}
+                                                                        <a href={BEAST_CLAW_CONDITIONING_WIKI_URL[activeMetrics.modded.physicalDamageConversion]} target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki</a>
+                                                                    </div>
+                                                                )}
                                                                 <div className="pt-1 text-base">
                                                                     <InlineStatRow
                                                                         label="Arsenal Total"
@@ -7558,3 +7592,4 @@ function InlineStatRow({ label, value, sub, tooltip, labelClassName }: {
         </div>
     );
 }
+

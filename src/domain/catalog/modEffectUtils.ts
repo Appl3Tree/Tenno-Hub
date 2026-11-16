@@ -5,6 +5,9 @@ export const ACID_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Shotgun/Event/ProjectN
 export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamExplodeOnDeath";
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
 export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
+export const BRUTE_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastBruteConditioningMod";
+export const DISABLING_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastDisablingConditioningMod";
+export const PRECISION_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastPrecisionConditioningMod";
 export const VILE_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveEmbolistAugmentMod";
 export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveVenatoAugmentMod";
 
@@ -145,3 +148,4 @@ export function emptyEffect(): ModEffect {
         factionDamageBonus: 0, targetFaction: "",
     };
 }
+

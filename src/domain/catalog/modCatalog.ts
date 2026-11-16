@@ -12,7 +12,17 @@
 // Additionally, weapon-specific augments (e.g. compatName "Hek") are surfaced
 // when the selected weapon's name matches the compat name.
 
-import { ACID_SHELLS_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, emptyEffect, NIGHTWATCH_NAPALM_MOD_PATH, VOLATILE_VARIANT_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "./modEffectUtils";
+import {
+    ACID_SHELLS_MOD_PATH,
+    BRUTE_CONDITIONING_MOD_PATH,
+    COMBUSTION_BEAM_MOD_PATH,
+    DISABLING_CONDITIONING_MOD_PATH,
+    emptyEffect,
+    NIGHTWATCH_NAPALM_MOD_PATH,
+    PRECISION_CONDITIONING_MOD_PATH,
+    VOLATILE_VARIANT_MOD_PATH,
+    VULCAN_BLITZ_MOD_PATH,
+} from "./modEffectUtils";
 export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
@@ -27,6 +37,11 @@ import {
 } from "./weaponCatalog";
 
 const ALL = ALL_RAW as Record<string, unknown>[];
+const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
+    [BRUTE_CONDITIONING_MOD_PATH]: "impact",
+    [DISABLING_CONDITIONING_MOD_PATH]: "puncture",
+    [PRECISION_CONDITIONING_MOD_PATH]: "slash",
+};
 const ACID_SHELLS_WIKI_RANKS = [
     { corrosiveDamage: 75, healthPercent: 7.5, radiusMeters: 2.5 },
     { corrosiveDamage: 150, healthPercent: 15, radiusMeters: 5 },
@@ -96,6 +111,8 @@ export interface ModEffect {
     impactBonus: number;
     punctureBonus: number;
     slashBonus: number;
+    /** Converts only base Impact/Puncture/Slash damage into the selected physical type. */
+    physicalDamageConversion?: "impact" | "puncture" | "slash";
     /** Additive base-damage bonus that applies only to a selected heavy attack. */
     heavyAttackDamageBonus: number;
     /** Multiplicative Slam Damage bonus for eligible named slam attacks. */
@@ -771,6 +788,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             // Keep the non-empty faction name
             const v = partial[k];
             if (v) out[k] = v;
+        } else if (k === "physicalDamageConversion") {
+            out.physicalDamageConversion = partial.physicalDamageConversion ?? out.physicalDamageConversion;
         } else if (k === "independentStatusProcChanceByType") {
             const merged = { ...(out.independentStatusProcChanceByType ?? {}) };
             for (const [type, chance] of Object.entries(partial.independentStatusProcChanceByType ?? {}) as Array<[WeaponForcedProcType, number]>) {
@@ -1606,6 +1625,22 @@ function buildCaches(): ModCaches {
         while (effectsByRank.length <= fl) {
             effectsByRank.push(effectsByRank[effectsByRank.length - 1] ?? emptyEffect());
         }
+        const physicalDamageConversion = BEAST_CLAW_CONDITIONING_CONVERSIONS[path];
+        if (physicalDamageConversion) {
+            // The Wiki's Hotfix 37.0.9 note explicitly limits these mods to
+            // base physical damage; innate and modded elemental damage stay put.
+            // The shared parent path already groups all three as incompatible.
+            // https://wiki.warframe.com/w/Brute_Conditioning
+            // https://wiki.warframe.com/w/Disabling_Conditioning
+            // https://wiki.warframe.com/w/Precision_Conditioning
+            effectsByRank.forEach((rankEffect, rank) => {
+                rankEffect.physicalDamageConversion = physicalDamageConversion;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) => {
+                    const text = stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    return !/^Convert all base Physical Damage to (?:Impact|Puncture|Slash) Damage\.?$/i.test(text);
+                });
+            });
+        }
         if (path === AMANATA_PRESSURE_PATH) {
             // Verified 2026-11-13: the Wiki excludes Void/Tau from Amanata Pressure's
             // random status pool. PC Hotfix 44.1.4 fixed Heavy Slam coverage and
@@ -1935,3 +1970,4 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     }
     return normalizeTrainingVariantGroups(out.sort((a, b) => a.name.localeCompare(b.name)));
 }
+
