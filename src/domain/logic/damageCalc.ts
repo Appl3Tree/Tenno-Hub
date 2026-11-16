@@ -153,6 +153,8 @@ export interface ModdedWeaponStats {
     rawDamageBreakdownBeforePerStatus: Record<DamageKey, number>;
     /** Base physical damage conversion selected by a compatible mod, when present. */
     physicalDamageConversion: ModEffect["physicalDamageConversion"] | null;
+    /** Primary elemental damage conversion selected by a Beast Claw mod, when present. */
+    elementalDamageConversion: ModEffect["elementalDamageConversion"] | null;
     /** Unmodded, charge- and active-combo-adjusted base damage used as the Damage 3.0 quantization scale. */
     baseDamageTotal: number;
     arsenalDamage: number;
@@ -884,6 +886,7 @@ export function calculateBuild(
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
     let damageBonus = 0;
     let physicalDamageConversion: ModEffect["physicalDamageConversion"];
+    let elementalDamageConversion: ModEffect["elementalDamageConversion"];
     let slamAttackDamageBonus = 0;
     let firstShotMagazineDamageBonus = 0;
     let lastShotMagazineDamageBonus = 0;
@@ -944,6 +947,7 @@ export function calculateBuild(
         if (!e) continue;
         damageBonus += e.damageBonus ?? 0;
         physicalDamageConversion ??= e.physicalDamageConversion;
+        elementalDamageConversion ??= e.elementalDamageConversion;
         if (weapon.selectedAttackUsesSlamDamageBonus === true) {
             slamAttackDamageBonus += e.slamAttackDamageBonus ?? 0;
         }
@@ -1378,6 +1382,11 @@ export function calculateBuild(
         weaponBaseDamage.slash = 0;
         weaponBaseDamage[physicalDamageConversion] = basePhysicalDamage;
     }
+    if (elementalDamageConversion) {
+        const basePrimaryElementalDamage = PRIMARY_ELEMENTS.reduce((sum, type) => sum + weaponBaseDamage[type], 0);
+        for (const type of PRIMARY_ELEMENTS) weaponBaseDamage[type] = 0;
+        weaponBaseDamage[elementalDamageConversion] = basePrimaryElementalDamage;
+    }
     const baseDamageTotal = Math.max(0, totalDamageOf(weaponBaseDamage));
     let totalBase = Math.max(0, baseDamageTotal * baseDamageMultiplier);
 
@@ -1386,7 +1395,9 @@ export function calculateBuild(
     rawBreakdown.puncture = weaponBaseDamage.puncture * baseDamageMultiplier * (1 + punctureBonus);
     rawBreakdown.slash = weaponBaseDamage.slash * baseDamageMultiplier * (1 + slashBonus);
 
-    const moddedElementEntries = [...orderedPrimaryElementBonuses, ...conditionalPrimaryElementBonuses];
+    const moddedElementEntries = [...orderedPrimaryElementBonuses, ...conditionalPrimaryElementBonuses].map((entry) =>
+        elementalDamageConversion ? { ...entry, type: elementalDamageConversion } : entry,
+    );
     const lastModdedElementOrder = moddedElementEntries.reduce(
         (latest, entry) => Math.max(latest, entry.order),
         -1,
@@ -1811,6 +1822,11 @@ export function calculateBuild(
     const totalPrimaryElementBonus = (type: "heat" | "cold" | "electricity" | "toxin") => {
         const modBonus = mods.reduce((sum, effect) => {
             if (!effect) return sum;
+            if (elementalDamageConversion) {
+                if (type !== elementalDamageConversion) return sum;
+                return sum + (effect.heatBonus ?? 0) + (effect.coldBonus ?? 0) +
+                    (effect.electricityBonus ?? 0) + (effect.toxinBonus ?? 0);
+            }
             switch (type) {
                 case "heat": return sum + (effect.heatBonus ?? 0);
                 case "cold": return sum + (effect.coldBonus ?? 0);
@@ -1819,7 +1835,7 @@ export function calculateBuild(
             }
         }, 0);
         return modBonus + conditionalPrimaryElementBonuses.reduce(
-            (sum, entry) => sum + (entry.type === type ? entry.value : 0),
+            (sum, entry) => sum + ((elementalDamageConversion ?? entry.type) === type ? entry.value : 0),
             0,
         );
     };
@@ -2134,6 +2150,7 @@ export function calculateBuild(
         rawDamageBreakdown: directRawBreakdown,
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
         physicalDamageConversion: physicalDamageConversion ?? null,
+        elementalDamageConversion: elementalDamageConversion ?? null,
         baseDamageTotal: baseDamageTotal * slamAttackDamageMultiplier * meleeAttackComboDamageMultiplier,
         arsenalDamage,
         singleProjectileDamageBonus: springLoadedBroadheadDamageBonus,
@@ -2311,4 +2328,3 @@ export function estimateFiniteIndependentDotDps(
     );
     return (damagePerTick * expectedProcsPerShot * finiteTicks) / encounterDurationSeconds;
 }
-

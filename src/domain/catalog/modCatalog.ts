@@ -14,12 +14,16 @@
 
 import {
     ACID_SHELLS_MOD_PATH,
+    BURNING_CLAWS_MOD_PATH,
     BRUTE_CONDITIONING_MOD_PATH,
+    CHILLING_CLAWS_MOD_PATH,
     COMBUSTION_BEAM_MOD_PATH,
     DISABLING_CONDITIONING_MOD_PATH,
     emptyEffect,
     NIGHTWATCH_NAPALM_MOD_PATH,
     PRECISION_CONDITIONING_MOD_PATH,
+    SEPSIS_CLAWS_MOD_PATH,
+    SHOCKING_CLAWS_MOD_PATH,
     VOLATILE_VARIANT_MOD_PATH,
     VULCAN_BLITZ_MOD_PATH,
 } from "./modEffectUtils";
@@ -41,6 +45,12 @@ const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" 
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
     [DISABLING_CONDITIONING_MOD_PATH]: "puncture",
     [PRECISION_CONDITIONING_MOD_PATH]: "slash",
+};
+const BEAST_CLAW_ELEMENTAL_CONVERSIONS: Record<string, PrimaryDamageElement> = {
+    [BURNING_CLAWS_MOD_PATH]: "heat",
+    [CHILLING_CLAWS_MOD_PATH]: "cold",
+    [SEPSIS_CLAWS_MOD_PATH]: "toxin",
+    [SHOCKING_CLAWS_MOD_PATH]: "electricity",
 };
 const ACID_SHELLS_WIKI_RANKS = [
     { corrosiveDamage: 75, healthPercent: 7.5, radiusMeters: 2.5 },
@@ -113,6 +123,8 @@ export interface ModEffect {
     slashBonus: number;
     /** Converts only base Impact/Puncture/Slash damage into the selected physical type. */
     physicalDamageConversion?: "impact" | "puncture" | "slash";
+    /** Converts primary elemental damage from this claw and its elemental mods into the selected primary type. */
+    elementalDamageConversion?: PrimaryDamageElement;
     /** Additive base-damage bonus that applies only to a selected heavy attack. */
     heavyAttackDamageBonus: number;
     /** Multiplicative Slam Damage bonus for eligible named slam attacks. */
@@ -790,6 +802,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             if (v) out[k] = v;
         } else if (k === "physicalDamageConversion") {
             out.physicalDamageConversion = partial.physicalDamageConversion ?? out.physicalDamageConversion;
+        } else if (k === "elementalDamageConversion") {
+            out.elementalDamageConversion = partial.elementalDamageConversion ?? out.elementalDamageConversion;
         } else if (k === "independentStatusProcChanceByType") {
             const merged = { ...(out.independentStatusProcChanceByType ?? {}) };
             for (const [type, chance] of Object.entries(partial.independentStatusProcChanceByType ?? {}) as Array<[WeaponForcedProcType, number]>) {
@@ -1641,6 +1655,22 @@ function buildCaches(): ModCaches {
                 });
             });
         }
+        const elementalDamageConversion = BEAST_CLAW_ELEMENTAL_CONVERSIONS[path];
+        if (elementalDamageConversion) {
+            // These mods convert primary elements only. Secondary elements from
+            // Radon/Magnetic Claws and Momentous Bond remain separate.
+            // https://wiki.warframe.com/w/Burning_Claws
+            // https://wiki.warframe.com/w/Chilling_Claws
+            // https://wiki.warframe.com/w/Sepsis_Claws
+            // https://wiki.warframe.com/w/Shocking_Claws
+            effectsByRank.forEach((rankEffect, rank) => {
+                rankEffect.elementalDamageConversion = elementalDamageConversion;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) => {
+                    const text = stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    return !/^Converts all elemental damage from these claws to (?:Heat|Cold|Electricity|Toxin) damage\.?$/i.test(text);
+                });
+            });
+        }
         if (path === AMANATA_PRESSURE_PATH) {
             // Verified 2026-11-13: the Wiki excludes Void/Tau from Amanata Pressure's
             // random status pool. PC Hotfix 44.1.4 fixed Heavy Slam coverage and
@@ -1970,4 +2000,3 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     }
     return normalizeTrainingVariantGroups(out.sort((a, b) => a.name.localeCompare(b.name)));
 }
-

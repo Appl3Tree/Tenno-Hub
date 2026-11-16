@@ -97,6 +97,12 @@ const BEAST_CLAW_CONDITIONING_WIKI_URL: Record<"impact" | "puncture" | "slash", 
     puncture: "https://wiki.warframe.com/w/Disabling_Conditioning",
     slash: "https://wiki.warframe.com/w/Precision_Conditioning",
 };
+const BEAST_CLAW_ELEMENTAL_CONVERSION_WIKI_URL: Record<"heat" | "cold" | "electricity" | "toxin", string> = {
+    heat: "https://wiki.warframe.com/w/Burning_Claws",
+    cold: "https://wiki.warframe.com/w/Chilling_Claws",
+    electricity: "https://wiki.warframe.com/w/Shocking_Claws",
+    toxin: "https://wiki.warframe.com/w/Sepsis_Claws",
+};
 
 function effectiveBurstTiming(weapon: WeaponEntry | null | undefined, effectiveFireRate: number) {
     const burstCount = weapon?.burstCount;
@@ -1274,6 +1280,7 @@ function buildCombinedRawBreakdown(
     const baseDamage = weapon.damage.total;
     const moddedBaseDamage = baseDamage * (1 + totals.damageBonus);
     const physicalDamageConversion = effects.find((effect) => effect?.physicalDamageConversion)?.physicalDamageConversion;
+    const elementalDamageConversion = effects.find((effect) => effect?.elementalDamageConversion)?.elementalDamageConversion;
     const basePhysicalDamage = weapon.damage.impact + weapon.damage.puncture + weapon.damage.slash;
     const physicalBaseByType = physicalDamageConversion
         ? {
@@ -1296,7 +1303,7 @@ function buildCombinedRawBreakdown(
         if (!effect) return;
         for (const [entryIndex, key] of BUILD_MATH_PRIMARY_ELEMENTS.entries()) {
             const bonus = effect[`${key}Bonus` as const];
-            if (bonus) queue.push({ type: key, value: baseDamage * bonus * (1 + totals.damageBonus), order: (index * 10) + entryIndex });
+            if (bonus) queue.push({ type: elementalDamageConversion ?? key, value: baseDamage * bonus * (1 + totals.damageBonus), order: (index * 10) + entryIndex });
         }
     });
     let order = effects.length * 10;
@@ -1392,11 +1399,12 @@ function buildDamageTypeSourceDescriptions(
     effects.forEach((effect, index) => {
         if (!effect) return;
         const sourceLabel = sanitizeDamageSourceLabel(sourceLabels[index] ?? "this build");
+        const elementalDamageConversion = effects.find((entry) => entry?.elementalDamageConversion)?.elementalDamageConversion;
         for (const [entryIndex, key] of BUILD_MATH_PRIMARY_ELEMENTS.entries()) {
             const bonus = effect[`${key}Bonus` as const];
             if (bonus) {
                 primaryEntries.push({
-                    type: key,
+                    type: elementalDamageConversion ?? key,
                     value: baseDamage * bonus * (1 + totals.damageBonus),
                     order: (index * 10) + entryIndex,
                     sources: [sourceLabel],
@@ -1447,6 +1455,13 @@ function buildDamageTypeSourceDescriptions(
         for (const key of ["impact", "puncture", "slash"] as const) {
             if (weapon.damage[key] > 0) descriptions[key] = `${capitalizeDamageType(key)} comes from the weapon's base physical damage.`;
         }
+    }
+
+    const elementalDamageConversion = effects.find((effect) => effect?.elementalDamageConversion)?.elementalDamageConversion;
+    if (elementalDamageConversion) {
+        const conversionSourceIndex = effects.findIndex((effect) => Boolean(effect?.elementalDamageConversion));
+        const conversionSource = sanitizeDamageSourceLabel(sourceLabels[conversionSourceIndex] ?? "the Claws conversion mod");
+        descriptions[elementalDamageConversion] = `Primary elemental damage is converted to ${capitalizeDamageType(elementalDamageConversion)} by ${conversionSource}; secondary elemental damage remains separate.`;
     }
 
     return descriptions;
@@ -1846,6 +1861,9 @@ function buildMathBreakdown(
                 `Physical raw values before quantization = impact ${fmt(rawBreakdown.physicalRaw.impact, 5)}, puncture ${fmt(rawBreakdown.physicalRaw.puncture, 5)}, slash ${fmt(rawBreakdown.physicalRaw.slash, 5)}`,
                 ...(stats.physicalDamageConversion
                     ? [`Wiki Conditioning rule: base Impact + Puncture + Slash damage converts to ${capitalizeDamageType(stats.physicalDamageConversion)}; elemental damage remains unchanged. ${BEAST_CLAW_CONDITIONING_WIKI_URL[stats.physicalDamageConversion]}`]
+                    : []),
+                ...(stats.elementalDamageConversion
+                    ? [`Wiki Beast Claws rule: primary Heat/Cold/Electricity/Toxin damage converts to ${capitalizeDamageType(stats.elementalDamageConversion)}. Radiation/Magnetic and other secondary damage stay separate; the Wiki says Momentous Bond's bonus is not converted or mixed. ${BEAST_CLAW_ELEMENTAL_CONVERSION_WIKI_URL[stats.elementalDamageConversion]}`]
                     : []),
                 `Element queue before combination = ${rawBreakdown.orderedElementQueue.map((entry) => `${entry.type} ${fmt(entry.value, 5)} (order ${entry.order})`).join(" | ") || "none"}`,
                 `Combined base damage breakdown before Condition Overload and direct-only per-status bonuses = ${nonZeroRawEntries.map(([type, value]) => `${type} ${fmt(value, 5)}`).join(", ") || "none"}`,
@@ -6514,6 +6532,12 @@ export default function ModBuilder() {
                                                                         <a href={BEAST_CLAW_CONDITIONING_WIKI_URL[activeMetrics.modded.physicalDamageConversion]} target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki</a>
                                                                     </div>
                                                                 )}
+                                                                {activeMetrics.modded.elementalDamageConversion && (
+                                                                    <div role="note" className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                                                                        Beast Claw elemental conversion changes primary elemental damage to {capitalizeDamageType(activeMetrics.modded.elementalDamageConversion)}. Radiation/Magnetic and other secondary damage stay separate; Momentous Bond's separate bonus is not converted.{" "}
+                                                                        <a href={BEAST_CLAW_ELEMENTAL_CONVERSION_WIKI_URL[activeMetrics.modded.elementalDamageConversion]} target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki</a>
+                                                                    </div>
+                                                                )}
                                                                 <div className="pt-1 text-base">
                                                                     <InlineStatRow
                                                                         label="Arsenal Total"
@@ -7592,4 +7616,3 @@ function InlineStatRow({ label, value, sub, tooltip, labelClassName }: {
         </div>
     );
 }
-
