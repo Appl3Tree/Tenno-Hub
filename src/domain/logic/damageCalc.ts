@@ -60,6 +60,12 @@ const COMBINED_ELEMENTS: Record<string, DamageKey> = {
     "toxin+electricity": "corrosive",
 };
 
+const SEMI_AUTOMATIC_FIRE_RATE_CAP = 10;
+
+function isSemiAutomaticTrigger(trigger: string): boolean {
+    return /^(?:semi|semi[- ]?auto)$/i.test(trigger.trim());
+}
+
 function isBowWeapon(weapon: WeaponEntry): boolean {
     return weapon.weaponType.trim().toLowerCase() === "bow";
 }
@@ -109,8 +115,15 @@ function effectiveFireRate(
         const moddedChargeTime = moddedChargeTimeSeconds(weapon, rateBonus);
         return 1 / (moddedChargeTime + 1 / Math.max(0.0001, rawFireRate));
     }
-    // Auto, Semi, Duplex, and Held use modded fire rate. Other unmodeled trigger
-    // details remain approximations until the catalog carries per-mode mechanics.
+    // The Wiki caps manual Semi-Auto weapons at 10 trigger pulls per second.
+    // Duplex and Held use their modded rate; this assumes perfect input cadence
+    // for manual triggers and a fully spooled rate for Auto-Spool weapons.
+    if (isSemiAutomaticTrigger(weapon.trigger)) {
+        return Math.min(SEMI_AUTOMATIC_FIRE_RATE_CAP, rawFireRate);
+    }
+
+    // Auto, Duplex, Held, and Auto-Spool use modded fire rate. Other unmodeled
+    // trigger details remain approximations until the catalog carries per-mode mechanics.
     return rawFireRate;
 }
 

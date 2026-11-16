@@ -1,7 +1,7 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Tennokai, Sentient Surge, Ocucor, Proton Jet, and Proton Snap pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
+ * The Fire Rate and Trigger Type pages were checked on 2026-11-16. The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Tennokai, Sentient Surge, Ocucor, Proton Jet, and Proton Snap pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
  * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
  * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
  * Damage quantization follows the
@@ -10,7 +10,7 @@
  */
 export const DAMAGE_RULESET = Object.freeze({
     id: "damage-3.0",
-    lastVerified: "2026-11-15",
+    lastVerified: "2026-11-16",
     gameUpdate: "Update 36.0 onward; checked through Update 44.1.4.1",
     sources: Object.freeze({
         damage: "https://wiki.warframe.com/w/Damage/Calculation",
@@ -33,6 +33,7 @@ export const DAMAGE_RULESET = Object.freeze({
         bloodRush: "https://wiki.warframe.com/w/Blood_Rush",
         weepingWounds: "https://wiki.warframe.com/w/Weeping_Wounds",
         fireRate: "https://wiki.warframe.com/w/Fire_Rate",
+        triggerType: "https://wiki.warframe.com/w/Trigger_Type",
         ammoEfficiency: "https://wiki.warframe.com/w/Ammo#Ammo_Efficiency",
         heat: "https://wiki.warframe.com/w/Damage/Heat_Damage",
         impact: "https://wiki.warframe.com/w/Damage/Impact_Damage",
@@ -73,6 +74,7 @@ export const DAMAGE_RULESET = Object.freeze({
         update43: "https://www.warframe.com/en/patch-notes/pc/43-0-0",
     }),
     knownLimitations: Object.freeze([
+        "Ranged fire-rate calculations apply the Wiki's 10-round/s cap to Semi-Auto trigger pulls. Semi/Duplex rates assume perfect manual cadence, Auto-Spool assumes the fully spooled Arsenal rate, and Held assumes the source fire rate represents damage ticks; weapon-specific cadence, recoil/accuracy effects, and Cannonade's fire-rate lock remain unmodeled.",
         "Primary elemental mods resolve in weapon mod-slot order; repeated types remain at their first slot, conditional effects retain their source mod slot, and innate primary elements append in Heat/Cold/Electricity/Toxin order. Slot-order results are covered by independent fixtures but not in-game telemetry.",
         "The Wiki confirms non-elemental bonuses multiply final quantized values without changing damage composition; the current implementation uses an algebraically equivalent shared-scale application for uniform base-damage bonuses. This equivalence has direct tests but has not been independently compared with in-game telemetry.",
         "Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE. The damage model suppresses these bonuses on attack rows marked AoE by the source or a Wiki-verified attack override; attack rows without either classification remain uncertain. Galvanized kill-stack progression and within-volley multishot status sequencing are approximated by the selected conditional state and mean-field status model.",
