@@ -781,7 +781,14 @@ function makeWeaponForAttack(weapon: WeaponEntry, atk: WeaponAttack | null | und
     return selectedAttackIdx >= 0 ? withSelectedAttack(weapon, selectedAttackIdx) : weapon;
 }
 
-function scoreEffects(
+interface OptimizerEffectScore {
+    score: number;
+    primaryScore: number;
+    killCadenceScore: number;
+    poolTotal: number;
+}
+
+function scoreEffectsCore(
     weapon: WeaponEntry,
     effects: (ModEffect | null)[],
     goal: OptimizeGoal,
@@ -790,9 +797,10 @@ function scoreEffects(
     targetProfileOverride?: TargetProfileOverride | null,
     conditionalState?: ConditionalState,
     meleeStanceCombo?: MeleeAverageDpsParameters,
-): number {
+    expectedKillRatePerSecond?: number,
+): OptimizerEffectScore {
     if (goal === "meleeDps") {
-        if (!meleeStanceCombo) return 0;
+        if (!meleeStanceCombo) return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: 0 };
         const rawEffects = arcaneEffect
             ? [...effects, normalizeArcaneEffect(arcaneEffect)]
             : effects;
@@ -800,7 +808,12 @@ function scoreEffects(
             conditionalState: { mode: "initial" },
             includeDoTTickDetails: false,
         });
-        return calculateMeleeAverageDps(modded, meleeStanceCombo)?.averageDps ?? 0;
+        return {
+            score: calculateMeleeAverageDps(modded, meleeStanceCombo)?.averageDps ?? 0,
+            primaryScore: 0,
+            killCadenceScore: 0,
+            poolTotal: 0,
+        };
     }
 
     const scoringTarget = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
@@ -810,6 +823,7 @@ function scoreEffects(
         statusStackCaps,
         conditionalState,
         includeDoTTickDetails: false,
+        ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     };
     const normalizedArcaneEffect = arcaneEffect
         ? normalizeArcaneEffect(arcaneEffect)
@@ -864,7 +878,7 @@ function scoreEffects(
     }
 
     const { pools, poolTotal, shares, healthTypeMultipliers } = scoringTarget;
-    if (poolTotal <= 0) return 0;
+    if (poolTotal <= 0) return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal };
     const factionMultiplier = Math.max(0, 1 + factionDamageBonus);
     const magneticMultiplier = Math.max(0, 1 + modded.magneticShieldDamageBonus);
     const viralMultiplier = Math.max(0, 1 + modded.viralHealthDamageBonus);
@@ -886,6 +900,9 @@ function scoreEffects(
         ? modded.freshMagazineDamageMultiplier
         : modded.sustainedDamageMultiplier) * modded.magazineAverageDamageMultiplier;
     const attackRate = goal === "burst" ? burstAttackRate : burstAttackRate * sustainedDutyCycle;
+    const killCadenceAttackRate = burstAttackRate * sustainedDutyCycle;
+    const killCadenceDamageRampMultiplier =
+        modded.sustainedDamageMultiplier * modded.magazineAverageDamageMultiplier;
     const dotDutyCycle = goal === "burst"
         ? (modded.fireRate > 0 ? modded.burstFireRate / modded.fireRate : 0)
         : sustainedDutyCycle;
@@ -896,6 +913,7 @@ function scoreEffects(
         );
     let score = 0;
     let primaryScore = 0;
+    let killCadenceScore = 0;
 
     const getPoolProgress = (type: DamageType, slashBleed: boolean, includeFactionMod: boolean): number => {
         const healthTypeMultiplier = type === "true" || slashBleed
@@ -923,6 +941,11 @@ function scoreEffects(
             score += primaryDirectScore;
             primaryScore += primaryDirectScore;
         }
+        const cadenceDirectDamageRate = (modded.damageBreakdown[type] ?? 0) *
+            killCadenceAttackRate * killCadenceDamageRampMultiplier;
+        if (cadenceDirectDamageRate > 0) {
+            killCadenceScore += cadenceDirectDamageRate * getPoolProgress(type, false, true);
+        }
         const dotDamageRate = (modded.dotDpsByType[type as StatusDamageType] ?? 0) * dotDutyCycle * damageRampMultiplier;
         if (dotDamageRate > 0) {
             const primaryDotScore = dotDamageRate * getPoolProgress(type, type === "slash", false);
@@ -934,6 +957,11 @@ function scoreEffects(
                     : 1;
             score += primaryDotScore * areaTargetCount;
             primaryScore += primaryDotScore;
+        }
+        const cadenceDotDamageRate = (modded.dotDpsByType[type as StatusDamageType] ?? 0) *
+            sustainedDutyCycle * killCadenceDamageRampMultiplier;
+        if (cadenceDotDamageRate > 0) {
+            killCadenceScore += cadenceDotDamageRate * getPoolProgress(type, type === "slash", false);
         }
     }
 
@@ -948,6 +976,12 @@ function scoreEffects(
         const primaryBlastExpiryScore = blastDamageRate * getPoolProgress("blast", false, false);
         score += primaryBlastExpiryScore;
         primaryScore += primaryBlastExpiryScore;
+    }
+    const killCadenceBlastDamageRate = modded.blastExpectedExpiryDamagePerShot *
+        modded.steadyStateTargetStatusDamageMultiplier * modded.fireRate * sustainedDutyCycle *
+        killCadenceDamageRampMultiplier;
+    if (killCadenceBlastDamageRate > 0) {
+        killCadenceScore += killCadenceBlastDamageRate * getPoolProgress("blast", false, false);
     }
 
     // Estimate cap-triggered and on-death Blast radial value against explicitly
@@ -989,7 +1023,63 @@ function scoreEffects(
         }
     }
 
-    return Number.isFinite(score) ? score : 0;
+    return {
+        score: Number.isFinite(score) ? score : 0,
+        primaryScore: Number.isFinite(primaryScore) ? primaryScore : 0,
+        killCadenceScore: Number.isFinite(killCadenceScore) ? killCadenceScore : 0,
+        poolTotal,
+    };
+}
+
+function scoreEffects(
+    weapon: WeaponEntry,
+    effects: (ModEffect | null)[],
+    goal: OptimizeGoal,
+    targetFaction: string,
+    arcaneEffect?: Partial<ModEffect> | null,
+    targetProfileOverride?: TargetProfileOverride | null,
+    conditionalState?: ConditionalState,
+    meleeStanceCombo?: MeleeAverageDpsParameters,
+): number {
+    const normalizedArcaneEffect = arcaneEffect ? normalizeArcaneEffect(arcaneEffect) : null;
+    const hasGalvanizedPerStatusKillEffect = weapon.selectedAttackIsAreaDamage !== true &&
+        [...effects, normalizedArcaneEffect].some((effect) =>
+            effect?.conditionalEffects?.some((conditional) =>
+                conditional.trigger === "onKill" && (conditional.stats.directDamagePerStatusBonus ?? 0) > 0,
+            ) === true,
+        );
+    const usesRealisticState = (conditionalState?.mode ?? DEFAULT_CONDITIONAL_STATE.mode) === "realistic";
+    if (!hasGalvanizedPerStatusKillEffect || !usesRealisticState || goal === "meleeDps") {
+        return scoreEffectsCore(
+            weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride,
+            conditionalState, meleeStanceCombo,
+        ).score;
+    }
+
+    // Estimate kill cadence with Galvanized's on-kill stack at zero, then
+    // score its repeated-target bonus from that deterministic cadence. This
+    // avoids a circular self-buff feedback loop in the optimizer hot path.
+    const baseline = scoreEffectsCore(
+        weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride,
+        conditionalState, meleeStanceCombo, 0,
+    );
+    if (baseline.poolTotal <= 0 || baseline.killCadenceScore <= 0) return baseline.score;
+    let expectedKillRatePerSecond = baseline.killCadenceScore / baseline.poolTotal;
+    let evaluation = baseline;
+    // A faster Galvanized-assisted kill can maintain stacks that the initial
+    // target alone could not. Refine the deterministic repeated-target cadence
+    // twice, with this fixed bound preserving optimizer search speed.
+    for (let iteration = 0; iteration < 2; iteration++) {
+        evaluation = scoreEffectsCore(
+            weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride,
+            conditionalState, meleeStanceCombo, expectedKillRatePerSecond,
+        );
+        if (evaluation.killCadenceScore <= 0) break;
+        const nextKillRatePerSecond = evaluation.killCadenceScore / evaluation.poolTotal;
+        if (nextKillRatePerSecond <= expectedKillRatePerSecond * (1 + 1e-6)) break;
+        expectedKillRatePerSecond = nextKillRatePerSecond;
+    }
+    return evaluation.score;
 }
 function scoreSlots(
     weapon: WeaponEntry,
