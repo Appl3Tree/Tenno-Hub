@@ -4,6 +4,12 @@ Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Buil
 
 ## Latest follow-up (2026-11-15)
 
+### Custom Riven elemental order
+
+The current [Damage Types Wiki page](https://wiki.warframe.com/w/Damage_Types) gives the last displayed primary element on a multi-element Riven the highest hierarchy priority. The [Riven Mods Wiki page](https://wiki.warframe.com/w/Riven_Mods) further specifies bottom-up application: an elemental mod before the Riven interacts with its last displayed element, while a mod after it interacts with the first displayed element only when the Riven has one or three elemental stats. Custom Riven records already preserve the editor/import attribute order; the built effect now stores the reverse application order, and both the damage calculator and optimizer's elemental-diversity key honor it.
+
+Regression coverage checks a Cold mod before an Electricity-then-Toxin Riven (Viral plus Electricity), an Electricity mod after a Heat/Cold/Toxin Riven (Viral plus Radiation), and the optimizer's elemental theme for the latter combination. The complete suite passes 713 tests across 52 files. Production build, `validate:sources`, prerequisite audit, mod-effect audit (485/599 parsed, 114 without parsed effects, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass; the existing Vite large-chunk warning remains. The port-80 in-app browser request returned queued, so this follow-up has no new visual QA claim. Sources: [Damage Types](https://wiki.warframe.com/w/Damage_Types), [Riven Mods](https://wiki.warframe.com/w/Riven_Mods). Overall Damage 3.0 and optimizer-quality criteria remain open.
+
 ### Innate weapon and progenitor element order
 
 The clean follow-up release also passes the production build, `validate:sources`, prerequisite and mod-effect audits (485/599 parsed, 114 without parsed effects, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check. The existing Vite large-chunk warning remains.

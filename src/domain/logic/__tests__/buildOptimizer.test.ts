@@ -8,7 +8,7 @@ import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
-import { assignModsToSlots, debugEvaluateExpectedEncounter, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
+import { assignModsToSlots, debugEvaluateExpectedEncounter, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
 import { calculateBuild, type ConditionalState } from "../damageCalc";
 import { quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
@@ -131,6 +131,48 @@ describe("slot-specific Forma accounting", () => {
 });
 
 describe("build optimizer scoring", () => {
+    it("keeps custom Riven element order in the optimizer's elemental diversity key", () => {
+        const baseWeapon = makeWeapon();
+        const weapon = makeWeapon({
+            damage: { ...baseWeapon.damage, total: 100, toxin: 0 },
+        });
+        const makeMod = (uniqueName: string, effect: ModEffect): ModEntry => ({
+            uniqueName,
+            path: uniqueName,
+            name: uniqueName,
+            compatBucket: "Rifle",
+            rawCompatName: "Rifle",
+            polarity: "madurai",
+            rarity: "Common",
+            drain: 0,
+            baseDrain: 0,
+            fusionLimit: 0,
+            statsLabel: "",
+            statsTextByRank: [""],
+            effectsByRank: [effect],
+            effect,
+            hasDamageEffect: true,
+            isAura: false,
+            isExilus: false,
+            isStance: false,
+            incompatibilityGroup: uniqueName,
+            compatibilityTags: [],
+            incompatibilityTags: [],
+        });
+        const rivenEffect: ModEffect = {
+            ...emptyEffect(),
+            heatBonus: 0.9,
+            coldBonus: 0.9,
+            toxinBonus: 0.9,
+            primaryElementOrder: ["toxin", "cold", "heat"],
+        };
+        const riven = makeMod("riven", rivenEffect);
+        const electricity = makeMod("electricity", { ...emptyEffect(), electricityBonus: 0.9 });
+
+        expect(debugExpectedEncounterElementTheme(weapon, [riven, electricity], [0, 0]))
+            .toBe("radiation+viral");
+    });
+
     it("includes Maiming Strike in the selected slide attack's legal critical builds", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Telos Boltace");
         expect(weapon).toBeDefined();

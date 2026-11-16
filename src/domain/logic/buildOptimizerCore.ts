@@ -9,7 +9,7 @@
 
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
-import type { ModEntry, ModEffect } from "../catalog/modCatalog";
+import type { ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
 import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -2097,10 +2097,18 @@ function expectedEncounterElementTheme(
         if (!primaryElements.includes(type)) primaryElements.push(type);
     };
     const addEffectElements = (effect: Partial<ModEffect>) => {
-        if ((effect.heatBonus ?? 0) > 0) addPrimary("heat");
-        if ((effect.coldBonus ?? 0) > 0) addPrimary("cold");
-        if ((effect.electricityBonus ?? 0) > 0) addPrimary("electricity");
-        if ((effect.toxinBonus ?? 0) > 0) addPrimary("toxin");
+        const preferredOrder = [...new Set(effect.primaryElementOrder ?? [])];
+        const elementOrder: PrimaryDamageElement[] = [
+            ...preferredOrder,
+            ...(["heat", "cold", "electricity", "toxin"] as const).filter(
+                (type) => !preferredOrder.includes(type),
+            ),
+        ];
+        for (const type of elementOrder) {
+            if ((effect[`${type}Bonus` as keyof ModEffect] as number | undefined ?? 0) > 0) {
+                addPrimary(type);
+            }
+        }
         if ((effect.blastBonus ?? 0) > 0) directCombinedElements.add("blast");
         if ((effect.gasBonus ?? 0) > 0) directCombinedElements.add("gas");
         if ((effect.magneticBonus ?? 0) > 0) directCombinedElements.add("magnetic");
@@ -2139,6 +2147,15 @@ function expectedEncounterElementTheme(
         }
     }
     return [...combined].sort().join("+");
+}
+
+/** Exposes the optimizer's elemental diversity key for regression checks. */
+export function debugExpectedEncounterElementTheme(
+    weapon: WeaponEntry,
+    slots: (ModEntry | null)[],
+    ranks: number[],
+): string {
+    return expectedEncounterElementTheme(weapon, slots, ranks);
 }
 
 function expectedEncounterElementTransition(
