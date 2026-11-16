@@ -2,7 +2,7 @@
 import { useTrackerStore } from "../store/store";
 import { WorkspacePanel } from "../components/workspace/WorkspaceChrome";
 import {
-    IntrinsicsDetails,
+    IntrinsicDisciplineBoard,
     getIntrinsicModeData,
     getCumulativeCost,
     getTotalCost,
@@ -29,7 +29,7 @@ function IntrinsicsSection(props: {
     const costPct = costMax > 0 ? (costTotal / costMax) * 100 : 0;
 
     return (
-        <WorkspacePanel className="relative overflow-hidden border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-0">
+        <WorkspacePanel className="relative border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-1)] p-0">
             <div className={["absolute inset-x-0 top-0 h-px opacity-80", accentGlowClassName].join(" ")} />
             <div className="relative p-5 sm:p-6">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -73,7 +73,8 @@ function IntrinsicsSection(props: {
                 </div>
 
                 <div className="mt-6 border-t border-[color:var(--wf-border-subtle)] pt-5">
-                    <IntrinsicsDetails mode={mode} />
+                    <div className="mb-3 text-xs text-slate-500">Select a discipline pane to review every rank reward and update its tracked rank.</div>
+                    <IntrinsicDisciplineBoard mode={mode} />
                 </div>
             </div>
         </WorkspacePanel>
@@ -115,7 +116,7 @@ export default function Intrinsics() {
                         </div>
                         <h1 id="intrinsics-page-title" className="mt-2 text-2xl font-semibold text-[color:var(--wf-text-strong)]">Intrinsics</h1>
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                            Review your Railjack and Duviri progression in one place, with the same rank-by-rank upgrade data shown from the Star Chart intrinsic panels.
+                            Review Railjack and Duviri progression at a glance. Open any discipline pane to see each rank reward and adjust the rank saved in your tracker.
                         </p>
                     </div>
                     {hasData && (
@@ -151,7 +152,7 @@ export default function Intrinsics() {
                 max={railjackMax}
                 costTotal={railjackCostTotal}
                 costMax={railjackCostMax}
-                description="Earned by completing Railjack missions in the Proxima regions. Expand any intrinsic below to review its exact in-game upgrades and the Gunnery Reflex Aim caution."
+                description="Earned through Railjack missions. The five discipline panes show current rank and point investment; open one to review all ten upgrades, including the Gunnery Reflex Aim tradeoff."
                 mode="proxima"
             />
 
@@ -164,7 +165,7 @@ export default function Intrinsics() {
                 max={duviriMax}
                 costTotal={duviriCostTotal}
                 costMax={duviriCostMax}
-                description="Earned through Duviri Paradox progression. The sections below match the Duviri intrinsic data shown from the Star Chart and keep every rank unlock in one place."
+                description="Earned through Duviri Paradox progression. Open any discipline pane to inspect its ten rank rewards and update the rank saved in your tracker."
                 mode="duviri"
             />
         </div>
