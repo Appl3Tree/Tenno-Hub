@@ -671,6 +671,17 @@ describe("build optimizer scoring", () => {
         }
     });
 
+    it("keeps Combustion Beam out of Auto Optimize until its kill explosion is modeled", () => {
+        const amprex = getWeaponCatalog().find((candidate) => candidate.name === "Amprex");
+        expect(amprex).toBeDefined();
+        const combustionBeam = getModsForWeapon(amprex!).find((mod) => mod.name === "Combustion Beam");
+        expect(combustionBeam).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(combustionBeam!, combustionBeam!.fusionLimit).length).toBeGreaterThan(0);
+
+        const result = optimizeBuild(amprex!, [combustionBeam!], "burst", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
     it("does not optimize an owned Arcane rank whose hit-location bonus is unscored", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
         const primaryDeadhead = getArcanesByWeaponCategory("Primary").find((arcane) => arcane.name === "Primary Deadhead");
