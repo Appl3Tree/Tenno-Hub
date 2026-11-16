@@ -4,6 +4,12 @@ Run date: 2026-11-15; current full-width refresh: 2026-11-13
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Wiki Neutral-combo DPS objective (2026-11-15)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=5 --weapon="Broken War" --goal=meleeDps`. This case used Crimson Dervish's Neutral-combo row from the current [Wiki Stance Comparison table](https://wiki.warframe.com/w/Stance#Comparison), 110 filtered candidate mods, 12 Arcane candidates, Initial state, Catalyst, Exilus and Arcane optimization enabled, and a three-Forma limit. All five runs returned the same legal two-Forma build: Primed Fury R10, Primed Fever Strike R10, Magnetic Rush R3, Primed Pressure Point R10, True Steel R5, Organ Shatter R5, Condition Overload R5, and Carnis Mandible R5. The result scored 135,358.1469 stance DPS; median time was 4.630s and the maximum of five was 4.965s. Capacity validation includes the selected stance.
+
+This verifies repeatability, capacity legality, and a single full-width Wiki stance objective case on desktop Node. The five-run maximum is not a stable p95; this does not measure browser Worker startup, mobile performance, competing stance choices, or global optimality. The raw objective uses Initial state and is not a target-specific TTK comparison.
+
 ## Buzlok Wiki Rifle-compatibility case (2026-11-15)
 
 The current [Buzlok Wiki page](https://wiki.warframe.com/w/Buzlok) classifies Buzlok as a Rifle; its item ancestry also resolves through `LotusAssaultRifle`. The upstream weapon type string and internal path had caused the catalog to label it a Sniper, exposing sniper-only choices. The corrected pool uses 107 Rifle/Primary candidates and excludes Sniper-only mods such as Charged Chamber and Target Acquired.

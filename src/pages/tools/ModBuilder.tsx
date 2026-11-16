@@ -171,6 +171,11 @@ const GOAL_OPTIONS: { key: OptimizeGoal; label: string; desc: string }[] = [
         label: "Expected TTK",
         desc: "Ranks legal builds by finite expected time to kill; kills within 600 seconds rank first, and if both reach the simulation cap, expected damage per second breaks the tie.",
     },
+    {
+        key: "meleeDps",
+        label: "Wiki Stance DPS",
+        desc: "Ranks melee builds by the selected Wiki Neutral-combo estimate in Initial state: direct combo damage plus forced Slash over approximate timing. It applies the selected faction mod, but does not score target defenses or full stance/status histories.",
+    },
 ];
 const FACTIONS = getFactionFocusOptions();
 const ENEMY_SCALING_FACTIONS: Array<{ label: string; value: EnemyScalingFaction }> = [
@@ -3161,6 +3166,15 @@ export default function ModBuilder() {
     });
     // Optimizer
     const [goal, setGoal]              = useState<OptimizeGoal>("burst");
+    const meleeDpsGoalAvailable = Boolean(
+        weapon &&
+        usesMeleeDamageModel(weapon.category) &&
+        meleeDpsInputs &&
+        (!weapon.attacks.length || weapon.attacks[selectedAttackIdx]?.name.toLowerCase().includes("normal attack")),
+    );
+    useEffect(() => {
+        if (goal === "meleeDps" && weapon && !meleeDpsGoalAvailable) setGoal("burst");
+    }, [goal, weapon, meleeDpsGoalAvailable]);
     const [conditionalMode, setConditionalMode] = useState<ConditionalState["mode"]>("realistic");
     const [externalConditionalStacks, setExternalConditionalStacks] = useState(1);
     const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
@@ -4366,6 +4380,10 @@ export default function ModBuilder() {
     async function handleOptimize() {
         if (!weapon) return;
         if (onlyOwned && ownedSet.size === 0) return;
+        if (goal === "meleeDps" && (!meleeDpsGoalAvailable || !meleeDpsInputs)) {
+            setOptimizerNotice("Select a melee stance with a Wiki Neutral-combo reference to optimize Wiki Stance DPS.");
+            return;
+        }
         if (useCustomTargetStats && customTargetStats.health + customTargetStats.shields + customTargetStats.overguard <= 0) {
             setOptimizerNotice("Enter a positive Health, Shields, or Overguard value for the custom target.");
             return;
@@ -4442,11 +4460,19 @@ export default function ModBuilder() {
                 : maxFormaAllowed;
             let optimizerStanceMod = stanceMod;
             let optimizerStanceRank = stanceRank;
+            const keepSelectedMeleeStance = Boolean(
+                goal === "meleeDps" &&
+                stanceMod &&
+                (!onlyOwned || ownedSet.has(stanceMod.uniqueName)),
+            );
             if (supportsStanceLikeMods(weapon)) {
-                if (!fillMode || !stanceMod) {
-                    const candidateStances = onlyOwned
+                if ((!fillMode || !stanceMod) && !keepSelectedMeleeStance) {
+                    const stanceCandidates = onlyOwned
                         ? stanceMods.filter(mod => ownedSet.has(mod.uniqueName))
                         : stanceMods;
+                    const candidateStances = goal === "meleeDps"
+                        ? stanceCandidates.filter((mod) => !!getWikiMeleeStanceCombo(mod.name))
+                        : stanceCandidates;
                     const bestStance = candidateStances.reduce<ModEntry | null>((best, current) => {
                         if (!stancePol) return best;
                         if (!best) return current;
@@ -4460,6 +4486,14 @@ export default function ModBuilder() {
                         : 0;
                 }
             }
+            const optimizerMeleeStanceCombo = goal === "meleeDps" && optimizerStanceMod
+                ? getWikiMeleeStanceCombo(optimizerStanceMod.name) ?? undefined
+                : undefined;
+            if (goal === "meleeDps" && !optimizerMeleeStanceCombo) {
+                setOptimizerNotice("Wiki Stance DPS requires an owned stance with a Wiki Neutral-combo reference.");
+                setOptimizerProgress(null);
+                return;
+            }
 
             const scoreOptimizerResult = (
                 candidateWeapon: WeaponEntry,
@@ -4467,6 +4501,7 @@ export default function ModBuilder() {
                 candidateResult: ReturnType<typeof optimizeBuild>,
                 preEquippedEffects: ModEffect[],
                 useFiniteEncounterResult = true,
+                meleeStanceCombo?: MeleeAverageDpsParameters,
             ) => {
                 return scoreOptimizerResultForConfiguration({
                     weapon: candidateWeapon,
@@ -4482,6 +4517,7 @@ export default function ModBuilder() {
                     warframeMaxEnergy,
                     warframeEnergyPercent,
                     useFiniteEncounterResult,
+                    meleeStanceCombo,
                 });
             };
 
@@ -4526,6 +4562,7 @@ export default function ModBuilder() {
                     warframeEnergyPercent,
                     buildForAttack:   atk,
                     conditionalState,
+                    meleeStanceCombo: optimizerMeleeStanceCombo,
                     extraCapacitySlots: supportsStanceLikeMods(weapon) && optimizerStanceMod
                         ? [{ mod: optimizerStanceMod, rank: optimizerStanceRank, polarity: stancePol }]
                         : undefined,
@@ -4552,7 +4589,7 @@ export default function ModBuilder() {
                     score: scoreOptimizerResult(weaponForOpt, selectedAttackIdx, appliedResult, [
                         ...weaponState.activeIncarnonEffects,
                         ...lockedExternalEffects,
-                    ]),
+                    ], true, optimizerMeleeStanceCombo),
                     valenceElement,
                     incarnonSelectedOptionsByTier: incarnonCandidate.selectedOptionsByTier,
                 };
@@ -4782,6 +4819,7 @@ export default function ModBuilder() {
                     arcaneEffect: explanationArcane,
                     arcaneName: explanationArcaneEntry?.name,
                     arcaneRank: explanationArcaneEntry ? explanationArcaneRank : undefined,
+                    meleeStanceCombo: optimizerMeleeStanceCombo,
                     objectiveEncounter: goal === "timeToKill" && appliedResult.encounterScore !== undefined
                         ? {
                             damagePerSecond: appliedResult.encounterScore,
@@ -4861,7 +4899,7 @@ export default function ModBuilder() {
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
         setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
         if (plannerConfig) {
-            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill") setGoal(plannerConfig.goal);
+            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill" || plannerConfig.goal === "meleeDps") setGoal(plannerConfig.goal);
             const conditionalModes: ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
             if (plannerConfig.conditionalMode && conditionalModes.includes(plannerConfig.conditionalMode)) {
                 setConditionalMode(plannerConfig.conditionalMode);
@@ -5033,7 +5071,7 @@ export default function ModBuilder() {
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2 justify-end">
                                             <div className="flex flex-wrap gap-1.5">
-                                                {GOAL_OPTIONS.map(g => (
+                                                {GOAL_OPTIONS.filter((option) => option.key !== "meleeDps" || meleeDpsGoalAvailable).map(g => (
                                                     <GoalChip
                                                         key={g.key}
                                                         label={g.label}

@@ -16,9 +16,11 @@ import { getArcaneEffectAtRank } from "./arcaneEffects";
 import {
     calculateBuild,
     calculateBuildForExpectedEncounter,
+    calculateMeleeAverageDps,
     avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
     type ConditionalState,
+    type MeleeAverageDpsParameters,
 } from "./damageCalc";
 import { effectiveDrain, fitsWithinCapacity, totalModCapacity, type CapacityConfig } from "./capacityCalc";
 import {
@@ -36,7 +38,7 @@ import {
     type ExpectedWeaponEncounterResult,
 } from "./targetDamage";
 
-export type OptimizeGoal = "burst" | "scaling" | "timeToKill";
+export type OptimizeGoal = "burst" | "scaling" | "timeToKill" | "meleeDps";
 export type LegacyOptimizeGoal = OptimizeGoal | "damage" | "crit" | "status";
 
 export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefined): OptimizeGoal {
@@ -49,6 +51,8 @@ export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefine
         case "scaling":
             return goal;
         case "timeToKill":
+            return goal;
+        case "meleeDps":
             return goal;
         default:
             return "burst";
@@ -66,6 +70,8 @@ export interface OptimizerOptions {
     /** Optional current-level target stats for the finite expected-value target encounter score. */
     targetProfileOverride?: TargetProfileOverride;
     conditionalState?: ConditionalState;
+    /** Wiki Neutral-combo inputs for the raw stance DPS objective. */
+    meleeStanceCombo?: MeleeAverageDpsParameters;
     /** If set, enforce capacity constraint using this config. */
     capacityConfig?: CapacityConfig;
     /** Slot polarities for the 8 main slots (used for both capacity and assignment). */
@@ -174,6 +180,7 @@ function scoreOptimizeResult(
     warframeArmor?: number,
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
+    meleeStanceCombo?: MeleeAverageDpsParameters,
 ): number {
     const scoringWeapon = makeWeaponForAttack(weapon, buildForAttack);
     const effects: (ModEffect | null)[] = result.slots.map((mod, index) => {
@@ -187,7 +194,7 @@ function scoreOptimizeResult(
     const arcaneEffect = result.arcane
         ? getArcaneEffectAtRank(result.arcane, result.arcaneRank, warframeArmor, true, { warframeMaxEnergy, warframeEnergyPercent })
         : null;
-    return scoreEffects(scoringWeapon, [...preEquippedEffects, ...effects], goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState);
+    return scoreEffects(scoringWeapon, [...preEquippedEffects, ...effects], goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState, meleeStanceCombo);
 }
 
 const PROC_DAMAGE_KEYS = STATUS_DAMAGE_TYPES;
@@ -731,7 +738,20 @@ function scoreEffects(
     arcaneEffect?: Partial<ModEffect> | null,
     targetProfileOverride?: TargetProfileOverride | null,
     conditionalState?: ConditionalState,
+    meleeStanceCombo?: MeleeAverageDpsParameters,
 ): number {
+    if (goal === "meleeDps") {
+        if (!meleeStanceCombo) return 0;
+        const rawEffects = arcaneEffect
+            ? [...effects, normalizeArcaneEffect(arcaneEffect)]
+            : effects;
+        const { modded } = calculateBuild(weapon, rawEffects, targetFaction, {
+            conditionalState: { mode: "initial" },
+            includeDoTTickDetails: false,
+        });
+        return calculateMeleeAverageDps(modded, meleeStanceCombo)?.averageDps ?? 0;
+    }
+
     const scoringTarget = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
     const { target, statusImmuneTypes, statusStackCaps } = scoringTarget;
     const damageOptions = {
@@ -895,6 +915,7 @@ function scoreSlots(
     conditionalState?: ConditionalState,
     targetProfileOverride?: TargetProfileOverride,
     effectsScratch?: (ModEffect | null)[],
+    meleeStanceCombo?: MeleeAverageDpsParameters,
 ): number {
     const effects = effectsScratch ?? [];
     effects.length = 0;
@@ -908,7 +929,7 @@ function scoreSlots(
         const r = ranks[i] ?? m.fusionLimit;
         effects.push(m.effectsByRank[r] ?? m.effect);
     }
-    return scoreEffects(weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState);
+    return scoreEffects(weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState, meleeStanceCombo);
 }
 
 export function debugScoreBuild(
@@ -919,8 +940,9 @@ export function debugScoreBuild(
     arcaneEffect?: Partial<ModEffect> | null,
     targetProfileOverride?: TargetProfileOverride | null,
     conditionalState?: ConditionalState,
+    meleeStanceCombo?: MeleeAverageDpsParameters,
 ): number {
-    return scoreEffects(weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState);
+    return scoreEffects(weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState, meleeStanceCombo);
 }
 
 export function debugScoreExpectedEncounter(
@@ -1689,6 +1711,7 @@ function beamSearch(
             opts.conditionalState,
             opts.targetProfileOverride,
             scoreEffectsScratch,
+            opts.meleeStanceCombo,
         ),
         filledCount: lockedSlots.filter(Boolean).length,
         capacityUsed: initialCapacityUsed,
@@ -1803,6 +1826,7 @@ function beamSearch(
                     opts.conditionalState,
                     opts.targetProfileOverride,
                     scoreEffectsScratch,
+                    opts.meleeStanceCombo,
                 );
             }
             deduped.set(signature, candidate);
@@ -1911,7 +1935,7 @@ function refineBuildSet(
         const cached = scoreCache.get(key);
         if (cached !== undefined) return cached;
         const effects = modsToScore.map((mod, index) => mod.effectsByRank[ranksToScore[index]] ?? mod.effect);
-        const score = scoreEffects(weapon, [...preEquippedEffects, ...effects, ...extraEffects], goal, targetFaction, arcaneEffect, opts.targetProfileOverride, opts.conditionalState);
+        const score = scoreEffects(weapon, [...preEquippedEffects, ...effects, ...extraEffects], goal, targetFaction, arcaneEffect, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
         scoreCache.set(key, score);
         return score;
     };
@@ -2004,7 +2028,7 @@ function fillEmptySlots(
         const cached = scoreCache.get(key);
         if (cached !== undefined) return cached;
         const effects = modsToScore.map((mod, index) => mod.effectsByRank[ranksToScore[index]] ?? mod.effect);
-        const score = scoreEffects(weapon, [...preEquippedEffects, ...effects, ...extraEffects], goal, targetFaction, arcaneEffect, opts.targetProfileOverride, opts.conditionalState);
+        const score = scoreEffects(weapon, [...preEquippedEffects, ...effects, ...extraEffects], goal, targetFaction, arcaneEffect, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
         scoreCache.set(key, score);
         return score;
     };
@@ -2584,6 +2608,8 @@ function refineBuildByExpectedEncounter(
                         [...preEquippedEffects, ...extraEffects],
                         opts.conditionalState,
                         opts.targetProfileOverride,
+                        undefined,
+                        opts.meleeStanceCombo,
                     ),
                     elementTheme: expectedEncounterElementTheme(weapon, assigned.slotMods, assigned.slotRanks),
                     elementTransition: expectedEncounterElementTransition(
@@ -2811,6 +2837,8 @@ function refineBuildByExpectedEncounter(
                                         [...preEquippedEffects, ...extraEffects],
                                         opts.conditionalState,
                                         opts.targetProfileOverride,
+                                        undefined,
+                                        opts.meleeStanceCombo,
                                     ),
                                     elementTheme: expectedEncounterElementTheme(weapon, assigned.slotMods, assigned.slotRanks),
                                     elementTransition: "",
@@ -2943,7 +2971,7 @@ function comboRefineBuildSet(
         const cached = scoreCache.get(key);
         if (cached !== undefined) return cached;
         const effects = modsToScore.map((mod, index) => mod.effectsByRank[ranksToScore[index]] ?? mod.effect);
-        const score = scoreEffects(weapon, [...preEquippedEffects, ...effects, ...extraEffects], goal, targetFaction, arcaneEffect, opts.targetProfileOverride, opts.conditionalState);
+        const score = scoreEffects(weapon, [...preEquippedEffects, ...effects, ...extraEffects], goal, targetFaction, arcaneEffect, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
         scoreCache.set(key, score);
         return score;
     };
@@ -3084,7 +3112,7 @@ function optimizeExilusSlot(
     );
     if (!eligibleExilus.length) return { mod: null, rank: 0, polarity: exilusPolarity };
 
-    const baseScore = scoreEffects(weapon, mainBuildEffects, goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState);
+    const baseScore = scoreEffects(weapon, mainBuildEffects, goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
     let bestImprovingMod: ModEntry | null = null;
     let bestImprovingRank = 0;
     let bestImprovingPolarity = exilusPolarity;
@@ -3115,7 +3143,7 @@ function optimizeExilusSlot(
                 if (!fitsCapacity(capSlots, capRanks, opts.capacityConfig, capPols, capExtraSlots)) continue;
             }
             const e = mod.effectsByRank[r] ?? mod.effect;
-            const s = scoreEffects(weapon, [...mainBuildEffects, e], goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState);
+            const s = scoreEffects(weapon, [...mainBuildEffects, e], goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
             if (s > bestImprovingScore + 1e-9) {
                 bestImprovingScore = s;
                 bestImprovingMod = mod;
@@ -3157,7 +3185,7 @@ function optimizeArcaneSlot(
     }
     const baseScore = goal === "timeToKill"
         ? 0
-        : scoreEffects(weapon, mainBuildEffects, goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState);
+        : scoreEffects(weapon, mainBuildEffects, goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
     let bestArcane: ArcaneEntry | null = null;
     let bestRank = 0;
     let bestScore = baseScore;
@@ -3200,7 +3228,7 @@ function optimizeArcaneSlot(
             });
             if (!e || !Object.keys(e).length) continue;
             if (getUnmodeledScoringEffectLines(e).length > 0) continue;
-            const s = scoreEffects(weapon, mainBuildEffects, goal, targetFaction, e, opts.targetProfileOverride, opts.conditionalState);
+            const s = scoreEffects(weapon, mainBuildEffects, goal, targetFaction, e, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
             // An arcane slot is optional. Keep it empty when its parsed effect
             // is unsupported or inactive under the selected conditional state;
             // equality used to select the last zero-value candidate at rank 0.
@@ -3473,6 +3501,8 @@ function optimizeBuildInternal(
             contextualExtraEffects,
             effectiveOpts.conditionalState,
             effectiveOpts.targetProfileOverride,
+            undefined,
+            effectiveOpts.meleeStanceCombo,
         );
 
     let greedyImproved = goal !== "timeToKill";
@@ -3841,8 +3871,8 @@ export function optimizeBuildCore(
             },
         ) ? nonMaxResult : maxOnlyResult;
     }
-    const baseScore = scoreOptimizeResult(weapon, maxOnlyResult, goal, ...scoreOptions);
-    const nonMaxScore = scoreOptimizeResult(weapon, nonMaxResult, goal, ...scoreOptions);
+    const baseScore = scoreOptimizeResult(weapon, maxOnlyResult, goal, ...scoreOptions, opts.meleeStanceCombo);
+    const nonMaxScore = scoreOptimizeResult(weapon, nonMaxResult, goal, ...scoreOptions, opts.meleeStanceCombo);
     return nonMaxScore > baseScore ? nonMaxResult : maxOnlyResult;
 }
 
@@ -3884,6 +3914,7 @@ export interface BuildExplanationOptions {
     arcaneEffect?: Partial<ModEffect> | null;
     arcaneName?: string;
     arcaneRank?: number;
+    meleeStanceCombo?: MeleeAverageDpsParameters;
     objectiveEncounter?: {
         damagePerSecond: number;
         timeToKillSeconds: number | null;
@@ -3897,6 +3928,7 @@ function goalLabel(goal: OptimizeGoal): string {
         case "burst": return "Burst DPS";
         case "scaling": return "Sustained DPS";
         case "timeToKill": return "Expected TTK";
+        case "meleeDps": return "Wiki Stance DPS";
     }
 }
 
@@ -3985,6 +4017,8 @@ export function explainBuild(
         explanationOptions.baseEffects ?? [],
         conditionalState,
         targetProfileOverride,
+        undefined,
+        explanationOptions.meleeStanceCombo,
     );
     const fullScore = scoreSlotsForExplanation(fullSlots, fullRanks);
     const baseScore = scoreSlotsForExplanation(
@@ -4047,12 +4081,16 @@ export function explainBuild(
     const winningEdge = strongestContributions.length > 0
         ? `Largest leave-one-out gains: ${strongestContributions.map((step) => `${step.modName} (+${step.pctGain.toFixed(1)}%)`).join(", ")}. These margins overlap and are not additive.`
         : "No selected mod has a positive leave-one-out gain in this score and target model.";
-    const targetLabel = targetFaction ? `vs ${targetFaction}` : "against the balanced target estimate";
+    const targetLabel = goal === "meleeDps"
+        ? `using the selected Wiki Neutral-combo estimate${targetFaction ? ` and ${targetFaction} faction mod` : ""}`
+        : targetFaction ? `vs ${targetFaction}` : "against the balanced target estimate";
     const nearbyEnemyCount = normalizeNearbyEnemyCount(targetProfileOverride?.nearbyEnemyCount);
-    const targetDetail = targetProfileOverride
+    const targetDetail = goal !== "meleeDps" && targetProfileOverride
         ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} for Electric/Gas status damage` : ""}`
         : "";
-    const scoreLabel = goal === "timeToKill" ? "Screening proxy score" : "Selected build score";
+    const scoreLabel = goal === "timeToKill"
+        ? "Screening proxy score"
+        : goal === "meleeDps" ? "Raw stance DPS estimate" : "Selected build score";
     const encounterSummary = goal === "timeToKill" && explanationOptions.objectiveEncounter
         ? explanationOptions.objectiveEncounter.timeToKillSeconds === null
             ? ` Finite expected encounter reached its safety cap; fallback damage rate ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)}/s.`
@@ -4072,7 +4110,9 @@ export function explainBuild(
         arcaneStep,
         summary,
         winningEdge,
-        comparisonNote: goal === "timeToKill"
+        comparisonNote: goal === "meleeDps"
+            ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
+            : goal === "timeToKill"
             ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls, the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter, alternating Arcane choice and legal mod refinement for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };

@@ -72,6 +72,110 @@ function countFormaLikeUi(
     return countPolarityChanges(defaults, [...slotPolarities, stancePolarity, exilusPolarity]);
 }
 
+describe("Wiki stance DPS objective", () => {
+    const combo = {
+        totalDamageMultiplier: 14,
+        totalSlashProcMultiplier: 0,
+        baseComboLengthSeconds: 2,
+    };
+
+    it("scores the catalog combo over its Wiki timing without target-health assumptions", () => {
+        const weapon = makeWeapon({
+            category: "Melee",
+            weaponType: "Sword",
+            modCompat: "Melee",
+            fireRate: 1.2,
+        });
+        const fastComboScore = debugScoreBuild(weapon, [], "meleeDps", "", null, undefined, { mode: "initial" }, combo);
+        const slowerComboScore = debugScoreBuild(weapon, [], "meleeDps", "", null, undefined, { mode: "initial" }, {
+            ...combo,
+            baseComboLengthSeconds: 3,
+        });
+
+        expect(fastComboScore).toBeGreaterThan(0);
+        expect(fastComboScore / slowerComboScore).toBeCloseTo(1.5, 8);
+        expect(debugScoreBuild(weapon, [], "meleeDps", "")).toBe(0);
+
+        const onKillDamage = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onKill" as const,
+                durationSeconds: 20,
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { damageBonus: 0.5 },
+            }],
+        };
+        const initialStateScore = debugScoreBuild(weapon, [onKillDamage], "meleeDps", "", null, undefined, { mode: "initial" }, combo);
+        const fullyStackedStateScore = debugScoreBuild(weapon, [onKillDamage], "meleeDps", "", null, undefined, { mode: "fullyStacked" }, combo);
+        expect(fullyStackedStateScore).toBeCloseTo(initialStateScore, 8);
+    });
+
+    it("returns the same Wiki-combo score from the optimizer result", () => {
+        const weapon = makeWeapon({
+            category: "Melee",
+            weaponType: "Sword",
+            modCompat: "Melee",
+            fireRate: 1.2,
+        });
+        const result = optimizeBuild(weapon, [], "meleeDps", 0, { meleeStanceCombo: combo });
+
+        expect(scoreOptimizerResultForConfiguration({
+            weapon,
+            result,
+            goal: "meleeDps",
+            targetFaction: "",
+            selectedAttackIdx: 0,
+            meleeStanceCombo: combo,
+        })).toBeCloseTo(
+            debugScoreBuild(weapon, [], "meleeDps", "", null, undefined, undefined, combo),
+            8,
+        );
+    });
+    it("changes mod selection when Wiki forced-Slash weight makes duration valuable", () => {
+        const weapon = makeWeapon({
+            category: "Melee",
+            weaponType: "Sword",
+            modCompat: "Melee",
+            fireRate: 1.2,
+        });
+        const makeObjectiveMod = (uniqueName: string, effect: ModEffect): ModEntry => ({
+            uniqueName,
+            path: uniqueName,
+            name: uniqueName,
+            compatBucket: "Melee",
+            rawCompatName: "Melee",
+            polarity: "madurai",
+            rarity: "Common",
+            drain: 0,
+            baseDrain: 0,
+            fusionLimit: 0,
+            statsLabel: "",
+            statsTextByRank: [""],
+            effectsByRank: [effect],
+            effect,
+            hasDamageEffect: true,
+            isAura: false,
+            isExilus: false,
+            isStance: false,
+            incompatibilityGroup: uniqueName,
+            compatibilityTags: [],
+            incompatibilityTags: [],
+        });
+        const damageMod = makeObjectiveMod("damage", { ...emptyEffect(), damageBonus: 0.5 });
+        const durationMod = makeObjectiveMod("duration", { ...emptyEffect(), statusDurationBonus: 1 });
+        const directOnlyBuild = optimizeBuild(weapon, [damageMod, durationMod], "meleeDps", 1, {
+            meleeStanceCombo: combo,
+        });
+        const slashHeavyBuild = optimizeBuild(weapon, [damageMod, durationMod], "meleeDps", 1, {
+            meleeStanceCombo: { ...combo, totalSlashProcMultiplier: 1000000 },
+        });
+
+        expect(directOnlyBuild.mods.map((mod) => mod?.uniqueName)).toContain("damage");
+        expect(slashHeavyBuild.mods.map((mod) => mod?.uniqueName)).toContain("duration");
+    });
+});
+
 describe("slot-specific Forma accounting", () => {
     it("counts a moved polarity as changes to both physical slots", () => {
         expect(countPolarityChanges(["madurai", ""], ["", "madurai"])).toBe(2);
