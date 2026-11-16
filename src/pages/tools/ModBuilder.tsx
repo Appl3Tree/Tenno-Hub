@@ -5024,7 +5024,7 @@ export default function ModBuilder() {
                 ))}
             </WorkspaceSegmented>
 
-            {weapon && tab === "owned"   && <OwnedModsPanel availableMods={trackableMods} />}
+            {weapon && tab === "owned"   && <OwnedModsPanel key={weapon.uniqueName} availableMods={trackableMods} />}
             {weapon && tab === "ownedArcanes" && <OwnedArcanesPanel weapon={weapon} />}
             {weapon && tab === "saves"   && <SavedBuildsPanel weapon={weapon} availableMods={compatMods} currentSlots={slots} currentRanks={ranks}
                 currentPolarities={slotPols} currentCfg={buildCfg}
