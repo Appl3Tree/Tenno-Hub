@@ -544,6 +544,132 @@ describe("damage calculation status eligibility", () => {
         expect(heavy.critChance).toBeCloseTo(heavyAttack.critChance * 3.2, 10);
     });
 
+    it("keeps Wiki rank, trigger, duration, and stack data for every Galvanized mod", () => {
+        const galvCases = [
+            {
+                weapon: "Tigris Prime", mod: "Galvanized Acceleration",
+                r0: [
+                    { trigger: "onKill", durationSeconds: 10, maxStacks: 2, requiresAiming: false, stats: { projectileSpeedBonus: 0.027 } },
+                    { trigger: "onKill", durationSeconds: 10, maxStacks: 2, requiresAiming: false, stats: { beamRangeBonus: 0.027 } },
+                ],
+                max: [
+                    { trigger: "onKill", durationSeconds: 10, maxStacks: 2, requiresAiming: false, stats: { projectileSpeedBonus: 0.3 } },
+                    { trigger: "onKill", durationSeconds: 10, maxStacks: 2, requiresAiming: false, stats: { beamRangeBonus: 0.3 } },
+                ],
+            },
+            {
+                weapon: "Rubico Prime", mod: "Galvanized Aptitude",
+                r0: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 2, requiresAiming: false, stats: { directDamagePerStatusBonus: 0.036 } }],
+                max: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 2, requiresAiming: false, stats: { directDamagePerStatusBonus: 0.4 } }],
+            },
+            {
+                weapon: "Braton Prime", mod: "Galvanized Chamber",
+                r0: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 5, requiresAiming: false, stats: { multishotBonus: 0.027 } }],
+                max: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 5, requiresAiming: false, stats: { multishotBonus: 0.3 } }],
+            },
+            {
+                weapon: "Laetum", mod: "Galvanized Crosshairs",
+                r0: [
+                    { trigger: "onWeakPointHit", durationSeconds: 12, maxStacks: 1, requiresAiming: true, stats: { critChanceBonus: 0.109 } },
+                    { trigger: "onWeakPointKill", durationSeconds: 12, maxStacks: 5, requiresAiming: true, stats: { critChanceBonus: 0.036 } },
+                ],
+                max: [
+                    { trigger: "onWeakPointHit", durationSeconds: 12, maxStacks: 1, requiresAiming: true, stats: { critChanceBonus: 1.2 } },
+                    { trigger: "onWeakPointKill", durationSeconds: 12, maxStacks: 5, requiresAiming: true, stats: { critChanceBonus: 0.4 } },
+                ],
+            },
+            {
+                weapon: "Laetum", mod: "Galvanized Diffusion",
+                r0: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { multishotBonus: 0.027 } }],
+                max: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { multishotBonus: 0.3 } }],
+            },
+            {
+                weapon: "Broken War", mod: "Galvanized Elementalist",
+                r0: [{ trigger: "onMeleeKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { statusChanceBonus: 0.027 } }],
+                max: [{ trigger: "onMeleeKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { statusChanceBonus: 0.3 } }],
+            },
+            {
+                weapon: "Tigris Prime", mod: "Galvanized Hell",
+                r0: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { multishotBonus: 0.027 } }],
+                max: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { multishotBonus: 0.3 } }],
+            },
+            {
+                weapon: "Broken War", mod: "Galvanized Reflex",
+                r0: [{ trigger: "onMeleeKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { initialComboBonus: 2 } }],
+                max: [{ trigger: "onMeleeKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { initialComboBonus: 20 } }],
+            },
+            {
+                weapon: "Tigris Prime", mod: "Galvanized Savvy",
+                r0: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 2, requiresAiming: false, stats: { directDamagePerStatusBonus: 0.036 } }],
+                max: [{ trigger: "onKill", durationSeconds: 20, maxStacks: 2, requiresAiming: false, stats: { directDamagePerStatusBonus: 0.4 } }],
+            },
+            {
+                weapon: "Rubico Prime", mod: "Galvanized Scope",
+                r0: [
+                    { trigger: "onWeakPointHit", durationSeconds: 12, maxStacks: 1, requiresAiming: true, stats: { critChanceBonus: 0.109 } },
+                    { trigger: "onWeakPointKill", durationSeconds: 12, maxStacks: 5, requiresAiming: true, stats: { critChanceBonus: 0.036 } },
+                ],
+                max: [
+                    { trigger: "onWeakPointHit", durationSeconds: 12, maxStacks: 1, requiresAiming: true, stats: { critChanceBonus: 1.2 } },
+                    { trigger: "onWeakPointKill", durationSeconds: 12, maxStacks: 5, requiresAiming: true, stats: { critChanceBonus: 0.4 } },
+                ],
+            },
+            {
+                weapon: "Laetum", mod: "Galvanized Shot",
+                r0: [{ trigger: "onKill", durationSeconds: 14, maxStacks: 3, requiresAiming: false, stats: { directDamagePerStatusBonus: 0.036 } }],
+                max: [{ trigger: "onKill", durationSeconds: 14, maxStacks: 3, requiresAiming: false, stats: { directDamagePerStatusBonus: 0.4 } }],
+            },
+            {
+                weapon: "Broken War", mod: "Galvanized Steel",
+                r0: [{ trigger: "onMeleeKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { critMultBonus: 0.027 } }],
+                max: [{ trigger: "onMeleeKill", durationSeconds: 20, maxStacks: 4, requiresAiming: false, stats: { critMultBonus: 0.3 } }],
+            },
+        ] as const;
+        const catalog = getWeaponCatalog();
+        const metadata = (conditional: NonNullable<ModEffect["conditionalEffects"]>[number]) => ({
+            trigger: conditional.trigger,
+            durationSeconds: conditional.durationSeconds,
+            maxStacks: conditional.maxStacks,
+            requiresAiming: conditional.requiresAiming,
+        });
+        const expectRank = (
+            effects: NonNullable<ModEffect["conditionalEffects"]>,
+            expected: typeof galvCases[number]["r0"],
+        ) => {
+            expect(effects.map(metadata)).toEqual(expected.map(({ trigger, durationSeconds, maxStacks, requiresAiming }) => ({
+                trigger,
+                durationSeconds,
+                maxStacks,
+                requiresAiming,
+            })));
+            effects.forEach((conditional, index) => {
+                const expectedStats = expected[index].stats;
+                expect(Object.keys(conditional.stats).filter((key) => conditional.stats[key as keyof typeof conditional.stats] !== 0).sort())
+                    .toEqual(Object.keys(expectedStats).sort());
+                for (const [key, value] of Object.entries(expectedStats)) {
+                    expect(conditional.stats[key as keyof typeof conditional.stats]).toBeCloseTo(value, 10);
+                }
+            });
+        };
+
+        for (const testCase of galvCases) {
+            const weapon = catalog.find((entry) => entry.name === testCase.weapon);
+            expect(weapon, testCase.weapon).toBeDefined();
+            const mod = weapon && getModsForWeapon(weapon).find((entry) => entry.name === testCase.mod);
+            expect(mod, testCase.mod).toBeDefined();
+            if (!mod) continue;
+
+            const rankZero = mod.effectsByRank[0].conditionalEffects ?? [];
+            const maxRank = mod.effectsByRank[mod.fusionLimit].conditionalEffects ?? [];
+            expectRank(rankZero, testCase.r0);
+            expectRank(maxRank, testCase.max);
+            for (let rank = 0; rank <= mod.fusionLimit; rank++) {
+                expect(mod.effectsByRank[rank].conditionalEffects?.map(metadata)).toEqual(testCase.max.map(metadata));
+                expect(getUnmodeledDamageEffectLines(mod, rank)).toEqual([]);
+            }
+        }
+    });
+
     it("does not apply heavy-attack critical chance to a Glaive's direct throw", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Glaive Prime");
         expect(weapon).toBeDefined();
@@ -2155,6 +2281,17 @@ describe("damage calculation status eligibility", () => {
         expect(freshTarget.expectedStacksByType.tau).toBe(0);
         expect(freshTarget.tauStatusVulnerability).toBe(0);
         expect(freshTarget.procRatePerSecondByType.viral).toBeCloseTo(0.5, 12);
+    });
+
+    it("includes one selected external Tau stack in steady-state Status Chance", () => {
+        const weapon = { ...makeWeapon({ impact: 100 }), statusChance: 1, fireRate: 1 };
+        const result = calculateBuild(weapon, [], "", {
+            conditionalState: { mode: "initial", externalStatusTypes: ["tau"] },
+        }).modded;
+
+        expect(result.tauStatusVulnerability).toBeCloseTo(0.1, 12);
+        expect(result.procRatePerSecondByType.impact).toBeCloseTo(1.1, 12);
+        expect(result.averageProcsPerShot).toBeCloseTo(1.1, 12);
     });
 
     it("does not scale forced status applications with Tau vulnerability", () => {

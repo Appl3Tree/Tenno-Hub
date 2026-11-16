@@ -32,13 +32,15 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.sources.galvanizedAptitude).toBe("https://wiki.warframe.com/w/Galvanized_Aptitude");
         expect(DAMAGE_RULESET.sources.galvanizedSavvy).toBe("https://wiki.warframe.com/w/Galvanized_Savvy");
         expect(DAMAGE_RULESET.sources.galvanizedShot).toBe("https://wiki.warframe.com/w/Galvanized_Shot");
+        expect(DAMAGE_RULESET.sources.tauDamage).toBe("https://wiki.warframe.com/w/Damage/Tau_Damage");
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
             entry.includes("Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE"),
         )).toBe(true);
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
             entry.includes("statuses applied by earlier multishot instances in the same trigger") &&
-            entry.includes("exact random proc histories") &&
-            entry.includes("same-volley Tau amplification"),
+            entry.includes("projects expected Tau stacks between sequential projectile instances") &&
+            entry.includes("not a sampled proc history") &&
+            entry.includes("Selected kill-stack progression remains unmodeled"),
         )).toBe(true);
     });
 

@@ -1543,6 +1543,12 @@ export function calculateBuild(
     const unfilteredExtraProcsPerShot: Partial<Record<DamageKey, number>> = {};
     const independentRandomProcCountPerShot: Partial<Record<StatusDamageType, number>> = {};
     const independentRandomProcProbabilityByType: Partial<Record<StatusDamageType, number>> = {};
+    const externalStatusTypes = filterExternalStatusTypesForTarget(
+        options.conditionalState?.externalStatusTypes,
+        statusImmuneTypes,
+        options.statusStackCaps,
+    );
+    const externalStatusTypeSet = new Set(externalStatusTypes);
     const addExtraProc = (key: DamageKey, value: number) => {
         if (value <= 0) return;
         unfilteredExtraProcsPerShot[key] = (unfilteredExtraProcsPerShot[key] ?? 0) + value;
@@ -1607,7 +1613,13 @@ export function calculateBuild(
     const tauProcRatePerSecond = (
         baseProcsPerShot * (baseProcChanceByType.tau ?? 0) + (extraProcsPerShot.tau ?? 0)
     ) * fireRate;
-    const expectedTauStacks = expectedStacksForRate("tau", tauProcRatePerSecond);
+    const tauStackCap = Number.isFinite(options.statusStackCaps?.tau)
+        ? Math.max(0, Math.min(STATUS_EFFECT_RULES.tau.maxStacks ?? 10, options.statusStackCaps?.tau ?? 0))
+        : STATUS_EFFECT_RULES.tau.maxStacks ?? 10;
+    const expectedTauStacks = Math.min(
+        tauStackCap,
+        expectedStacksForRate("tau", tauProcRatePerSecond) + (externalStatusTypeSet.has("tau") ? 1 : 0),
+    );
     const tauStatusChanceMultiplier = 1 + scaleLinearCap(expectedTauStacks, 0.1, 1.0);
     // Prototype Shock Coils adds a second, independent status roll per hit.
     // Its base chance is scaled by the same additive and final Status Chance
@@ -1654,12 +1666,6 @@ export function calculateBuild(
     let directDamageStatusTypes = 0;
     let conditionOverloadStatusTypes = 0;
     let intrinsicDamageStatusTypes = 0;
-    const externalStatusTypes = filterExternalStatusTypesForTarget(
-        options.conditionalState?.externalStatusTypes,
-        statusImmuneTypes,
-        options.statusStackCaps,
-    );
-    const externalStatusTypeSet = new Set(externalStatusTypes);
     const directEligibleExternalStatusTypes = getDirectDamageEligibleStatusTypes(externalStatusTypes);
     for (const type of STATUS_DAMAGE_TYPES) {
         const rate = procRatePerSecondByType[type] ?? 0;
@@ -2006,7 +2012,11 @@ export function calculateBuild(
     const blastExpiryDamagePerProc = blastStackExpiryDamage(blastStackHitDamagePerProc);
     const blastExpectedExpiryDamagePerShot = blastExpiryDamagePerProc * expectedBlastProcsPerShot;
     const gasCloudRadius = gasCloudRadiusFromStacks(gasStacks);
-    const tauStatusVulnerability = scaleLinearCap(tauStacks, 0.1, 1.0);
+    const tauStatusVulnerability = scaleLinearCap(
+        Math.min(tauStackCap, tauStacks + (externalStatusTypeSet.has("tau") ? 1 : 0)),
+        0.1,
+        1.0,
+    );
 
     const modded: ModdedWeaponStats = {
         rawDamageBreakdown: directRawBreakdown,

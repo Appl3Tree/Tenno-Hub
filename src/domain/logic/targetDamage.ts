@@ -705,8 +705,10 @@ export function simulateExpectedWeaponEncounter(
     };
 
     const stackCount = (type: StatusDamageType): number => statusStackQueues.get(type)?.totalStacks ?? 0;
+    const expectedTauStackCount = (): number =>
+        Math.min(10, stackCount("tau") + (externalStatusTypeSet.has("tau") ? 1 : 0));
     const ordinaryStatusChanceMultiplier = (): number =>
-        1 + Math.min(1, Math.min(10, stackCount("tau")) * 0.1);
+        1 + Math.min(1, expectedTauStackCount() * 0.1);
     const updateGasCloudActiveStacks = (group: GasCloudTickGroup, activeStacks: number) => {
         group.activeStacks = finiteNonNegative(activeStacks);
         for (const tick of group.scheduledTicks) {
@@ -792,39 +794,168 @@ export function simulateExpectedWeaponEncounter(
         statusStackQueues.delete("blast");
     };
 
-    const expectedStatusApplicationsForCurrentPools = (currentProjectileCount: number) => {
+    const projectStatusSequence = (currentProjectileCount: number, includeProjectilePresence = false) => {
         const ordinaryApplications: Partial<Record<StatusDamageType, number>> = {};
-        const forcedApplications: Partial<Record<StatusDamageType, number>> = {};
-        const applications: Partial<Record<StatusDamageType, number>> = {};
-        const presenceProbabilities: Partial<Record<StatusDamageType, number>> = {};
-        const canReweight = input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
-        let totalWeight = 0;
+        const ordinaryPresenceProbabilities: Partial<Record<StatusDamageType, number>> = {};
+        const perProjectilePresence: Array<Partial<Record<StatusDamageType, number>>> = [];
+        const hasCatalogStatusInputs =
+            input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
+        if (!hasCatalogStatusInputs || currentProjectileCount <= 0) {
+            return { ordinaryApplications, ordinaryPresenceProbabilities, perProjectilePresence };
+        }
+
         const immuneTypes = new Set(statusImmuneTypes);
         // Radiation can still be applied under Overguard; its effects remain
         // suppressed until the Overguard pool is removed. Magnetic has no
         // defensive effect once both Overguard and Shields are gone.
         if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
-        if (canReweight) {
-            totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
-                if (immuneTypes.has(type)) return sum;
-                return sum + finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
-            }, 0);
-            const rolls = finiteNonNegative(input.statusRollsPerAttack ?? 0);
-            if (totalWeight > 0 && rolls > 0) {
-                const tauVulnerability = ordinaryStatusChanceMultiplier();
-                for (const type of STATUS_DAMAGE_TYPES) {
-                    if (immuneTypes.has(type)) continue;
-                    const weight = finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
-                    if (weight > 0) {
-                        const typeMultiplier = type === "tau" ? 1 : tauVulnerability;
-                        ordinaryApplications[type] = rolls * weight / totalWeight * typeMultiplier;
-                    }
+        const totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
+            if (immuneTypes.has(type)) return sum;
+            return sum + finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+        }, 0);
+        const rolls = finiteNonNegative(input.statusRollsPerAttack ?? 0);
+        if (totalWeight <= 0 || rolls <= 0) {
+            return { ordinaryApplications, ordinaryPresenceProbabilities, perProjectilePresence };
+        }
+
+        const statusChancePerProjectile = rolls / currentProjectileCount;
+        const wholeProjectiles = Math.floor(currentProjectileCount);
+        const fractionalProjectile = currentProjectileCount - wholeProjectiles;
+        const baseProjectileCount = Math.max(1, finiteNonNegative(input.expectedProjectiles ?? 1));
+        const forcedProjectileRatio = input.autoSpoolShotSequenceRule
+            ? Math.max(0, currentProjectileCount / baseProjectileCount)
+            : 1;
+        const forcedApplicationsPerProjectile = Object.fromEntries(
+            STATUS_DAMAGE_TYPES.map((type) => [
+                type,
+                finiteNonNegative(input.forcedStatusApplicationsPerAttackByType?.[type] ?? 0) *
+                    forcedProjectileRatio / currentProjectileCount,
+            ]),
+        ) as Record<StatusDamageType, number>;
+        const tauTargetCap = input.statusStackCaps?.tau;
+        const tauStackCap = Number.isFinite(tauTargetCap)
+            ? Math.max(0, Math.min(STATUS_EFFECT_RULES.tau.maxStacks ?? 10, tauTargetCap ?? 0))
+            : STATUS_EFFECT_RULES.tau.maxStacks ?? 10;
+        let expectedTauStacks = Math.min(tauStackCap, expectedTauStackCount());
+        const tauCanIncreaseBetweenProjectiles =
+            !immuneTypes.has("tau") &&
+            expectedTauStacks < Math.min(10, tauStackCap) &&
+            statusChancePerProjectile > 0 &&
+            (finiteNonNegative(input.statusProcWeightsByType?.tau ?? 0) > 0 ||
+                forcedApplicationsPerProjectile.tau > 0);
+
+        if (!tauCanIncreaseBetweenProjectiles) {
+            const tauVulnerability = 1 + Math.min(1, Math.min(10, expectedTauStacks) * 0.1);
+            const projectilePresence = includeProjectilePresence
+                ? {} as Partial<Record<StatusDamageType, number>>
+                : null;
+            for (const type of STATUS_DAMAGE_TYPES) {
+                if (immuneTypes.has(type)) continue;
+                if (includeProjectilePresence && type === "tau") continue;
+                const targetCap = input.statusStackCaps?.[type];
+                if (Number.isFinite(targetCap) && (targetCap ?? 0) <= 0) continue;
+                const weight = finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+                if (weight <= 0) continue;
+
+                const typeProbability = weight / totalWeight;
+                const typeMultiplier = type === "tau" ? 1 : tauVulnerability;
+                if (includeProjectilePresence) {
+                    const perProjectileOrdinaryPresence = probabilityAtLeastOneWeightedStatusType(
+                        1,
+                        statusChancePerProjectile,
+                        typeProbability,
+                        typeMultiplier,
+                    );
+                    const forcedPresence = Math.min(1, forcedApplicationsPerProjectile[type]);
+                    projectilePresence![type] = 1 -
+                        (1 - perProjectileOrdinaryPresence) * (1 - forcedPresence);
+                } else {
+                    ordinaryApplications[type] = rolls * typeProbability * typeMultiplier;
+                    ordinaryPresenceProbabilities[type] = probabilityAtLeastOneWeightedStatusType(
+                        currentProjectileCount,
+                        rolls,
+                        typeProbability,
+                        typeMultiplier,
+                    );
                 }
             }
-        } else {
-            const expectedApplications = input.expectedStatusApplicationsPerAttackByType;
+            if (includeProjectilePresence) {
+                perProjectilePresence.length = Math.ceil(currentProjectileCount);
+                perProjectilePresence.fill(projectilePresence!);
+            }
+            return { ordinaryApplications, ordinaryPresenceProbabilities, perProjectilePresence };
+        }
+
+        // The Wiki says Tau increases Status Chance on subsequent attacks,
+        // while Galvanized notes treat multishot instances as sequential hits.
+        // Carry the expected Tau stack count from each projectile into the
+        // next one. This is a mean-field projection, not a sampled proc history.
+        for (let projectileIndex = 0; projectileIndex <= wholeProjectiles; projectileIndex++) {
+            const projectileProbability = projectileIndex < wholeProjectiles ? 1 : fractionalProjectile;
+            if (projectileProbability <= 0) continue;
+
+            const tauVulnerability = 1 + Math.min(1, Math.min(10, expectedTauStacks) * 0.1);
+            const projectilePresence = includeProjectilePresence
+                ? {} as Partial<Record<StatusDamageType, number>>
+                : null;
+            for (const type of STATUS_DAMAGE_TYPES) {
+                if (immuneTypes.has(type)) continue;
+                if (includeProjectilePresence && type === "tau") continue;
+                const targetCap = input.statusStackCaps?.[type];
+                if (Number.isFinite(targetCap) && (targetCap ?? 0) <= 0) continue;
+                const weight = finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+                if (weight <= 0) continue;
+
+                const typeProbability = weight / totalWeight;
+                // Tau vulnerability does not increase Tau applications or
+                // forced status effects; it increases the other status types.
+                const typeMultiplier = type === "tau" ? 1 : tauVulnerability;
+                const projectileStatusPresence = probabilityAtLeastOneWeightedStatusType(
+                    1,
+                    statusChancePerProjectile,
+                    typeProbability,
+                    typeMultiplier,
+                );
+                if (includeProjectilePresence) {
+                    const forcedPresence = Math.min(1, forcedApplicationsPerProjectile[type]);
+                    projectilePresence![type] = 1 -
+                        (1 - projectileStatusPresence) * (1 - forcedPresence);
+                } else {
+                    ordinaryPresenceProbabilities[type] = 1 -
+                        (1 - finiteNonNegative(ordinaryPresenceProbabilities[type] ?? 0)) *
+                        (1 - projectileProbability * projectileStatusPresence);
+                    ordinaryApplications[type] = finiteNonNegative(ordinaryApplications[type] ?? 0) +
+                        projectileProbability * statusChancePerProjectile * typeProbability * typeMultiplier;
+                }
+            }
+            if (includeProjectilePresence) perProjectilePresence[projectileIndex] = projectilePresence!;
+
+            // Tau procs from this projectile only affect the next projectile.
+            // Fractional multishot is the final slot, so it has no later hit.
+            if (projectileIndex < wholeProjectiles && !immuneTypes.has("tau")) {
+                const tauWeight = finiteNonNegative(input.statusProcWeightsByType?.tau ?? 0);
+                const tauOrdinaryApplications = statusChancePerProjectile * tauWeight / totalWeight;
+                expectedTauStacks = Math.min(
+                    tauStackCap,
+                    expectedTauStacks + tauOrdinaryApplications + forcedApplicationsPerProjectile.tau,
+                );
+            }
+        }
+        return { ordinaryApplications, ordinaryPresenceProbabilities, perProjectilePresence };
+    };
+
+    const expectedStatusApplicationsForCurrentPools = (currentProjectileCount: number) => {
+        const projection = projectStatusSequence(currentProjectileCount);
+        const ordinaryApplications = { ...projection.ordinaryApplications };
+        const forcedApplications: Partial<Record<StatusDamageType, number>> = {};
+        const applications: Partial<Record<StatusDamageType, number>> = {};
+        const presenceProbabilities: Partial<Record<StatusDamageType, number>> = {};
+        const canReweight = input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
+        const immuneTypes = new Set(statusImmuneTypes);
+        if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
+        if (!canReweight) {
             const tauVulnerability = ordinaryStatusChanceMultiplier();
-            for (const [rawType, rawCount] of Object.entries(expectedApplications ?? {}) as Array<[StatusDamageType, number]>) {
+            for (const [rawType, rawCount] of Object.entries(input.expectedStatusApplicationsPerAttackByType ?? {}) as Array<[StatusDamageType, number]>) {
                 if (immuneTypes.has(rawType)) continue;
                 const typeMultiplier = rawType === "tau" ? 1 : tauVulnerability;
                 ordinaryApplications[rawType] = finiteNonNegative(rawCount) * typeMultiplier;
@@ -848,25 +979,11 @@ export function simulateExpectedWeaponEncounter(
             const total = ordinary + forced;
             if (total <= 0) continue;
             applications[type] = total;
-            // Ordinary rolls use a Poisson mean-field; forced/status-triggered
-            // applications are independent and use their expected count as a
-            // bounded event probability. This keeps their source separate from
-            // ordinary status chance and preserves fractional Cedo effects.
-            // For catalog-backed inputs, ordinary procs follow the Wiki's
-            // per-projectile status chance: every whole roll is guaranteed,
-            // each fractional roll is independent, and fractional multishot
-            // adds a projectile only with its fractional probability. Legacy
-            // expected-application inputs lack projectile/status-chance detail,
-            // so retain their explicit Poisson mean-field approximation.
+            // Catalog-backed ordinary procs retain per-projectile presence and
+            // expected applications; legacy inputs use their explicit Poisson
+            // approximation. Forced effects remain independent and bounded.
             const ordinaryPresence = canReweight
-                ? probabilityAtLeastOneWeightedStatusType(
-                    currentProjectileCount,
-                    input.statusRollsPerAttack ?? 0,
-                    totalWeight > 0
-                        ? finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0) / totalWeight
-                        : 0,
-                    type === "tau" ? 1 : ordinaryStatusChanceMultiplier(),
-                )
+                ? finiteNonNegative(projection.ordinaryPresenceProbabilities[type] ?? 0)
                 : probabilityAtLeastOnePoissonArrival(ordinary);
             const forcedPresence = Math.min(1, forced);
             presenceProbabilities[type] = 1 - (1 - ordinaryPresence) * (1 - forcedPresence);
@@ -880,49 +997,8 @@ export function simulateExpectedWeaponEncounter(
      * projectile's status can increase direct damage on later projectiles in
      * the same trigger pull.
      */
-    const statusPresenceByProjectile = (currentProjectileCount: number): Partial<Record<StatusDamageType, number>> => {
-        if (
-            currentProjectileCount <= 0 ||
-            input.statusProcWeightsByType === undefined ||
-            input.statusRollsPerAttack === undefined
-        ) return {};
-
-        const immuneTypes = new Set(statusImmuneTypes);
-        if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
-        const totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
-            if (immuneTypes.has(type)) return sum;
-            return sum + finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
-        }, 0);
-        if (totalWeight <= 0) return {};
-
-        const statusChancePerProjectile = finiteNonNegative(input.statusRollsPerAttack) / currentProjectileCount;
-        const baseProjectileCount = Math.max(1, finiteNonNegative(input.expectedProjectiles ?? 1));
-        const forcedProjectileRatio = input.autoSpoolShotSequenceRule
-            ? currentProjectileCount / baseProjectileCount
-            : 1;
-        const tauVulnerability = ordinaryStatusChanceMultiplier();
-        const presence: Partial<Record<StatusDamageType, number>> = {};
-        for (const type of STATUS_DAMAGE_TYPES) {
-            if (immuneTypes.has(type)) continue;
-            const targetCap = input.statusStackCaps?.[type];
-            if (Number.isFinite(targetCap) && (targetCap ?? 0) <= 0) continue;
-            const weight = finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
-            if (weight <= 0) continue;
-
-            const ordinary = probabilityAtLeastOneWeightedStatusType(
-                1,
-                statusChancePerProjectile,
-                weight / totalWeight,
-                type === "tau" ? 1 : tauVulnerability,
-            );
-            const forcedPerProjectile = finiteNonNegative(
-                input.forcedStatusApplicationsPerAttackByType?.[type] ?? 0,
-            ) * forcedProjectileRatio / currentProjectileCount;
-            const forced = Math.min(1, forcedPerProjectile);
-            presence[type] = 1 - (1 - ordinary) * (1 - forced);
-        }
-        return presence;
-    };
+    const statusPresenceByProjectile = (currentProjectileCount: number) =>
+        projectStatusSequence(currentProjectileCount, true).perProjectilePresence;
 
     const applyExpectedStatusApplications = (
         attackTime: number,
@@ -1511,6 +1587,7 @@ export function simulateExpectedWeaponEncounter(
                 const weightedDamageByType = Object.fromEntries(
                     DAMAGE_TYPES.map((type) => [type, 0]),
                 ) as Record<DamageType, number>;
+                const noDirectStatusPresenceBeforeProjectile = new Map<StatusDamageType, number>();
 
                 for (let projectileIndex = 0; projectileIndex <= wholeProjectiles; projectileIndex++) {
                     const projectileProbability = projectileIndex < wholeProjectiles
@@ -1524,10 +1601,25 @@ export function simulateExpectedWeaponEncounter(
                         const initialPresence = finiteNonNegative(
                             statusModifiers.directDamageStatusPresenceByType?.[type] ?? 0,
                         );
-                        const perProjectilePresence = finiteNonNegative(perProjectileStatusPresence[type] ?? 0);
-                        const presenceBeforeThisProjectile = 1 -
-                            (1 - initialPresence) * Math.pow(1 - perProjectilePresence, projectileIndex);
+                        const noPresence = noDirectStatusPresenceBeforeProjectile.get(type) ??
+                            1 - initialPresence;
+                        const presenceBeforeThisProjectile = 1 - noPresence;
                         additionalStatusTypes += Math.max(0, presenceBeforeThisProjectile - initialPresence);
+                    }
+                    for (const type of STATUS_DAMAGE_TYPES) {
+                        if (type === "tau") continue;
+                        const initialPresence = finiteNonNegative(
+                            statusModifiers.directDamageStatusPresenceByType?.[type] ?? 0,
+                        );
+                        const noPresence = noDirectStatusPresenceBeforeProjectile.get(type) ??
+                            1 - initialPresence;
+                        const perProjectilePresence = finiteNonNegative(
+                            perProjectileStatusPresence[projectileIndex]?.[type] ?? 0,
+                        );
+                        noDirectStatusPresenceBeforeProjectile.set(
+                            type,
+                            noPresence * (1 - projectileProbability * perProjectilePresence),
+                        );
                     }
                     if (projectileIndex > 0) additionalStatusTypes += additionalUniqueStatusTypes;
                     additionalStatusTypes = Math.max(

@@ -5279,7 +5279,7 @@ export default function ModBuilder() {
                                                         External status types ({externalStatusTypes.length} selected)
                                                     </summary>
                                                     <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                                                        Assume these named statuses are already active and maintained by allies, abilities, or other sources. Wiki rules are applied automatically: target-immune damage statuses are ignored; Tau counts for Condition Overload and Cedo-style status passives, not Galvanized bonuses; Lifted and Knockdown cannot coexist. Their other effects and DoT histories are not simulated here.
+                                                        Assume these named statuses are already active and maintained by allies, abilities, or other sources. Wiki rules are applied automatically: target-immune damage statuses are ignored; Tau counts for Condition Overload and Cedo-style status passives, not Galvanized bonuses; selecting external Tau assumes one maintained stack for Status Chance vulnerability; Lifted and Knockdown cannot coexist. The finite encounter carries expected Tau applications between sequential projectiles as a mean-field estimate. Tau and forced procs are not amplified, and external status stack counts beyond one are not configurable here.
                                                     </p>
                                                     {externalStatusTypeCount > 0 && (
                                                         <div role="note" className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-amber-300/90">
