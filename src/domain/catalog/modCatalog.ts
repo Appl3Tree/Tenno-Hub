@@ -1876,4 +1876,3 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     }
     return normalizeTrainingVariantGroups(out.sort((a, b) => a.name.localeCompare(b.name)));
 }
-
