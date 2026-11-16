@@ -2448,7 +2448,7 @@ describe("build optimizer scoring", () => {
         expect(shortlistWinner.result.capacityValid).toBe(true);
     });
 
-    it("matches exhaustive joint Expected TTK mod-and-Arcane optima across six weapon attack types", { timeout: 180000 }, () => {
+    it("matches exhaustive joint Expected TTK mod-and-Arcane optima across seven weapon attack types including Realistic Galvanized", { timeout: 180000 }, () => {
         const scenarios = [
             {
                 weaponName: "Perigale Prime",
@@ -2517,6 +2517,16 @@ describe("build optimizer scoring", () => {
                 modNames: ["Galvanized Diffusion", "Hornet Strike", "Pathogen Rounds", "Target Cracker", "Pistol Pestilence", "Primed Heated Charge"],
                 arcaneNames: ["Secondary Merciless", "Secondary Deadhead"],
             },
+            {
+                weaponName: "Cedo",
+                attackName: "Normal Attack",
+                targetFaction: "Grineer",
+                targetProfileOverride: { health: 22000, shields: 1500, overguard: 3500, armor: 1400 },
+                conditionalState: { mode: "realistic" },
+                modNames: ["Galvanized Savvy", "Primed Point Blank", "Hell's Chamber", "Toxic Barrage"],
+                arcaneNames: ["Primary Frostbite"],
+                slotCount: 3,
+            },
         ] as const;
         const betterEncounter = (
             candidate: ReturnType<typeof debugScoreExpectedEncounter>,
@@ -2530,6 +2540,7 @@ describe("build optimizer scoring", () => {
 
         for (const scenario of scenarios) {
             const slotCount = "slotCount" in scenario ? scenario.slotCount : 4;
+            const conditionalState = "conditionalState" in scenario ? scenario.conditionalState : undefined;
             const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
             expect(weapon, scenario.weaponName).toBeTruthy();
             const candidates = scenario.modNames.map((name) => {
@@ -2581,6 +2592,7 @@ describe("build optimizer scoring", () => {
                 [],
                 scenario.targetFaction,
                 scenario.targetProfileOverride,
+                conditionalState,
             );
             const enumerate = (remaining: typeof candidates, ordered: typeof candidates) => {
                 const ranks = ordered.map((mod) => mod.fusionLimit);
@@ -2603,7 +2615,7 @@ describe("build optimizer scoring", () => {
                             effects,
                             scenario.targetFaction,
                             scenario.targetProfileOverride,
-                            undefined,
+                            conditionalState,
                             option.effect,
                         );
                         if (betterEncounter(score, exhaustiveBest)) exhaustiveBest = score;
@@ -2627,6 +2639,7 @@ describe("build optimizer scoring", () => {
             const optimized = optimizeBuild(scoringBaseWeapon, candidates, "timeToKill", slotCount, {
                 targetFaction: scenario.targetFaction,
                 targetProfileOverride: scenario.targetProfileOverride,
+                conditionalState,
                 buildForAttack: optimizerAttack,
                 capacityConfig,
                 slotPolarities,
@@ -2648,7 +2661,7 @@ describe("build optimizer scoring", () => {
                 optimizedEffects,
                 scenario.targetFaction,
                 scenario.targetProfileOverride,
-                undefined,
+                conditionalState,
                 optimized.arcane
                     ? getArcaneEffectAtRank(optimized.arcane, optimized.arcaneRank, 1500, true)
                     : null,

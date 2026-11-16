@@ -2429,12 +2429,13 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     return families;
 }
 
-function expectedEncounterScoreForEffects(
+function expectedEncounterScoreForEffectsAtKillRate(
     weapon: WeaponEntry,
     effects: (ModEffect | null)[],
     targetFaction: string,
     targetProfileOverride: TargetProfileOverride | undefined,
     conditionalState: ConditionalState | undefined,
+    expectedKillRatePerSecond?: number,
 ): { score: number; timeToKillSeconds: number | null; encounter: ExpectedWeaponEncounterResult | null } {
     const target = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
     if (target.poolTotal <= 0) return { score: 0, timeToKillSeconds: null, encounter: null };
@@ -2444,6 +2445,7 @@ function expectedEncounterScoreForEffects(
         statusStackCaps: target.statusStackCaps,
         conditionalState,
         targetStatusState: "initial",
+        ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
     const stats = encounterBuild.modded;
     const factionDamageBonus = effects.reduce((sum, effect) =>
@@ -2535,6 +2537,49 @@ function expectedEncounterScoreForEffects(
         timeToKillSeconds: encounter.timeToKillSeconds,
         encounter,
     };
+}
+
+function expectedEncounterScoreForEffects(
+    weapon: WeaponEntry,
+    effects: (ModEffect | null)[],
+    targetFaction: string,
+    targetProfileOverride: TargetProfileOverride | undefined,
+    conditionalState: ConditionalState | undefined,
+): { score: number; timeToKillSeconds: number | null; encounter: ExpectedWeaponEncounterResult | null } {
+    const usesRealisticState = (conditionalState?.mode ?? DEFAULT_CONDITIONAL_STATE.mode) === "realistic";
+    const hasGalvanizedPerStatusKillEffect = weapon.selectedAttackIsAreaDamage !== true &&
+        effects.some((effect) =>
+            effect?.conditionalEffects?.some((conditional) =>
+                conditional.trigger === "onKill" && (conditional.stats.directDamagePerStatusBonus ?? 0) > 0,
+            ) === true,
+        );
+    if (!usesRealisticState || !hasGalvanizedPerStatusKillEffect) {
+        return expectedEncounterScoreForEffectsAtKillRate(
+            weapon, effects, targetFaction, targetProfileOverride, conditionalState,
+        );
+    }
+
+    // Match the builder's repeated-target cycle: first estimate without a
+    // Galvanized stack, then recompute finite TTK from its resulting cadence.
+    // Only the direct-hit per-status effects use this rate; unrelated on-kill
+    // conditionals retain their generic realistic estimates.
+    let result = expectedEncounterScoreForEffectsAtKillRate(
+        weapon, effects, targetFaction, targetProfileOverride, conditionalState, 0,
+    );
+    if (result.timeToKillSeconds === null || result.timeToKillSeconds <= 0) return result;
+    let expectedKillRatePerSecond = 1 / result.timeToKillSeconds;
+    for (let iteration = 0; iteration < 3; iteration++) {
+        result = expectedEncounterScoreForEffectsAtKillRate(
+            weapon, effects, targetFaction, targetProfileOverride, conditionalState, expectedKillRatePerSecond,
+        );
+        if (result.timeToKillSeconds === null || result.timeToKillSeconds <= 0) return result;
+        const nextKillRatePerSecond = 1 / result.timeToKillSeconds;
+        if (nextKillRatePerSecond <= expectedKillRatePerSecond * (1 + 1e-6)) return result;
+        expectedKillRatePerSecond = nextKillRatePerSecond;
+    }
+    return expectedEncounterScoreForEffectsAtKillRate(
+        weapon, effects, targetFaction, targetProfileOverride, conditionalState, expectedKillRatePerSecond,
+    );
 }
 
 function isExpectedEncounterBetter(
