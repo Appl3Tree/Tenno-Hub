@@ -60,6 +60,28 @@ function makeWeapon(overrides: Partial<WeaponEntry> = {}): WeaponEntry {
     };
 }
 
+function poissonProbabilityAtLeastForTest(mean: number, threshold: number): number {
+    if (threshold <= 0) return 1;
+    let probability = Math.exp(-mean);
+    let belowThreshold = probability;
+    for (let count = 1; count < threshold; count++) {
+        probability *= mean / count;
+        belowThreshold += probability;
+    }
+    return 1 - belowThreshold;
+}
+
+function poissonExpectedRemainderForTest(mean: number, modulus: number): number {
+    let probability = Math.exp(-mean);
+    let expected = 0;
+    const upperBound = Math.ceil(mean + 12 * Math.sqrt(mean + 1) + 20);
+    for (let count = 0; count <= upperBound; count++) {
+        expected += (count % modulus) * probability;
+        probability *= mean / (count + 1);
+    }
+    return expected;
+}
+
 function countFormaLikeUi(
     weapon: WeaponEntry,
     slotPolarities: string[],
@@ -3212,7 +3234,7 @@ describe("build optimizer scoring", () => {
         expect(debugScoreBuild(weapon, [], "burst", "Grineer", null, target)).toBeCloseTo(2600, 4);
     });
 
-    it("scores expected Blast cap radial damage against configured nearby targets", () => {
+    it("scores expected Blast cap and on-death radial damage against configured nearby targets", () => {
         const weapon = makeWeapon({
             damage: {
                 total: 100,
@@ -3240,10 +3262,61 @@ describe("build optimizer scoring", () => {
             ...target,
             nearbyBlastEnemyCount: 2,
         });
-        const expectedCapRadialRate = (stats.procRatePerSecondByType.blast ?? 0) *
+        const blastProcRate = stats.procRatePerSecondByType.blast ?? 0;
+        const expectedCapRadialRate = blastProcRate *
+            poissonProbabilityAtLeastForTest(blastProcRate * 1.5, 1) *
+            stats.blastStackHitDamagePerProc * 3 * 2;
+        const estimatedPrimaryKillSeconds = 100000 / singleTargetScore;
+        const expectedStacksAtDeath = poissonExpectedRemainderForTest(
+            blastProcRate * Math.min(estimatedPrimaryKillSeconds, 1.5),
+            2,
+        );
+        const expectedDeathRadialRate = (singleTargetScore / 100000) * expectedStacksAtDeath *
             stats.blastStackHitDamagePerProc * 3 * 2;
 
-        expect(packScore - singleTargetScore).toBeCloseTo(expectedCapRadialRate, 3);
+        expect(packScore - singleTargetScore).toBeCloseTo(
+            expectedCapRadialRate + expectedDeathRadialRate,
+            3,
+        );
+    });
+
+    it("includes Blast procs applied during the final fuse window in pack scoring", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100,
+                impact: 0, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 100, radiation: 0, gas: 0, magnetic: 0, viral: 0,
+                corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            statusChance: 1,
+            critChance: 0,
+            fireRate: 3,
+            magazineSize: 1000,
+            reloadTime: 0,
+        });
+        const target = { health: 390, shields: 0, overguard: 0, armor: 0 };
+        const stats = calculateBuild(weapon, []).modded;
+        const singleTargetScore = debugScoreBuild(weapon, [], "burst", "", null, target);
+        const packScore = debugScoreBuild(weapon, [], "burst", "", null, {
+            ...target,
+            nearbyBlastEnemyCount: 1,
+        });
+        const blastProcRate = stats.procRatePerSecondByType.blast ?? 0;
+        const estimatedPrimaryKillSeconds = target.health / singleTargetScore;
+        const capRadialRate = blastProcRate *
+            poissonProbabilityAtLeastForTest(blastProcRate * 1.5, 9) *
+            stats.blastStackHitDamagePerProc * 3;
+        const expectedStacksAtDeath = poissonExpectedRemainderForTest(
+            blastProcRate * Math.min(estimatedPrimaryKillSeconds, 1.5),
+            10,
+        );
+        const deathRadialRate = (singleTargetScore / target.health) * expectedStacksAtDeath *
+            stats.blastStackHitDamagePerProc * 3;
+
+        expect(estimatedPrimaryKillSeconds).toBeCloseTo(1, 6);
+        expect(expectedStacksAtDeath).toBeGreaterThan(2.5);
+        expect(packScore - singleTargetScore).toBeCloseTo(capRadialRate + deathRadialRate, 6);
     });
 
     it("keeps single-target Blast score independent of a target-specific cap", () => {

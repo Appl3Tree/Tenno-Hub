@@ -726,6 +726,53 @@ function poissonProbabilityAtLeast(mean: number, threshold: number): number {
     return Math.max(0, Math.min(1, 1 - cumulative));
 }
 
+interface PoissonRemainderHarmonic {
+    decayRate: number;
+    phaseRate: number;
+    cotangent: number;
+}
+
+const poissonRemainderHarmonicCache = new Map<number, PoissonRemainderHarmonic[]>();
+
+/** Expected active Blast stacks at death under a Poisson proc-arrival estimate.
+ * Cap detonation clears the stack set, so the arrival count is folded modulo
+ * the Wiki's target-specific cap. Per-stack fuse expiry bounds the exposure
+ * window before this helper is called.
+ */
+function poissonExpectedCountModuloCap(mean: number, stackCap: number): number {
+    const wikiCap = STATUS_EFFECT_RULES.blast.maxStacks ?? 10;
+    const cap = Math.max(1, Math.min(wikiCap, Math.floor(Number.isFinite(stackCap) ? stackCap : 1)));
+    const lambda = Math.max(0, Number.isFinite(mean) ? mean : 0);
+    if (cap <= 1 || lambda <= 0) return 0;
+
+    // Roots-of-unity filter for a Poisson count modulo `cap`. Precompute its
+    // harmonics once; each per-candidate estimate then uses at most four terms
+    // for the Wiki's standard 10-stack and boss 4-stack caps.
+    let harmonics = poissonRemainderHarmonicCache.get(cap);
+    if (!harmonics) {
+        harmonics = [];
+        for (let harmonic = 1; harmonic < cap - harmonic; harmonic++) {
+            const angle = (2 * Math.PI * harmonic) / cap;
+            harmonics.push({
+                decayRate: Math.cos(angle) - 1,
+                phaseRate: Math.sin(angle),
+                cotangent: Math.cos(angle / 2) / Math.sin(angle / 2),
+            });
+        }
+        poissonRemainderHarmonicCache.set(cap, harmonics);
+    }
+    let expectedRemainder = (cap - 1) / 2;
+    for (const harmonic of harmonics) {
+        const attenuation = Math.exp(lambda * harmonic.decayRate);
+        const phase = lambda * harmonic.phaseRate;
+        expectedRemainder -= attenuation * (
+            Math.cos(phase) + harmonic.cotangent * Math.sin(phase)
+        );
+    }
+    if (cap % 2 === 0) expectedRemainder -= 0.5 * Math.exp(-2 * lambda);
+    return Math.max(0, Math.min(cap - 1, expectedRemainder));
+}
+
 // ── Scoring ───────────────────────────────────────────────────────────────────
 
 function makeWeaponForAttack(weapon: WeaponEntry, atk: WeaponAttack | null | undefined): WeaponEntry {
@@ -848,6 +895,7 @@ function scoreEffects(
             targetProfileOverride?.nearbyGasOuterEnemyCount,
         );
     let score = 0;
+    let primaryScore = 0;
 
     const getPoolProgress = (type: DamageType, slashBleed: boolean, includeFactionMod: boolean): number => {
         const healthTypeMultiplier = type === "true" || slashBleed
@@ -870,16 +918,22 @@ function scoreEffects(
 
     for (const type of DAMAGE_TYPES) {
         const directDamageRate = (modded.damageBreakdown[type] ?? 0) * attackRate * damageRampMultiplier;
-        if (directDamageRate > 0) score += directDamageRate * getPoolProgress(type, false, true);
+        if (directDamageRate > 0) {
+            const primaryDirectScore = directDamageRate * getPoolProgress(type, false, true);
+            score += primaryDirectScore;
+            primaryScore += primaryDirectScore;
+        }
         const dotDamageRate = (modded.dotDpsByType[type as StatusDamageType] ?? 0) * dotDutyCycle * damageRampMultiplier;
         if (dotDamageRate > 0) {
+            const primaryDotScore = dotDamageRate * getPoolProgress(type, type === "slash", false);
             const areaTargetCount = type === "electricity"
                 ? 1 + nearbyEnemyCount
                 : type === "gas"
                     ? 1 + nearbyEnemyCount + nearbyGasOuterEnemyCount *
                         gasCloudOuterAnnulusCoverage(modded.gasCloudRadius)
                     : 1;
-            score += dotDamageRate * getPoolProgress(type, type === "slash", false) * areaTargetCount;
+            score += primaryDotScore * areaTargetCount;
+            primaryScore += primaryDotScore;
         }
     }
 
@@ -890,27 +944,49 @@ function scoreEffects(
         modded.steadyStateTargetStatusDamageMultiplier * objectiveAttackRate;
     if (goal !== "burst") blastDamageRate *= sustainedDutyCycle;
     blastDamageRate *= damageRampMultiplier;
-    if (blastDamageRate > 0) score += blastDamageRate * getPoolProgress("blast", false, false);
+    if (blastDamageRate > 0) {
+        const primaryBlastExpiryScore = blastDamageRate * getPoolProgress("blast", false, false);
+        score += primaryBlastExpiryScore;
+        primaryScore += primaryBlastExpiryScore;
+    }
 
-    // Approximate cap-triggered Blast radial value against explicitly selected
-    // nearby targets. Poisson arrivals estimate the chance that enough stacks
-    // arrive within the scaled fuse; on-kill detonations and neighbor state are
-    // left to the finite encounter/known modeling boundary.
+    // Estimate cap-triggered and on-death Blast radial value against explicitly
+    // selected nearby targets. The death estimate uses the primary-only score
+    // to project a kill time, then counts expected active stacks from arrivals
+    // in the shorter of that time and one scaled Blast fuse. It does not feed
+    // collateral back into primary TTK or simulate neighbor state/chains.
     const nearbyBlastEnemyCount = normalizeNearbyEnemyCount(targetProfileOverride?.nearbyBlastEnemyCount);
     const blastProcRate = Math.max(0, modded.procRatePerSecondByType.blast ?? 0) * dotDutyCycle;
-    const blastStackCap = Math.max(1, Math.floor(statusStackCaps.blast ?? STATUS_EFFECT_RULES.blast.maxStacks ?? 10));
+    const wikiBlastStackCap = STATUS_EFFECT_RULES.blast.maxStacks ?? 10;
+    const configuredBlastStackCap = Number.isFinite(statusStackCaps.blast)
+        ? statusStackCaps.blast ?? wikiBlastStackCap
+        : wikiBlastStackCap;
+    const blastStackCap = Math.max(1, Math.min(wikiBlastStackCap, Math.floor(configuredBlastStackCap)));
     const blastFuseSeconds = Math.max(0, STATUS_EFFECT_RULES.blast.detonationDelaySeconds ?? 1.5) * modded.statusDurationMultiplier;
     if (nearbyBlastEnemyCount > 0 && blastProcRate > 0 && modded.blastStackHitDamagePerProc > 0) {
+        const blastRadialDamagePerNeighborPerStack =
+            modded.blastStackHitDamagePerProc *
+            modded.steadyStateTargetStatusDamageMultiplier *
+            (STATUS_EFFECT_RULES.blast.stackCapDetonationMultiplier ?? 3) *
+            damageRampMultiplier * getPoolProgress("blast", false, false);
         const capProbability = poissonProbabilityAtLeast(
             blastProcRate * blastFuseSeconds,
             blastStackCap - 1,
         );
         const radialDamageRate = blastProcRate * capProbability *
-            modded.blastStackHitDamagePerProc *
-            modded.steadyStateTargetStatusDamageMultiplier *
-            (STATUS_EFFECT_RULES.blast.stackCapDetonationMultiplier ?? 3) *
-            nearbyBlastEnemyCount * damageRampMultiplier;
-        if (radialDamageRate > 0) score += radialDamageRate * getPoolProgress("blast", false, false);
+            blastRadialDamagePerNeighborPerStack * nearbyBlastEnemyCount;
+        if (radialDamageRate > 0) score += radialDamageRate;
+
+        if (primaryScore > 0 && blastFuseSeconds > 0) {
+            const estimatedPrimaryKillSeconds = poolTotal / primaryScore;
+            const expectedStacksAtDeath = poissonExpectedCountModuloCap(
+                blastProcRate * Math.min(estimatedPrimaryKillSeconds, blastFuseSeconds),
+                blastStackCap,
+            );
+            const deathRadialDamageRate = (primaryScore / poolTotal) * expectedStacksAtDeath *
+                blastRadialDamagePerNeighborPerStack * nearbyBlastEnemyCount;
+            if (deathRadialDamageRate > 0) score += deathRadialDamageRate;
+        }
     }
 
     return Number.isFinite(score) ? score : 0;
