@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getWeaponCatalog } from "../catalog/weaponCatalog";
 import { parseAlecaFrameRiven } from "../rivenFingerprint";
 import { RIVEN_BASE_WEIGHTS } from "../rivenBaseWeights";
-import { CURRENT_RIVEN_STAT_MULTIPLIER } from "../rivens";
+import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER } from "../rivens";
 
 const rivenPath = "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare";
 const maximumEncodedRoll = 0x3fffffff;
@@ -70,6 +70,31 @@ describe("AlecaFrame personalized Riven normalization", () => {
     } finally {
       weapon!.disposition = originalFactor;
     }
+  });
+
+  it("preserves imported primary-element display order when building the Riven effect", async () => {
+    const weapon = getWeaponCatalog().find((entry) => entry.name === "Acceltra");
+    expect(weapon).toBeDefined();
+    const encodedRoll = Math.round(maximumEncodedRoll / 2);
+    const result = await parseAlecaFrameRiven({
+      ItemId: "ordered-element-riven",
+      UpgradeFingerprint: {
+        compat: weapon!.uniqueName,
+        lvl: 8,
+        lvlReq: 6,
+        rerolls: 0,
+        pol: "AP_ATTACK",
+        buffs: [
+          { Tag: "WeaponElectricityDamageMod", Value: encodedRoll },
+          { Tag: "WeaponToxinDamageMod", Value: encodedRoll },
+        ],
+        curses: [],
+      },
+    }, rivenPath, "rivens:ordered-elements", 0);
+
+    expect(result.record.importStatus).toBe("ready");
+    expect(result.record.stats.map((stat) => stat.stat)).toEqual(["electricityDamage", "toxinDamage"]);
+    expect(buildCustomRivenEntry(result.record).effect.primaryElementOrder).toEqual(["toxin", "electricity"]);
   });
 
   it("retains a Riven with unknown rank without deriving or fabricating stats", async () => {
