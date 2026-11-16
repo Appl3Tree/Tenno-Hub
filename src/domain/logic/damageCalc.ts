@@ -382,6 +382,8 @@ export interface DamageCalculationOptions {
     includeDoTTickDetails?: boolean;
     /** Include the qualifying-group metadata needed by finite-encounter timed stack progression. */
     includeTimedConditionalHitStackDetails?: boolean;
+    /** Target-specific identical-enemy kill rate for realistic Galvanized per-status stack estimates. */
+    expectedKillRatePerSecond?: number;
 }
 
 export interface ConditionalState {
@@ -560,6 +562,7 @@ export function estimateConditionalUptime(
     fireRate: number,
     magazineSize: number,
     state: ConditionalState = DEFAULT_CONDITIONAL_STATE,
+    context: ConditionalStackEstimationContext = {},
 ): number {
     if (conditional.trigger === "whileTargetHasStatus") {
         const statuses = state.externalStatusTypes ?? [];
@@ -621,7 +624,11 @@ export function estimateConditionalUptime(
             break;
         }
         case "onKill":
-            uptime = ON_KILL_UPTIME_ASSUMPTION;
+            // The target-specific stack estimator already incorporates the
+            // fraction of time the kill buff remains active.
+            uptime = Number.isFinite(context.expectedKillRatePerSecond)
+                ? 1
+                : ON_KILL_UPTIME_ASSUMPTION;
             break;
         case "onOcucorTendrilKill":
             // Tendril bonuses remain active until the Ocucor magazine is reloaded
@@ -753,11 +760,29 @@ function estimateDecayingHitStackCount(ratePerSecond: number, durationSeconds: n
     return Math.max(0, Math.min(stackCap, hitWithinDuration * rewardPerGapTimesRate));
 }
 
+/**
+ * Long-run stack count for kills on a deterministic sequence of identical
+ * targets. Most Galvanized buffs lose one stack after a full duration without
+ * a kill, then reset the timeout. If each target dies before that timeout,
+ * successive kills reach and maintain the stack cap; if the gap is longer,
+ * one stack is active for only the duration portion of each kill interval.
+ */
+function estimateDeterministicKillStackCount(ratePerSecond: number, durationSeconds: number, maxStacks: number): number {
+    const stackCap = Math.max(0, Math.floor(Number.isFinite(maxStacks) ? maxStacks : 0));
+    const rate = Math.max(0, Number.isFinite(ratePerSecond) ? ratePerSecond : 0);
+    const duration = Math.max(0, Number.isFinite(durationSeconds) ? durationSeconds : 0);
+    if (stackCap === 0 || rate === 0 || duration === 0) return 0;
+    if (rate * duration > 1) return stackCap;
+    return Math.max(0, Math.min(1, rate * duration));
+}
+
 export interface ConditionalStackEstimationContext {
     /** Per-attack probability that the entire multishot group meets this trigger's hit condition. */
     qualifyingHitGroupProbability?: number;
     /** Effective qualifying attack rate when conditional fire-rate effects are already included. */
     qualifyingHitRatePerSecond?: number;
+    /** Expected weapon kills per second against repeated identical targets. */
+    expectedKillRatePerSecond?: number;
 }
 
 function estimateConditionalStackFactor(
@@ -779,6 +804,13 @@ function estimateConditionalStackFactor(
             Number.isFinite(context.qualifyingHitRatePerSecond)
                 ? Math.max(0, context.qualifyingHitRatePerSecond ?? 0)
                 : Math.max(0, fireRate) * qualifyingHitGroupProbability,
+            conditional.durationSeconds,
+            conditional.maxStacks,
+        );
+    }
+    if (conditional.trigger === "onKill" && Number.isFinite(context.expectedKillRatePerSecond)) {
+        return estimateDeterministicKillStackCount(
+            Math.max(0, context.expectedKillRatePerSecond ?? 0),
             conditional.durationSeconds,
             conditional.maxStacks,
         );
@@ -824,6 +856,9 @@ export function calculateBuild(
         ? options.statusImmuneTypes
         : new Set(options.statusImmuneTypes ?? []);
     const conditionalState = options.conditionalState ?? DEFAULT_CONDITIONAL_STATE;
+    const killStackContext = Number.isFinite(options.expectedKillRatePerSecond)
+        ? { expectedKillRatePerSecond: Math.max(0, options.expectedKillRatePerSecond ?? 0) }
+        : undefined;
     const infiniteAmmoActive = !!weapon.hasGaleForceAmmoPassive && (
         conditionalState.mode === "fullyStacked" ||
         (conditionalState.mode === "custom" && (conditionalState.externalStacks ?? 0) > 0)
@@ -1045,9 +1080,13 @@ export function calculateBuild(
             : Math.max(0, (conditionalState.meleeComboMultiplier ?? 1) - 1);
         for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
             if (conditional.trigger === "onNonCriticalNoStatusHit") continue;
+            const conditionalKillStackContext = conditional.trigger === "onKill" &&
+                (conditional.stats.directDamagePerStatusBonus ?? 0) > 0
+                ? killStackContext
+                : undefined;
             const factor =
-                estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState) *
-                estimateConditionalStackFactor(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState);
+                estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalKillStackContext) *
+                estimateConditionalStackFactor(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalKillStackContext);
             eligibilityDamageBonus += (conditional.stats.damageBonus ?? 0) * factor;
             eligibilityCritChanceBonus += (
                 (conditional.stats.critChanceBonus ?? 0) +
@@ -1160,6 +1199,10 @@ export function calculateBuild(
     const conditionalDirectBonusBreakdown = emptyBreakdown();
     for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
         const isTimedHitStack = conditional.trigger === "onNonCriticalNoStatusHit";
+        const conditionalKillStackContext = conditional.trigger === "onKill" &&
+            (conditional.stats.directDamagePerStatusBonus ?? 0) > 0
+            ? killStackContext
+            : undefined;
         const isExplicitTargetStatusCondition = conditional.trigger === "whileTargetHasStatus";
         const isStaticDistanceCondition = conditional.trigger === "whileNoEnemyWithinRange";
         if (
@@ -1176,7 +1219,7 @@ export function calculateBuild(
             Math.min(1, qualifyingHitGroupProbability * triggerUptime),
         );
         const factor =
-            estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState) *
+            estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalKillStackContext) *
             estimateConditionalStackFactor(
                 conditional,
                 baselineRawFireRate,
@@ -1186,8 +1229,9 @@ export function calculateBuild(
                     ? {
                         qualifyingHitGroupProbability: conditionalQualifyingGroupProbability,
                         qualifyingHitRatePerSecond: qualifyingHitRatePerSecond * triggerUptime,
+                        ...(conditionalKillStackContext ?? {}),
                     }
-                    : undefined,
+                    : conditionalKillStackContext,
             );
         if (isTimedHitStack && (conditional.stats.damageBonus ?? 0) !== 0) {
             const maxStacks = Math.max(0, Math.floor(conditional.maxStacks ?? 1));

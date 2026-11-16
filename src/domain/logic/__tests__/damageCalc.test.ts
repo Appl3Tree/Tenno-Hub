@@ -670,6 +670,88 @@ describe("damage calculation status eligibility", () => {
         }
     });
 
+    it("models Galvanized kill stacks from deterministic identical-target kill sequences", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Rubico Prime");
+        expect(weapon).toBeDefined();
+        const mod = getModsForWeapon(weapon!).find((entry) => entry.name === "Galvanized Aptitude");
+        expect(mod).toBeDefined();
+        const maxRankEffect = mod!.effectsByRank[mod!.fusionLimit];
+
+        const averageStacksInSequence = (killInterval: number, duration: number, stackCap: number) => {
+            const warmup = 10 * duration;
+            const horizon = warmup + 100 * duration;
+            let stacks = 0;
+            let time = 0;
+            let nextKill = 0;
+            let nextTimeout = Number.POSITIVE_INFINITY;
+            let stackTime = 0;
+            while (time < horizon) {
+                const eventTime = Math.min(nextKill, nextTimeout, horizon);
+                if (eventTime > warmup) {
+                    stackTime += stacks * (eventTime - Math.max(time, warmup));
+                }
+                time = eventTime;
+                if (nextTimeout <= nextKill && nextTimeout <= horizon) {
+                    stacks = Math.max(0, stacks - 1);
+                    nextTimeout = stacks > 0 ? time + duration : Number.POSITIVE_INFINITY;
+                } else if (nextKill <= horizon) {
+                    stacks = Math.min(stackCap, stacks + 1);
+                    nextTimeout = time + duration;
+                    nextKill += killInterval;
+                } else {
+                    break;
+                }
+            }
+            return stackTime / (horizon - warmup);
+        };
+
+        const fastSequenceStacks = averageStacksInSequence(10, 20, 2);
+        const boundarySequenceStacks = averageStacksInSequence(20, 20, 2);
+        const slowSequenceStacks = averageStacksInSequence(40, 20, 2);
+        expect(fastSequenceStacks).toBeCloseTo(2, 8);
+        expect(boundarySequenceStacks).toBeCloseTo(1, 8);
+        expect(slowSequenceStacks).toBeCloseTo(0.5, 8);
+
+        const realistic = calculateBuild(weapon!, [maxRankEffect], "", {
+            conditionalState: { mode: "realistic" },
+            expectedKillRatePerSecond: 1 / 10,
+        }).modded;
+        const slowSequence = calculateBuild(weapon!, [maxRankEffect], "", {
+            conditionalState: { mode: "realistic" },
+            expectedKillRatePerSecond: 1 / 40,
+        }).modded;
+        const noKills = calculateBuild(weapon!, [maxRankEffect], "", {
+            conditionalState: { mode: "realistic" },
+            expectedKillRatePerSecond: 0,
+        }).modded;
+        const initial = calculateBuild(weapon!, [maxRankEffect], "", {
+            conditionalState: { mode: "initial" },
+            expectedKillRatePerSecond: 1 / 10,
+        }).modded;
+        const fullyStacked = calculateBuild(weapon!, [maxRankEffect], "", {
+            conditionalState: { mode: "fullyStacked" },
+            expectedKillRatePerSecond: 1 / 10,
+        }).modded;
+        const laetum = getWeaponCatalog().find((entry) => entry.name === "Laetum");
+        const galvanizedShot = getModsForWeapon(laetum!).find((entry) => entry.name === "Galvanized Shot");
+        const slowShotSequence = calculateBuild(laetum!, [galvanizedShot!.effect], "", {
+            conditionalState: { mode: "realistic" },
+            expectedKillRatePerSecond: 1 / 20,
+        }).modded;
+        const fastShotSequence = calculateBuild(laetum!, [galvanizedShot!.effect], "", {
+            conditionalState: { mode: "realistic" },
+            expectedKillRatePerSecond: 1 / 10,
+        }).modded;
+
+        expect(realistic.directDamagePerStatusBonus).toBeCloseTo(0.4 * fastSequenceStacks, 6);
+        expect(slowSequence.directDamagePerStatusBonus).toBeCloseTo(0.4 * slowSequenceStacks, 6);
+        expect(slowShotSequence.directDamagePerStatusBonus).toBeCloseTo(0.4 * (14 / 20), 6);
+        expect(fastShotSequence.directDamagePerStatusBonus).toBeCloseTo(0.4 * 3, 6);
+        expect(noKills.directDamagePerStatusBonus).toBe(0);
+        expect(initial.directDamagePerStatusBonus).toBe(0);
+        expect(fullyStacked.directDamagePerStatusBonus).toBeCloseTo(0.8, 6);
+    });
+
     it("does not apply heavy-attack critical chance to a Glaive's direct throw", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Glaive Prime");
         expect(weapon).toBeDefined();

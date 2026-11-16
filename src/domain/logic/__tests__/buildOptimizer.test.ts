@@ -1964,6 +1964,66 @@ describe("build optimizer scoring", () => {
         expect(withGalvanized.timeToKillSeconds).toBeCloseTo(1, 8);
     });
 
+    it("uses deterministic target kill cadence for realistic Galvanized per-status scoring", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100,
+                impact: 100,
+                puncture: 0,
+                slash: 0,
+                heat: 0,
+                cold: 0,
+                electricity: 0,
+                toxin: 0,
+                blast: 0,
+                radiation: 0,
+                gas: 0,
+                magnetic: 0,
+                viral: 0,
+                corrosive: 0,
+                void: 0,
+                tau: 0,
+                true: 0,
+            },
+            statusChance: 1,
+            critChance: 0,
+            critMultiplier: 1,
+            fireRate: 10,
+            magazineSize: 100,
+            reloadTime: 0,
+        });
+        const galvanizedPerStatus = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onKill" as const,
+                durationSeconds: 20,
+                requiresAiming: false,
+                maxStacks: 2,
+                stats: { directDamagePerStatusBonus: 0.4 },
+            }],
+        };
+        const target = (health: number) => ({
+            health,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            healthShare: 1,
+            shieldShare: 0,
+            effectiveHealth: health,
+            hasOverguard: false,
+            crowdControlImmune: false,
+            grouped: false,
+        });
+        const fastInitial = debugScoreBuild(weapon, [galvanizedPerStatus], "scaling", "", null, target(100), { mode: "initial" });
+        const fastRealistic = debugScoreBuild(weapon, [galvanizedPerStatus], "scaling", "", null, target(100), { mode: "realistic" });
+        const slowInitial = debugScoreBuild(weapon, [galvanizedPerStatus], "scaling", "", null, target(1_000_000_000), { mode: "initial" });
+        const slowRealistic = debugScoreBuild(weapon, [galvanizedPerStatus], "scaling", "", null, target(1_000_000_000), { mode: "realistic" });
+
+        expect(fastRealistic).toBeGreaterThan(fastInitial);
+        expect(slowRealistic - slowInitial).toBeGreaterThan(0);
+        expect(slowRealistic - slowInitial).toBeLessThan(fastRealistic - fastInitial);
+    });
+
     it("reserves finite-TTK refinement for tempo candidates that the proxy undervalues", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
         expect(weapon).toBeTruthy();

@@ -115,6 +115,174 @@ function effectiveBurstTiming(weapon: WeaponEntry | null | undefined, effectiveF
         burstDelaySeconds: delay / rateScale,
     };
 }
+
+type BuilderTargetEncounterOptions = {
+    targetAssumptions: ReturnType<typeof getTargetProfileAssumptions>;
+    targetFaction: string;
+    effects: (ModEffect | null)[];
+    targetProfileOverride?: TargetProfileOverride | null;
+    statusImmuneTypes: Iterable<StatusDamageType>;
+    externalStatusTypeCount: number;
+    externalStatusTypes: readonly ExternalStatusType[];
+    conditionalState: ConditionalState;
+};
+
+function simulateBuilderTargetEncounter(
+    weapon: WeaponEntry,
+    stats: ReturnType<typeof calculateBuild>["modded"],
+    options: BuilderTargetEncounterOptions,
+): ReturnType<typeof simulateExpectedWeaponEncounter> {
+    const {
+        targetAssumptions,
+        targetFaction,
+        effects,
+        targetProfileOverride,
+        statusImmuneTypes,
+        externalStatusTypeCount,
+        externalStatusTypes,
+        conditionalState,
+    } = options;
+    const factionDamageBonus = effects.reduce((sum, effect) =>
+        effect?.targetFaction?.toLowerCase() === targetFaction.toLowerCase()
+            ? sum + (effect.factionDamageBonus ?? 0)
+            : sum,
+        0,
+    );
+
+    return simulateExpectedWeaponEncounter({
+        damageByType: stats.damageBreakdownBeforePerStatus,
+        rawDamageByType: stats.rawDamageBreakdownBeforePerStatus,
+        baseDamageTotal: stats.baseDamageTotal,
+        health: targetAssumptions.health,
+        shields: targetAssumptions.shields,
+        overguard: targetAssumptions.overguard,
+        maxShields: targetAssumptions.shields,
+        maxOverguard: targetAssumptions.overguard,
+        armor: targetAssumptions.armor,
+        baseArmorValue: targetProfileOverride?.armorBaseValue ?? targetAssumptions.armor,
+        armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+        shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
+        faction: targetFaction,
+        factionDamageBonus,
+        toxinBypassesShields: targetAssumptions.toxinBypassesShields,
+        enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
+        damageRampRule: weapon.selectedAttackDamageRamp,
+        critChance: stats.critChance,
+        critMultiplier: stats.critMultiplier,
+        nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
+        expectedProjectiles: stats.multishot,
+        expectedDamageMultiplier: stats.damageWeightedMultishot,
+        singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
+        attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+        autoSpoolCadenceRule: weapon.selectedAttackAutoSpoolCadence,
+        autoSpoolShotSequenceRule: weapon.selectedAttackAutoSpoolShotSequence,
+        shotsPerMagazine: stats.finiteShotsPerMag,
+        attackCountLimit: weapon.selectedAttackIsIncarnon && weapon.selectedAttackIncarnonAmmoCapacity !== undefined
+            ? stats.finiteShotsPerMag
+            : undefined,
+        infiniteAmmoActive: stats.infiniteAmmoActive,
+        firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
+        lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
+        reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+        ...effectiveBurstTiming(weapon, stats.fireRate),
+        statusDurationMultiplier: stats.statusDurationMultiplier,
+        targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
+        initialHeatStatusPresenceProbability: conditionalState.externalHeatStatusPresenceProbability,
+        dotDamagePerAttackByType: stats.dotDamagePerShotByType,
+        dotDamagePerApplicationByType: Object.fromEntries(
+            Object.entries(stats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
+                const type = rawType as StatusDamageType;
+                const applications = stats.averageProcsPerShot * (stats.procChanceByType[type] ?? 0);
+                return applications > 0 ? [[type, damagePerAttack / applications]] : [];
+            }),
+        ) as Partial<Record<StatusDamageType, number>>,
+        heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
+        heatDotAccumulatorDamagePerTick: stats.dotTickAccumulatorDamageByType.heat,
+        dotSeedDamagePerApplicationByType: stats.dotDamagePerApplicationSeedByType,
+        dotAccumulatorDamagePerApplicationByType: stats.dotDamagePerApplicationAccumulatorByType,
+        statusProcWeightsByType: stats.damageBreakdownBeforePerStatus,
+        statusRollsPerAttack: stats.multishot * stats.statusChance,
+        forcedStatusApplicationsPerAttackByType: stats.unfilteredExtraProcsPerShot as Partial<Record<StatusDamageType, number>>,
+        statusImmuneTypes,
+        statusStackCaps: targetProfileOverride?.statusStackCaps,
+        blastStackHitDamagePerProc: stats.blastStackHitDamagePerProcBeforeConditionOverload,
+        nearbyBlastEnemyCount: targetProfileOverride?.nearbyBlastEnemyCount,
+        nearbyElectricGasEnemyCount: targetProfileOverride?.nearbyEnemyCount,
+        nearbyGasOuterEnemyCount: targetProfileOverride?.nearbyGasOuterEnemyCount,
+        magneticBreakElectricSourceMultiplier: stats.magneticBreakElectricSourceMultiplier,
+        directDamagePerStatusBonus: stats.directDamagePerStatusBonus,
+        conditionOverloadDamagePerStatusBonus: stats.conditionOverloadApplies
+            ? stats.conditionOverloadDamagePerStatusBonus
+            : 0,
+        externalConditionOverloadStatusTypeCount: externalStatusTypeCount,
+        externalStatusTypes,
+        uniqueStatusProcsPerAttack: weapon.uniqueStatusProcs,
+        intrinsicDamagePerStatusBonus: stats.intrinsicDamagePerStatusBonus,
+        intrinsicDamagePerStatusMode: stats.intrinsicDamagePerStatusMode,
+        totalDamageBonus: stats.totalDamageBonus,
+        timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
+    });
+}
+
+function estimateGalvanizedPerStatusKillRate(
+    weapon: WeaponEntry,
+    effects: (ModEffect | null)[],
+    targetFaction: string,
+    targetProfileOverride: TargetProfileOverride | undefined,
+    conditionalState: ConditionalState,
+    externalStatusTypeCount: number,
+    externalStatusTypes: readonly ExternalStatusType[],
+    statusImmuneTypes?: Iterable<StatusDamageType>,
+): number | undefined {
+    const hasGalvanizedPerStatusKillEffect = effects.some((effect) =>
+        effect?.conditionalEffects?.some((conditional) =>
+            conditional.trigger === "onKill" && (conditional.stats.directDamagePerStatusBonus ?? 0) > 0,
+        ) === true,
+    );
+    if (
+        !hasGalvanizedPerStatusKillEffect ||
+        weapon.selectedAttackIsAreaDamage === true ||
+        conditionalState.mode !== "realistic"
+    ) return undefined;
+    if (weapon.selectedAttackAutoSpoolTimingLimitation) return 0;
+
+    const targetAssumptions = getTargetProfileAssumptions(targetFaction, targetProfileOverride);
+    const effectiveStatusImmunities = statusImmuneTypes ?? targetAssumptions.statusImmuneTypes;
+    const simulateAtKillRate = (killRate: number) => {
+        const metrics = calculateBuildForExpectedEncounter(weapon, effects, targetFaction, {
+            conditionalState,
+            statusImmuneTypes: effectiveStatusImmunities,
+            statusStackCaps: targetProfileOverride?.statusStackCaps ?? targetAssumptions.statusStackCaps,
+            targetStatusState: "initial",
+            expectedKillRatePerSecond: killRate,
+        });
+        return simulateBuilderTargetEncounter(weapon, metrics.modded, {
+            targetAssumptions,
+            targetFaction,
+            effects,
+            targetProfileOverride,
+            statusImmuneTypes: effectiveStatusImmunities,
+            externalStatusTypeCount,
+            externalStatusTypes,
+            conditionalState,
+        });
+    };
+
+    const noGalvanizedStacksEncounter = simulateAtKillRate(0);
+    let expectedKillRatePerSecond = noGalvanizedStacksEncounter.timeToKillSeconds &&
+        noGalvanizedStacksEncounter.timeToKillSeconds > 0
+        ? 1 / noGalvanizedStacksEncounter.timeToKillSeconds
+        : 0;
+    for (let iteration = 0; iteration < 3 && expectedKillRatePerSecond > 0; iteration++) {
+        const encounter = simulateAtKillRate(expectedKillRatePerSecond);
+        const nextKillRatePerSecond = encounter.timeToKillSeconds && encounter.timeToKillSeconds > 0
+            ? 1 / encounter.timeToKillSeconds
+            : 0;
+        if (nextKillRatePerSecond <= expectedKillRatePerSecond * (1 + 1e-6)) break;
+        expectedKillRatePerSecond = nextKillRatePerSecond;
+    }
+    return expectedKillRatePerSecond;
+}
 const POL_IMG: Record<string, string> = {};
 const POL_SVG_RAW: Record<string, string> = {};
 for (const [p, url] of Object.entries(_polImgs)) {
@@ -1256,6 +1424,8 @@ function buildMathBreakdown(
     conditionalState: ConditionalState = DEFAULT_CONDITIONAL_STATE,
     targetProfileOverride?: TargetProfileOverride,
     meleeDpsInputs?: MeleeDpsInputState | null,
+    expectedKillRatePerSecond?: number,
+    statusImmuneTypes?: Iterable<StatusDamageType>,
 ): BuildMathBreakdown {
     const totals = sumEffects(effects);
     const hasSuppressedPerStatusDirectHitBonus = weapon.selectedAttackIsAreaDamage === true && (
@@ -1268,16 +1438,17 @@ function buildMathBreakdown(
     );
     const result = calculateBuild(weapon, effects, targetFaction, {
         conditionalState,
-        statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+        statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
         includeTimedConditionalHitStackDetails: true,
+        ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
     const stats = result.modded;
     const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
         meleeDpsInputs != null
         ? calculateBuild(weapon, effects, targetFaction, {
             conditionalState: { mode: "initial" },
-            statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+            statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             targetStatusState: "initial",
         }).modded
@@ -1347,7 +1518,18 @@ function buildMathBreakdown(
             ? stats.timedConditionalDamageStacks[timedStackTraceIndex++]
             : undefined;
         const conditionalQualifyingGroupProbability = timedStackModel?.qualifyingHitGroupProbability ?? qualifyingHitGroupProbability;
-        const uptime = estimateConditionalUptime(conditional, baselineRateForConditionals, baseMagazineForConditionals, conditionalState);
+        const killStackContext = conditional.trigger === "onKill" &&
+            (conditional.stats.directDamagePerStatusBonus ?? 0) > 0 &&
+            Number.isFinite(expectedKillRatePerSecond)
+            ? { expectedKillRatePerSecond }
+            : undefined;
+        const uptime = estimateConditionalUptime(
+            conditional,
+            baselineRateForConditionals,
+            baseMagazineForConditionals,
+            conditionalState,
+            killStackContext,
+        );
         const stackFactor = estimateConditionalStackFactor(
             conditional,
             baselineRateForConditionals,
@@ -1356,6 +1538,7 @@ function buildMathBreakdown(
             {
                 qualifyingHitGroupProbability: conditionalQualifyingGroupProbability,
                 qualifyingHitRatePerSecond: stats.fireRate * conditionalQualifyingGroupProbability,
+                ...killStackContext,
             },
         );
         const combinedFactor = uptime * stackFactor;
@@ -1370,7 +1553,10 @@ function buildMathBreakdown(
         const triggerModel = conditional.trigger === "onNonCriticalNoStatusHit"
             ? ` qualifying group chance ${fmt(conditionalQualifyingGroupProbability * 100, 5)}% from ${fmt(stats.critChance * 100, 2)}% crit, ${fmt(stats.statusChance * 100, 2)}% status, and ${fmt(stats.multishot, 3)} multishot; the steady-state estimate uses Poisson arrivals at ${fmt(stats.fireRate * conditionalQualifyingGroupProbability, 5)}/s and one-stack decay per full duration without a trigger. The finite encounter starts at ${timedStackModel?.initialStacks ?? 0} stacks and advances one qualifying attack group at a time. The model treats crit/status rolls as independent per projectile and averages fractional multishot as one extra-projectile chance. Target status immunities and forced weapon procs are applied; DoT ticks and externally applied statuses are excluded.`
             : "";
-        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${triggerModel}`;
+        const killCadenceModel = killStackContext
+            ? ` identical-target kill interval ${expectedKillRatePerSecond! > 0 ? fmt(1 / expectedKillRatePerSecond!, 3) + "s" : "no modeled kills"}; the Wiki timeout removes one stack and resets its timer. The estimate uses a deterministic repeating-target cycle; it does not simulate per-enemy carryover or unrelated kill sources.`
+            : "";
+        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${triggerModel}${killCadenceModel}`;
     });
     if (conditionalEntries.some((conditional) => conditional.trigger === "onOcucorTendrilKill")) {
         const ocucorTendrilCondition = conditionalEntries.find((conditional) => conditional.trigger === "onOcucorTendrilKill")!;
@@ -1730,6 +1916,7 @@ function buildExportPayload(args: {
     conditionalState: ConditionalState;
     targetFaction: string | null;
     targetProfileOverride?: TargetProfileOverride;
+    targetStatusImmunities: StatusDamageType[];
     buildCfg: BuildCfg;
     includeArcaneStats: boolean;
     slots: (ModEntry | null)[];
@@ -1767,7 +1954,7 @@ function buildExportPayload(args: {
     excluded: Set<string>;
 }): BuildExportPayload | null {
     const {
-        weapon, selectedAttackIdx, goal, conditionalState, targetFaction, targetProfileOverride, meleeDpsInputs, buildCfg, includeArcaneStats,
+        weapon, selectedAttackIdx, goal, conditionalState, targetFaction, targetProfileOverride, targetStatusImmunities, meleeDpsInputs, buildCfg, includeArcaneStats,
         slots, ranks, slotPols, stanceMod, stanceRank, stancePol, formaCount, exilusEnabled, exilusMod, exilusRank, exilusPol, arcane, arcaneRank,
         warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
         optimizeMode, respectCap, allowNonMax, onlyOwned, factionOn, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane,
@@ -1801,16 +1988,28 @@ function buildExportPayload(args: {
         });
     }
 
+    const expectedKillRatePerSecond = estimateGalvanizedPerStatusKillRate(
+        calcWeapon,
+        effects,
+        targetFaction ?? "",
+        targetProfileOverride,
+        conditionalState,
+        conditionalState.externalStatusTypeCount ?? 0,
+        conditionalState.externalStatusTypes ?? [],
+        targetStatusImmunities,
+    );
+
     const calculated = calculateBuild(calcWeapon, effects, targetFaction ?? "", {
         conditionalState,
-        statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+        statusImmuneTypes: targetStatusImmunities,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
+        ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
     const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
         meleeDpsInputs != null
         ? calculateBuild(calcWeapon, effects, targetFaction ?? "", {
             conditionalState: { mode: "initial" },
-            statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
+            statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             targetStatusState: "initial",
         }).modded
@@ -1838,7 +2037,16 @@ function buildExportPayload(args: {
             }
             : null,
     };
-    const math = buildMathBreakdown(calcWeapon, effects, targetFaction ?? "", conditionalState, targetProfileOverride ?? undefined, meleeDpsInputs);
+    const math = buildMathBreakdown(
+        calcWeapon,
+        effects,
+        targetFaction ?? "",
+        conditionalState,
+        targetProfileOverride ?? undefined,
+        meleeDpsInputs,
+        expectedKillRatePerSecond,
+        targetStatusImmunities,
+    );
     const ownedModsForExport = onlyOwned
         ? compatMods
             .filter((mod) => ownedSet.has(mod.uniqueName))
@@ -3867,6 +4075,7 @@ export default function ModBuilder() {
         conditionalState,
         targetFaction: factionOn ? faction : null,
         targetProfileOverride,
+        targetStatusImmunities,
         buildCfg,
         includeArcaneStats,
         slots,
@@ -3903,7 +4112,7 @@ export default function ModBuilder() {
         ownedArcaneMaxRankByUniqueName,
         excluded,
     }), [
-        weapon, selectedAttackIdx, goal, conditionalState, factionOn, faction, targetProfileOverride, meleeDpsInputs, buildCfg, includeArcaneStats, warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
+        weapon, selectedAttackIdx, goal, conditionalState, factionOn, faction, targetProfileOverride, targetStatusImmunities, meleeDpsInputs, buildCfg, includeArcaneStats, warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
         slots, ranks, slotPols, stanceMod, stanceRank, stancePol, formaCount, hasExilus, exilusMod, exilusRank, exilusPol, arcane1, arcane1Rank,
         optimizeMode, respectCap, allowNonMax, onlyOwned, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane,
         compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
@@ -4183,13 +4392,29 @@ export default function ModBuilder() {
         () => getTargetProfileAssumptions(factionOn ? faction : "", targetProfileOverride),
         [factionOn, faction, targetProfileOverride],
     );
+    const expectedKillRatePerSecond = useMemo(
+        () => activeCalcWeapon
+            ? estimateGalvanizedPerStatusKillRate(
+                activeCalcWeapon,
+                activeBuildEffects,
+                factionOn ? faction : "",
+                targetProfileOverride,
+                conditionalState,
+                externalStatusTypeCount,
+                externalStatusTypes,
+                targetStatusImmunities,
+            )
+            : undefined,
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, targetProfileOverride, conditionalState, externalStatusTypeCount, externalStatusTypes, targetStatusImmunities],
+    );
     const activeMetrics = useMemo(
         () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
+            ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         }) : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions, expectedKillRatePerSecond],
     );
     const phantasmaBeamDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
@@ -4220,8 +4445,9 @@ export default function ModBuilder() {
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             targetStatusState: "initial",
+            ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         }) : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, targetStatusImmunities, targetProfileOverride],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, targetStatusImmunities, targetProfileOverride, expectedKillRatePerSecond],
     );
     const activeProcMixLabel = activeMetrics
         ? Object.entries(activeMetrics.modded.procChanceByType)
@@ -4896,7 +5122,25 @@ export default function ModBuilder() {
             ));
             setReasoningContextAtOptimization(currentReasoningContextKey);
             const mathWeapon = makeSelectedAttackWeapon(weaponForOpt, selectedAttackIdx);
-            setReasoningMath(buildMathBreakdown(mathWeapon, mathEffects, factionOn ? faction : "", conditionalState, targetProfileOverride, meleeDpsInputs));
+            const reasoningKillRate = estimateGalvanizedPerStatusKillRate(
+                mathWeapon,
+                mathEffects,
+                factionOn ? faction : "",
+                targetProfileOverride,
+                conditionalState,
+                externalStatusTypeCount,
+                externalStatusTypes,
+                targetStatusImmunities,
+            );
+            setReasoningMath(buildMathBreakdown(
+                mathWeapon,
+                mathEffects,
+                factionOn ? faction : "",
+                conditionalState,
+                targetProfileOverride,
+                meleeDpsInputs,
+                reasoningKillRate,
+            ));
             setOptimizerProgress(null);
         } catch (error) {
             if (!optimizerCancelledRef.current) {
@@ -5437,7 +5681,7 @@ export default function ModBuilder() {
                                                 </p>
                                             )}
                                             {weapon && usesMeleeDamageModel(weapon.category) && (
-                                                <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses static Initial Combo mods and supported weapon passives, and ignores this field. Conditional Initial Combo bonuses apply when their selected state is active. Realistic kill-triggered bonuses use shared 60% uptime and 70% stack-cap estimates, not a target-specific kill history. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). Direct-hit TTK then steps combo after each heavy hit and rebuilds Initial Combo at 40 points/s. It does not model combo generated by hits, Tennokai, stance sequences, heavy-attack wind-up, or enemies hit per swing. DPS, the finite status encounter, and optimizer scores hold the starting tier.</p>
+                                                <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses static Initial Combo mods and supported weapon passives, and ignores this field. Conditional Initial Combo bonuses apply when their selected state is active. Kill-triggered effects without a mechanic-specific model use shared uptime/stack estimates. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). Direct-hit TTK then steps combo after each heavy hit and rebuilds Initial Combo at 40 points/s. It does not model combo generated by hits, Tennokai, stance sequences, heavy-attack wind-up, or enemies hit per swing. DPS, the finite status encounter, and optimizer scores hold the starting tier.</p>
                                             )}
                                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                                                 {([
@@ -6273,6 +6517,18 @@ export default function ModBuilder() {
                                                                     </div>
                                                                 )}
                                                                 <div><span className="text-slate-500">Conditional state:</span> {conditionalState.mode}</div>
+                                                                {conditionalState.mode === "realistic" && activeCalcWeapon?.selectedAttackIsAreaDamage !== true && activeBuildEffects.some((effect) =>
+                                                                    effect?.conditionalEffects?.some((conditional) =>
+                                                                        conditional.trigger === "onKill" && (conditional.stats.directDamagePerStatusBonus ?? 0) > 0,
+                                                                    ) === true,
+                                                                ) && (
+                                                                    <div className="sm:col-span-2">
+                                                                        <span className="text-slate-500">Galvanized per-status kill cadence:</span>{" "}
+                                                                        {expectedKillRatePerSecond && expectedKillRatePerSecond > 0
+                                                                            ? `${fmt(1 / expectedKillRatePerSecond, 3)}s per repeated-target kill`
+                                                                            : "unavailable for this attack/target"}; assumes repeated identical targets and a kill from the weapon with the mod. The Wiki timeout removes one stack and resets its timer; individual kill history and outside kill sources are not simulated. <a href="https://wiki.warframe.com/w/Galvanized_Mods" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki</a>
+                                                                    </div>
+                                                                )}
                                                                 {(externalStatusTypeCount > 0 || externalStatusTypes.length > 0) && (
                                                                     <div><span className="text-slate-500">External status assumption:</span> {externalStatusTypes.length > 0 ? externalStatusTypes.join(" · ") + " maintained throughout the encounter" : "none named"}{externalStatusTypeCount > 0 ? ` · ${externalStatusTypeCount} legacy unnamed type(s), Condition Overload only` : ""}</div>
                                                                 )}
@@ -6842,7 +7098,7 @@ export default function ModBuilder() {
                                         { label: "Impact Mercy", value: fmt(stats.impactMercyThresholdBonus * 100, 0) + "%", sub: "mercy threshold", tooltip: "Expected additional Mercy health-threshold bonus from Impact stacks (+8 percentage points each, up to +40%). Applies to heavy Mercy-eligible units only; target eligibility and Mercy outcomes are not modeled." },
                                         { label: `Blast / ${damageUnitLabel}`, value: fmt(stats.blastExpectedExpiryDamagePerShot), sub: "stack expiry damage", tooltip: `Expected damage from Blast stacks that expire naturally after one ${damageUnit}. Cap detonation is calculated in the finite encounter.` },
                                         { label: "Gas Radius", value: fmt(stats.gasCloudRadius, 2) + "m", sub: "cloud radius", tooltip: "Effective radius of the Gas cloud from current Gas stacks." },
-                                        { label: "Tau Vulnerability", value: fmt(stats.tauStatusVulnerability * 100, 0) + "%", sub: "status vulnerability", tooltip: "+10% received Status Chance per Tau stack, up to +100%. The finite encounter applies active stacks to later ordinary status rolls; Tau and forced procs are not amplified." },
+                                        { label: "Tau Vulnerability", value: fmt(stats.tauStatusVulnerability * 100, 0) + "%", sub: "status vulnerability", tooltip: "+10% received Status Chance per Tau stack, up to +100%. The finite encounter carries expected Tau applications between sequential projectiles as a mean-field estimate; external Tau assumes one maintained stack. Tau and forced procs are not amplified." },
                                     ];
                                     const renderBadgeSection = (
                                         title: string,

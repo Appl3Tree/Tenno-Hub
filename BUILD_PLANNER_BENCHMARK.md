@@ -4,6 +4,12 @@ Run date: 2026-11-16; current full-width refresh: 2026-11-15
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Realistic Galvanized per-status kill cadence (2026-11-16)
+
+The benchmark harness accepts `--realistic` to exercise repeated-target on-kill estimates. Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=3 --weapon=Cedo --goal=timeToKill --realistic`. The direct Normal Attack case selected max-rank Galvanized Savvy in the same legal 3-Forma build for all three runs, at 0.727795s modeled TTK and 4,226.5ms median optimizer time (4,272.9ms maximum / three-run p95 observation). The companion Glaive Radial Attack case is AoE and does not use the per-status kill-stack estimate; it returned a legal 3-Forma result at 3.68421s TTK, with 3,498.5ms median and 4,300.5ms maximum.
+
+The Realistic finite encounter estimates cadence from repeated identical target kills, while the optimizer search uses a sustained damage/pool proxy with up to two cadence refinements to control hot-path cost. Neither simulates each target's random proc and timeout history. This three-run desktop Node sample is too small for a stable p95 and does not measure browser Worker startup, mobile performance, or global optimality.
+
 ## Wiki Auto-Spool finite-encounter case (2026-11-16)
 
 Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=20 --weapon="Soma Prime" --goal=timeToKill`. This targeted case was added to the benchmark harness so source-backed Auto-Spool timing participates in exact encounter scoring and repeatable latency measurements. It used the Grineer faction preset, Initial conditional state, MR 30, Catalyst, Exilus/Arcane optimization, 107 filtered mod candidates, 14 Arcane candidates, and a three-Forma limit. Every run evaluated 158 exact encounter candidates and returned the same legal two-Forma build: Heavy Caliber R10, Vital Sense R5, Primed Cryo Rounds R10, Malignant Force R3, Thermite Rounds R3, Hata-Satya R5, Split Chamber R5, and Vile Acceleration R5. The build used 59/60 capacity, selected no Arcane, and modeled 1.333146 s TTK / 18,752.64 damage per second.

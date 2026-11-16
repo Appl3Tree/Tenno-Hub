@@ -63,7 +63,9 @@ const optimizeExilus = !process.argv.includes("--no-exilus");
 const verifyArcaneSelection = process.argv.includes("--verify-arcane-selection");
 const conditionalState: ConditionalState = process.argv.includes("--fully-stacked")
     ? { mode: "fullyStacked" }
-    : { mode: "initial" };
+    : process.argv.includes("--realistic")
+        ? { mode: "realistic" }
+        : { mode: "initial" };
 const allCases: BenchmarkCase[] = [
     { weaponName: "Braton Prime", category: "rifle", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Cedo", category: "shotgun", goal: "burst", targetFaction: "Grineer" },
