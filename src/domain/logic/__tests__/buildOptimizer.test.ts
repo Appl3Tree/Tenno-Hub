@@ -695,6 +695,58 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Wiki-modeled Nightwatch Napalm eligible and scores it in finite Expected TTK", () => {
+        const kuvaOgris = getWeaponCatalog().find((candidate) => candidate.name === "Kuva Ogris");
+        expect(kuvaOgris).toBeDefined();
+        const explosionIndex = kuvaOgris!.attacks.findIndex((attack) => attack.name === "Rocket Explosion");
+        expect(explosionIndex).toBeGreaterThanOrEqual(0);
+        const weapon = withSelectedAttack(kuvaOgris!, explosionIndex);
+        const builderMods = filterBuilderExpertVariants(getModsForWeapon(kuvaOgris!));
+        const napalm = builderMods.find((candidate) => candidate.name === "Nightwatch Napalm");
+        expect(napalm).toBeDefined();
+        expect(napalm!.hasDamageEffect).toBe(true);
+        expect(getUnmodeledDamageEffectLines(napalm!, napalm!.fusionLimit)).toEqual([]);
+
+        const target = { health: 5_000, shields: 0, overguard: 0, armor: 0 };
+        const baseline = debugScoreExpectedEncounter(weapon, [], "", target, { mode: "initial" });
+        const withNapalm = debugScoreExpectedEncounter(
+            weapon,
+            [napalm!.effectsByRank[napalm!.fusionLimit]],
+            "",
+            target,
+            { mode: "initial" },
+        );
+        expect(withNapalm.timeToKillSeconds).not.toBeNull();
+        expect(withNapalm.timeToKillSeconds).toBeLessThan(baseline.timeToKillSeconds ?? Number.POSITIVE_INFINITY);
+
+        const optimized = optimizeBuild(weapon, [napalm!], "timeToKill", 1, {
+            allowForma: false,
+            targetFaction: "",
+            targetProfileOverride: target,
+            conditionalState: { mode: "initial" },
+        });
+        expect(optimized.capacityValid).toBe(true);
+        expect(optimized.slots).toContain(napalm);
+        expect(optimized.encounterTimeToKillSeconds).toBeCloseTo(withNapalm.timeToKillSeconds!, 8);
+
+        const highHealthOptimization = optimizeBuild(
+            weapon,
+            builderMods,
+            "timeToKill",
+            8,
+            {
+                allowForma: false,
+                targetFaction: "",
+                targetProfileOverride: { health: 100_000, shields: 0, overguard: 0, armor: 0 },
+                conditionalState: { mode: "initial" },
+                optimizeArcane: false,
+                optimizeExilus: false,
+            },
+        );
+        expect(highHealthOptimization.capacityValid).toBe(true);
+        expect(highHealthOptimization.slots).toContain(napalm);
+    }, 20_000);
+
     it("does not optimize an owned Arcane rank whose hit-location bonus is unscored", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
         const primaryDeadhead = getArcanesByWeaponCategory("Primary").find((arcane) => arcane.name === "Primary Deadhead");
@@ -4985,4 +5037,3 @@ describe("damage calculation ramp interactions", () => {
         expect(quickdrawBuild.sustainedDPS).toBeCloseTo(noReloadBuild.sustainedDPS, 6);
     });
 });
-

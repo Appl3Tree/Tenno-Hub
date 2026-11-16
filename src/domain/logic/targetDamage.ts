@@ -319,6 +319,14 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     heatDotTickDamagePerProc?: number;
     /** The +1 accumulator's per-tick damage while an expected Heat group is active. */
     heatDotAccumulatorDamagePerTick?: number;
+    /** Ogris Nightwatch Napalm's six fixed Heat ticks and independent 68% Heat proc rolls. */
+    nightwatchNapalm?: {
+        directDamagePerProjectilePerTick: number;
+        heatProcChancePerTick: number;
+        heatStatusDurationSeconds: number;
+        heatDotDamagePerProcPerTick: number;
+        heatDotAccumulatorDamagePerTick: number;
+    };
     /** Expected ordinary status applications per attack when dynamic proc weights are unavailable. */
     expectedStatusApplicationsPerAttackByType?: Partial<Record<StatusDamageType, number>>;
     /** Quantized final damage weights used to recalculate proc weighting as pools change. */
@@ -385,10 +393,18 @@ export interface ExpectedWeaponEncounterResult {
 interface ScheduledStatusTick {
     time: number;
     sequence: number;
-    type: StatusDamageType | "coldFreezeEnd";
+    type: StatusDamageType | "coldFreezeEnd" | "nightwatchNapalm";
     damage: number;
     /** Heat stacks share one refreshable tick stream; resolve its damage when the tick lands. */
     dynamicHeat?: boolean;
+    /** Expected overlapping blaze count for this Nightwatch Napalm tick. */
+    napalmProjectiles?: number;
+}
+
+interface HeatStatusApplicationOverride {
+    durationSeconds: number;
+    tickDamagePerProc: number;
+    accumulatorDamagePerTick: number;
 }
 
 interface GasCloudTickGroup {
@@ -533,6 +549,7 @@ function expectedStatusPresence(queue: ExpectedStatusStackQueue): number {
 interface HeatArmorStripState {
     firstAppliedAt: number;
     lastAppliedAt: number;
+    durationSeconds: number;
     /** Mean-field probability/intensity that at least one Heat proc is active. */
     activeWeight: number;
 }
@@ -1008,13 +1025,16 @@ export function simulateExpectedWeaponEncounter(
         conditionOverloadDamageMultiplier = 1,
         statusDamageMultiplier = 1,
         gasCloudGroup?: GasCloudTickGroup,
+        heatStatusOverride?: HeatStatusApplicationOverride,
     ) => {
         for (const [type, rawApplications] of Object.entries(applicationsByType) as Array<[StatusDamageType, number]>) {
             const applications = finiteNonNegative(rawApplications);
             const presenceProbability = clampProbability(
                 presenceProbabilitiesByType[type] ?? probabilityAtLeastOnePoissonArrival(applications),
             );
-            const duration = STATUS_EFFECT_RULES[type].durationSeconds * durationMultiplier;
+            const duration = type === "heat" && heatStatusOverride
+                ? finiteNonNegative(heatStatusOverride.durationSeconds)
+                : STATUS_EFFECT_RULES[type].durationSeconds * durationMultiplier;
             if (applications <= 0 || (type !== "blast" && duration <= 0) || statusImmuneTypes.has(type)) continue;
             if (type === "cold" && coldFreezeUntil !== null && attackTime < coldFreezeUntil - 1e-9) continue;
             if (type === "magnetic" && remainingPools.overguard <= 0 && remainingPools.shields <= 0) continue;
@@ -1028,10 +1048,11 @@ export function simulateExpectedWeaponEncounter(
             if (type === "heat") {
                 const previousHeatState = heatArmorStripState.current;
                 const canRefresh = previousHeatState !== null &&
-                    attackTime < previousHeatState.lastAppliedAt + duration - 1e-9;
+                    attackTime < previousHeatState.lastAppliedAt + previousHeatState.durationSeconds - 1e-9;
                 heatArmorStripState.current = {
                     firstAppliedAt: canRefresh ? previousHeatState.firstAppliedAt : attackTime,
                     lastAppliedAt: attackTime,
+                    durationSeconds: duration,
                     activeWeight: Math.min(1, (canRefresh ? previousHeatState.activeWeight : 0) + applications),
                 };
                 if (queue) {
@@ -1227,10 +1248,12 @@ export function simulateExpectedWeaponEncounter(
             if (type === "heat") {
                 const perApplicationDamage = finiteNonNegative(input.dotDamagePerApplicationByType?.heat ?? 0);
                 const tickCount = countStatusDamageTicks("heat", duration);
-                const seedTickDamage = finiteNonNegative(input.heatDotTickDamagePerProc ??
-                    (tickCount > 0 ? perApplicationDamage / tickCount : 0)) *
+                const seedTickDamage = finiteNonNegative(heatStatusOverride?.tickDamagePerProc ??
+                    input.heatDotTickDamagePerProc ?? (tickCount > 0 ? perApplicationDamage / tickCount : 0)) *
                     conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier;
-                const accumulatorTickDamage = finiteNonNegative(input.heatDotAccumulatorDamagePerTick ?? 0) *
+                const accumulatorTickDamage = finiteNonNegative(
+                    heatStatusOverride?.accumulatorDamagePerTick ?? input.heatDotAccumulatorDamagePerTick ?? 0,
+                ) *
                     statusDamageMultiplier;
                 if ((seedTickDamage > 0 || accumulatorTickDamage > 0) && tickCount > 0) {
                     const previousHeatDot = heatDotState.current;
@@ -1487,6 +1510,25 @@ export function simulateExpectedWeaponEncounter(
         return gasCloudGroup;
     };
 
+    const scheduleNightwatchNapalmTicks = (attackTime: number, expectedProjectiles: number) => {
+        const napalm = input.nightwatchNapalm;
+        const projectiles = finiteNonNegative(expectedProjectiles);
+        if (!napalm || projectiles <= 0) return;
+        // The Wiki says every rocket creates one overlapping blaze per damage
+        // instance, with six one-second ticks and the first tick immediately.
+        for (let tickIndex = 0; tickIndex < 6; tickIndex++) {
+            const time = attackTime + tickIndex;
+            if (time > maxDurationSeconds + 1e-9) break;
+            heapPush(ticks, {
+                time,
+                sequence: nextTickSequence++,
+                type: "nightwatchNapalm",
+                damage: finiteNonNegative(napalm.directDamagePerProjectilePerTick),
+                napalmProjectiles: projectiles,
+            });
+        }
+    };
+
     while ((!killed && attacks < maxSimulatedAttacks) || ticks.length > 0) {
         while (ticks[0] && cancelledTickSequences.delete(ticks[0].sequence)) heapPop(ticks);
         const attackTime = !killed && attacks < maxSimulatedAttacks
@@ -1721,6 +1763,7 @@ export function simulateExpectedWeaponEncounter(
                 statusDamageMultiplierAtAttackStart,
                 gasCloudGroup,
             );
+            scheduleNightwatchNapalmTicks(attackTime, attackExpectedProjectiles);
             for (const runtime of timedDamageStacks) {
                 recordTimedDamageStackTrigger(runtime, attackTime);
             }
@@ -1754,6 +1797,78 @@ export function simulateExpectedWeaponEncounter(
             // stacks whose final tick lands exactly at their expiry timestamp.
             expireStatusStacks(now - 2e-9);
             const statusDamageMultiplierAtTickStart = activeStatusDamageMultiplier();
+            if (tick.type === "nightwatchNapalm") {
+                const napalm = input.nightwatchNapalm;
+                const projectiles = finiteNonNegative(tick.napalmProjectiles ?? 0);
+                if (!napalm || projectiles <= 0) continue;
+                const poolsBeforeNapalmTick = { ...remainingPools };
+                const directResult = calculateDirectDamageToInitialPools({
+                    ...input,
+                    ...currentStatusModifiers(now),
+                    damageByType: { heat: tick.damage },
+                    damageRampMultiplier: 1,
+                    expectedProjectiles: projectiles,
+                    expectedDamageMultiplier: projectiles,
+                    expectedHitDamageMultiplier: 1,
+                    critChance: 0,
+                    critMultiplier: 1,
+                    nonCriticalHitDamageProcs: [],
+                    health: remainingPools.health,
+                    shields: remainingPools.shields,
+                    overguard: remainingPools.overguard,
+                });
+                const gateActive = now < enemyShieldGateUntil - 1e-9;
+                const gateMode = input.enemyShieldGateHitMode ?? "body";
+                const gatedHealthDamageMultiplier = !gateActive || gateMode === "weakspot"
+                    ? 1
+                    : gateMode === "blockedArea"
+                        ? 0
+                        : ENEMY_SHIELD_GATE_BODY_DAMAGE_MULTIPLIER;
+                const appliedNapalmDamage = {
+                    ...directResult.damageByPool,
+                    health: Math.min(
+                        remainingPools.health,
+                        directResult.uncappedDamageByPool.health * gatedHealthDamageMultiplier,
+                    ),
+                };
+                addPools(directDamageByPool, appliedNapalmDamage);
+                subtractPools(remainingPools, appliedNapalmDamage);
+                if (poolsBeforeNapalmTick.overguard > 0 && remainingPools.overguard <= Number.EPSILON) {
+                    scheduleMagneticBreakProc(now, "overguard", statusDamageMultiplierAtTickStart);
+                }
+                if (poolsBeforeNapalmTick.shields > 0 && remainingPools.shields <= Number.EPSILON) {
+                    enemyShieldGateUntil = now + ENEMY_SHIELD_GATE_DURATION_SECONDS;
+                    scheduleMagneticBreakProc(now, "shields", statusDamageMultiplierAtTickStart);
+                }
+
+                const heatProcChance = clampProbability(napalm.heatProcChancePerTick);
+                const wholeProjectiles = Math.floor(projectiles);
+                const fractionalProjectile = projectiles - wholeProjectiles;
+                const noHeatProcProbability = Math.pow(1 - heatProcChance, wholeProjectiles) *
+                    (1 - fractionalProjectile * heatProcChance);
+                const expectedHeatApplications = projectiles * heatProcChance;
+                applyExpectedStatusApplications(
+                    now,
+                    { heat: expectedHeatApplications },
+                    { heat: 1 - noHeatProcProbability },
+                    1,
+                    1,
+                    statusDamageMultiplierAtTickStart,
+                    undefined,
+                    {
+                        durationSeconds: napalm.heatStatusDurationSeconds,
+                        tickDamagePerProc: napalm.heatDotDamagePerProcPerTick,
+                        accumulatorDamagePerTick: napalm.heatDotAccumulatorDamagePerTick,
+                    },
+                );
+                killed = isEncounterTargetDefeated(initialHealth, remainingPools);
+                if (killed && primaryKilledAt === null) {
+                    primaryKilledAt = now;
+                    resolveBlastDeathRadial();
+                }
+                expireStatusStacks(now);
+                continue;
+            }
             if (tick.type === "blast") {
                 for (let index = blastStackEntries.length - 1; index >= 0; index--) {
                     if (blastStackEntries[index].sequence === tick.sequence) blastStackEntries.splice(index, 1);
@@ -2511,10 +2626,10 @@ function getHeatArmorStripAtTime(
     const rampIndex = Math.max(0, Math.min(rampSteps.length - 1,
         Math.floor((time - state.firstAppliedAt) / rampStepSeconds + 1e-9)));
     const stripAtExpiration = rampSteps[rampIndex];
-    const statusExpiration = state.lastAppliedAt + 6 * statusDurationMultiplier;
+    const statusExpiration = state.lastAppliedAt + state.durationSeconds;
     if (time <= statusExpiration + 1e-9) return stripAtExpiration * state.activeWeight;
 
-    const recoveryStepSeconds = 1.5 * statusDurationMultiplier;
+    const recoveryStepSeconds = Math.max(0.001, state.durationSeconds / 4);
     const recoverySteps = [0.5, 0.4, 0.3, 0.15, 0];
     const recoveryIndex = Math.max(0, Math.min(recoverySteps.length - 1,
         Math.floor((time - statusExpiration) / recoveryStepSeconds + 1e-9)));

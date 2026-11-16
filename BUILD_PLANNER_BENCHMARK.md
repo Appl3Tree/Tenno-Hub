@@ -4,6 +4,12 @@ Run date: 2026-11-16; current full-width refresh: 2026-11-15
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
 
+## Nightwatch Napalm Kuva Ogris finite-encounter case (2026-11-16)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=3 --weapon="Kuva Ogris" --attack="Rocket Explosion" --goal=timeToKill --no-arcane --no-exilus`. The Grineer preset, Initial state, Catalyst, eight mod slots, and 106 filtered mod candidates were used. Each run evaluated 117 finite encounter candidates and returned the same legal zero-Forma build at 79/80 capacity: Malignant Force R3, Rime Rounds R3, Hellfire R5, Thermite Rounds R3, Primed Bane of Grineer R10, Semi-Rifle Cannonade R5, Split Chamber R5, and Rifle Elementalist R5. It selected no Arcane and modeled 1.0s TTK.
+
+The three desktop Node runs measured 2,583.9ms median, 3,032.1ms maximum / three-run p95 observation, and 2,276.9ms minimum. Nightwatch Napalm was not selected for this fast-kill Grineer preset. The 100,000-health custom-target regression selects it from the full filtered catalog pool, and a candidate-only regression confirms finite Expected TTK includes its six ticks. These are optimizer-model checks, not gameplay telemetry, broad quality or optimality evidence, or browser Worker/mobile latency measurements. See `BUILD_PLANNER_WORK_STATUS.md` for the modeled exposure and status assumptions.
+
 ## Realistic Galvanized per-status kill cadence (2026-11-16)
 
 The benchmark harness accepts `--realistic` to exercise repeated-target on-kill estimates. Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=3 --weapon=Cedo --goal=timeToKill --realistic`. The direct Normal Attack case selected max-rank Galvanized Savvy in the same legal 3-Forma build for all three runs, at 0.727795s modeled TTK and 4,226.5ms median optimizer time (4,272.9ms maximum / three-run p95 observation). The companion Glaive Radial Attack case is AoE and does not use the per-status kill-stack estimate; it returned a legal 3-Forma result at 3.68421s TTK, with 3,498.5ms median and 4,300.5ms maximum.
@@ -1725,4 +1731,3 @@ After the exact-score change, a three-run Cedo Expected TTK benchmark returned l
 ## Slower Realistic Galvanized partial-stack oracle (2026-11-16)
 
 The exhaustive joint mod/Arcane oracle now includes a second direct Cedo Normal Attack target at 100,000 Health / 3,000 Armor, with four candidate mods, three slots, and every Primary Frostbite rank. A forced Galvanized Savvy R10 / Toxic Barrage R10 / Primed Charged Shell R10 / Primary Frostbite R5 build returns 43.4146214s Expected TTK, so the Wiki's 20-second Galvanized duration gives `20 / TTK = 0.4606743` average stack per eligible status, below its two-stack cap. The exhaustive optimizer comparison passes; a separate optimizer run selects a Savvy-free legal build, so the forced candidate specifically exercises the partial-stack calculation. The isolated oracle test took 59.15s; the full suite passes 756 tests / 53 files. This validates the deterministic cadence estimate against its own exhaustive pool, not random per-target proc and expiry histories or live gameplay.
-

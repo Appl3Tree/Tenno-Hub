@@ -213,6 +213,8 @@ export interface WeaponEntry {
     tags: string[];
     /** True for progenitor weapons that can carry a Valence Bonus (Kuva/Tenet/Coda). */
     isProgenitorWeapon?: boolean;
+    /** Applied Kuva/Tenet/Coda base-damage valence bonus, used by source-specific effects. */
+    valenceBonusPct?: number;
     /** True for Perigale variants with the Gale Force ammo-efficiency passive. */
     hasGaleForceAmmoPassive?: boolean;
     /** Selected attack context carried into calculator/optimizer scoring. */

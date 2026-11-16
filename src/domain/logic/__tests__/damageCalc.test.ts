@@ -178,6 +178,89 @@ describe("Vulcan Blitz Wiki rank radius correction and safe scoring exclusion", 
     });
 });
 
+describe("Nightwatch Napalm Wiki modeling", () => {
+    it("replaces the outdated rank description with the fixed blaze mechanics and rank-specific area", () => {
+        const ogris = getWeaponCatalog().find((weapon) => weapon.name === "Ogris");
+        const kuvaOgris = getWeaponCatalog().find((weapon) => weapon.name === "Kuva Ogris");
+        const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(ogris).toBeDefined();
+        expect(kuvaOgris).toBeDefined();
+        expect(braton).toBeDefined();
+
+        for (const weapon of [ogris!, kuvaOgris!]) {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Nightwatch Napalm");
+            expect(mod).toBeDefined();
+            expect(mod!.fusionLimit).toBe(5);
+            expect(mod!.effectsByRank.map((effect) => effect.nightwatchNapalmEffect)).toEqual([1, 1, 1, 1, 1, 1]);
+            expect(mod!.effectsByRank.map((effect) => effect.damageBonus)).toEqual([0, 0, 0, 0, 0, 0]);
+            expect(mod!.statsTextByRank).toEqual([15, 30, 45, 60, 75, 90].map((areaBonus) =>
+                `150 Heat Damage per tick × 6 ticks (first immediate); fixed 68% Heat proc chance per tick, 3s Heat proc; +${areaBonus}% explosion area`,
+            ));
+            expect(mod!.unparsedStatsByRank?.every((lines) => lines.length === 0)).toBe(true);
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+            }
+        }
+        expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Nightwatch Napalm")).toBe(false);
+    });
+
+    it("models non-critical six-tick damage, fixed Heat procs, base damage, faction, and Kuva valence scaling", () => {
+        const kuvaOgris = getWeaponCatalog().find((weapon) => weapon.name === "Kuva Ogris");
+        expect(kuvaOgris).toBeDefined();
+        const explosionIndex = kuvaOgris!.attacks.findIndex((attack) => attack.name === "Rocket Explosion");
+        expect(explosionIndex).toBeGreaterThanOrEqual(0);
+        const explosion = withSelectedAttack({ ...kuvaOgris!, valenceBonusPct: 0.4, critChance: 1, critMultiplier: 5 }, explosionIndex);
+        const napalm = getModsForWeapon(kuvaOgris!).find((candidate) => candidate.name === "Nightwatch Napalm");
+        expect(napalm).toBeDefined();
+
+        const result = calculateBuild(explosion, [
+            napalm!.effectsByRank[napalm!.fusionLimit],
+            { ...emptyEffect(), damageBonus: 1 },
+            { ...emptyEffect(), heatBonus: 0.5, statusDamageBonus: 0.5, statusChanceBonus: 10 },
+            { ...emptyEffect(), factionDamageBonus: 0.3, targetFaction: "Grineer" },
+        ], "Grineer").modded.nightwatchNapalm;
+
+        expect(result).toBeDefined();
+        expect(result!.directDamagePerProjectilePerTick).toBeCloseTo(420, 8);
+        expect(result!.directDamagePerSecond).toBeCloseTo(420 * explosion.multishot * 6 * explosion.fireRate, 6);
+        expect(result!.heatProcChancePerTick).toBe(0.68);
+        expect(result!.heatDotDamagePerProcPerTick).toBeCloseTo(798.525, 2);
+        expect(result!.heatStatusDurationSeconds).toBe(3);
+
+        const extendedDuration = calculateBuild(explosion, [
+            napalm!.effectsByRank[napalm!.fusionLimit],
+            { ...emptyEffect(), statusDurationBonus: 1 },
+        ]).modded.nightwatchNapalm;
+        expect(extendedDuration!.heatStatusDurationSeconds).toBe(6);
+        expect(extendedDuration!.heatProcChancePerTick).toBe(0.68);
+
+        const heatImmune = calculateBuild(
+            explosion,
+            [napalm!.effectsByRank[napalm!.fusionLimit]],
+            "Grineer",
+            { statusImmuneTypes: ["heat"] },
+        ).modded.nightwatchNapalm;
+        expect(heatImmune!.directDamagePerProjectilePerTick).toBeCloseTo(210, 8);
+        expect(heatImmune!.heatDotDamagePerProcPerTick).toBe(0);
+        expect(heatImmune!.heatStatusDamagePerSecond).toBe(0);
+
+        const impactIndex = kuvaOgris!.attacks.findIndex((attack) => attack.name === "Rocket Impact");
+        const impact = calculateBuild(
+            withSelectedAttack({ ...kuvaOgris!, valenceBonusPct: 0.4 }, impactIndex),
+            [napalm!.effectsByRank[napalm!.fusionLimit]],
+        ).modded.nightwatchNapalm;
+        expect(impact).toBeDefined();
+
+        const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(braton).toBeDefined();
+        const unrelated = calculateBuild(
+            withSelectedAttack(braton!, 0),
+            [napalm!.effectsByRank[napalm!.fusionLimit]],
+        ).modded.nightwatchNapalm;
+        expect(unrelated).toBeUndefined();
+    });
+});
+
 describe("Spring-Loaded Broadhead Wiki modeling", () => {
     it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
         const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
@@ -3607,4 +3690,3 @@ describe("melee combo-scaled mod calculations", () => {
         expect(stats.gasCloudRadius).toBeCloseTo(gasCloudRadiusFromStacks(stats.expectedStacksByType.gas ?? 0), 12);
     });
 });
-

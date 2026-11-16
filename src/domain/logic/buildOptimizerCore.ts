@@ -965,6 +965,25 @@ function scoreEffectsCore(
         }
     }
 
+    if (modded.nightwatchNapalm) {
+        const napalm = modded.nightwatchNapalm;
+        const directHeatRate = napalm.directDamagePerSecond * dotDutyCycle;
+        const directHeatScore = directHeatRate * getPoolProgress("heat", false, true);
+        score += directHeatScore;
+        primaryScore += directHeatScore;
+        killCadenceScore += napalm.directDamagePerSecond * sustainedDutyCycle *
+            getPoolProgress("heat", false, true);
+
+        if (!statusImmuneTypes.has("heat")) {
+            const heatStatusRate = napalm.heatStatusDamagePerSecond * dotDutyCycle;
+            const heatStatusScore = heatStatusRate * getPoolProgress("heat", false, false);
+            score += heatStatusScore;
+            primaryScore += heatStatusScore;
+            killCadenceScore += napalm.heatStatusDamagePerSecond * sustainedDutyCycle *
+                getPoolProgress("heat", false, false);
+        }
+    }
+
     // For one target, reaching cap pays the same individual stack damage as
     // natural expiry. The 3×H cap blast affects nearby enemies and is excluded
     // from this single-target objective score.
@@ -2498,6 +2517,15 @@ function expectedEncounterScoreForEffectsAtKillRate(
         reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
         ...getEncounterBurstTiming(weapon, stats.fireRate),
         statusDurationMultiplier: stats.statusDurationMultiplier,
+        ...(stats.nightwatchNapalm ? {
+            nightwatchNapalm: {
+                directDamagePerProjectilePerTick: stats.nightwatchNapalm.directDamagePerProjectilePerTick,
+                heatProcChancePerTick: stats.nightwatchNapalm.heatProcChancePerTick,
+                heatStatusDurationSeconds: stats.nightwatchNapalm.heatStatusDurationSeconds,
+                heatDotDamagePerProcPerTick: stats.nightwatchNapalm.heatDotDamagePerProcPerTick,
+                heatDotAccumulatorDamagePerTick: stats.nightwatchNapalm.heatDotAccumulatorDamagePerTick,
+            },
+        } : {}),
         targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
         initialHeatStatusPresenceProbability: conditionalState?.externalHeatStatusPresenceProbability,
         dotDamagePerAttackByType: stats.dotDamagePerShotByType,
