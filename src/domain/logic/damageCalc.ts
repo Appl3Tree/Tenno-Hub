@@ -10,7 +10,7 @@ import {
     getInitialMeleeComboMultiplier,
     usesMeleeDamageModel,
 } from "../catalog/weaponRules";
-import type { ConditionalEffect, ModEffect, NonCriticalHitDamageProc } from "../catalog/modCatalog";
+import type { ConditionalEffect, ModEffect, NonCriticalHitDamageProc, PrimaryDamageElement } from "../catalog/modCatalog";
 import {
     DAMAGE_TYPES,
     STATUS_DAMAGE_TYPES,
@@ -42,7 +42,8 @@ const DAMAGE_KEYS: DamageKey[] = [...DAMAGE_TYPES];
 // weapons this places the earlier of the weapon and progenitor elements
 // second-to-last, with the later HCET element last in the combination queue.
 // https://wiki.warframe.com/w/Damage
-const PRIMARY_ELEMENTS: DamageKey[] = ["heat", "cold", "electricity", "toxin"];
+const PRIMARY_ELEMENT_ORDER: readonly PrimaryDamageElement[] = ["heat", "cold", "electricity", "toxin"];
+const PRIMARY_ELEMENTS: DamageKey[] = [...PRIMARY_ELEMENT_ORDER];
 
 const COMBINED_ELEMENTS: Record<string, DamageKey> = {
     "cold+electricity": "magnetic",
@@ -950,10 +951,23 @@ export function calculateBuild(
         const coldBonus = e.coldBonus ?? 0;
         const electricityBonus = e.electricityBonus ?? 0;
         const toxinBonus = e.toxinBonus ?? 0;
-        if (heatBonus > 0) orderedPrimaryElementBonuses.push({ type: "heat", value: heatBonus, order: elementOrder });
-        if (coldBonus > 0) orderedPrimaryElementBonuses.push({ type: "cold", value: coldBonus, order: elementOrder + 1 });
-        if (electricityBonus > 0) orderedPrimaryElementBonuses.push({ type: "electricity", value: electricityBonus, order: elementOrder + 2 });
-        if (toxinBonus > 0) orderedPrimaryElementBonuses.push({ type: "toxin", value: toxinBonus, order: elementOrder + 3 });
+        const preferredElementOrder = [...new Set(e.primaryElementOrder ?? [])];
+        const elementTypes = [
+            ...preferredElementOrder,
+            ...PRIMARY_ELEMENT_ORDER.filter((type) => !preferredElementOrder.includes(type)),
+        ];
+        const elementBonuses: Record<PrimaryDamageElement, number> = {
+            heat: heatBonus,
+            cold: coldBonus,
+            electricity: electricityBonus,
+            toxin: toxinBonus,
+        };
+        elementTypes.forEach((type, elementIndex) => {
+            const value = elementBonuses[type];
+            if (value > 0) {
+                orderedPrimaryElementBonuses.push({ type, value, order: elementOrder + elementIndex });
+            }
+        });
 
         directBonusBreakdown.blast += e.blastBonus ?? 0;
         directBonusBreakdown.gas += e.gasBonus ?? 0;

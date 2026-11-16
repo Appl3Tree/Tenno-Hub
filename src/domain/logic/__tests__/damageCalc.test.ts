@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
+import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES } from "../damageRuleset";
 
@@ -37,6 +38,22 @@ function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
         attacks: [],
         tags: [],
     };
+}
+
+function makeRivenEffect(stats: CustomRivenStatValue[]): ModEffect {
+    return buildCustomRivenEntry({
+        id: "element-order-test",
+        name: "Element Order Test Riven",
+        sourceWeaponUniqueName: "/Test/ElementOrderRiven",
+        sourceWeaponName: "Element Order Test Weapon",
+        sourceWeaponDisposition: CURRENT_RIVEN_STAT_MULTIPLIER,
+        familyKey: "element-order-test",
+        polarity: "madurai",
+        drain: 16,
+        stats,
+        createdAtIso: "2026-11-15T00:00:00.000Z",
+        updatedAtIso: "2026-11-15T00:00:00.000Z",
+    }).effect;
 }
 
 describe("Tennokai mod catalog coverage", () => {
@@ -1546,6 +1563,37 @@ describe("damage calculation status eligibility", () => {
         expect(result.magnetic).toBeCloseTo(unmodded.magnetic, 12);
         expect(result.cold).toBe(0);
         expect(result.toxin).toBe(0);
+    });
+
+    it("applies Riven elemental stats bottom-up when they follow another elemental mod", () => {
+        const riven = makeRivenEffect([
+            { stat: "electricityDamage", value: 90 },
+            { stat: "toxinDamage", value: 90 },
+        ]);
+        const coldMod = { ...emptyEffect(), coldBonus: 0.9 };
+
+        const result = calculateBuild(makeWeapon({ impact: 100 }), [coldMod, riven]).modded.damageBreakdown;
+
+        expect(result.viral).toBeGreaterThan(0);
+        expect(result.electricity).toBeGreaterThan(0);
+        expect(result.magnetic).toBe(0);
+        expect(result.corrosive).toBe(0);
+    });
+
+    it("lets a later element mod combine with the first displayed element on a three-element Riven", () => {
+        const riven = makeRivenEffect([
+            { stat: "heatDamage", value: 90 },
+            { stat: "coldDamage", value: 90 },
+            { stat: "toxinDamage", value: 90 },
+        ]);
+        const electricityMod = { ...emptyEffect(), electricityBonus: 0.9 };
+
+        const result = calculateBuild(makeWeapon({ impact: 100 }), [riven, electricityMod]).modded.damageBreakdown;
+
+        expect(result.viral).toBeGreaterThan(0);
+        expect(result.radiation).toBeGreaterThan(0);
+        expect(result.blast).toBe(0);
+        expect(result.corrosive).toBe(0);
     });
 
     it("uses critical multiplier quantization before relative critical damage bonuses", () => {

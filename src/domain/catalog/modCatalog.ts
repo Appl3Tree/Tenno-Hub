@@ -87,6 +87,8 @@ export interface ModEffect {
     coldBonus: number;
     electricityBonus: number;
     toxinBonus: number;
+    /** Per-effect order for primary element bonuses, used by custom Rivens' displayed stat order. */
+    primaryElementOrder?: PrimaryDamageElement[];
     blastBonus: number;
     gasBonus: number;
     magneticBonus: number;
@@ -178,6 +180,8 @@ export interface ModEffect {
     /** Which faction this mod targets, e.g. "Grineer". Empty string if not a faction mod. */
     targetFaction: string;
 }
+
+export type PrimaryDamageElement = "heat" | "cold" | "electricity" | "toxin";
 
 export interface NonCriticalHitDamageProc {
     chance: number;

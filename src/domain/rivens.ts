@@ -1,4 +1,4 @@
-import type { ModEffect, ModEntry } from "./catalog/modCatalog";
+import type { ModEffect, ModEntry, PrimaryDamageElement } from "./catalog/modCatalog";
 import { emptyEffect } from "./catalog/modCatalog";
 import type { WeaponCategory, WeaponEntry } from "./catalog/weaponCatalog";
 
@@ -50,6 +50,13 @@ export interface CustomRivenRecord {
     rerolls?: number | null;
     sourceAttributes?: Array<{ tag: string; roll: number; polarity: "positive" | "negative" }>;
 }
+
+const RIVEN_PRIMARY_ELEMENT_BY_STAT: Record<string, PrimaryDamageElement> = {
+    heatDamage: "heat",
+    coldDamage: "cold",
+    electricityDamage: "electricity",
+    toxinDamage: "toxin",
+};
 
 function addPercent(
     key: keyof Pick<
@@ -572,6 +579,7 @@ export function buildCustomRivenEntry(record: CustomRivenRecord): ModEntry {
     for (let rank = 0; rank <= 8; rank++) {
         const rankMultiplier = (rank + 1) / 9;
         let effect = emptyEffect();
+        const displayedPrimaryElements: PrimaryDamageElement[] = [];
         const statText: string[] = [];
         for (const stat of scaledStats) {
             const definition = getCustomRivenStatDef(stat.stat);
@@ -580,7 +588,15 @@ export function buildCustomRivenEntry(record: CustomRivenRecord): ModEntry {
             const scaledValue = Math.round(stat.value * rankMultiplier * precision) / precision;
             const normalizedValue = definition.unit === "percent" ? scaledValue / 100 : scaledValue;
             effect = definition.apply(effect, normalizedValue);
+            const primaryElement = RIVEN_PRIMARY_ELEMENT_BY_STAT[definition.key];
+            if (primaryElement && scaledValue > 0 && !displayedPrimaryElements.includes(primaryElement)) {
+                displayedPrimaryElements.push(primaryElement);
+            }
             statText.push(formatRivenStatValue(definition, scaledValue));
+        }
+        if (displayedPrimaryElements.length > 0) {
+            // The Wiki specifies that multiple Riven elements apply bottom-up.
+            effect.primaryElementOrder = displayedPrimaryElements.reverse();
         }
         effectByRank.push(effect);
         statsTextByRank.push(statText.join("  ·  "));
