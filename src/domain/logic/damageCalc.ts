@@ -151,6 +151,8 @@ export interface ModdedWeaponStats {
     rawDamageBreakdown: Record<DamageKey, number>;
     /** Raw channel contributions before dynamic Condition Overload/direct per-status bonuses. */
     rawDamageBreakdownBeforePerStatus: Record<DamageKey, number>;
+    /** Base physical damage conversion selected by a compatible mod, when present. */
+    physicalDamageConversion: ModEffect["physicalDamageConversion"] | null;
     /** Unmodded, charge- and active-combo-adjusted base damage used as the Damage 3.0 quantization scale. */
     baseDamageTotal: number;
     arsenalDamage: number;
@@ -881,6 +883,7 @@ export function calculateBuild(
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
     let damageBonus = 0;
+    let physicalDamageConversion: ModEffect["physicalDamageConversion"];
     let slamAttackDamageBonus = 0;
     let firstShotMagazineDamageBonus = 0;
     let lastShotMagazineDamageBonus = 0;
@@ -940,6 +943,7 @@ export function calculateBuild(
         const e = mods[index];
         if (!e) continue;
         damageBonus += e.damageBonus ?? 0;
+        physicalDamageConversion ??= e.physicalDamageConversion;
         if (weapon.selectedAttackUsesSlamDamageBonus === true) {
             slamAttackDamageBonus += e.slamAttackDamageBonus ?? 0;
         }
@@ -1367,6 +1371,13 @@ export function calculateBuild(
     const weaponBaseDamage = Object.fromEntries(
         DAMAGE_KEYS.map((key) => [key, weapon.damage[key] * chargeDamageScale]),
     ) as Record<DamageKey, number>;
+    if (physicalDamageConversion) {
+        const basePhysicalDamage = weaponBaseDamage.impact + weaponBaseDamage.puncture + weaponBaseDamage.slash;
+        weaponBaseDamage.impact = 0;
+        weaponBaseDamage.puncture = 0;
+        weaponBaseDamage.slash = 0;
+        weaponBaseDamage[physicalDamageConversion] = basePhysicalDamage;
+    }
     const baseDamageTotal = Math.max(0, totalDamageOf(weaponBaseDamage));
     let totalBase = Math.max(0, baseDamageTotal * baseDamageMultiplier);
 
@@ -2122,6 +2133,7 @@ export function calculateBuild(
     const modded: ModdedWeaponStats = {
         rawDamageBreakdown: directRawBreakdown,
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
+        physicalDamageConversion: physicalDamageConversion ?? null,
         baseDamageTotal: baseDamageTotal * slamAttackDamageMultiplier * meleeAttackComboDamageMultiplier,
         arsenalDamage,
         singleProjectileDamageBonus: springLoadedBroadheadDamageBonus,
@@ -2299,3 +2311,4 @@ export function estimateFiniteIndependentDotDps(
     );
     return (damagePerTick * expectedProcsPerShot * finiteTicks) / encounterDurationSeconds;
 }
+

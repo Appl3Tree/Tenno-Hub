@@ -318,6 +318,70 @@ describe("Nightwatch Napalm Wiki modeling", () => {
     });
 });
 
+describe("Beast Claw Conditioning Wiki conversion", () => {
+    const conditioningCases = [
+        { name: "Brute Conditioning", conversion: "impact" },
+        { name: "Disabling Conditioning", conversion: "puncture" },
+        { name: "Precision Conditioning", conversion: "slash" },
+    ] as const;
+
+    it("parses all ranks, keeps the mods claw-only, and preserves their shared incompatibility", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
+        const brokenWar = getWeaponCatalog().find((weapon) => weapon.name === "Broken War");
+        expect(claw).toBeDefined();
+        expect(brokenWar).toBeDefined();
+
+        const clawMods = getModsForWeapon(claw!);
+        const conditioningMods = conditioningCases.map(({ name, conversion }) => {
+            const mod = clawMods.find((candidate) => candidate.name === name);
+            expect(mod).toBeDefined();
+            expect(mod!.fusionLimit).toBe(10);
+            expect(mod!.effectsByRank).toHaveLength(11);
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                const effect = mod!.effectsByRank[rank];
+                expect(effect.physicalDamageConversion).toBe(conversion);
+                expect(effect.damageBonus).toBeCloseTo((rank + 1) * 0.35, 10);
+                expect((mod!.unparsedStatsByRank?.[rank] ?? []).some((line) => /Convert all base Physical Damage/i.test(line))).toBe(false);
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
+            }
+            return mod!;
+        });
+
+        expect(new Set(conditioningMods.map((mod) => mod.incompatibilityGroup)).size).toBe(1);
+        expect(getModsForWeapon(brokenWar!).some((mod) => conditioningCases.some(({ name }) => name === mod.name))).toBe(false);
+    });
+
+    it("converts only base physical damage and leaves innate elemental damage intact", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
+        expect(claw).toBeDefined();
+        const weapon: WeaponEntry = {
+            ...claw!,
+            damage: {
+                ...claw!.damage,
+                impact: 10,
+                puncture: 20,
+                slash: 30,
+                heat: 10,
+                total: 70,
+            },
+        };
+
+        for (const { name, conversion } of conditioningCases) {
+            const mod = getModsForWeapon(claw!).find((candidate) => candidate.name === name);
+            expect(mod).toBeDefined();
+            const stats = calculateBuild(weapon, [mod!.effectsByRank[mod!.fusionLimit]]).modded;
+            expect(stats.physicalDamageConversion).toBe(conversion);
+            expect(stats.baseDamageTotal).toBe(70);
+            expect(stats.rawDamageBreakdown[conversion]).toBeCloseTo(60 * 4.85, 8);
+            for (const physicalType of ["impact", "puncture", "slash"] as const) {
+                if (physicalType === conversion) continue;
+                expect(stats.rawDamageBreakdown[physicalType]).toBe(0);
+            }
+            expect(stats.rawDamageBreakdown.heat).toBeCloseTo(10 * 4.85, 8);
+        }
+    });
+});
+
 describe("Spring-Loaded Broadhead Wiki modeling", () => {
     it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
         const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
@@ -3747,3 +3811,4 @@ describe("melee combo-scaled mod calculations", () => {
         expect(stats.gasCloudRadius).toBeCloseTo(gasCloudRadiusFromStacks(stats.expectedStacksByType.gas ?? 0), 12);
     });
 });
+
