@@ -277,6 +277,16 @@ export interface ModdedWeaponStats {
     dotDamagePerApplicationSeedByType: Partial<Record<DamageKey, number>>;
     /** Full-lifetime grouped accumulator share per DoT application, never scaled by Condition Overload. */
     dotDamagePerApplicationAccumulatorByType: Partial<Record<DamageKey, number>>;
+    /** Wiki-backed Nightwatch Napalm tick and its independently rolled Heat status effects. */
+    nightwatchNapalm?: {
+        directDamagePerProjectilePerTick: number;
+        directDamagePerSecond: number;
+        heatProcChancePerTick: number;
+        heatStatusDurationSeconds: number;
+        heatDotDamagePerProcPerTick: number;
+        heatDotAccumulatorDamagePerTick: number;
+        heatStatusDamagePerSecond: number;
+    };
     viralHealthDamageBonus: number;
     heatArmorStrip: number;
     corrosiveArmorStrip: number;
@@ -2067,6 +2077,48 @@ export function calculateBuild(
         1.0,
     );
 
+    const nightwatchNapalmEnabled = mods.some((effect) => (effect?.nightwatchNapalmEffect ?? 0) > 0) &&
+        (weapon.uniqueName === "/Lotus/Weapons/ClanTech/Chemical/RocketLauncher" ||
+            weapon.uniqueName === "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Ogris/KuvaOgris") &&
+        /^(rocket impact|rocket explosion)$/i.test(weapon.selectedAttackName ?? "");
+    const nightwatchNapalm = nightwatchNapalmEnabled
+        ? (() => {
+            const directDamagePerProjectilePerTick = 150 *
+                Math.max(0, 1 + damageBonus) *
+                Math.max(0, 1 + (weapon.valenceBonusPct ?? 0));
+            const heatBonus = totalPrimaryElementBonus("heat");
+            const heatStatusDurationSeconds = 3 * statusDurationMultiplier;
+            const heatStatusTickCount = countStatusDamageTicks("heat", heatStatusDurationSeconds);
+            const heatDotRemainingMultiplier = dotRemainingMultiplier(heatBonus);
+            const heatDotDamagePerProcPerTick = statusImmuneTypes.has("heat")
+                ? 0
+                : statusDotTickDamage(
+                    directDamagePerProjectilePerTick * Math.max(0, 1 + factionDamageBonus),
+                    "heat",
+                    heatDotRemainingMultiplier,
+                    0,
+                );
+            const heatDotAccumulatorDamagePerTick = statusImmuneTypes.has("heat")
+                ? 0
+                : statusDotTickDamage(0, "heat", heatDotRemainingMultiplier, 1);
+            const expectedHeatProcsPerSecond = fireRate * moddedMultishot * 6 * 0.68;
+            const expectedActiveHeatProcs = expectedHeatProcsPerSecond * heatStatusDurationSeconds;
+            const heatGroupPresenceProbability = 1 - Math.exp(-expectedActiveHeatProcs);
+            return {
+                directDamagePerProjectilePerTick,
+                directDamagePerSecond: directDamagePerProjectilePerTick * moddedMultishot * 6 * fireRate,
+                heatProcChancePerTick: 0.68,
+                heatStatusDurationSeconds,
+                heatDotDamagePerProcPerTick,
+                heatDotAccumulatorDamagePerTick,
+                heatStatusDamagePerSecond: heatStatusTickCount > 0
+                    ? heatDotDamagePerProcPerTick * expectedActiveHeatProcs +
+                        heatDotAccumulatorDamagePerTick * heatGroupPresenceProbability
+                    : 0,
+            };
+        })()
+        : undefined;
+
     const modded: ModdedWeaponStats = {
         rawDamageBreakdown: directRawBreakdown,
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
@@ -2142,6 +2194,7 @@ export function calculateBuild(
         dotTickAccumulatorDamageByType,
         dotDamagePerApplicationSeedByType,
         dotDamagePerApplicationAccumulatorByType,
+        nightwatchNapalm,
         viralHealthDamageBonus,
         heatArmorStrip,
         corrosiveArmorStrip,

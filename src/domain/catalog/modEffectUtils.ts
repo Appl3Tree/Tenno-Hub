@@ -4,6 +4,7 @@ export const VOLATILE_VARIANT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Night
 export const ACID_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Shotgun/Event/ProjectNightwatch/SobekNightwatchMod";
 export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamExplodeOnDeath";
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
+export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -99,6 +100,7 @@ export function emptyEffect(): ModEffect {
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, fireRateLocked: false, magazineBonus: 0,
         reloadSpeedBonus: 0, attackSpeedBonus: 0,
         statusDurationBonus: 0, statusDamageBonus: 0, targetStatusDamageVulnerabilityBonus: 0,
+        nightwatchNapalmEffect: 0,
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
         headshotMultiplierBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
@@ -119,4 +121,3 @@ export function emptyEffect(): ModEffect {
         factionDamageBonus: 0, targetFaction: "",
     };
 }
-

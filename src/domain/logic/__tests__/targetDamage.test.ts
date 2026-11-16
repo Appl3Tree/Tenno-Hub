@@ -2469,4 +2469,62 @@ describe("finite expected-value weapon encounters", () => {
         expect(result.statusDamageByPool.health).toBe(0);
         expect(result.statusApplicationsByType.electricity).toBeUndefined();
     });
+
+    it("resolves Nightwatch Napalm's six immediate/one-second direct Heat ticks and fixed proc chance", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 900,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 1,
+            expectedDamageMultiplier: 1,
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 1,
+            attackCountLimit: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 10,
+            nightwatchNapalm: {
+                directDamagePerProjectilePerTick: 150,
+                heatProcChancePerTick: 0.68,
+                heatStatusDurationSeconds: 3,
+                heatDotDamagePerProcPerTick: 0,
+                heatDotAccumulatorDamagePerTick: 0,
+            },
+        });
+
+        expect(result.timeToKillSeconds).toBe(5);
+        expect(result.directDamageByPool.health).toBe(900);
+        expect(result.statusApplicationsByType.heat).toBeCloseTo(6 * 0.68, 8);
+    });
+
+    it("uses Nightwatch Napalm's three-second Heat proc duration for the final grouped ticks", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 5_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 1,
+            expectedDamageMultiplier: 1,
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 1,
+            attackCountLimit: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 12,
+            nightwatchNapalm: {
+                directDamagePerProjectilePerTick: 0,
+                heatProcChancePerTick: 0.68,
+                heatStatusDurationSeconds: 3,
+                heatDotDamagePerProcPerTick: 10,
+                heatDotAccumulatorDamagePerTick: 0,
+            },
+        });
+
+        expect(result.statusApplicationsByType.heat).toBeCloseTo(6 * 0.68, 8);
+        expect(result.statusDamageByPool.health).toBeCloseTo(258.4, 5);
+        expect(result.timeToKillSeconds).toBeNull();
+    });
 });

@@ -92,6 +92,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Braton Prime", category: "energy-gated Primary Overcharge", goal: "burst", targetFaction: "Grineer", warframeMaxEnergy: 1000, warframeEnergyPercent: 100 },
     { weaponName: "Daikyu Prime", category: "Spring-Loaded Broadhead distance-conditional bow", goal: "burst", targetFaction: "Grineer", targetDistanceMeters: 16 },
     { weaponName: "Braton Prime", category: "Expected TTK finite-encounter objective", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Kuva Ogris", attackName: "Rocket Explosion", category: "Nightwatch Napalm finite-encounter objective", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Cedo", attackName: "Glaive Radial Attack", category: "Expected TTK glaive radial", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Cedo", category: "Expected TTK direct-hit Galvanized multishot", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Phantasma Prime", attackName: "Plasma Bomb Explosion", category: "Expected TTK charged alternate fire", goal: "timeToKill", targetFaction: "Grineer" },

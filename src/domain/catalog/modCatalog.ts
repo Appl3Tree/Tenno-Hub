@@ -12,7 +12,7 @@
 // Additionally, weapon-specific augments (e.g. compatName "Hek") are surfaced
 // when the selected weapon's name matches the compat name.
 
-import { ACID_SHELLS_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, emptyEffect, VOLATILE_VARIANT_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "./modEffectUtils";
+import { ACID_SHELLS_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, emptyEffect, NIGHTWATCH_NAPALM_MOD_PATH, VOLATILE_VARIANT_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "./modEffectUtils";
 export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
 import MODS_RAW from "../../data/_generated/mods-lean.auto.json";
@@ -43,6 +43,7 @@ const VULCAN_BLITZ_WIKI_RANKS = [
     { blastDamage: 250, healthPercent: 50, radiusMeters: 5 },
     { blastDamage: 300, healthPercent: 60, radiusMeters: 6 },
 ];
+const NIGHTWATCH_NAPALM_WIKI_RANKS = [15, 30, 45, 60, 75, 90];
 const MODS_META = MODS_RAW as Record<string, {
     name?: string;
     path?: string;
@@ -144,6 +145,8 @@ export interface ModEffect {
     statusDamageBonus: number;
     /** Permanent target-side Status Damage vulnerability after Hate damages a Heat-afflicted target. */
     targetStatusDamageVulnerabilityBonus: number;
+    /** Enables the Ogris Nightwatch Napalm blaze on its Rocket Explosion attack. */
+    nightwatchNapalmEffect: number;
     projectileSpeedBonus: number;
     accuracyBonus: number;
     blastRadiusBonus: number;
@@ -1342,6 +1345,17 @@ function buildCaches(): ModCaches {
                 ];
             });
         }
+        if (path === NIGHTWATCH_NAPALM_MOD_PATH) {
+            // The rank description is outdated: the current Wiki says the
+            // blaze always deals six fixed 150 Heat-damage ticks per projectile.
+            // Only the listed explosion-area bonus changes with rank.
+            // https://wiki.warframe.com/w/Nightwatch_Napalm
+            effectsByRank.forEach((_, rank) => {
+                effectsByRank[rank] = emptyEffect();
+                effectsByRank[rank].nightwatchNapalmEffect = 1;
+                unparsedStatsByRank[rank] = [];
+            });
+        }
         if (path === VOLATILE_VARIANT_MOD_PATH) {
             // The Wiki says this additive Status Chance applies only to Volatile
             // Variant's explosion. Apply it only when the selected attack row is
@@ -1638,6 +1652,13 @@ function buildCaches(): ModCaches {
             statsTextByRank.forEach((line, rank) => {
                 const damage = line.match(/dealing\s+([\d,]+)\s+Damage\s+shortly after death/i)?.[1];
                 if (damage) statsTextByRank[rank] = `On Beam weapon kill: ${damage} Blast Damage shortly after death`;
+            });
+        }
+        if (path === NIGHTWATCH_NAPALM_MOD_PATH) {
+            NIGHTWATCH_NAPALM_WIKI_RANKS.forEach((areaBonusPct, rank) => {
+                if (rank >= statsTextByRank.length) return;
+                statsTextByRank[rank] =
+                    `150 Heat Damage per tick × 6 ticks (first immediate); fixed 68% Heat proc chance per tick, 3s Heat proc; +${areaBonusPct}% explosion area`;
             });
         }
         // Keep the repaired damage type visible everywhere the source stat is

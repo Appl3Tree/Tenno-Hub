@@ -186,6 +186,15 @@ function simulateBuilderTargetEncounter(
         reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
         ...effectiveBurstTiming(weapon, stats.fireRate),
         statusDurationMultiplier: stats.statusDurationMultiplier,
+        ...(stats.nightwatchNapalm ? {
+            nightwatchNapalm: {
+                directDamagePerProjectilePerTick: stats.nightwatchNapalm.directDamagePerProjectilePerTick,
+                heatProcChancePerTick: stats.nightwatchNapalm.heatProcChancePerTick,
+                heatStatusDurationSeconds: stats.nightwatchNapalm.heatStatusDurationSeconds,
+                heatDotDamagePerProcPerTick: stats.nightwatchNapalm.heatDotDamagePerProcPerTick,
+                heatDotAccumulatorDamagePerTick: stats.nightwatchNapalm.heatDotAccumulatorDamagePerTick,
+            },
+        } : {}),
         targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
         initialHeatStatusPresenceProbability: conditionalState.externalHeatStatusPresenceProbability,
         dotDamagePerAttackByType: stats.dotDamagePerShotByType,
@@ -1093,6 +1102,7 @@ function applyValenceToWeapon(
     if (!weapon.isProgenitorWeapon || bonusPct <= 0) return weapon;
     return {
         ...weapon,
+        valenceBonusPct: bonusPct,
         damage: applyValenceToDamage(weapon.damage, bonusPct, element),
         attacks: weapon.attacks.map((attack) => {
             const damage = applyValenceToDamage(attack.damage, bonusPct, element);
@@ -1509,6 +1519,10 @@ function buildMathBreakdown(
     const dotTypeLines = Object.entries(stats.dotDamagePerShotByType)
         .filter(([, value]) => (value ?? 0) > 0)
         .map(([type, value]) => `${type}: DoT per ${damageUnit} ${fmt(value ?? 0, 5)} | DoT DPS ${fmt(stats.dotDpsByType[type as keyof typeof stats.dotDpsByType] ?? 0, 5)}`);
+    const nightwatchNapalmLines = stats.nightwatchNapalm ? [
+        `Nightwatch Napalm: ${fmt(stats.nightwatchNapalm.directDamagePerProjectilePerTick, 5)} direct Heat damage per overlapping blaze tick × 6 ticks per ${damageUnit}; the first tick is immediate. Each tick rolls the Wiki's fixed ${(stats.nightwatchNapalm.heatProcChancePerTick * 100).toFixed(0)}% Heat proc chance independently of weapon Status Chance. Heat status lasts ${fmt(stats.nightwatchNapalm.heatStatusDurationSeconds, 3)}s after duration modifiers.`,
+        `Napalm DPS = ${fmt(stats.nightwatchNapalm.directDamagePerSecond, 5)} direct tick damage/s + ${fmt(stats.nightwatchNapalm.heatStatusDamagePerSecond, 5)} steady-state Heat status damage/s. Assumes a stationary single target receives every blaze tick; spatial exposure, other on-tick effects (including Toxic Lash and Xata's Whisper), and crowd coverage are not modeled. Data: https://wiki.warframe.com/w/Nightwatch_Napalm`,
+    ] : [];
     const damageRampLines = weapon.selectedAttackDamageRamp ? [
         `Verified attack ramp: ${fmt(weapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 1)}% → 100% over ${fmt(weapon.selectedAttackDamageRamp.rampToFullSeconds, 3)}s; decay begins after ${fmt(weapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 3)}s idle and reaches minimum over ${fmt(weapon.selectedAttackDamageRamp.decayToMinimumSeconds, 3)}s.`,
         `Fresh-magazine average ramp multiplier = ${fmt(stats.freshMagazineDamageMultiplier, 6)}; steady repeating-cycle multiplier = ${fmt(stats.sustainedDamageMultiplier, 6)}. Ramp scales direct damage. Per-attack DoT/Blast seed scaling is a model assumption because the Wiki does not specify seed inheritance separately; status chance and proc weights stay unchanged.`,
@@ -1896,6 +1910,7 @@ function buildMathBreakdown(
                 `DoT per ${damageUnit} total = ${fmt(stats.dotDamagePerShot, 5)}`,
                 `Steady-state DoT DPS estimate = expected status seed damage per second plus grouped-tick accumulator contribution = ${fmt(stats.dotDps, 5)}`,
                 ...dotTypeLines,
+                ...nightwatchNapalmLines,
                 `Derived status effects = Viral health bonus ${fmt(stats.viralHealthDamageBonus * 100, 5)}%, Heat armor strip ${fmt(stats.heatArmorStrip * 100, 5)}%, Corrosive armor strip ${fmt(stats.corrosiveArmorStrip * 100, 5)}%, Magnetic shield bonus ${fmt(stats.magneticShieldDamageBonus * 100, 5)}%, Radiation ally damage bonus ${fmt(stats.radiationAllyDamageBonus * 100, 5)}%, Cold slow ${fmt(stats.coldSlow * 100, 5)}%, Cold crit bonus ${fmt(stats.coldCritDamageBonus, 5)}, Puncture enemy damage reduction ${fmt(stats.punctureEnemyDamageReduction * 100, 5)}%, Puncture crit chance bonus ${fmt(stats.punctureCritChanceBonus * 100, 5)}%, Impact mercy threshold bonus ${fmt(stats.impactMercyThresholdBonus * 100, 5)}%, Tau status vulnerability ${fmt(stats.tauStatusVulnerability * 100, 5)}%`,
             ],
         },
@@ -4590,6 +4605,15 @@ export default function ModBuilder() {
             reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
             statusDurationMultiplier: stats.statusDurationMultiplier,
+            ...(stats.nightwatchNapalm ? {
+                nightwatchNapalm: {
+                    directDamagePerProjectilePerTick: stats.nightwatchNapalm.directDamagePerProjectilePerTick,
+                    heatProcChancePerTick: stats.nightwatchNapalm.heatProcChancePerTick,
+                    heatStatusDurationSeconds: stats.nightwatchNapalm.heatStatusDurationSeconds,
+                    heatDotDamagePerProcPerTick: stats.nightwatchNapalm.heatDotDamagePerProcPerTick,
+                    heatDotAccumulatorDamagePerTick: stats.nightwatchNapalm.heatDotAccumulatorDamagePerTick,
+                },
+            } : {}),
             targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
             initialHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
             dotDamagePerAttackByType: stats.dotDamagePerShotByType,
@@ -7014,6 +7038,10 @@ export default function ModBuilder() {
                                         { label: "Sustained DPS", value: fmt(result.sustainedDPS), sub: stats.infiniteAmmoActive ? "Gale Force maintained" : "with reload", tooltip: stats.infiniteAmmoActive ? "Damage per second assumes Gale Force stays active, so no reload downtime or recurring first-shot Chamber bonus is applied." : "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable." },
                                         { label: `DoT / ${damageUnitLabel}`, value: fmt(stats.dotDamagePerShot), sub: "full-life estimate", tooltip: `Expected status damage-over-time contributed by one ${damageUnit} if the target survives for every proc's full duration. This is not damage delivered before a target dies.` },
                                         { label: "DoT DPS", value: fmt(stats.dotDps), sub: "steady-state estimate", tooltip: "Estimated DoT damage per second against a target that survives long enough for status stacks to reach steady state. Ramp-enabled attacks assume fully warmed damage for this long-run estimate; the expected encounter scales each proc seed by its attack-time ramp." },
+                                        ...(stats.nightwatchNapalm ? [
+                                            { label: "Napalm direct DPS", value: fmt(stats.nightwatchNapalm.directDamagePerSecond), sub: "six full blaze ticks", tooltip: "Pre-defense direct Heat tick DPS from six 150-base-damage ticks per projectile. Scales with base damage and Kuva Ogris valence, never crits, and assumes this target remains inside the blaze for all ticks." },
+                                            { label: "Napalm Heat DoT DPS", value: fmt(stats.nightwatchNapalm.heatStatusDamagePerSecond), sub: "steady-state estimate", tooltip: "Steady-state Heat status damage from the fixed 68% proc chance on each Napalm tick, using the Napalm Heat proc's three-second duration and the current Heat, Status Damage, and faction modifiers. It excludes unrelated on-tick extra-hit effects." },
+                                        ] : []),
                                         {
                                             label: "Crit Chance",
                                             value: fmt(stats.critChance * 100, 1) + "%",
