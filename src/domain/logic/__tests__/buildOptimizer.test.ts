@@ -910,6 +910,20 @@ describe("build optimizer scoring", () => {
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
+    it("models Bell Ringer Impact procs but excludes its unmodeled knockdown from Auto Optimize", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
+        expect(claw).toBeDefined();
+        const bellRinger = getModsForWeapon(claw!).find((candidate) => candidate.name === "Bell Ringer");
+        expect(bellRinger).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(bellRinger!, bellRinger!.fusionLimit)).toContain(
+            "Bell Ringer's knockdown contribution to Condition Overload/Galvanized per-status counts is not modeled because target susceptibility and knockdown duration are unknown; Auto Optimize skips this mod.",
+        );
+
+        const result = optimizeBuild(claw!, [bellRinger!], "meleeDps", 1, { allowForma: false });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots).toEqual([null]);
+    });
+
     it("selects Spring-Loaded Broadhead when its Wiki distance condition is met", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu Prime");
         expect(weapon).toBeDefined();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
+import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
@@ -479,6 +480,37 @@ describe("Beast Claw elemental conversion Wiki rules", () => {
         }]).modded;
         expect(convertedHeat.dotTickDamagePerProcByType.heat)
             .toBeCloseTo(equivalentHeatBonus.dotTickDamagePerProcByType.heat!, 8);
+    });
+});
+
+describe("Bell Ringer Wiki status applications", () => {
+    it("models every rank's forced Impact procs and discloses the unmodeled knockdown status", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
+        const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(claw).toBeDefined();
+        expect(braton).toBeDefined();
+        const bellRinger = getModsForWeapon(claw!).find((candidate) => candidate.name === "Bell Ringer");
+        expect(bellRinger).toBeDefined();
+        expect(bellRinger!.fusionLimit).toBe(3);
+        expect(bellRinger!.effectsByRank).toHaveLength(4);
+        expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Bell Ringer")).toBe(false);
+
+        const limitation = "Bell Ringer's knockdown contribution to Condition Overload/Galvanized per-status counts is not modeled because target susceptibility and knockdown duration are unknown; Auto Optimize skips this mod.";
+        for (let rank = 0; rank <= bellRinger!.fusionLimit; rank++) {
+            const effect = bellRinger!.effectsByRank[rank];
+            expect(effect.forcedImpactProcsPerMeleeHit).toBe(rank + 1);
+            expect(effect.knockdownOnMeleeHit).toBe(true);
+            expect(bellRinger!.unparsedStatsByRank?.[rank]).not.toContain(
+                "Melee attacks knock down enemies and apply +" + (rank + 1) + " Impact Status Effects",
+            );
+            expect(getUnmodeledDamageEffectLines(bellRinger!, rank)).toEqual([limitation]);
+            expect(getUnmodeledScoringEffectLines(effect)).toEqual([limitation]);
+
+            const baseline = calculateBuild(claw!, []).modded.forcedProcsPerShot.impact ?? 0;
+            const withBellRinger = calculateBuild(claw!, [effect]).modded;
+            expect(withBellRinger.forcedProcsPerShot.impact).toBeCloseTo(baseline + rank + 1, 8);
+            expect(withBellRinger.unfilteredExtraProcsPerShot.impact).toBeGreaterThanOrEqual(rank + 1);
+        }
     });
 });
 
