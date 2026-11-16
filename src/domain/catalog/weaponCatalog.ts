@@ -68,6 +68,13 @@ export interface WeaponAutoSpoolCadenceRule {
     sourceUrl: string;
 }
 
+export interface WeaponAutoSpoolTimingLimitation {
+    /** Current Wiki page confirming the Auto-Spool behavior and this boundary. */
+    sourceUrl: string;
+    /** Why this attack cannot yet receive a finite encounter timing estimate. */
+    reason: string;
+}
+
 export interface WeaponDamage {
     total: number;
     impact: number;
@@ -116,6 +123,8 @@ export interface WeaponAttack {
     damageRamp?: WeaponDamageRampRule;
     /** Wiki-sourced Fire Rate ramp for Auto-Spool attack rows. */
     autoSpoolCadence?: WeaponAutoSpoolCadenceRule;
+    /** Explicit finite-timing boundary for Wiki-confirmed Auto-Spool rows without a complete supported cadence. */
+    autoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Forced status effects per projectile/hit, independent of status chance and damage weights. */
     forcedProcs?: WeaponForcedProcs;
     /** Guaranteed non-damage status types that count as unique Galvanized/CO states. */
@@ -225,6 +234,8 @@ export interface WeaponEntry {
     selectedAttackDamageRamp?: WeaponDamageRampRule;
     /** Fire Rate ramp carried from the selected Auto-Spool attack row. */
     selectedAttackAutoSpoolCadence?: WeaponAutoSpoolCadenceRule;
+    /** Why finite attack timing is unavailable for this selected Auto-Spool row. */
+    selectedAttackAutoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
 }
 
 export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
@@ -355,11 +366,16 @@ const autoSpoolCadence = (
     sourceUrl,
 });
 
+const autoSpoolTimingLimitation = (
+    sourceUrl: string,
+    reason: string,
+): WeaponAutoSpoolTimingLimitation => Object.freeze({ sourceUrl, reason });
+
 /**
  * The upstream item snapshot labels several Auto-Spool weapons as plain Auto.
  * These attack-specific Wiki records restore their trigger and rate-only spool
- * cadence. Variable-pellet weapons are intentionally excluded until their
- * per-round multishot, ammo, and status behavior can change with the spool.
+ * cadence. The Coda Bubonico's Wiki trigger remains Auto; its separate cadence
+ * rule models the primary-fire rate ramp without relabeling that trigger.
  */
 const VERIFIED_ATTACK_AUTO_SPOOL_OVERRIDES: Readonly<Record<
     string,
@@ -416,8 +432,67 @@ const VERIFIED_ATTACK_AUTO_SPOOL_OVERRIDES: Readonly<Record<
     }),
 });
 
+/**
+ * Wiki-confirmed Auto-Spool rows that deliberately remain unavailable to the
+ * finite encounter until their full attack cadence can be represented. This
+ * prevents the target optimizer from treating a fully-spooled Arsenal rate as
+ * an immediate first-shot rate. Single-Pellet rows remain available as the
+ * separate unspooled attack profile supplied by the Wiki.
+ */
+const VERIFIED_ATTACK_AUTO_SPOOL_TIMING_LIMITATIONS: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponAutoSpoolTimingLimitation>>
+>> = Object.freeze({
+    "/Lotus/Weapons/Grineer/LongGuns/GrnSpark/GrnSparkRifle": Object.freeze({
+        "fully spooled": autoSpoolTimingLimitation(
+            "https://wiki.warframe.com/w/Kohm",
+            "The pellet count and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
+        ),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Kohm/KuvaKohm": Object.freeze({
+        "fully spooled": autoSpoolTimingLimitation(
+            "https://wiki.warframe.com/w/Kuva_Kohm",
+            "The pellet count, per-pellet Status Chance, and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
+        ),
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/GrnKohmPistol/GrnKohmPistol": Object.freeze({
+        "fully spooled": autoSpoolTimingLimitation(
+            "https://wiki.warframe.com/w/Kohmak",
+            "The pellet count, per-pellet Status Chance, and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
+        ),
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/GrnDWUniques/GrnTwinKohmaks": Object.freeze({
+        "fully spooled": autoSpoolTimingLimitation(
+            "https://wiki.warframe.com/w/Twin_Kohmak",
+            "The pellet count, per-pellet Status Chance, and ammo cost change while spooling, and the finite encounter does not yet evolve those per-shot values together.",
+        ),
+    }),
+    "/Lotus/Weapons/Tenno/Pistols/PrimeAksomati/PrimeAksomati": Object.freeze({
+        "fully spooled": autoSpoolTimingLimitation(
+            "https://wiki.warframe.com/w/Aksomati_Prime",
+            "The Wiki confirms an 11-round spool-up but does not give the starting rate and per-shot increments needed for finite timing.",
+        ),
+    }),
+    "/Lotus/Types/Sentinels/SentinelWeapons/DethMachineRifle": Object.freeze({
+        "normal attack": autoSpoolTimingLimitation(
+            "https://wiki.warframe.com/w/Deth_Machine_Rifle",
+            "The Wiki confirms Auto-Spool behavior but does not give the starting rate and per-shot increments needed for finite timing.",
+        ),
+    }),
+    "/Lotus/Types/Sentinels/SentinelWeapons/PrimeDethMachineRifle": Object.freeze({
+        "normal attack": autoSpoolTimingLimitation(
+            "https://wiki.warframe.com/w/Deth_Machine_Rifle_Prime",
+            "The Wiki confirms Auto-Spool behavior but does not give the starting rate and per-shot increments needed for finite timing.",
+        ),
+    }),
+});
+
 function getAutoSpoolCadence(uniqueName: string, attackName: string): WeaponAutoSpoolCadenceRule | undefined {
     return VERIFIED_ATTACK_AUTO_SPOOL_OVERRIDES[uniqueName]?.[attackName.trim().toLowerCase()];
+}
+
+function getAutoSpoolTimingLimitation(uniqueName: string, attackName: string): WeaponAutoSpoolTimingLimitation | undefined {
+    return VERIFIED_ATTACK_AUTO_SPOOL_TIMING_LIMITATIONS[uniqueName]?.[attackName.trim().toLowerCase()];
 }
 
 const ATTACK_CHARGE_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
@@ -1676,9 +1751,15 @@ export function getWeaponCatalog(): WeaponEntry[] {
         const fireRate = n(item.fireRate) || 1;
         const attacks = parsedAttacks.map((attack, attackIndex) => {
             const autoSpoolCadence = getAutoSpoolCadence(uniqueName, attack.name);
-            const attackTrigger = autoSpoolCadence
-                ? "Auto-Spool"
-                : resolveAttackTrigger(uniqueName, attack.name, attackIndex, trigger);
+            const autoSpoolTimingLimitation = getAutoSpoolTimingLimitation(uniqueName, attack.name);
+            const resolvedAttackTrigger = resolveAttackTrigger(uniqueName, attack.name, attackIndex, trigger);
+            const isCodaBubonicoAutoAttack = uniqueName === "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon" &&
+                attack.name.trim().toLowerCase() === "auto";
+            const attackTrigger = isCodaBubonicoAutoAttack
+                ? resolvedAttackTrigger
+                : autoSpoolCadence || autoSpoolTimingLimitation
+                    ? "Auto-Spool"
+                    : resolvedAttackTrigger;
             const burst = resolveAttackBurstRule(
                 uniqueName,
                 attack.name,
@@ -1694,6 +1775,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 trigger: burst ? "Burst" : attackTrigger,
                 chargeTime,
                 ...(autoSpoolCadence ? { autoSpoolCadence } : {}),
+                ...(autoSpoolTimingLimitation ? { autoSpoolTimingLimitation } : {}),
                 ...(burst ? { burstCount: burst.count, burstDelay: burst.delay } : {}),
             };
         });

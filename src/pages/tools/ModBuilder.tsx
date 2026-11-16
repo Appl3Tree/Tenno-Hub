@@ -1512,6 +1512,13 @@ function buildMathBreakdown(
                 `Finite attack timing starts with the first hit at 0s, then applies the Wiki cadence for ${cadence.roundsToFullRate} shots: ${fmt(cadence.startingRateFraction * 100, 3)}% starting rate + ${fmt(cadence.rateIncreasePerShotFraction * 100, 4)} percentage points per shot, capped at full rate. The model assumes the spool resets after an empty magazine; spool-down between trigger releases, accuracy/recoil changes, and miss probability are not simulated. Wiki: ${cadence.sourceUrl}`,
             ];
         }
+        if (weapon.selectedAttackAutoSpoolTimingLimitation) {
+            const limitation = weapon.selectedAttackAutoSpoolTimingLimitation;
+            return [
+                `${rateLabel} = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(stats.fireRate, 5)}/s at full spool. Wiki theoretical weapon comparisons use the fully spooled Arsenal rate.`,
+                `Finite attack timing and Expected TTK are unavailable for this Auto-Spool attack: ${limitation.reason} Wiki: ${limitation.sourceUrl}`,
+            ];
+        }
         return [`${rateLabel} = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(stats.fireRate, 5)}`];
     })();
     const sections: BuildMathSection[] = [
@@ -4255,7 +4262,11 @@ export default function ModBuilder() {
         });
     }, [activeTargetAttackInput, activeMetrics]);
     const activeTargetAttackSequence = useMemo(() => {
-        if (!activeTargetAttackInput || !activeMetrics) return null;
+        if (
+            !activeTargetAttackInput ||
+            !activeMetrics ||
+            activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation
+        ) return null;
         const stats = activeMetrics.modded;
         return simulateDirectAttackSequence({
             ...activeTargetAttackInput,
@@ -4291,7 +4302,7 @@ export default function ModBuilder() {
         });
     }, [activeTargetAttackInput, activeMetrics, activeCalcWeapon, targetProfileOverride]);
     const activeTargetEncounter = useMemo(() => {
-        if (!encounterTargetMetrics) return null;
+        if (!encounterTargetMetrics || activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation) return null;
         const stats = encounterTargetMetrics.modded;
         const factionDamageBonus = factionOn
             ? activeBuildEffects.reduce((sum, effect) =>
@@ -4406,6 +4417,14 @@ export default function ModBuilder() {
     async function handleOptimize() {
         if (!weapon) return;
         if (onlyOwned && ownedSet.size === 0) return;
+        const selectedAttackAutoSpoolLimitation = weapon.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation;
+        if (goal === "timeToKill" && selectedAttackAutoSpoolLimitation) {
+            setOptimizerNotice(
+                `Expected TTK is unavailable for ${weapon.attacks[selectedAttackIdx]?.name ?? weapon.name}: ` +
+                `${selectedAttackAutoSpoolLimitation.reason} Wiki: ${selectedAttackAutoSpoolLimitation.sourceUrl}`,
+            );
+            return;
+        }
         if (goal === "meleeDps" && (!meleeDpsGoalAvailable || !meleeDpsInputs)) {
             setOptimizerNotice("Select a melee stance with a Wiki Neutral-combo reference to optimize Wiki Stance DPS.");
             return;
@@ -5107,6 +5126,17 @@ export default function ModBuilder() {
                                                     />
                                                 ))}
                                             </div>
+                                            {goal === "timeToKill" && weapon?.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation && (
+                                                <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
+                                                    Finite timing and Expected TTK are unavailable because this attack's full per-shot spool behavior is not modeled. Steady-state stats still use the fully spooled Arsenal rate. {" "}
+                                                    <a
+                                                        href={weapon?.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation?.sourceUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="underline underline-offset-2"
+                                                    >Wiki source</a>
+                                                </p>
+                                            )}
                                             <button
                                                 onClick={() => setShowOptimizeOptions(v => !v)}
                                                 className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
@@ -6168,6 +6198,12 @@ export default function ModBuilder() {
                                                                 <div><span className="text-slate-500">Objective:</span> {GOAL_OPTIONS.find((option) => option.key === goal)?.label ?? goal}</div>
                                                                 <div><span className="text-slate-500">Target:</span> {activeTargetSummary}</div>
                                                                 <div><span className="text-slate-500">Attack:</span> {weapon.attacks[selectedAttackIdx]?.name ?? "Normal attack"}</div>
+                                                                {activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation && (
+                                                                    <div role="note" className="sm:col-span-2 text-amber-200">
+                                                                        <span className="font-semibold">Finite Auto-Spool timing unavailable:</span> {activeCalcWeapon.selectedAttackAutoSpoolTimingLimitation.reason} Expected TTK and finite attack sequences are withheld; steady-state stats continue to use the fully spooled Arsenal rate. {" "}
+                                                                        <a href={activeCalcWeapon.selectedAttackAutoSpoolTimingLimitation.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">Wiki source</a>
+                                                                    </div>
+                                                                )}
                                                                 {activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined && (
                                                                     <div className="sm:col-span-2">
                                                                         <span className="text-slate-500">Incarnon ammo:</span> one full transformation, {fmt(activeCalcWeapon.selectedAttackIncarnonAmmoCapacity, 0)} rounds. The finite encounter stops at this limit; burst attacks count individual rounds, and charge-building/reversion are not simulated.{" "}
