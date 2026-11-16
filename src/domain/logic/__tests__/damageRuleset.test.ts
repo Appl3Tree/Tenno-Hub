@@ -35,6 +35,11 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
             entry.includes("Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE"),
         )).toBe(true);
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("statuses applied by earlier multishot instances in the same trigger") &&
+            entry.includes("exact random proc histories") &&
+            entry.includes("same-volley Tau amplification"),
+        )).toBe(true);
     });
 
     it("records Cannonade's current Fire Rate lock as modeled", () => {

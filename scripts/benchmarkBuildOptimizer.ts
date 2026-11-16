@@ -61,7 +61,9 @@ const RUNS = Number.isFinite(parsedRuns) ? Math.max(1, Math.min(20, Math.floor(p
 const optimizeArcane = !process.argv.includes("--no-arcane");
 const optimizeExilus = !process.argv.includes("--no-exilus");
 const verifyArcaneSelection = process.argv.includes("--verify-arcane-selection");
-const conditionalState: ConditionalState = { mode: "initial" };
+const conditionalState: ConditionalState = process.argv.includes("--fully-stacked")
+    ? { mode: "fullyStacked" }
+    : { mode: "initial" };
 const allCases: BenchmarkCase[] = [
     { weaponName: "Braton Prime", category: "rifle", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Cedo", category: "shotgun", goal: "burst", targetFaction: "Grineer" },
@@ -89,6 +91,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Daikyu Prime", category: "Spring-Loaded Broadhead distance-conditional bow", goal: "burst", targetFaction: "Grineer", targetDistanceMeters: 16 },
     { weaponName: "Braton Prime", category: "Expected TTK finite-encounter objective", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Cedo", attackName: "Glaive Radial Attack", category: "Expected TTK glaive radial", goal: "timeToKill", targetFaction: "Grineer" },
+    { weaponName: "Cedo", category: "Expected TTK direct-hit Galvanized multishot", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Phantasma Prime", attackName: "Plasma Bomb Explosion", category: "Expected TTK charged alternate fire", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Laetum", category: "Expected TTK secondary", goal: "timeToKill", targetFaction: "Corpus" },
     { weaponName: "Cinta", category: "Expected TTK bow", goal: "timeToKill", targetFaction: "Grineer" },
@@ -521,7 +524,7 @@ console.log(JSON.stringify({
         logicalCpuCount: Number(process.env.NUMBER_OF_PROCESSORS) || undefined,
     },
     assumptions: {
-        conditionalState: "initial; targetDistanceMeters is recorded per case where applicable",
+        conditionalState: `${conditionalState.mode}; targetDistanceMeters is recorded per case where applicable`,
         catalyst: true,
         formaLimit: 3,
         masteryRank: 30,

@@ -1689,6 +1689,20 @@ describe("damage calculation status eligibility", () => {
             .toBeCloseTo(12, 3);
     });
 
+    it("matches the current Wiki worked example for modded Heat proc tick damage", () => {
+        const weapon = { ...makeWeapon({ heat: 100 }), statusChance: 1, critChance: 0 };
+        const result = calculateBuild(weapon, [
+            { ...emptyEffect(), damageBonus: 1.65 },
+            { ...emptyEffect(), heatBonus: 0.9 },
+            { ...emptyEffect(), factionDamageBonus: 0.3, targetFaction: "Grineer" },
+            { ...emptyEffect(), statusDamageBonus: 0.9 },
+        ], "Grineer").modded;
+
+        // Wiki example: 100 × 2.65 × 1.3 = 344.5 modded base damage, then
+        // 0.5 × 344.5 × 1.9 Heat × 1.3 faction × 1.9 Status Damage.
+        expect(result.dotTickDamagePerProcByType.heat).toBeCloseTo(808.3692, 4);
+    });
+
     it("computes Blast stack hit damage from modded base damage with faction double-dip and Status Damage", () => {
         const weapon = { ...makeWeapon({ blast: 100 }), statusChance: 1, critChance: 0 };
         const plain = calculateBuild(weapon, []).modded;

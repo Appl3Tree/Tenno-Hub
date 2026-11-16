@@ -154,6 +154,59 @@ describe("target damage progress across defense pools", () => {
         expect(encounter.statusApplicationsByType.slash).toBeCloseTo(5 * 0.69, 8);
     });
 
+    it("applies Galvanized direct damage from statuses created by earlier multishot instances", () => {
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            rawDamageByType: { impact: 100 },
+            baseDamageTotal: 100,
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 3,
+            expectedDamageMultiplier: 3,
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 3,
+            reloadDurationSeconds: 0,
+            statusProcWeightsByType: { impact: 100 },
+            statusRollsPerAttack: 3,
+            directDamagePerStatusBonus: 0.8,
+            attackCountLimit: 1,
+            maxDurationSeconds: 1,
+        });
+
+        // With two Galvanized stacks, the first pellet applies Impact for
+        // later pellets: 100 + 180 + 180. Status procs from a hit never boost
+        // that same hit.
+        expect(encounter.directDamageByPool.health).toBeCloseTo(460, 8);
+
+        const mixedStatuses = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            rawDamageByType: { impact: 100 },
+            baseDamageTotal: 100,
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 3,
+            expectedDamageMultiplier: 3,
+            attackIntervalSeconds: 1,
+            shotsPerMagazine: 3,
+            reloadDurationSeconds: 0,
+            statusProcWeightsByType: { impact: 50, puncture: 50 },
+            statusRollsPerAttack: 3,
+            directDamagePerStatusBonus: 0.8,
+            attackCountLimit: 1,
+            maxDurationSeconds: 1,
+        });
+
+        // With two equally likely status types, later-pellet presence is
+        // expected at one type on hit two and 1.5 types on hit three.
+        expect(mixedStatuses.directDamageByPool.health).toBeCloseTo(500, 8);
+    });
+
     it("activates Burning Hate after a qualifying hit and boosts only later procs", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { impact: 1 },
@@ -1823,16 +1876,24 @@ describe("finite expected-value weapon encounters", () => {
             statusProcWeightsByType: { impact: 1, slash: 1 },
             // 150% chance on each projectile: one guaranteed roll plus a 50%
             // additional roll. The 0.5 multishot projectile is another
-            // independent event. P(type appears) = 1 - (0.375 × 0.6875).
+            // independent event. Galvanized also applies sequentially within
+            // each trigger, so its later projectile uses statuses from earlier
+            // projectiles in that same trigger.
             statusRollsPerAttack: 2.25,
             directDamagePerStatusBonus: 0.8,
         });
 
-        const probabilityPerType = 1 - (0.375 * 0.6875);
-        expect(result.directDamageByPool.health).toBeCloseTo(
-            100 + 100 * (1 + (2 * probabilityPerType * 0.8)),
-            10,
-        );
+        const probabilityPerTypeAfterAttack = 1 - (0.375 * 0.6875);
+        const probabilityPerTypePerProjectile = 0.625;
+        const fractionalProjectileDamageWeight = (1 / 1.5) * 0.5;
+        const firstAttackWithinVolleyBonus = fractionalProjectileDamageWeight * 100 * 0.8 *
+            (2 * probabilityPerTypePerProjectile);
+        const secondAttackWithinVolleyBonus = fractionalProjectileDamageWeight * 100 * 0.8 *
+            (2 * (1 - probabilityPerTypeAfterAttack) * probabilityPerTypePerProjectile);
+        const expectedDamage = 100 + firstAttackWithinVolleyBonus +
+            100 * (1 + (2 * probabilityPerTypeAfterAttack * 0.8)) +
+            secondAttackWithinVolleyBonus;
+        expect(result.directDamageByPool.health).toBeCloseTo(expectedDamage, 10);
         expect(result.statusApplicationsByType.impact).toBeCloseTo(2.25, 10);
         expect(result.statusApplicationsByType.slash).toBeCloseTo(2.25, 10);
     });

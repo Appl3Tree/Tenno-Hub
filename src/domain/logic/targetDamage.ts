@@ -874,6 +874,56 @@ export function simulateExpectedWeaponEncounter(
         return { applications, ordinaryApplications, forcedApplications, presenceProbabilities };
     };
 
+    /**
+     * Expected chance for one projectile to add each status type. The Wiki
+     * Galvanized notes treat projectiles as sequential hits, so an earlier
+     * projectile's status can increase direct damage on later projectiles in
+     * the same trigger pull.
+     */
+    const statusPresenceByProjectile = (currentProjectileCount: number): Partial<Record<StatusDamageType, number>> => {
+        if (
+            currentProjectileCount <= 0 ||
+            input.statusProcWeightsByType === undefined ||
+            input.statusRollsPerAttack === undefined
+        ) return {};
+
+        const immuneTypes = new Set(statusImmuneTypes);
+        if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
+        const totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
+            if (immuneTypes.has(type)) return sum;
+            return sum + finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+        }, 0);
+        if (totalWeight <= 0) return {};
+
+        const statusChancePerProjectile = finiteNonNegative(input.statusRollsPerAttack) / currentProjectileCount;
+        const baseProjectileCount = Math.max(1, finiteNonNegative(input.expectedProjectiles ?? 1));
+        const forcedProjectileRatio = input.autoSpoolShotSequenceRule
+            ? currentProjectileCount / baseProjectileCount
+            : 1;
+        const tauVulnerability = ordinaryStatusChanceMultiplier();
+        const presence: Partial<Record<StatusDamageType, number>> = {};
+        for (const type of STATUS_DAMAGE_TYPES) {
+            if (immuneTypes.has(type)) continue;
+            const targetCap = input.statusStackCaps?.[type];
+            if (Number.isFinite(targetCap) && (targetCap ?? 0) <= 0) continue;
+            const weight = finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+            if (weight <= 0) continue;
+
+            const ordinary = probabilityAtLeastOneWeightedStatusType(
+                1,
+                statusChancePerProjectile,
+                weight / totalWeight,
+                type === "tau" ? 1 : tauVulnerability,
+            );
+            const forcedPerProjectile = finiteNonNegative(
+                input.forcedStatusApplicationsPerAttackByType?.[type] ?? 0,
+            ) * forcedProjectileRatio / currentProjectileCount;
+            const forced = Math.min(1, forcedPerProjectile);
+            presence[type] = 1 - (1 - ordinary) * (1 - forced);
+        }
+        return presence;
+    };
+
     const applyExpectedStatusApplications = (
         attackTime: number,
         applicationsByType: Partial<Record<StatusDamageType, number>>,
@@ -1191,13 +1241,16 @@ export function simulateExpectedWeaponEncounter(
             16,
             weaponStatusTypeCount + activeUniqueStatusTypes.size,
         );
+        const directDamageStatusPresenceByType: Partial<Record<StatusDamageType, number>> = {};
         const directDamageStatusTypeCount = STATUS_DAMAGE_TYPES
             .filter((type) => type !== "tau")
             .reduce((count, type) => {
                 const modeledPresence = statusStackQueues.get(type)
                     ? expectedStatusPresence(statusStackQueues.get(type)!)
                     : 0;
-                return count + Math.max(modeledPresence, externalStatusTypeSet.has(type) ? 1 : 0);
+                const presence = Math.max(modeledPresence, externalStatusTypeSet.has(type) ? 1 : 0);
+                directDamageStatusPresenceByType[type] = presence;
+                return count + presence;
             }, 0) + activeUniqueStatusTypes.size;
         const damageBracket = Math.max(0.0001, 1 + finiteSigned(input.totalDamageBonus ?? 0) + timedDamageBonus);
         const conditionOverloadDamagePerStatusBonus =
@@ -1229,6 +1282,8 @@ export function simulateExpectedWeaponEncounter(
             expectedHitDamageMultiplier: hitDamageMultiplier,
             conditionOverloadDamageMultiplier,
             directDamagePerStatusMultiplier,
+            directDamageStatusTypeCount,
+            directDamageStatusPresenceByType,
         };
     };
 
@@ -1419,7 +1474,7 @@ export function simulateExpectedWeaponEncounter(
                 input.rawDamageByType !== undefined && Number.isFinite(input.baseDamageTotal);
             const dynamicQuantizationBase = finiteNonNegative(input.baseDamageTotal ?? 0) *
                 attackDamageBracket * combinedDamageMultiplier;
-            const damageByType = Object.fromEntries(DAMAGE_TYPES.map((type) => [
+            let damageByType = Object.fromEntries(DAMAGE_TYPES.map((type) => [
                 type,
                 canRequantizeDynamicPerStatusDamage
                     ? quantizeDamageContribution(
@@ -1430,6 +1485,78 @@ export function simulateExpectedWeaponEncounter(
                     : finiteNonNegative(input.damageByType[type] ?? 0) *
                         timedDamageBracketMultiplier * combinedDamageMultiplier,
             ])) as Partial<Record<DamageType, number>>;
+            const directDamagePerStatusBonus = finiteNonNegative(input.directDamagePerStatusBonus ?? 0);
+            if (
+                directDamagePerStatusBonus > 0 &&
+                attackExpectedProjectiles > 1 &&
+                attackExpectedDamageMultiplier > 0 &&
+                input.statusProcWeightsByType !== undefined &&
+                input.statusRollsPerAttack !== undefined
+            ) {
+                const perProjectileStatusPresence = statusPresenceByProjectile(attackExpectedProjectiles);
+                const baseDirectStatusTypeCount = finiteNonNegative(
+                    statusModifiers.directDamageStatusTypeCount ?? 0,
+                );
+                const uniqueStatusesAfterFirstProjectile = unionUniqueStatusTypes(
+                    activeUniqueStatusTypes,
+                    input.uniqueStatusProcsPerAttack ?? [],
+                );
+                const additionalUniqueStatusTypes = Math.max(
+                    0,
+                    uniqueStatusesAfterFirstProjectile.size - activeUniqueStatusTypes.size,
+                );
+                const wholeProjectiles = Math.floor(attackExpectedProjectiles);
+                const fractionalProjectile = attackExpectedProjectiles - wholeProjectiles;
+                const damageWeightPerProjectile = attackExpectedDamageMultiplier / attackExpectedProjectiles;
+                const weightedDamageByType = Object.fromEntries(
+                    DAMAGE_TYPES.map((type) => [type, 0]),
+                ) as Record<DamageType, number>;
+
+                for (let projectileIndex = 0; projectileIndex <= wholeProjectiles; projectileIndex++) {
+                    const projectileProbability = projectileIndex < wholeProjectiles
+                        ? 1
+                        : fractionalProjectile;
+                    if (projectileProbability <= 0) continue;
+
+                    let additionalStatusTypes = 0;
+                    for (const type of STATUS_DAMAGE_TYPES) {
+                        if (type === "tau") continue;
+                        const initialPresence = finiteNonNegative(
+                            statusModifiers.directDamageStatusPresenceByType?.[type] ?? 0,
+                        );
+                        const perProjectilePresence = finiteNonNegative(perProjectileStatusPresence[type] ?? 0);
+                        const presenceBeforeThisProjectile = 1 -
+                            (1 - initialPresence) * Math.pow(1 - perProjectilePresence, projectileIndex);
+                        additionalStatusTypes += Math.max(0, presenceBeforeThisProjectile - initialPresence);
+                    }
+                    if (projectileIndex > 0) additionalStatusTypes += additionalUniqueStatusTypes;
+                    additionalStatusTypes = Math.max(
+                        0,
+                        Math.min(16, baseDirectStatusTypeCount + additionalStatusTypes) - baseDirectStatusTypeCount,
+                    );
+
+                    const projectileStatusDamageMultiplier = combinedDamageMultiplier +
+                        directDamagePerStatusBonus * additionalStatusTypes / attackDamageBracket;
+                    const projectileQuantizationBase = finiteNonNegative(input.baseDamageTotal ?? 0) *
+                        attackDamageBracket * projectileStatusDamageMultiplier;
+                    for (const type of DAMAGE_TYPES) {
+                        const projectileDamage = canRequantizeDynamicPerStatusDamage
+                            ? quantizeDamageContribution(
+                                finiteSigned(input.rawDamageByType?.[type] ?? 0) *
+                                    timedDamageBracketMultiplier * projectileStatusDamageMultiplier,
+                                projectileQuantizationBase,
+                            )
+                            : finiteNonNegative(input.damageByType[type] ?? 0) *
+                                timedDamageBracketMultiplier * projectileStatusDamageMultiplier;
+                        weightedDamageByType[type] += projectileDamage * projectileProbability * damageWeightPerProjectile;
+                    }
+                }
+
+                damageByType = Object.fromEntries(DAMAGE_TYPES.map((type) => [
+                    type,
+                    weightedDamageByType[type] / attackExpectedDamageMultiplier,
+                ])) as Partial<Record<DamageType, number>>;
+            }
             const poolsBeforeAttack = { ...remainingPools };
             const result = calculateDirectDamageToInitialPools({
                 ...attackInput,
