@@ -11,7 +11,7 @@ import { emptyEffect } from "../../catalog/modCatalog";
 import { assignModsToSlots, debugEvaluateExpectedEncounter, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
 import { calculateBuild, type ConditionalState } from "../damageCalc";
-import { quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
+import { gasCloudOuterAnnulusCoverage, quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
 
 function makeWeapon(overrides: Partial<WeaponEntry> = {}): WeaponEntry {
     return {
@@ -3249,6 +3249,34 @@ describe("build optimizer scoring", () => {
                 expect(packScore - singleTargetScore).toBeCloseTo(expectedDotRate * 2, 5);
             }
         }
+    });
+
+    it("scores outer Gas neighbors using steady-state cloud radius and area coverage", () => {
+        const target = { health: 100000, shields: 0, overguard: 0, armor: 0 };
+        const weapon = makeWeapon({
+            damage: {
+                total: 100,
+                impact: 0, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 100, magnetic: 0, viral: 0,
+                corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            statusChance: 1,
+            fireRate: 1,
+            magazineSize: 10,
+            reloadTime: 0,
+        });
+        const stats = calculateBuild(weapon, []).modded;
+        const singleTargetScore = debugScoreBuild(weapon, [], "burst", "", null, target);
+        const outerRingScore = debugScoreBuild(weapon, [], "burst", "", null, {
+            ...target,
+            nearbyGasOuterEnemyCount: 2,
+        });
+
+        expect(outerRingScore - singleTargetScore).toBeCloseTo(
+            (stats.dotDpsByType.gas ?? 0) * 2 * gasCloudOuterAnnulusCoverage(stats.gasCloudRadius),
+            8,
+        );
     });
 
     it("counts stacked conditional damage-per-status bonuses for scaling", () => {

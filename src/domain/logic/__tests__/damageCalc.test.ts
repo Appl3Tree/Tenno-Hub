@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState } from "../damageCalc";
-import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES } from "../damageRuleset";
+import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
     const damageByType = {
@@ -3248,5 +3248,11 @@ describe("melee combo-scaled mod calculations", () => {
         );
         expect(activeAtEight.averageProcsPerShot - belowThreshold.averageProcsPerShot).toBeCloseTo(1, 10);
         expect(normalAtEight.forcedProcsPerShot).toEqual({});
+    });
+
+    it("reports the Wiki-backed Gas radius from expected active proc stacks", () => {
+        const stats = calculateBuild(makeWeapon({ gas: 100 }), []).modded;
+        expect(stats.expectedStacksByType.gas).toBeGreaterThan(0);
+        expect(stats.gasCloudRadius).toBeCloseTo(gasCloudRadiusFromStacks(stats.expectedStacksByType.gas ?? 0), 12);
     });
 });

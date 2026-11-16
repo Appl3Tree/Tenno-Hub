@@ -34,7 +34,7 @@ import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncoun
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
-import { STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
+import { normalizeElectricGasNeighborCounts, STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
 import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, enemyStatLevelMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
 import { calculateDirectDamageToInitialPools, simulateDirectAttackSequence, simulateExpectedWeaponEncounter, type DirectTargetDamageInput } from "../../domain/logic/targetDamage";
 import { buildCustomRivenEntry, customRivenSupportsWeapon, type CustomRivenRecord } from "../../domain/rivens";
@@ -1455,12 +1455,17 @@ function buildMathBreakdown(
             `Motus Setup jump-landing buff = ${active ? "assumed active" : "inactive"}; this selected rank lasts ${fmt(motusSetupCondition.durationSeconds, 2)}s. Jump activation, expiration, and refresh timing are not simulated; an active state is held static for this calculation. Wiki: https://wiki.warframe.com/w/Motus_Setup`,
         );
     }
+    const gasNeighborCounts = normalizeElectricGasNeighborCounts(
+        targetProfileOverride?.nearbyEnemyCount,
+        targetProfileOverride?.nearbyGasOuterEnemyCount,
+    );
     const customTargetLines = targetProfileOverride ? [
         `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,
         ...(targetProfileOverride.description ? [targetProfileOverride.description] : []),
-        `Additional same-profile enemies inside active Electric/Gas status radii = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyEnemyCount ?? 0)))}`,
+        `Additional same-profile enemies inside the 3m Electric/Gas radius = ${gasNeighborCounts.innerCount}`,
+        `Additional Gas neighbors in the 3–6m annulus = ${gasNeighborCounts.outerCount}`,
         `Additional same-profile enemies inside Blast's 5m radial = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyBlastEnemyCount ?? 0)))}`,
-        "Optimizer scoring multiplies Electric/Gas status damage by their configured count and estimates Blast cap-radial damage from Poisson proc arrivals during the scaled fuse. It assumes same-profile defenses and exposure; direct attacks, on-kill radial chains, neighbor statuses, and changing neighbor pools remain outside the score.",
+        "Optimizer scoring uses the configured 0–3m neighbor count for Electricity/Gas and applies area-uniform 3–6m Gas coverage from the steady-state cloud radius. Blast cap-radial damage uses Poisson proc arrivals during the scaled fuse. It assumes same-profile defenses and exposure; direct attacks, on-kill radial chains, neighbor statuses, and changing neighbor pools remain outside the score.",
         `Toxin bypasses Shields = ${targetProfileOverride.toxinBypassesShields === false ? "no" : "yes"}`,
         `Enemy Shield Gate hit mode = ${targetProfileOverride.enemyShieldGateHitMode ?? "body"}`,
         `Target status immunities = ${[...(targetProfileOverride.statusImmuneTypes ?? [])].join(", ") || "none"}`,
@@ -3251,6 +3256,7 @@ export default function ModBuilder() {
     const [selectedEnemyProfileId, setSelectedEnemyProfileId] = useState("");
     const [useCustomTargetStats, setUseCustomTargetStats] = useState(false);
     const [nearbyEnemyCount, setNearbyEnemyCount] = useState(0);
+    const [nearbyGasOuterEnemyCount, setNearbyGasOuterEnemyCount] = useState(0);
     const [nearbyBlastEnemyCount, setNearbyBlastEnemyCount] = useState(0);
     const [isEximus, setIsEximus] = useState(false);
     const [bossBlastStackCap, setBossBlastStackCap] = useState(false);
@@ -3346,13 +3352,14 @@ export default function ModBuilder() {
             toxinBypassesShields: customToxinBypassesShields,
             enemyShieldGateHitMode,
             nearbyEnemyCount,
+            nearbyGasOuterEnemyCount,
             nearbyBlastEnemyCount,
             // Cold's four-stack cap and crowd-control immunity follow active
             // Overguard; Radiation can apply but its effects remain suppressed.
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps,
         };
-    }, [useCustomTargetStats, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel]);
+    }, [useCustomTargetStats, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel]);
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
     const [maxFormaAllowed, setMaxFormaAllowed] = useState(9);
@@ -3406,6 +3413,7 @@ export default function ModBuilder() {
     const incarnonDialogRef = useRef<HTMLDivElement | null>(null);
     const mathDialogRef = useRef<HTMLDivElement | null>(null);
     const savedPlannerConfig = useMemo<SavedBuildPlannerConfig>(() => {
+        const gasNeighborCounts = normalizeElectricGasNeighborCounts(nearbyEnemyCount, nearbyGasOuterEnemyCount);
         const target: SavedBuildTargetConfig = {
             enabled: factionOn,
             faction,
@@ -3422,7 +3430,8 @@ export default function ModBuilder() {
             currentLevel: enemyCurrentLevel,
             toxinBypassesShields: customToxinBypassesShields,
             enemyShieldGateHitMode,
-            nearbyEnemyCount,
+            nearbyEnemyCount: gasNeighborCounts.innerCount,
+            nearbyGasOuterEnemyCount: gasNeighborCounts.outerCount,
             nearbyBlastEnemyCount,
             statusImmunities: [...targetStatusImmunities],
         };
@@ -3463,6 +3472,7 @@ export default function ModBuilder() {
         customToxinBypassesShields,
         enemyShieldGateHitMode,
         nearbyEnemyCount,
+        nearbyGasOuterEnemyCount,
         nearbyBlastEnemyCount,
         enemyBaseLevel,
         enemyCurrentLevel,
@@ -4376,6 +4386,7 @@ export default function ModBuilder() {
             blastStackHitDamagePerProc: stats.blastStackHitDamagePerProcBeforeConditionOverload,
             nearbyBlastEnemyCount: targetProfileOverride?.nearbyBlastEnemyCount,
             nearbyElectricGasEnemyCount: targetProfileOverride?.nearbyEnemyCount,
+            nearbyGasOuterEnemyCount: targetProfileOverride?.nearbyGasOuterEnemyCount,
             magneticBreakElectricSourceMultiplier: stats.magneticBreakElectricSourceMultiplier,
             directDamagePerStatusBonus: stats.directDamagePerStatusBonus,
             conditionOverloadDamagePerStatusBonus: stats.conditionOverloadApplies
@@ -4398,9 +4409,9 @@ export default function ModBuilder() {
             .join(" · ") || "None"
         : "—";
     const activeTargetSummary = selectedEnemyProfile
-        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
         : targetProfileOverride
-        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
         : factionOn
             ? `${faction} synthetic faction estimate`
             : "Balanced synthetic target estimate";
@@ -5023,9 +5034,12 @@ export default function ModBuilder() {
             setEnemyShieldGateHitMode(target?.enemyShieldGateHitMode === "weakspot" || target?.enemyShieldGateHitMode === "blockedArea"
                 ? target.enemyShieldGateHitMode
                 : "body");
-            setNearbyEnemyCount(Number.isFinite(target?.nearbyEnemyCount)
-                ? Math.max(0, Math.min(20, Math.floor(target?.nearbyEnemyCount ?? 0)))
-                : 0);
+            const gasNeighborCounts = normalizeElectricGasNeighborCounts(
+                target?.nearbyEnemyCount,
+                target?.nearbyGasOuterEnemyCount,
+            );
+            setNearbyEnemyCount(gasNeighborCounts.innerCount);
+            setNearbyGasOuterEnemyCount(gasNeighborCounts.outerCount);
             setNearbyBlastEnemyCount(Number.isFinite(target?.nearbyBlastEnemyCount)
                 ? Math.max(0, Math.min(20, Math.floor(target?.nearbyBlastEnemyCount ?? 0)))
                 : 0);
@@ -5055,6 +5069,7 @@ export default function ModBuilder() {
             setIsEximus(false);
             setBossBlastStackCap(false);
             setNearbyEnemyCount(0);
+            setNearbyGasOuterEnemyCount(0);
             setNearbyBlastEnemyCount(0);
             setTargetStatusImmunities([]);
         }
@@ -5428,7 +5443,7 @@ export default function ModBuilder() {
                                                 {([
                                                     { label: "Allow Non-Maxed", active: allowNonMax, set: setAllowNonMax, desc: "Try lower-ranked mods so more fit within capacity." },
                                                     { label: "Owned Only", active: onlyOwned, set: setOnlyOwned, desc: "Only use mods you have marked as owned." },
-                                                    { label: "Faction Focus", active: factionOn, set: (active: boolean) => { setFactionOn(active); if (!active) { setUseCustomTargetStats(false); setSelectedEnemyProfileId(""); setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyBlastEnemyCount(0); } }, desc: "Apply the selected faction's damage-type modifiers. Choose a sourced enemy profile or enter custom target stats; faction-only pool mixes remain estimates." },
+                                                    { label: "Faction Focus", active: factionOn, set: (active: boolean) => { setFactionOn(active); if (!active) { setUseCustomTargetStats(false); setSelectedEnemyProfileId(""); setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyGasOuterEnemyCount(0); setNearbyBlastEnemyCount(0); } }, desc: "Apply the selected faction's damage-type modifiers. Choose a sourced enemy profile or enter custom target stats; faction-only pool mixes remain estimates." },
                                                     { label: "Allow Catalyst", active: allowCatalyst, set: setAllowCatalyst, desc: "Assume Orokin Catalyst installed if needed." },
                                                     { label: "Allow Forma", active: allowForma, set: setAllowForma, desc: "Reassign slot polarities to reduce drain." },
                                                     { label: "Optimize Exilus", active: optExilus, set: setOptExilus, desc: "Include the exilus slot in optimization." },
@@ -5668,7 +5683,7 @@ export default function ModBuilder() {
                                                                 ))}
                                                             </div>
                                                             <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
-                                                                <input type="checkbox" checked={useCustomTargetStats} onChange={(event) => { setUseCustomTargetStats(event.target.checked); setSelectedEnemyProfileId(""); if (!event.target.checked) { setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyBlastEnemyCount(0); } }} />
+                                                                <input type="checkbox" checked={useCustomTargetStats} onChange={(event) => { setUseCustomTargetStats(event.target.checked); setSelectedEnemyProfileId(""); if (!event.target.checked) { setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyGasOuterEnemyCount(0); setNearbyBlastEnemyCount(0); } }} />
                                                                 Use custom target stats
                                                             </label>
                                                             {useCustomTargetStats && (
@@ -5680,26 +5695,45 @@ export default function ModBuilder() {
                                                                         </p>
                                                                     )}
                                                                     <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                        The finite expected-value encounter tracks Heat's armor-strip timeline, duration-scaled Blast fuses/caps, and Viral, Corrosive, Magnetic, Cold, and Puncture effects between attacks. Direct hits apply the 0.1 s enemy Shield Gate using the selected hit mode; scheduled status ticks remain ungated. Blast radial and scheduled Electricity/Gas ticks to configured same-profile nearby targets are reported separately from primary TTK; Gas ticks continue after the host dies. Neighbor status histories, position changes, and chained deaths are not simulated. Fractional proc rolls and random outcomes remain mean-field estimates; natural Shield regeneration, external Shield restoration, boss attenuation, and projectile travel are not modeled. The optimizer uses a separate fast scoring proxy.
+                                                                        The finite expected-value encounter tracks Heat's armor-strip timeline, duration-scaled Blast fuses/caps, and Viral, Corrosive, Magnetic, Cold, and Puncture effects between attacks. Direct hits apply the 0.1 s enemy Shield Gate using the selected hit mode; scheduled status ticks remain ungated. Blast radial and Electricity/Gas ticks to configured same-profile neighbors are reported separately from primary TTK; Gas ticks continue after the host dies. Gas radius grows by 0.3m per active proc from its 3m base, capped at 6m. For neighbors entered in the 3–6m annulus, coverage assumes a uniform area distribution; exact positions are not simulated. Neighbor status histories, direct hits, and chained deaths are not modeled. Fractional proc rolls and random outcomes remain mean-field estimates; natural Shield regeneration, external Shield restoration, boss attenuation, and projectile travel are not modeled. The optimizer uses a separate fast scoring proxy. <a href="https://wiki.warframe.com/w/Damage/Gas_Damage" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki: Gas</a>
                                                                     </p>
                                                                     <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
                                                                         <label htmlFor="planner-nearby-enemies" className="text-[10px] text-slate-400">
-                                                                            Additional nearby enemies in Electric/Gas range
+                                                                            Additional enemies within the 3m Electricity/Gas radius
                                                                         </label>
                                                                         <input
                                                                             id="planner-nearby-enemies"
-                                                                            aria-label="Additional nearby enemies in Electric/Gas range"
+                                                                            aria-label="Additional enemies within the 3m Electricity/Gas radius"
                                                                             type="number"
                                                                             min={0}
-                                                                            max={20}
+                                                                            max={20 - nearbyGasOuterEnemyCount}
                                                                             step={1}
                                                                             value={nearbyEnemyCount}
-                                                                            onChange={(event) => setNearbyEnemyCount(Math.max(0, Math.min(20, Math.floor(Number(event.target.value) || 0))))}
+                                                                            onChange={(event) => setNearbyEnemyCount(Math.max(0, Math.min(20 - nearbyGasOuterEnemyCount, Math.floor(Number(event.target.value) || 0))))}
                                                                             className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
                                                                         />
                                                                     </div>
                                                                     <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                        The optimizer scales Electric/Gas tick value by this count. The finite encounter also sends scheduled Electricity/Gas ticks through these same-profile neighbors' defenses and reports collateral separately from primary TTK. Enemies are assumed to remain in range; it does not add neighbor statuses, direct hits, chain geometry, or Gas radius growth. Set 0 for single-target scoring.
+                                                                        These neighbors remain inside the fixed 3m Electricity range and the base 3m Gas radius. Their positions inside that range are not modeled.
+                                                                    </p>
+                                                                    <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
+                                                                        <label htmlFor="planner-nearby-gas-outer-enemies" className="text-[10px] text-slate-400">
+                                                                            Additional Gas neighbors in the 3–6m annulus
+                                                                        </label>
+                                                                        <input
+                                                                            id="planner-nearby-gas-outer-enemies"
+                                                                            aria-label="Additional Gas neighbors in the 3–6m annulus"
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={20 - nearbyEnemyCount}
+                                                                            step={1}
+                                                                            value={nearbyGasOuterEnemyCount}
+                                                                            onChange={(event) => setNearbyGasOuterEnemyCount(Math.max(0, Math.min(20 - nearbyEnemyCount, Math.floor(Number(event.target.value) || 0))))}
+                                                                            className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                        />
+                                                                    </div>
+                                                                    <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                        Gas reaches the outer ring as active stacks grow the cloud radius. Finite ticks use the current expected stack count; optimizer scoring uses its steady-state radius. Enemies in the annulus are assumed uniformly distributed by area, so partial coverage scales their expected aggregate damage.
                                                                     </p>
                                                                     <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
                                                                         <label htmlFor="planner-nearby-blast-enemies" className="text-[10px] text-slate-400">

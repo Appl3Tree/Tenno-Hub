@@ -9,6 +9,9 @@ import {
     ENEMY_SHIELD_GATE_DURATION_SECONDS,
     enemyArmorDamageMultiplier,
     factionDamageTypeModifier,
+    gasCloudOuterAnnulusCoverage,
+    gasCloudRadiusFromStacks,
+    normalizeElectricGasNeighborCounts,
     MAGNETIC_BREAK_ELECTRIC_DAMAGE_PER_STACK,
     MAGNETIC_BREAK_ELECTRIC_DURATION_SECONDS,
     quantizeDamageContribution,
@@ -302,6 +305,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     nearbyBlastEnemyCount?: number;
     /** Additional same-profile enemies assumed inside active Electricity/Gas radii. */
     nearbyElectricGasEnemyCount?: number;
+    /** Additional Gas neighbors in the 3–6m annulus; coverage is uniform by area. */
+    nearbyGasOuterEnemyCount?: number;
     /** Expected full-lifetime DoT damage seeded by one attack, by status type. */
     dotDamagePerAttackByType?: Partial<Record<StatusDamageType, number>>;
     /** Expected full-lifetime DoT damage from one application, by status type. */
@@ -555,8 +560,9 @@ interface HeatDotState {
  * while keeping their timers. Configured Electricity/Gas ticks deplete separate
  * same-profile pools, and Gas continues after the host dies; at Gas cap, old
  * stack tick events are reduced with oldest-stack replacement. Cross-source
- * Heat, neighbor status/position histories, Gas radius membership, attenuation,
- * and TTK distributions are not simulated. Enemy Shield Gates reduce direct
+ * Heat, neighbor status/position histories, attenuation, and TTK distributions
+ * are not simulated; outer-ring Gas exposure is an area-uniform expectation.
+ * Enemy Shield Gates reduce direct
  * Health damage for a short window; scheduled status ticks remain ungated.
  */
 export function simulateExpectedWeaponEncounter(
@@ -578,10 +584,15 @@ export function simulateExpectedWeaponEncounter(
     const statusDamageByPool = zeroPools();
     const blastCollateralDamageByPool = zeroPools();
     const electricGasCollateralDamageByPool = zeroPools();
-    const electricGasCollateralEnemyCount = Number.isFinite(input.nearbyElectricGasEnemyCount)
-        ? Math.max(0, Math.min(20, Math.floor(input.nearbyElectricGasEnemyCount ?? 0)))
-        : 0;
-    const electricGasCollateralTargets = Array.from({ length: electricGasCollateralEnemyCount }, () => ({
+    const { innerCount: nearbyElectricGasEnemyCount, outerCount: nearbyGasOuterEnemyCount } =
+        normalizeElectricGasNeighborCounts(input.nearbyElectricGasEnemyCount, input.nearbyGasOuterEnemyCount);
+    const electricGasCollateralEnemyCount = nearbyElectricGasEnemyCount + nearbyGasOuterEnemyCount;
+    const electricGasCollateralTargets = Array.from({ length: nearbyElectricGasEnemyCount }, () => ({
+        overguard: finiteNonNegative(input.overguard),
+        shields: finiteNonNegative(input.shields),
+        health: finiteNonNegative(input.health),
+    }));
+    const gasOuterCollateralTargets = Array.from({ length: nearbyGasOuterEnemyCount }, () => ({
         overguard: finiteNonNegative(input.overguard),
         shields: finiteNonNegative(input.shields),
         health: finiteNonNegative(input.health),
@@ -1557,7 +1568,8 @@ export function simulateExpectedWeaponEncounter(
             const dealt = applyStatusTickToPools({ ...input, ...currentStatusModifiers(now) }, remainingPools, tick.type, tickDamage);
             addPools(statusDamageByPool, dealt);
             subtractPools(remainingPools, dealt);
-            if ((tick.type === "electricity" || tick.type === "gas") && electricGasCollateralTargets.length > 0) {
+            if ((tick.type === "electricity" || tick.type === "gas") &&
+                (electricGasCollateralTargets.length > 0 || (tick.type === "gas" && gasOuterCollateralTargets.length > 0))) {
                 // These area effects damage nearby enemies without transferring
                 // the original target's Viral/Magnetic stack state to them.
                 const collateralInput = {
@@ -1575,6 +1587,25 @@ export function simulateExpectedWeaponEncounter(
                     );
                     addPools(electricGasCollateralDamageByPool, collateralDamage);
                     subtractPools(targetPools, collateralDamage);
+                }
+                if (tick.type === "gas" && gasOuterCollateralTargets.length > 0) {
+                    const outerRingCoverage = gasCloudOuterAnnulusCoverage(
+                        gasCloudRadiusFromStacks(stackCount("gas")),
+                    );
+                    const outerRingTickDamage = tickDamage * outerRingCoverage;
+                    if (outerRingTickDamage > 0) {
+                        for (const targetPools of gasOuterCollateralTargets) {
+                            if (allPoolsEmpty(targetPools)) continue;
+                            const collateralDamage = applyStatusTickToPools(
+                                collateralInput,
+                                targetPools,
+                                "gas",
+                                outerRingTickDamage,
+                            );
+                            addPools(electricGasCollateralDamageByPool, collateralDamage);
+                            subtractPools(targetPools, collateralDamage);
+                        }
+                    }
                 }
             }
             if (poolsBeforeTick.overguard > 0 && remainingPools.overguard <= Number.EPSILON) {

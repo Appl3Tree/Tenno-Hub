@@ -18,6 +18,7 @@ import {
     blastStackExpiryDamage,
     countFiniteEncounterStatusTicks,
     countStatusDamageTicks,
+    gasCloudRadiusFromStacks,
     probabilityAtLeastOneStatusProc,
     quantizeBaseCriticalDamageMultiplier,
     quantizeDamageContribution,
@@ -2004,10 +2005,7 @@ export function calculateBuild(
     );
     const blastExpiryDamagePerProc = blastStackExpiryDamage(blastStackHitDamagePerProc);
     const blastExpectedExpiryDamagePerShot = blastExpiryDamagePerProc * expectedBlastProcsPerShot;
-    const gasCloudRadius =
-        gasStacks <= 0
-            ? 0
-            : Math.min(6, 3 + Math.max(0, Math.min(10, gasStacks) - 1) * 0.3);
+    const gasCloudRadius = gasCloudRadiusFromStacks(gasStacks);
     const tauStatusVulnerability = scaleLinearCap(tauStacks, 0.1, 1.0);
 
     const modded: ModdedWeaponStats = {
