@@ -120,6 +120,35 @@ describe("Acid Shells Wiki rank display and safe scoring exclusion", () => {
     });
 });
 
+describe("Combustion Beam Wiki rank display and safe scoring exclusion", () => {
+    it("labels each rank as Blast damage while keeping the unmodeled on-kill explosion out of scoring", () => {
+        const amprex = getWeaponCatalog().find((weapon) => weapon.name === "Amprex");
+        const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(amprex).toBeDefined();
+        expect(braton).toBeDefined();
+
+        const mod = getModsForWeapon(amprex!).find((candidate) => candidate.name === "Combustion Beam");
+        expect(mod).toBeDefined();
+        expect(mod!.fusionLimit).toBe(5);
+        expect(mod!.statsTextByRank).toEqual([
+            "On Beam weapon kill: 100 Blast Damage shortly after death",
+            "On Beam weapon kill: 200 Blast Damage shortly after death",
+            "On Beam weapon kill: 300 Blast Damage shortly after death",
+            "On Beam weapon kill: 400 Blast Damage shortly after death",
+            "On Beam weapon kill: 500 Blast Damage shortly after death",
+            "On Beam weapon kill: 600 Blast Damage shortly after death",
+        ]);
+        expect(mod!.hasDamageEffect).toBe(false);
+        expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.blastBonus === 0)).toBe(true);
+
+        const warning = "Combustion Beam's delayed on-kill Blast explosion is not scored; its radius/falloff and line-of-sight rules, damage attribution/scaling, and chain behavior are not modeled, so Auto Optimize skips this mod.";
+        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+        }
+        expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Combustion Beam")).toBe(false);
+    });
+});
+
 describe("Spring-Loaded Broadhead Wiki modeling", () => {
     it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
         const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");
