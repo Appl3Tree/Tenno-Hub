@@ -6,6 +6,10 @@ Last updated: 2026-11-15. This is the working record for the Damage 3.0 and Buil
 
 ### Innate weapon and progenitor element order
 
+The clean follow-up release also passes the production build, `validate:sources`, prerequisite and mod-effect audits (485/599 parsed, 114 without parsed effects, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check. The existing Vite large-chunk warning remains.
+
+Release follow-up: PR #85 merged as `ed69b32` and Pages deployment #163 succeeded. The current [Dera Wiki page](https://wiki.warframe.com/w/Dera) says its Incarnon Form gains Magnetic damage; the attack catalog already records that damage on Dera Vandal's Incarnon row. A regression selects that form and confirms its innate Magnetic damage remains separate while slotted Cold and Toxin combine into Viral. The follow-up suite passes 710 tests across 52 files. The in-app browser request for port 80 returned queued, so there is no new visual confirmation. The broader Incarnon and weapon-specific elemental-effects audit remains in progress.
+
 The current [Damage Types Wiki page](https://wiki.warframe.com/w/Damage_Types) places modded elements in slot order, followed by innate primary elements in Heat, Cold, Electricity, Toxin order. For Kuva/Tenet weapons with one weapon element and a different progenitor element, the earlier HCET element is second-to-last and the other is last. The calculator already used this order; this follow-up adds regressions for all six innate pairs with slotted-element combinations and a Tenet Cycron case. The current [Tenet Cycron Wiki page](https://wiki.warframe.com/w/Tenet_Cycron) confirms innate Heat and the progenitor bonus.
 
 All 709 tests across 52 files pass. Production build, `validate:sources`, prerequisite audit, mod-effect audit (485/599 parsed, 114 without parsed effects, 83 review candidates, zero weapon pools without parsed damage), focused ESLint, and CRLF-aware diff check pass. The existing Vite large-chunk warning remains. Overall Damage 3.0 and optimizer-quality criteria remain open; this closes the innate/progenitor ordering check only.

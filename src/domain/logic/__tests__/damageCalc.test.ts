@@ -1528,6 +1528,26 @@ describe("damage calculation status eligibility", () => {
         expect(tenetResult.heat).toBe(0);
     });
 
+    it("keeps Dera Incarnon's Wiki-listed Magnetic damage separate from slotted combinations", () => {
+        const dera = getWeaponCatalog().find((weapon) => weapon.name === "Dera Vandal");
+        expect(dera).toBeDefined();
+        const incarnonIndex = dera!.attacks.findIndex((attack) => attack.name === "Incarnon Form");
+        expect(incarnonIndex).toBeGreaterThanOrEqual(0);
+
+        const incarnon = withSelectedAttack(dera!, incarnonIndex);
+        expect(incarnon.selectedAttackIsIncarnon).toBe(true);
+        expect(incarnon.damage.magnetic).toBeGreaterThan(0);
+
+        const coldMod = { ...emptyEffect(), coldBonus: 1 };
+        const toxinMod = { ...emptyEffect(), toxinBonus: 1 };
+        const unmodded = calculateBuild(incarnon, []).modded.damageBreakdown;
+        const result = calculateBuild(incarnon, [coldMod, toxinMod]).modded.damageBreakdown;
+        expect(result.viral).toBeGreaterThan(0);
+        expect(result.magnetic).toBeCloseTo(unmodded.magnetic, 12);
+        expect(result.cold).toBe(0);
+        expect(result.toxin).toBe(0);
+    });
+
     it("uses critical multiplier quantization before relative critical damage bonuses", () => {
         const weapon = { ...makeWeapon({ impact: 100 }), critChance: 1, critMultiplier: 2 };
         const result = calculateBuild(weapon, [{ ...emptyEffect(), critMultBonus: 1 }]).modded;
