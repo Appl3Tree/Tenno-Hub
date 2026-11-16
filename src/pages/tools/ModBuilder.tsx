@@ -1465,12 +1465,12 @@ function buildMathBreakdown(
         `Additional same-profile enemies inside the 3m Electric/Gas radius = ${gasNeighborCounts.innerCount}`,
         `Additional Gas neighbors in the 3–6m annulus = ${gasNeighborCounts.outerCount}`,
         `Additional same-profile enemies inside Blast's 5m radial = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyBlastEnemyCount ?? 0)))}`,
-        "Optimizer scoring uses the configured 0–3m neighbor count for Electricity/Gas and applies area-uniform 3–6m Gas coverage from the steady-state cloud radius. Blast cap-radial damage uses Poisson proc arrivals during the scaled fuse. It assumes same-profile defenses and exposure; direct attacks, on-kill radial chains, neighbor statuses, and changing neighbor pools remain outside the score.",
+        "Optimizer scoring uses the configured 0–3m neighbor count for Electricity/Gas and applies area-uniform 3–6m Gas coverage from the steady-state cloud radius. Blast cap-radial value uses Poisson arrivals during the scaled fuse; on-death radial value uses the primary-only score to estimate kill time and expected active Blast stacks over the shorter of that time and one fuse, with cap resets folded into the stack count. It assumes same-profile defenses and exposure; direct attacks, neighbor status histories, depleted neighbor pools, and chained deaths remain outside the score.",
         `Toxin bypasses Shields = ${targetProfileOverride.toxinBypassesShields === false ? "no" : "yes"}`,
         `Enemy Shield Gate hit mode = ${targetProfileOverride.enemyShieldGateHitMode ?? "body"}`,
         `Target status immunities = ${[...(targetProfileOverride.statusImmuneTypes ?? [])].join(", ") || "none"}`,
         `Target status stack caps = ${Object.entries(targetProfileOverride.statusStackCaps ?? {}).map(([type, cap]) => `${type} ${cap}`).join(", ") || "standard"}`,
-        "The optimizer uses a fast expected pool-progress score, not the finite encounter. Blast cap-radial collateral uses a Poisson stack-arrival estimate; on-kill detonations, neighbor status histories, pool depletion, gates, boss attenuation, and random outcomes are not simulated in its score.",
+        "The optimizer uses a fast expected pool-progress score, not the finite encounter. Blast cap and on-death radial collateral use Poisson stack-arrival estimates, with the primary target's modeled kill time kept separate from collateral. Neighbor status histories, pool depletion, gates, boss attenuation, and random outcomes are not simulated in its score.",
     ] : [];
     const fireRateExplanation = (() => {
         if (stats.fireRateLocked) {
@@ -5752,7 +5752,7 @@ export default function ModBuilder() {
                                                                         />
                                                                     </div>
                                                                     <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                        Optimizer estimates Blast's cap-triggered radial value (10 stacks, or the configured four-stack boss cap) from Poisson proc arrivals during the fuse. The finite encounter reports cap and on-death radial hits to these same-profile targets separately; they do not change the primary target's TTK. Neighbor status histories and chained deaths are not simulated. Set 0 to ignore Blast collateral.
+                                                                        The optimizer estimates cap-triggered radial damage from proc arrivals during the fuse and on-death radial damage from the primary target's modeled kill time and expected active stacks. Cap resets are included as an expected stack-count remainder. The finite encounter reports cap and on-death radial hits to these same-profile targets separately; collateral does not change primary TTK. Neighbor status histories and chained deaths are not simulated. <a href="https://wiki.warframe.com/w/Damage/Blast_Damage" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki: Blast</a>. Set 0 to ignore Blast collateral.
                                                                     </p>
                                                                     <label className="inline-flex items-center gap-2 text-[10px] text-slate-400">
                                                                         <input
