@@ -709,6 +709,20 @@ describe("build optimizer scoring", () => {
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
+    it("keeps Sentient Incision out of Auto Optimize until adaptive damage and status exceptions are modeled", () => {
+        const venato = getWeaponCatalog().find((candidate) => candidate.name === "Venato");
+        expect(venato).toBeDefined();
+        const sentientIncision = getModsForWeapon(venato!).find((mod) => mod.name === "Sentient Incision");
+        expect(sentientIncision).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(sentientIncision!, sentientIncision!.fusionLimit)).toContain(
+            "Sentient Incision's faction weakness mapping, Overguard-specific element selection, Slam exclusion, and non-scaling elemental status DoT are not modeled, so Auto Optimize skips this mod.",
+        );
+
+        const result = optimizeBuild(venato!, [sentientIncision!], "burst", 1, { allowForma: false });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
     it("keeps Wiki-modeled Nightwatch Napalm eligible and scores it in finite Expected TTK", () => {
         const kuvaOgris = getWeaponCatalog().find((candidate) => candidate.name === "Kuva Ogris");
         expect(kuvaOgris).toBeDefined();
