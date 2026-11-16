@@ -1468,6 +1468,16 @@ function buildMathBreakdown(
         "The optimizer uses a fast expected pool-progress score, not the finite encounter. Blast cap-radial collateral uses a Poisson stack-arrival estimate; on-kill detonations, neighbor status histories, pool depletion, gates, boss attenuation, and random outcomes are not simulated in its score.",
     ] : [];
     const fireRateExplanation = (() => {
+        if (stats.fireRateLocked) {
+            const fireRateModLockNote = "An equipped Cannonade mod locks Fire Rate to the weapon's unmodified value; positive and negative Fire Rate modifiers are ignored. Wiki: https://wiki.warframe.com/w/Cannonade_Mods";
+            if (/^(?:semi|semi[- ]?auto)$/i.test(weapon.trigger.trim())) {
+                return [
+                    fireRateModLockNote,
+                    `Semi-Auto effective fire rate = min(${fmt(Math.max(0.05, weapon.fireRate), 5)}, 10/s) = ${fmt(stats.fireRate, 5)}/s. The Wiki caps Semi-Auto weapons at 10 rounds/s and this estimate assumes perfect trigger cadence: https://wiki.warframe.com/w/Fire_Rate`,
+                ];
+            }
+            return [fireRateModLockNote, `${rateLabel} remains at its base value of ${fmt(stats.fireRate, 5)}/s.`];
+        }
         if (weapon.weaponType.trim().toLowerCase() === "bow") {
             const baseChargeTime = weapon.trigger === "Charge" ? Math.max(0, weapon.chargeTime ?? 0) : 0;
             const moddedChargeTime = baseChargeTime / Math.max(0.1, 1 + fireRateBonus);

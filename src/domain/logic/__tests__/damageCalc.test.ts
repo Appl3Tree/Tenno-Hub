@@ -1888,6 +1888,56 @@ describe("damage calculation status eligibility", () => {
         expect(calculateBuild(weapon, [{ ...emptyEffect(), fireRateBonus: 0.5 }]).modded.fireRate).toBe(12);
     });
 
+    it("parses Cannonade locks on every rank and only exposes them to compatible Semi-Auto weapons", () => {
+        const eligibleWeaponNames = ["Rubico Prime", "Lex Prime", "Hek"];
+        const cannonadeNames = ["Semi-Rifle Cannonade", "Semi-Pistol Cannonade", "Semi-Shotgun Cannonade"];
+
+        for (let index = 0; index < eligibleWeaponNames.length; index++) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === eligibleWeaponNames[index]);
+            expect(weapon).toBeDefined();
+            const cannonade = getModsForWeapon(weapon!).find((candidate) => candidate.name === cannonadeNames[index]);
+            expect(cannonade).toBeDefined();
+            expect(cannonade!.effectsByRank.map((effect) => effect.fireRateLocked)).toEqual(
+                Array(cannonade!.fusionLimit + 1).fill(true),
+            );
+        }
+
+        const automaticWeapon = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime");
+        expect(automaticWeapon).toBeDefined();
+        expect(getModsForWeapon(automaticWeapon!).some((candidate) => candidate.name.endsWith("Cannonade"))).toBe(false);
+    });
+
+    it("ignores positive, negative, and conditional Fire Rate bonuses while Cannonade locks the stat", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Rubico Prime");
+        expect(weapon).toBeDefined();
+        const cannonade = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Semi-Rifle Cannonade");
+        expect(cannonade).toBeDefined();
+        const cannonadeMaxRank = cannonade!.effectsByRank[cannonade!.fusionLimit]!;
+        const baseFireRate = calculateBuild(weapon!, []).modded.fireRate;
+        const conditionalFireRateMod = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onKill" as const,
+                durationSeconds: 20,
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { fireRateBonus: 1 },
+            }],
+        };
+
+        for (const fireRateBonus of [1, -0.5]) {
+            const result = calculateBuild(weapon!, [cannonadeMaxRank, { ...emptyEffect(), fireRateBonus }]).modded;
+            expect(result.fireRateLocked).toBe(true);
+            expect(result.fireRate).toBeCloseTo(baseFireRate, 10);
+        }
+
+        const fullyStacked = calculateBuild(weapon!, [cannonadeMaxRank, conditionalFireRateMod], "", {
+            conditionalState: { mode: "fullyStacked" },
+        }).modded;
+        expect(fullyStacked.fireRateLocked).toBe(true);
+        expect(fullyStacked.fireRate).toBeCloseTo(baseFireRate, 10);
+    });
+
     it("supports explicit initial, realistic, fully stacked, and externally maintained conditional states", () => {
         const weapon = makeWeapon({ toxin: 100 });
         const conditionalDamage = {

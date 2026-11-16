@@ -213,6 +213,8 @@ export interface ModdedWeaponStats {
     statusDurationMultiplier: number;
     /** Effective repeating attack rate, including charge and reload cadence where applicable. */
     fireRate: number;
+    /** True when an equipped Cannonade mod disables ranged Fire Rate modifiers. */
+    fireRateLocked: boolean;
     /** Fresh-magazine rate; charged bows exclude the post-shot reload interval. */
     burstFireRate: number;
     magazineSize: number;
@@ -843,6 +845,7 @@ export function calculateBuild(
     let multishotBonus = 0;
     let multishotDamageBonus = 0;
     let fireRateBonus = 0;
+    let fireRateLocked = false;
     let magazineBonus = 0;
     let reloadSpeedBonus = 0;
     let ammoEfficiencyBonus = 0;
@@ -920,6 +923,7 @@ export function calculateBuild(
         multishotBonus += e.multishotBonus ?? 0;
         multishotDamageBonus += e.multishotDamageBonus ?? 0;
         fireRateBonus += e.fireRateBonus ?? 0;
+        fireRateLocked ||= e.fireRateLocked === true;
         if (!ignoresReloadAndMagazine) {
             magazineBonus += e.magazineBonus ?? 0;
             reloadSpeedBonus += e.reloadSpeedBonus ?? 0;
@@ -996,7 +1000,9 @@ export function calculateBuild(
     const selectedAreaDamageStatusChanceBonus = weapon.selectedAttackIsAreaDamage === true
         ? areaDamageStatusChanceBonus
         : 0;
-    const baseFireRateBonus = usesMeleeDamageModel(weapon.category) ? attackSpeedBonus : fireRateBonus;
+    const baseFireRateBonus = usesMeleeDamageModel(weapon.category)
+        ? attackSpeedBonus
+        : fireRateLocked ? 0 : fireRateBonus;
     const baselineReloadTime = ignoresReloadAndMagazine
         ? weapon.reloadTime
         : weapon.reloadTime / (1 + reloadSpeedBonus);
@@ -1114,7 +1120,7 @@ export function calculateBuild(
         );
         const eligibilityRateBonus = usesMeleeDamageModel(weapon.category)
             ? attackSpeedBonus + eligibilityAttackSpeedBonus
-            : fireRateBonus + eligibilityFireRateBonus;
+            : fireRateLocked ? 0 : fireRateBonus + eligibilityFireRateBonus;
         const eligibilityReloadTime = ignoresReloadAndMagazine
             ? weapon.reloadTime
             : baselineReloadTime / (1 + eligibilityReloadSpeedBonus);
@@ -1425,7 +1431,9 @@ export function calculateBuild(
     const reloadTime = ignoresReloadAndMagazine
         ? weapon.reloadTime
         : weapon.reloadTime / (1 + reloadSpeedBonus);
-    const rateBonus = usesMeleeDamageModel(weapon.category) ? attackSpeedBonus : fireRateBonus;
+    const rateBonus = usesMeleeDamageModel(weapon.category)
+        ? attackSpeedBonus
+        : fireRateLocked ? 0 : fireRateBonus;
     const fireRate = effectiveFireRate(weapon, rateBonus, chargeAmmoPerShot, reloadTime, includeBowReload);
     const burstFireRate = effectiveBurstFireRate(weapon, rateBonus, reloadTime, includeBowReload, fireRate);
     const bowIncludesReloadInFireRate = isBowWeapon(weapon) && includeBowReload;
@@ -2016,6 +2024,7 @@ export function calculateBuild(
         statusChance,
         statusDurationMultiplier,
         fireRate,
+        fireRateLocked,
         burstFireRate,
         magazineSize,
         ammoCostPerShot,

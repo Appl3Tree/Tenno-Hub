@@ -20,7 +20,7 @@ import {
 
 describe("Damage 3.0 shared rules", () => {
     it("records the current Impact source and review date", () => {
-        expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-15");
+        expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-16");
         expect(DAMAGE_RULESET.sources.impact).toBe("https://wiki.warframe.com/w/Damage/Impact_Damage");
         expect(DAMAGE_RULESET.sources.shatteringImpact).toBe("https://wiki.warframe.com/w/Shattering_Impact");
         expect(DAMAGE_RULESET.sources.seismicWave).toBe("https://wiki.warframe.com/w/Seismic_Wave");
@@ -32,6 +32,14 @@ describe("Damage 3.0 shared rules", () => {
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
             entry.includes("Galvanized Aptitude, Savvy, and Shot and source-defined intrinsic per-status damage bonuses affect direct hits, not radial AoE"),
         )).toBe(true);
+    });
+
+    it("records Cannonade's current Fire Rate lock as modeled", () => {
+        expect(DAMAGE_RULESET.sources.cannonade).toBe("https://wiki.warframe.com/w/Cannonade_Mods");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("ignore positive and negative Fire Rate modifiers while a compatible Cannonade mod is equipped"),
+        )).toBe(true);
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) => entry.includes("Cannonade's fire-rate lock remain unmodeled"))).toBe(false);
     });
 
     it("records Range Advantage's Wiki distance condition and single-target boundary", () => {
