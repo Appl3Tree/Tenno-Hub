@@ -177,6 +177,35 @@ describe("Vile Discharge Wiki charge caps and safe scoring exclusion", () => {
     });
 });
 
+describe("Sentient Incision Wiki damage display and safe scoring exclusion", () => {
+    it("keeps the Venato augment selectable while disclosing its target-dependent exceptions", () => {
+        const venato = getWeaponCatalog().find((weapon) => weapon.name === "Venato");
+        const venatoPrime = getWeaponCatalog().find((weapon) => weapon.name === "Venato Prime");
+        const brokenWar = getWeaponCatalog().find((weapon) => weapon.name === "Broken War");
+        expect(venato).toBeDefined();
+        expect(venatoPrime).toBeDefined();
+        expect(brokenWar).toBeDefined();
+
+        for (const weapon of [venato!, venatoPrime!]) {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Sentient Incision");
+            expect(mod).toBeDefined();
+            expect(mod!.fusionLimit).toBe(5);
+            expect(mod!.statsTextByRank).toEqual([20, 40, 60, 80, 100, 120].map((bonus) =>
+                `+${bonus}% additional damage matching the target's weakness. Does not combine with other damage types.`,
+            ));
+            expect(mod!.hasDamageEffect).toBe(false);
+            expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0)).toBe(true);
+
+            const warning = "Sentient Incision's faction weakness mapping, Overguard-specific element selection, Slam exclusion, and non-scaling elemental status DoT are not modeled, so Auto Optimize skips this mod.";
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+            }
+        }
+
+        expect(getModsForWeapon(brokenWar!).some((candidate) => candidate.name === "Sentient Incision")).toBe(false);
+    });
+});
+
 describe("Vulcan Blitz Wiki rank radius correction and safe scoring exclusion", () => {
     it("uses every current Wiki rank radius and leaves the on-death explosion out of damage scoring", () => {
         const jatKittag = getWeaponCatalog().find((weapon) => weapon.name === "Jat Kittag");
