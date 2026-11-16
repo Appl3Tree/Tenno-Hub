@@ -887,6 +887,7 @@ export function calculateBuild(
     let damageBonus = 0;
     let physicalDamageConversion: ModEffect["physicalDamageConversion"];
     let elementalDamageConversion: ModEffect["elementalDamageConversion"];
+    let forcedImpactProcsPerMeleeHit = 0;
     let slamAttackDamageBonus = 0;
     let firstShotMagazineDamageBonus = 0;
     let lastShotMagazineDamageBonus = 0;
@@ -948,6 +949,9 @@ export function calculateBuild(
         damageBonus += e.damageBonus ?? 0;
         physicalDamageConversion ??= e.physicalDamageConversion;
         elementalDamageConversion ??= e.elementalDamageConversion;
+        if (weapon.category === "Companion" && weapon.uniqueName.includes("/BeastWeapons/")) {
+            forcedImpactProcsPerMeleeHit += e.forcedImpactProcsPerMeleeHit ?? 0;
+        }
         if (weapon.selectedAttackUsesSlamDamageBonus === true) {
             slamAttackDamageBonus += e.slamAttackDamageBonus ?? 0;
         }
@@ -1650,6 +1654,11 @@ export function calculateBuild(
         }
         addExtraProc(type, countPerShot);
     };
+    if (forcedImpactProcsPerMeleeHit > 0) {
+        // Beast Claws are categorized as Companion weapons in the catalog;
+        // Bell Ringer applies rank-scaled Impact statuses on each claw hit.
+        addExpectedForcedProc("impact", forcedImpactProcsPerMeleeHit * Math.max(0, moddedMultishot));
+    }
     const comboTriggeredProcDistributions = weapon.selectedAttackUsesMeleeComboMultiplier
         ? mods.flatMap((effect) => (effect?.meleeComboTriggeredProcDistributions ?? [])
             .filter((distribution) => meleeComboMultiplier >= distribution.minimumComboMultiplier))

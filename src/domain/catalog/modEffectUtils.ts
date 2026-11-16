@@ -12,6 +12,7 @@ export const BURNING_CLAWS_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/Beas
 export const CHILLING_CLAWS_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/KubrowColdConversionMod";
 export const SEPSIS_CLAWS_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/KubrowToxicConversionMod";
 export const SHOCKING_CLAWS_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/KubrowElectricConversionMod";
+export const BELL_RINGER_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastKnockdownWeaponMod";
 export const VILE_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveEmbolistAugmentMod";
 export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveVenatoAugmentMod";
 
@@ -44,6 +45,11 @@ export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | nul
             // https://wiki.warframe.com/w/Melee_Influence
             lines.push(
                 `${source.label}: Elemental status spread and its neighboring-target damage/proc histories are not modeled; this single-target score ignores the effect.`,
+            );
+        }
+        if (source.stats.knockdownOnMeleeHit === true) {
+            lines.push(
+                "Bell Ringer's knockdown contribution to Condition Overload/Galvanized per-status counts is not modeled because target susceptibility and knockdown duration are unknown; Auto Optimize skips this mod.",
             );
         }
         if (source.label === "Effect") {
@@ -121,6 +127,8 @@ export function emptyEffect(): ModEffect {
         shatteringImpactBaseArmorPerHit: 0, impactBonus: 0, punctureBonus: 0, slashBonus: 0,
         heavyAttackDamageBonus: 0,
         slamAttackDamageBonus: 0,
+        forcedImpactProcsPerMeleeHit: 0,
+        knockdownOnMeleeHit: false,
         heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
         blastBonus: 0, gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
         voidBonus: 0, tauBonus: 0, trueBonus: 0,

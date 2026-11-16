@@ -14,6 +14,7 @@
 
 import {
     ACID_SHELLS_MOD_PATH,
+    BELL_RINGER_MOD_PATH,
     BURNING_CLAWS_MOD_PATH,
     BRUTE_CONDITIONING_MOD_PATH,
     CHILLING_CLAWS_MOD_PATH,
@@ -125,6 +126,10 @@ export interface ModEffect {
     physicalDamageConversion?: "impact" | "puncture" | "slash";
     /** Converts primary elemental damage from this claw and its elemental mods into the selected primary type. */
     elementalDamageConversion?: PrimaryDamageElement;
+    /** Bell Ringer's guaranteed Impact status applications per Beast Claw melee hit. */
+    forcedImpactProcsPerMeleeHit: number;
+    /** Bell Ringer also knocks down susceptible targets; this unique status is not yet scored. */
+    knockdownOnMeleeHit: boolean;
     /** Additive base-damage bonus that applies only to a selected heavy attack. */
     heavyAttackDamageBonus: number;
     /** Multiplicative Slam Damage bonus for eligible named slam attacks. */
@@ -804,6 +809,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             out.physicalDamageConversion = partial.physicalDamageConversion ?? out.physicalDamageConversion;
         } else if (k === "elementalDamageConversion") {
             out.elementalDamageConversion = partial.elementalDamageConversion ?? out.elementalDamageConversion;
+        } else if (k === "knockdownOnMeleeHit") {
+            out.knockdownOnMeleeHit = out.knockdownOnMeleeHit || partial.knockdownOnMeleeHit === true;
         } else if (k === "independentStatusProcChanceByType") {
             const merged = { ...(out.independentStatusProcChanceByType ?? {}) };
             for (const [type, chance] of Object.entries(partial.independentStatusProcChanceByType ?? {}) as Array<[WeaponForcedProcType, number]>) {
@@ -1668,6 +1675,30 @@ function buildCaches(): ModCaches {
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) => {
                     const text = stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
                     return !/^Converts all elemental damage from these claws to (?:Heat|Cold|Electricity|Toxin) damage\.?$/i.test(text);
+                });
+            });
+        }
+        if (path === BELL_RINGER_MOD_PATH) {
+            // The Wiki rank table gives one to four forced Impact procs. Its
+            // knockdown also counts for per-status bonuses, but target immunity
+            // and knockdown duration are not represented by the encounter model.
+            // https://wiki.warframe.com/w/Bell_Ringer
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect) return;
+                const text = (levelStat.stats ?? [])
+                    .map((rawStat) => stripColorTags(rawStat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim())
+                    .filter(Boolean)
+                    .join(" ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                const match = text.match(/^Melee attacks knock down enemies and apply \+(\d+) Impact Status Effects\.?$/i);
+                if (!match) return;
+                rankEffect.forcedImpactProcsPerMeleeHit = Number(match[1]);
+                rankEffect.knockdownOnMeleeHit = true;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) => {
+                    const lineText = stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    return !/^Melee attacks knock down enemies and apply \+\d+ Impact Status Effects\.?$/i.test(lineText);
                 });
             });
         }
