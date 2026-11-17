@@ -168,6 +168,8 @@ export interface ModdedWeaponStats {
      * Galvanized Aptitude as additive within this bracket rather than as a separate multiplier.
      */
     totalDamageBonus: number;
+    /** Target-matched faction damage bonus fraction, e.g. 0.3 for ×1.3. */
+    factionDamageBonus: number;
     /** Timed hit-triggered damage stacks that the finite encounter can ramp from their selected initial state. */
     timedConditionalDamageStacks: TimedConditionalDamageStack[];
     averageShotDamage: number;
@@ -207,6 +209,8 @@ export interface ModdedWeaponStats {
     vigilanteSetModCount: number;
     /** Count of selected and external Gladiator pieces, capped at six. */
     gladiatorSetModCount: number;
+    /** Count of selected Sacrificial pieces, capped at the two-piece set size. */
+    sacrificialSetModCount: number;
     /** Relative melee crit chance per combo tier above 1x contributed by Gladiator. */
     gladiatorCritChancePerComboTier: number;
     /** Chance to upgrade a landed crit by one tier; only active for Primary weapons. */
@@ -1125,10 +1129,26 @@ export function calculateBuild(
     let statusDamageBonus = 0;
     let targetStatusDamageVulnerabilityBonus = 0;
     const targetFactionKey = targetFaction.toLowerCase();
+    const sacrificialSetMemberIds = new Set(mods.flatMap((effect) =>
+        effect?.sacrificialSetModCount && effect.sacrificialSetModId
+            ? [effect.sacrificialSetModId]
+            : [],
+    ));
+    const sacrificialSetModCount = Math.min(2, sacrificialSetMemberIds.size);
+    const sacrificialSetBonusActive = weapon.category === "Melee" && sacrificialSetModCount === 2;
 
     for (let index = 0; index < mods.length; index++) {
-        const e = mods[index];
-        if (!e) continue;
+        const selectedEffect = mods[index];
+        if (!selectedEffect) continue;
+        const e = sacrificialSetBonusActive && selectedEffect.sacrificialSetModCount > 0
+            ? {
+                ...selectedEffect,
+                damageBonus: (selectedEffect.damageBonus ?? 0) * 1.25,
+                critChanceBonus: (selectedEffect.critChanceBonus ?? 0) * 1.25,
+                heavyAttackCritChanceBonus: (selectedEffect.heavyAttackCritChanceBonus ?? 0) * 1.25,
+                factionDamageBonus: (selectedEffect.factionDamageBonus ?? 0) * 1.25,
+            }
+            : selectedEffect;
         damageBonus += e.damageBonus ?? 0;
         headshotMultiplierBonus += e.headshotMultiplierBonus ?? 0;
         bodyshotDamageBonus += e.bodyshotDamageBonus ?? 0;
@@ -2473,6 +2493,7 @@ export function calculateBuild(
         singleProjectileDamageBonus: springLoadedBroadheadDamageBonus,
         singleProjectileDamageMinDistanceMeters: springLoadedBroadheadMinDistanceMeters,
         totalDamageBonus: damageBonus,
+        factionDamageBonus,
         timedConditionalDamageStacks,
         averageShotDamage,
         expectedHitDamageMultiplier,
@@ -2491,6 +2512,7 @@ export function calculateBuild(
         critMultiplier,
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
+        sacrificialSetModCount,
         gladiatorCritChancePerComboTier,
         vigilanteCritTierEnhancementChance,
         statusChanceFromCritChanceBonus,

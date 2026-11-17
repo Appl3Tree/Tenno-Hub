@@ -909,17 +909,9 @@ function scoreEffectsCore(
     }
     const { modded } = calculateBuild(weapon, allEffects, targetFaction, damageOptions);
 
-    let factionDamageBonus = 0;
-    for (const effect of allEffects) {
-        if (!effect) continue;
-        if (targetFaction && effect.targetFaction && effect.targetFaction.toLowerCase() === targetFaction.toLowerCase()) {
-            factionDamageBonus += effect.factionDamageBonus ?? 0;
-        }
-    }
-
     const { pools, poolTotal, shares, healthTypeMultipliers } = scoringTarget;
     if (poolTotal <= 0) return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal };
-    const factionMultiplier = Math.max(0, 1 + factionDamageBonus);
+    const factionMultiplier = Math.max(0, 1 + modded.factionDamageBonus);
     const magneticMultiplier = Math.max(0, 1 + modded.magneticShieldDamageBonus);
     const viralMultiplier = Math.max(0, 1 + modded.viralHealthDamageBonus);
     const armorMultiplier = enemyArmorDamageMultiplier(pools.armor *
@@ -2518,11 +2510,7 @@ function expectedEncounterScoreForEffectsAtKillRate(
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
     const stats = encounterBuild.modded;
-    const factionDamageBonus = effects.reduce((sum, effect) =>
-        effect?.targetFaction?.toLowerCase() === targetFaction.toLowerCase()
-            ? sum + (effect.factionDamageBonus ?? 0)
-            : sum,
-    0);
+    const factionDamageBonus = stats.factionDamageBonus;
     const dotDamagePerApplicationByType = Object.fromEntries(
         Object.entries(stats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
             const type = rawType as StatusDamageType;

@@ -5624,3 +5624,47 @@ describe("Gladiator optimizer selection", () => {
         expect(atTwelveCombo.slots[0]?.name).toBe("Gladiator Rush");
     });
 });
+
+describe("Sacrificial set optimizer scoring", () => {
+    it("scores and selects the two-piece melee set on a Sentient target", () => {
+        const weapon = makeWeapon({
+            category: "Melee",
+            weaponType: "Sword",
+            modCompat: "Melee",
+            critChance: 0.2,
+            statusChance: 0,
+        });
+        const setPath = "/Lotus/Upgrades/Mods/Sets/Sacrifice/SacrificeSetMod";
+        const setMods = getModsForWeapon(weapon).filter((mod) => mod.setBonusPath === setPath);
+        const pressure = setMods.find((mod) => mod.name === "Sacrificial Pressure");
+        const steel = setMods.find((mod) => mod.name === "Sacrificial Steel");
+        expect(pressure).toBeDefined();
+        expect(steel).toBeDefined();
+        const effects = [
+            pressure!.effectsByRank[pressure!.fusionLimit],
+            steel!.effectsByRank[steel!.fusionLimit],
+        ];
+        const unboostedEffects = effects.map((effect) => ({ ...effect, sacrificialSetModCount: 0 }));
+        const scoreWithSet = debugScoreBuild(weapon, effects, "burst", "Sentient");
+        const scoreWithoutSet = debugScoreBuild(weapon, unboostedEffects, "burst", "Sentient");
+        expect(scoreWithSet).toBeGreaterThan(scoreWithoutSet);
+
+        const target = { health: 50_000, shields: 0, overguard: 0, armor: 0 };
+        const finiteWithSet = debugScoreExpectedEncounter(weapon, effects, "Sentient", target);
+        const finiteWithoutSet = debugScoreExpectedEncounter(weapon, unboostedEffects, "Sentient", target);
+        expect(finiteWithSet.timeToKillSeconds).not.toBeNull();
+        expect(finiteWithoutSet.timeToKillSeconds).not.toBeNull();
+        expect(finiteWithSet.timeToKillSeconds).toBeLessThan(finiteWithoutSet.timeToKillSeconds!);
+
+        const result = optimizeBuild(weapon, [pressure!, steel!], "burst", 2, {
+            slotPolarities: ["", ""],
+            defaultSlotPolarities: ["", ""],
+            allowForma: false,
+            allowCatalyst: true,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            targetFaction: "Sentient",
+        });
+        expect(result.slots.map((mod) => mod?.name).sort()).toEqual(["Sacrificial Pressure", "Sacrificial Steel"]);
+    });
+});

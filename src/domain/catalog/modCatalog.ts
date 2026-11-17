@@ -154,6 +154,10 @@ export interface ModEffect {
     vigilanteSetModCount: number;
     /** Number of distinct Gladiator set members selected on this weapon. */
     gladiatorSetModCount: number;
+    /** Count of selected Sacrificial set mods, independent of rank. */
+    sacrificialSetModCount: number;
+    /** Canonical identity used to distinguish the two members of the Sacrificial set. */
+    sacrificialSetModId?: string;
     /** Additional critical chance from mods whose base bonus is doubled on selected heavy attacks. */
     heavyAttackCritChanceBonus: number;
     /** Additive critical chance that applies only to selected slide attacks. */
@@ -260,6 +264,7 @@ const PROTON_JET_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModB";
 const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
 const VIGILANTE_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod";
 const GLADIATOR_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Gladiator/GladiatorSetMod";
+const SACRIFICIAL_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Sacrifice/SacrificeSetMod";
 export const SPRING_LOADED_BROADHEAD_PATH = "/Lotus/Upgrades/Mods/PvPMods/Rifle/DaikyuMoreDamageOverDistanceMod";
 const MENTOR_LEGACY_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/TennokaiBaseMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
@@ -827,7 +832,7 @@ function parseFactionLine(raw: string): Partial<ModEffect> {
     if (!isFinite(multiplier) || multiplier <= 0) return {};
     return {
         factionDamageBonus: multiplier - 1,   // store as bonus fraction (e.g. 1.3 → 0.3)
-        targetFaction: m[2].trim(),
+        targetFaction: /^Sentients$/i.test(m[2].trim()) ? "Sentient" : m[2].trim(),
     };
 }
 
@@ -1393,6 +1398,13 @@ function buildCaches(): ModCaches {
         if (item.modSet === GLADIATOR_SET_BONUS_PATH) {
             // Gladiator grants 10% relative melee Critical Chance per combo tier above 1x.
             effectsByRank.forEach((effect) => { effect.gladiatorSetModCount = 1; });
+        }
+        if (item.modSet === SACRIFICIAL_SET_BONUS_PATH) {
+            // The two-piece Sacrificial set increases every listed mod stat by 25%.
+            effectsByRank.forEach((effect) => {
+                effect.sacrificialSetModCount = 1;
+                effect.sacrificialSetModId = path;
+            });
         }
         if (locksFireRate) {
             // Cannonade's lock applies at every rank and ignores both positive

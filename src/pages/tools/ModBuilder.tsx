@@ -142,7 +142,6 @@ function effectiveBurstTiming(weapon: WeaponEntry | null | undefined, effectiveF
 type BuilderTargetEncounterOptions = {
     targetAssumptions: ReturnType<typeof getTargetProfileAssumptions>;
     targetFaction: string;
-    effects: (ModEffect | null)[];
     targetProfileOverride?: TargetProfileOverride | null;
     statusImmuneTypes: Iterable<StatusDamageType>;
     externalStatusTypeCount: number;
@@ -158,20 +157,12 @@ function simulateBuilderTargetEncounter(
     const {
         targetAssumptions,
         targetFaction,
-        effects,
         targetProfileOverride,
         statusImmuneTypes,
         externalStatusTypeCount,
         externalStatusTypes,
         conditionalState,
     } = options;
-    const factionDamageBonus = effects.reduce((sum, effect) =>
-        effect?.targetFaction?.toLowerCase() === targetFaction.toLowerCase()
-            ? sum + (effect.factionDamageBonus ?? 0)
-            : sum,
-        0,
-    );
-
     return simulateExpectedWeaponEncounter({
         damageByType: stats.damageBreakdownBeforePerStatus,
         rawDamageByType: stats.rawDamageBreakdownBeforePerStatus,
@@ -187,7 +178,7 @@ function simulateBuilderTargetEncounter(
         armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
         shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
         faction: targetFaction,
-        factionDamageBonus,
+        factionDamageBonus: stats.factionDamageBonus,
         toxinBypassesShields: targetAssumptions.toxinBypassesShields,
         enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
         damageRampRule: weapon.selectedAttackDamageRamp,
@@ -302,7 +293,6 @@ function estimateGalvanizedPerStatusKillRate(
         return simulateBuilderTargetEncounter(weapon, metrics.modded, {
             targetAssumptions,
             targetFaction,
-            effects,
             targetProfileOverride,
             statusImmuneTypes: effectiveStatusImmunities,
             externalStatusTypeCount,
@@ -1553,8 +1543,8 @@ function buildMathBreakdown(
         : null;
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const baseDamage = weapon.damage.total;
-    const baseDamageMultiplier = 1 + totals.damageBonus;
-    const conditionOverloadDamageBracket = 1 + totals.damageBonus +
+    const baseDamageMultiplier = 1 + stats.totalDamageBonus;
+    const conditionOverloadDamageBracket = 1 + stats.totalDamageBonus +
         (stats.conditionOverloadApplies
             ? stats.conditionOverloadDamagePerStatusBonus * stats.conditionOverloadStatusTypes
             : 0);
@@ -1872,7 +1862,7 @@ function buildMathBreakdown(
         {
             title: "Base Stats",
             lines: [
-                `Base damage multiplier bracket = 1 + additive damage bonuses = 1 + ${fmt(totals.damageBonus, 5)} = ${fmt(baseDamageMultiplier, 5)}`,
+                `Base damage multiplier bracket = 1 + additive damage bonuses = 1 + ${fmt(stats.totalDamageBonus, 5)} = ${fmt(baseDamageMultiplier, 5)}`,
                 `Crit chance = base ${fmt(weapon.critChance, 5)} × (1 + additive crit ${fmt(totals.critChanceBonus, 5)}) + combo-scaled crit ${fmt(stats.comboCritChancePerTier, 5)} per tier × ${fmt(Math.max(0, stats.meleeComboMultiplier - 1), 0)} tiers above 1x + final crit ${fmt(totals.finalCritChanceBonus, 5)} = ${fmt(stats.critChance, 5)} (${fmt(stats.critChance * 100, 3)}%)`,
                 `Crit multiplier = quantized base ${fmt(stats.quantizedBaseCritMultiplier, 7)} × (1 + additive crit mult ${fmt(totals.critMultBonus, 5)}) + final crit mult ${fmt(totals.finalCritMultiplierBonus, 5)} = ${fmt(stats.critMultiplier, 7)}`,
                 ...(weapon.category === "Primary"
@@ -1880,6 +1870,9 @@ function buildMathBreakdown(
                     : []),
                 ...(usesMeleeDamageModel(weapon.category)
                     ? [`Gladiator set = ${stats.gladiatorSetModCount} distinct pieces × 10% × ${fmt(Math.max(0, stats.meleeComboMultiplier - 1), 0)} combo tiers above 1x = ${fmt(stats.gladiatorCritChancePerComboTier * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 1)}% relative melee Critical Chance on base.`]
+                    : []),
+                ...(stats.sacrificialSetModCount > 0
+                    ? [`Sacrificial set = ${stats.sacrificialSetModCount}/2 selected mods${stats.sacrificialSetModCount === 2 && weapon.category === "Melee" ? "; each mod's listed Melee Damage, Critical Chance, and Sentient Damage bonus is increased by 25%" : "; both mods must be equipped on this melee weapon to activate the set bonus"}.`]
                     : []),
                 ...(weapon.selectedAttackBaseStatusChancePerCriticalChance !== undefined
                     ? [`Wiseman's Regard = +${fmt(stats.statusChanceFromCritChanceBonus * 100, 3)} percentage points base Status Chance (${fmt(weapon.selectedAttackBaseStatusChancePerCriticalChance * 100, 3)}% of current ${fmt(stats.critChance * 100, 3)}% Critical Chance, capped at ${fmt((weapon.selectedAttackBaseStatusChancePerCriticalChanceCap ?? 0) * 100, 3)}%).`]
@@ -1951,7 +1944,7 @@ function buildMathBreakdown(
                 ...quantizedLines,
                 `Quantized final breakdown = ${Object.entries(stats.damageBreakdown).filter(([, value]) => (value as number) > 0).map(([type, value]) => `${type} ${fmt(value as number, 5)}`).join(", ") || "none"}`,
                 `Quantized total direct damage = ${fmt(stats.totalDamage, 5)}`,
-                targetFaction ? `Faction mod multiplier tracked after quantization = ×${fmt(1 + totals.factionDamageBonus, 5)} (${targetFaction})` : "No faction-mod multiplier tracked in this build",
+                targetFaction ? `Target-matched faction mod multiplier = ×${fmt(1 + stats.factionDamageBonus, 5)} (${targetFaction})` : "No target faction selected",
             ],
         },
         {
@@ -4644,12 +4637,6 @@ export default function ModBuilder() {
     const activeTargetAttackInput = useMemo<DirectTargetDamageInput | null>(() => {
         if (!activeMetrics) return null;
         const stats = activeMetrics.modded;
-        const factionDamageBonus = factionOn
-            ? activeBuildEffects.reduce((sum, effect) =>
-                sum + (effect?.targetFaction?.toLowerCase() === faction.toLowerCase()
-                    ? effect.factionDamageBonus ?? 0
-                    : 0), 0)
-            : 0;
         const combinedArmorStrip = 1 - ((1 - stats.heatArmorStrip) * (1 - stats.corrosiveArmorStrip));
         return {
             damageByType: stats.damageBreakdownBeforePerStatus,
@@ -4662,7 +4649,7 @@ export default function ModBuilder() {
             armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
             shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
             faction: factionOn ? faction : "",
-            factionDamageBonus,
+            factionDamageBonus: stats.factionDamageBonus,
             viralHealthDamageBonus: stats.viralHealthDamageBonus,
             magneticDefenseDamageBonus: stats.magneticShieldDamageBonus,
             toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
@@ -4683,7 +4670,7 @@ export default function ModBuilder() {
             expectedDamageMultiplier: stats.damageWeightedMultishot,
             singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
         };
-    }, [activeMetrics, activeBuildEffects, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
+    }, [activeMetrics, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
     const activeTargetAttackDamage = useMemo(() => {
         if (!activeTargetAttackInput || !activeMetrics) return null;
         const stats = activeMetrics.modded;
@@ -4736,12 +4723,6 @@ export default function ModBuilder() {
     const activeTargetEncounter = useMemo(() => {
         if (!encounterTargetMetrics || activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation) return null;
         const stats = encounterTargetMetrics.modded;
-        const factionDamageBonus = factionOn
-            ? activeBuildEffects.reduce((sum, effect) =>
-                sum + (effect?.targetFaction?.toLowerCase() === faction.toLowerCase()
-                    ? effect.factionDamageBonus ?? 0
-                    : 0), 0)
-            : 0;
         return simulateExpectedWeaponEncounter({
             damageByType: stats.damageBreakdownBeforePerStatus,
             rawDamageByType: stats.rawDamageBreakdownBeforePerStatus,
@@ -4756,7 +4737,7 @@ export default function ModBuilder() {
             armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
             shatteringImpactBaseArmorPerHit: stats.shatteringImpactBaseArmorPerHit,
             faction: factionOn ? faction : "",
-            factionDamageBonus,
+            factionDamageBonus: stats.factionDamageBonus,
             toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
             enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
             damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
@@ -4833,7 +4814,7 @@ export default function ModBuilder() {
             totalDamageBonus: stats.totalDamageBonus,
             timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
-    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, activeBuildEffects, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat]);
+    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat]);
     const activeAttackEventLabel = activeCalcWeapon?.trigger.toLowerCase() === "burst" ? "rounds" : "attacks";
     const activeEncounterStatusSummary = activeTargetEncounter
         ? Object.entries(activeTargetEncounter.statusApplicationsByType)
@@ -5715,7 +5696,7 @@ export default function ModBuilder() {
                                     )}
                                     {weapon && (
                                         <p role="note" className="mt-2 text-right text-[10px] leading-relaxed text-amber-300">
-                                            Only Vigilante’s Primary crit-tier bonus and Gladiator’s combo-scaled melee Critical Chance bonus are modeled. Other shared set bonuses remain excluded from damage, TTK, and Auto Optimize. Enter distinct set pieces equipped outside the selected weapon in Optimization options; supported individual stats on selected mods still apply.
+                                            Vigilante, Gladiator, and the two-piece Sacrificial bonuses are modeled; Sacrificial activates when both mods are selected on the active melee weapon. Other shared set bonuses remain excluded from damage, TTK, and Auto Optimize. Enter distinct Vigilante or Gladiator pieces equipped on other gear in Optimization options; supported individual stats on selected mods still apply.
                                         </p>
                                     )}
                                     {showOptimizeOptions && (
