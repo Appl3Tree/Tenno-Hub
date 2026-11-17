@@ -46,7 +46,7 @@ The reproducible runner is npx tsx scripts/auditExpectedTtkPairSample.ts --seed=
 | Helstrum / Explosion | 52.0000000 s | 63.0000000 s | 0 / 1,024 |
 | Gram Prime / Heavy Slam Attack | 1.2500000 s | 2.4193548 s | 0 / 1,024 |
 
-Across the corpus, the sampler examined 24,170 raw tuples to collect 12,288 legal moves. The proportion of each raw tuple universe examined ranged from 2.876% to 14.967%. This finds no improvement in the sampled pairs; it does not establish a pair-local optimum or global optimality. The sample is one faction, target, objective, and conditional state; it excludes effects without fully modeled damage lines and is not an Underframe or live-game comparison. No optimizer code changed in this audit.
+Across the corpus, the sampler examined 24,170 raw tuples to collect 12,288 legal moves. The proportion of each raw tuple universe examined ranged from 2.876% to 14.967%. This finds no improvement in the sampled pairs; it does not establish a pair-local optimum or global optimality. The sample is one faction, target, objective, and conditional state; it excludes effects without fully modeled damage lines and is not an Underframe or live-game comparison. No optimizer code changed in this audit. PR [#132](https://github.com/Appl3Tree/Tenno-Hub/pull/132) was squash-merged as 85502ca12558bd6f4391c4333cb4b6754762d3cd; Pages deployment [run #211](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44131941071) succeeded.
 
 ## Coda Bassocyst Alt-Fire model boundary (2026-11-17)
 
