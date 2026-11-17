@@ -5577,3 +5577,50 @@ describe("Vigilante set optimizer scoring", () => {
         expect(setFinite.timeToKillSeconds).toBeLessThan(baseFinite.timeToKillSeconds!);
     });
 });
+
+describe("Gladiator set optimizer scoring", () => {
+    it("scores combo-scaled melee Critical Chance in fast and finite damage objectives", () => {
+        const weapon = makeWeapon({ category: "Melee", weaponType: "Sword", modCompat: "Melee", critChance: 0.5, critMultiplier: 2 });
+        const piece = { ...emptyEffect(), gladiatorSetModCount: 1 };
+        const state = { mode: "realistic" as const, meleeComboMultiplier: 12 };
+        const externalState = { ...state, externalGladiatorSetModCount: 3 };
+        const baseBurst = debugScoreBuild(weapon, [], "burst", "", null, null, state);
+        const selectedBurst = debugScoreBuild(weapon, [piece], "burst", "", null, null, state);
+        const externalBurst = debugScoreBuild(weapon, [], "burst", "", null, null, externalState);
+        expect(selectedBurst).toBeGreaterThan(baseBurst);
+        expect(externalBurst).toBeGreaterThan(baseBurst);
+        const target = { health: 10_000, shields: 0, overguard: 0, armor: 0 };
+        const baseFinite = debugScoreExpectedEncounter(weapon, [], "", target, state);
+        const setFinite = debugScoreExpectedEncounter(weapon, [piece], "", target, externalState);
+        expect(baseFinite.timeToKillSeconds).not.toBeNull();
+        expect(setFinite.timeToKillSeconds).not.toBeNull();
+        expect(setFinite.timeToKillSeconds).toBeLessThan(baseFinite.timeToKillSeconds!);
+    });
+});
+
+describe("Gladiator optimizer selection", () => {
+    it("selects a combo-duration Gladiator mod when its set bonus improves the melee objective", () => {
+        const weapon = makeWeapon({ category: "Melee", weaponType: "Sword", modCompat: "Melee", critChance: 0.2, critMultiplier: 2 });
+        const gladiatorRush = getModsForWeapon(weapon).find((mod) => mod.name === "Gladiator Rush");
+        expect(gladiatorRush).toBeDefined();
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            allowCatalyst: true,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            conditionalState: { mode: "realistic" as const, externalGladiatorSetModCount: 3 },
+        };
+        const atBaseCombo = optimizeBuild(weapon, [gladiatorRush!], "burst", 1, {
+            ...options,
+            conditionalState: { ...options.conditionalState, meleeComboMultiplier: 1 },
+        });
+        const atTwelveCombo = optimizeBuild(weapon, [gladiatorRush!], "burst", 1, {
+            ...options,
+            conditionalState: { ...options.conditionalState, meleeComboMultiplier: 12 },
+        });
+        expect(atBaseCombo.slots[0]).toBeNull();
+        expect(atTwelveCombo.slots[0]?.name).toBe("Gladiator Rush");
+    });
+});
