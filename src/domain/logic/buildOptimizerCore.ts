@@ -2322,7 +2322,7 @@ const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
 const ENCOUNTER_SLOT_ALTERNATIVE_LIMIT = 8;
-const ENCOUNTER_REFINE_PASSES = 4;
+const ENCOUNTER_REFINE_PASSES = 5;
 const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 12;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
 const ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT = 24;
@@ -2994,10 +2994,10 @@ function refineBuildByExpectedEncounter(
             shortlistedCandidates.set(`${candidate.mod.uniqueName}@${candidate.rank}`, candidate);
         }
         const slotAlternativeFamilies = [
-            "reload-fire-rate", "base-damage",
+            "critical", "reload-fire-rate", "base-damage",
             "elemental-heat-status", "elemental-toxin-status", "elemental-cold-status", "elemental-electricity-status",
             "elemental-heat", "elemental-toxin", "elemental-cold", "elemental-electricity", "elemental",
-            "fire-rate", "weapon-tempo", "multishot", "status", "critical", "faction-damage",
+            "fire-rate", "weapon-tempo", "multishot", "status", "faction-damage",
         ];
         const candidatesWithSlotAlternative = new Set<string>();
         let slotAlternatives = 0;

@@ -2456,6 +2456,48 @@ describe("build optimizer scoring", () => {
         expect(independentlyScored.timeToKillSeconds).toBeCloseTo(2.610966057441, 8);
     });
 
+    it("keeps the best critical replacement slot in full-pool finite-TTK refinement", { timeout: 60000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Laetum");
+        expect(weapon).toBeTruthy();
+        const target = { health: 100000, shields: 0, overguard: 0, armor: 3000 };
+        const conditionalState = { mode: "realistic" as const };
+        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 8, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig: {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            },
+            slotPolarities: weapon!.polarities,
+            defaultSlotPolarities: weapon!.polarities,
+            allowForma: true,
+            maxFormaCount: 3,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            buildForAttack: weapon!.attacks[0] ?? null,
+        });
+        const effects = result.slots.map((mod, index) => mod
+            ? mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+            : null);
+        const independentlyScored = debugScoreExpectedEncounter(
+            withSelectedAttack(weapon!, 0),
+            effects,
+            "Grineer",
+            target,
+            conditionalState,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
+        expect(result.mods.some((mod) => mod.name === "Creeping Bullseye")).toBe(true);
+        expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+        expect(independentlyScored.timeToKillSeconds).toBeLessThanOrEqual(1.886792452831);
+    });
+
     it("matches the exhaustive finite-encounter optimum for a five-mod legal subset", () => {
         const weapon = makeWeapon({
             fireRate: 4,
