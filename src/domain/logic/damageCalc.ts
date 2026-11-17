@@ -408,6 +408,8 @@ export interface DamageCalculationOptions {
     expectedKillRatePerSecond?: number;
     /** Wiki-backed target hit-location profile plus the player's assumed headshot share. */
     hitLocation?: HitLocationDamageProfile;
+    /** Target class used by effects whose trigger explicitly requires an Eximus. */
+    isEximusTarget?: boolean;
 }
 
 /** Hit-location inputs supplied from Wiki-backed faction or named-enemy data. */
@@ -664,6 +666,7 @@ export function estimateConditionalUptime(
     state: ConditionalState = DEFAULT_CONDITIONAL_STATE,
     context: ConditionalStackEstimationContext = {},
 ): number {
+    if (conditional.requiresEximusTarget && context.isEximusTarget !== true) return 0;
     if (conditional.trigger === "whileTargetHasStatus") {
         const statuses = state.externalStatusTypes ?? [];
         const requiredStatus = conditional.requiredTargetStatusType;
@@ -903,6 +906,8 @@ export interface ConditionalStackEstimationContext {
     expectedKillRatePerSecond?: number;
     /** Player's assumed share of direct hits that land on a headshot location. */
     headshotHitRate?: number;
+    /** Whether the selected target is an Eximus for target-class-gated effects. */
+    isEximusTarget?: boolean;
 }
 
 function estimateCappedPoissonCount(mean: number, cap: number): number {
@@ -928,6 +933,7 @@ function estimateConditionalStackFactor(
     state: ConditionalState = DEFAULT_CONDITIONAL_STATE,
     context: ConditionalStackEstimationContext = {},
 ): number {
+    if (conditional.requiresEximusTarget && context.isEximusTarget !== true) return 0;
     if (conditional.trigger === "whileTargetHasStatus" || conditional.trigger === "whileNoEnemyWithinRange") return 1;
     if (state.mode === "initial") return 0;
     if (state.mode === "fullyStacked") return Math.max(1, conditional.maxStacks ?? 1);
@@ -1016,6 +1022,7 @@ export function calculateBuild(
         options.hitLocation?.canHeadshot !== false;
     const conditionalTriggerContext: ConditionalStackEstimationContext = {
         headshotHitRate: canHeadshot ? normalizeHitShare(options.hitLocation?.headshotRate) : 0,
+        isEximusTarget: options.isEximusTarget === true,
         ...(killStackContext ?? {}),
     };
     const infiniteAmmoActive = !!weapon.hasGaleForceAmmoPassive && (

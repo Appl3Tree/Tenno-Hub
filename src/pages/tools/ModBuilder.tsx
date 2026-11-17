@@ -1502,6 +1502,7 @@ function buildMathBreakdown(
     );
     const result = calculateBuild(weapon, effects, targetFaction, {
         conditionalState,
+        isEximusTarget: targetProfileOverride?.isEximusTarget,
         statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
         hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
@@ -1513,6 +1514,7 @@ function buildMathBreakdown(
         meleeDpsInputs != null
         ? calculateBuild(weapon, effects, targetFaction, {
             conditionalState: { mode: "initial" },
+            isEximusTarget: targetProfileOverride?.isEximusTarget,
             statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
@@ -1602,6 +1604,7 @@ function buildMathBreakdown(
             : undefined;
         const triggerContext = {
             headshotHitRate: stats.hitLocation.canHeadshot === false ? 0 : stats.hitLocation.headshotRate ?? 0,
+            isEximusTarget: targetProfileOverride?.isEximusTarget === true,
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
             ...(killStackContext ?? {}),
         };
@@ -1632,6 +1635,9 @@ function buildMathBreakdown(
         const targetStatusModel = conditional.requiredTargetStatusType
             ? ` target status ${conditional.requiredTargetStatusType} is ${uptime > 0 ? "assumed active for this scenario" : "not active in this scenario"}; its duration and renewal are not simulated.`
             : "";
+        const eximusTargetModel = conditional.requiresEximusTarget
+            ? ` requires an Eximus target (currently ${triggerContext.isEximusTarget ? "selected" : "not selected"}); weak-point-only triggers are not included. Source: https://wiki.warframe.com/w/Eximus_Advantage.`
+            : "";
         const triggerModel = conditional.trigger === "onNonCriticalNoStatusHit"
             ? ` qualifying group chance ${fmt(conditionalQualifyingGroupProbability * 100, 5)}% from ${fmt(stats.critChance * 100, 2)}% crit, ${fmt(stats.statusChance * 100, 2)}% status, and ${fmt(stats.multishot, 3)} multishot; the steady-state estimate uses Poisson arrivals at ${fmt(stats.fireRate * conditionalQualifyingGroupProbability, 5)}/s and one-stack decay per full duration without a trigger. The finite encounter starts at ${timedStackModel?.initialStacks ?? 0} stacks and advances one qualifying attack group at a time. The model treats crit/status rolls as independent per projectile and averages fractional multishot as one extra-projectile chance. Target status immunities and forced weapon procs are applied; DoT ticks and externally applied statuses are excluded.`
             : "";
@@ -1641,7 +1647,7 @@ function buildMathBreakdown(
         const headshotTriggerModel = conditional.trigger === "onHeadshot" || conditional.trigger === "onHeadshotKill"
             ? ` Wiki headshot-trigger estimate uses the configured ${(triggerContext.headshotHitRate * 100).toFixed(1)}% share of direct hits; ${conditional.trigger === "onHeadshot" ? "hit refreshes use Poisson arrivals over the listed duration" : Number.isFinite(expectedKillRatePerSecond) ? `expected kills at ${fmt(expectedKillRatePerSecond ?? 0, 4)}/s` : "headshot-kill uptime uses the documented 35% baseline scaled by headshot share"}.`
             : "";
-        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${triggerModel}${killCadenceModel}${headshotTriggerModel}`;
+        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${eximusTargetModel}${triggerModel}${killCadenceModel}${headshotTriggerModel}`;
     });
     if (conditionalEntries.some((conditional) => conditional.trigger === "onOcucorTendrilKill")) {
         const ocucorTendrilCondition = conditionalEntries.find((conditional) => conditional.trigger === "onOcucorTendrilKill")!;
@@ -2094,6 +2100,7 @@ function buildExportPayload(args: {
 
     const calculated = calculateBuild(calcWeapon, effects, targetFaction ?? "", {
         conditionalState,
+        isEximusTarget: targetProfileOverride?.isEximusTarget,
         statusImmuneTypes: targetStatusImmunities,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
         hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
@@ -2103,6 +2110,7 @@ function buildExportPayload(args: {
         meleeDpsInputs != null
         ? calculateBuild(calcWeapon, effects, targetFaction ?? "", {
             conditionalState: { mode: "initial" },
+            isEximusTarget: targetProfileOverride?.isEximusTarget,
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
@@ -3215,7 +3223,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
                                 weaponState.selectedWeapon,
                                 [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)],
                                 targetFaction,
-                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) },
+                                { conditionalState, isEximusTarget: targetProfileOverride?.isEximusTarget, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) },
                             );
                             return (
                                 <div key={b.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-2">
@@ -3246,7 +3254,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
                                 weaponState.selectedWeapon,
                                 [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)],
                                 targetFaction,
-                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) },
+                                { conditionalState, isEximusTarget: targetProfileOverride?.isEximusTarget, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) },
                             );
                         })() : null;
                         return (
@@ -3635,9 +3643,10 @@ export default function ModBuilder() {
     const targetProfileOverride = useMemo<TargetProfileOverride | undefined>(() => {
         const selectedProfile = getEnemyProfile(selectedEnemyProfileId);
         if (!useCustomTargetStats) {
-            if (!selectedProfile && (!factionOn || headshotRatePercent <= 0)) return undefined;
+            if (!selectedProfile && (!factionOn || headshotRatePercent <= 0) && !isEximus) return undefined;
             return {
                 headshotHitRate: factionOn ? headshotRatePercent / 100 : 0,
+                isEximusTarget: isEximus,
                 ...(selectedProfile ? {
                     headshotMultiplier: selectedProfile.headshotMultiplier,
                     criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
@@ -3652,6 +3661,7 @@ export default function ModBuilder() {
         return {
             ...resolvedCustomTargetStats,
             headshotHitRate: factionOn ? headshotRatePercent / 100 : 0,
+            isEximusTarget: isEximus,
             ...(selectedProfile ? {
                 headshotMultiplier: selectedProfile.headshotMultiplier,
                 criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
@@ -3680,7 +3690,7 @@ export default function ModBuilder() {
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps,
         };
-    }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel]);
+    }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel, isEximus]);
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
     const [maxFormaAllowed, setMaxFormaAllowed] = useState(9);
@@ -4525,6 +4535,7 @@ export default function ModBuilder() {
     const activeMetrics = useMemo(
         () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState,
+            isEximusTarget: targetProfileOverride?.isEximusTarget,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
@@ -4538,6 +4549,7 @@ export default function ModBuilder() {
     const initialTargetMetrics = useMemo(
         () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState: { mode: "initial" },
+            isEximusTarget: targetProfileOverride?.isEximusTarget,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
@@ -7114,6 +7126,7 @@ export default function ModBuilder() {
                                     const attackWeapon = makeSelectedAttackWeapon(weapon, atkIdx);
                                     return calculateBuild(attackWeapon, buildEffects, factionOn ? faction : "", {
                                         conditionalState,
+                                        isEximusTarget: targetProfileOverride?.isEximusTarget,
                                         statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
                                         statusStackCaps: targetProfileOverride?.statusStackCaps,
                                         hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),

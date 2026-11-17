@@ -57,6 +57,53 @@ function makeRivenEffect(stats: CustomRivenStatValue[]): ModEffect {
     }).effect;
 }
 
+describe("Eximus Advantage Wiki effect", () => {
+    it("parses all ranks and applies only to sustained headshots against an Eximus target", () => {
+        const weapons = getWeaponCatalog();
+        const zylok = weapons.find((candidate) => candidate.name === "Zylok");
+        const zylokPrime = weapons.find((candidate) => candidate.name === "Zylok Prime");
+        expect(zylok).toBeDefined();
+        expect(zylokPrime).toBeDefined();
+
+        const expectedBonuses = [1, 2, 3, 4, 5, 6];
+        for (const weapon of [zylok!, zylokPrime!]) {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Eximus Advantage");
+            expect(mod).toBeDefined();
+            expect(mod!.effectsByRank.map((effect) => effect.conditionalEffects[0]?.stats.damageBonus)).toEqual(expectedBonuses);
+            expect(mod!.effectsByRank.every((effect) => effect.conditionalEffects[0]?.trigger === "onHeadshot" &&
+                effect.conditionalEffects[0]?.durationSeconds === 10 &&
+                effect.conditionalEffects[0]?.requiresEximusTarget === true)).toBe(true);
+            expect(mod!.unparsedStatsByRank?.every((lines) => lines.length === 0)).toBe(true);
+            expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit)).toEqual([]);
+
+            const active = calculateBuild(weapon, [mod!.effect], "", {
+                conditionalState: { mode: "realistic" },
+                isEximusTarget: true,
+                hitLocation: { headshotRate: 1 },
+            }).modded;
+            const ordinaryTarget = calculateBuild(weapon, [mod!.effect], "", {
+                conditionalState: { mode: "fullyStacked" },
+                isEximusTarget: false,
+                hitLocation: { headshotRate: 1 },
+            }).modded;
+            const noHeadshots = calculateBuild(weapon, [mod!.effect], "", {
+                conditionalState: { mode: "realistic" },
+                isEximusTarget: true,
+                hitLocation: { headshotRate: 0 },
+            }).modded;
+            const baseline = calculateBuild(weapon, [], "", {
+                conditionalState: { mode: "realistic" },
+                isEximusTarget: true,
+                hitLocation: { headshotRate: 1 },
+            }).modded;
+
+            expect(active.totalDamage).toBeGreaterThan(baseline.totalDamage);
+            expect(ordinaryTarget.totalDamage).toBeCloseTo(baseline.totalDamage, 8);
+            expect(noHeadshots.totalDamage).toBeCloseTo(baseline.totalDamage, 8);
+        }
+    });
+});
+
 describe("Tennokai mod catalog coverage", () => {
     it("keeps Mentor's Legacy selectable and labels unsupported Tennokai timing", () => {
         const meleeWeapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");

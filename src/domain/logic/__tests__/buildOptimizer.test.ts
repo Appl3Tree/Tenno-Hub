@@ -631,6 +631,27 @@ describe("build optimizer scoring", () => {
         expect(getTargetProfileAssumptions("Grineer", { headshotHitRate: Number.NaN }).headshotHitRate).toBe(0);
     });
 
+    it("scores Eximus Advantage only for a headshot-enabled Eximus target", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Zylok Prime");
+        expect(weapon).toBeDefined();
+        const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Eximus Advantage");
+        expect(mod).toBeDefined();
+        const conditionalState: ConditionalState = { mode: "realistic" };
+        const score = (isEximusTarget: boolean, headshotHitRate: number) => debugScoreBuild(
+            weapon!,
+            [mod!.effect],
+            "burst",
+            "Grineer",
+            null,
+            { isEximusTarget, headshotHitRate },
+            conditionalState,
+        );
+
+        expect(score(true, 1)).toBeGreaterThan(score(false, 1));
+        expect(score(true, 1)).toBeGreaterThan(score(true, 0));
+        expect(getTargetProfileAssumptions("Grineer", { isEximusTarget: true }).isEximusTarget).toBe(true);
+    });
+
     it("applies an explicit boss Blast stack cap without changing other status caps", () => {
         const bossTarget = getTargetProfileAssumptions("Grineer", {
             health: 100,
