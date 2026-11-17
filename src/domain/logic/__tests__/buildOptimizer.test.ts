@@ -805,6 +805,36 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Entropy Detonation out of Auto Optimize while disclosing its unmodeled area effect", () => {
+        const obex = getWeaponCatalog().find((candidate) => candidate.name === "Obex");
+        expect(obex).toBeDefined();
+        const entropyDetonation = getModsForWeapon(obex!).find((mod) => mod.name === "Entropy Detonation");
+        expect(entropyDetonation).toBeDefined();
+        for (let rank = 0; rank <= entropyDetonation!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(entropyDetonation!, rank)).toContain(
+                "Entropy Detonation’s lethal-ground-attack Blast explosion and Entropy effect are not scored; Auto Optimize skips this mod until its trigger and radial damage are modeled.",
+            );
+        }
+        const result = optimizeBuild(obex!, [entropyDetonation!], "meleeDps", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
+    it("keeps Amalgam Furax Body Count out of Auto Optimize instead of scoring only its supported stats", () => {
+        const furax = getWeaponCatalog().find((candidate) => candidate.name === "Furax");
+        expect(furax).toBeDefined();
+        const amalgamBodyCount = getModsForWeapon(furax!).find((mod) => mod.name === "Amalgam Furax Body Count");
+        expect(amalgamBodyCount).toBeDefined();
+        expect(amalgamBodyCount!.effect.fireRateBonus).toBeCloseTo(0.45);
+        expect(amalgamBodyCount!.effect.comboDurationBonus).toBeCloseTo(15);
+        for (let rank = 0; rank <= amalgamBodyCount!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(amalgamBodyCount!, rank)).toContain(
+                "Amalgam Furax Body Count’s melee-kill Blast and stagger in 15m are not scored; Auto Optimize skips this mod until the area-effect damage and trigger are modeled.",
+            );
+        }
+        const result = optimizeBuild(furax!, [amalgamBodyCount!], "meleeDps", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
     it("keeps Vile Discharge out of Auto Optimize until its charge-and-discharge sequence is modeled", () => {
         const embolist = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
         expect(embolist).toBeDefined();

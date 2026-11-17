@@ -1,5 +1,15 @@
 # Build Planner Optimizer Benchmark
 
+## D3-MOD-ONKILL-EXPLOSION-BOUNDARY-001 — unsupported on-kill area effects (2026-11-17; code validation complete, release pending)
+
+A local scan of the checked-in WFCD `external/warframe-items/raw/Mods.json` snapshot identified Entropy Detonation and Amalgam Furax Body Count as additional on-kill area-effect candidates. Runtime inspection showed their kill explosions/staggers are not parsed as damage effects, and the existing Auto Optimize unmodeled-effect gate excludes them. Amalgam Furax Body Count's supported secondary Fire Rate and combo-duration stats can still be shown to manual builds; Auto Optimize skips the whole mod rather than partially scoring its unsupported kill effect.
+
+The change adds explicit all-rank limitation warnings and regressions for both mods. The Amalgam regression also verifies that its parsed non-damage stats do not cause partial optimizer selection. No explosion or area-effect damage was added to calculator, finite encounter, or optimizer scoring. Implementation commit `584b132b74b541c97f602f99efe602d83f24c181` is in PR [#146](https://github.com/Appl3Tree/Tenno-Hub/pull/146), currently awaiting release.
+
+Validation in the isolated clean snapshot: `buildOptimizer.test.ts` 144/144; focused ESLint; `npm run build` (existing Vite large-chunk warning); and `npm run audit:mod-effect-coverage` (694 weapons / 599 eligible mod records / 490 parsed / 109 without parsed effects / 71 review candidates / 18 partial / 53 fully unparsed / zero weapon pools without parsed damage). The full test suite was not rerun. The dirty primary checkout was left untouched.
+
+This pass did not open current Wiki pages. The trigger, attribution, radial damage, target selection, falloff, line of sight, and chain behavior are not established here. Keep both effects unscored and excluded until current authoritative sources support a complete model; do not treat the catalog text as mechanic validation. No browser, live-game, or Underframe validation is claimed.
+
 ## D3-OPT-EXILUS-FORMA-001 — Exilus Forma accounting and 45-case Arcane verification (2026-11-17; released)
 
 Implementation/test/harness commit: `441f01f6` (based on main `4fa153b1e9b3dcca1f0232d0db00395f2c4db797`). PR [#144](https://github.com/Appl3Tree/Tenno-Hub/pull/144) was squash-merged as `b073bfd54551692a4235390bd47a6cacd95ec868`; Pages deployment [run #225](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44183852758) succeeded.

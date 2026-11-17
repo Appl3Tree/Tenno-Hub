@@ -4,6 +4,8 @@ export const VOLATILE_VARIANT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Night
 export const ACID_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Shotgun/Event/ProjectNightwatch/SobekNightwatchMod";
 export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamExplodeOnDeath";
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
+export const ENTROPY_DETONATION_MOD_PATH = "/Lotus/Upgrades/Mods/Syndicate/ObexMod";
+export const AMALGAM_FURAX_BODY_COUNT_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod";
 export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
 export const BRUTE_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastBruteConditioningMod";
 export const DISABLING_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastDisablingConditioningMod";
@@ -94,6 +96,12 @@ export function getUnmodeledDamageEffectLines(
     }
     if (mod.path === VULCAN_BLITZ_MOD_PATH) {
         lines.push("Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.");
+    }
+    if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
+        lines.push("Entropy Detonation’s lethal-ground-attack Blast explosion and Entropy effect are not scored; Auto Optimize skips this mod until its trigger and radial damage are modeled.");
+    }
+    if (mod.path === AMALGAM_FURAX_BODY_COUNT_MOD_PATH) {
+        lines.push("Amalgam Furax Body Count’s melee-kill Blast and stagger in 15m are not scored; Auto Optimize skips this mod until the area-effect damage and trigger are modeled.");
     }
     if (mod.path === VILE_DISCHARGE_MOD_PATH) {
         // Vile Discharge needs a timed build-up/release encounter, not a static
