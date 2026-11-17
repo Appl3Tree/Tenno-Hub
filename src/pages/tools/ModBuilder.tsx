@@ -26,7 +26,7 @@ import {
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect, SPRING_LOADED_BROADHEAD_PATH } from "../../domain/catalog/modCatalog";
-import { getUnmodeledScoringEffectLines } from "../../domain/catalog/modEffectUtils";
+import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../domain/catalog/modEffectUtils";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
@@ -2474,6 +2474,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank) : [];
+    const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
     const polMatch    = !!(mod && slotPolarity && slotPolarity === mod.polarity);
     const polMismatch = !!(mod && slotPolarity && slotPolarity !== mod.polarity && slotPolarity !== "");
@@ -2548,11 +2549,17 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                     {rank < mod.fusionLimit && <span className="text-slate-600 ml-1">@{rank}/{mod.fusionLimit}</span>}
                                 </div>
                                 {currentUnmodeledDamageLines.length > 0 && (
-                                    <div
-                                        className="mt-1 text-[9px] leading-tight text-amber-300"
-                                        title={currentUnmodeledDamageLines.join(" · ")}
-                                    >
-                                        Damage effect not modeled; excluded from automatic optimization
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[9px] leading-tight text-amber-300"
+                                        title={currentUnmodeledDamageLines.join(" · ")}>
+                                        <span>Damage effect not modeled; Auto Optimize skips this mod</span>
+                                        {currentUnmodeledDamageSourceUrl && (
+                                            <a href={currentUnmodeledDamageSourceUrl} target="_blank" rel="noreferrer"
+                                                onClick={(event) => event.stopPropagation()}
+                                                aria-label={`Open ${getBuilderDisplayModName(mod)} source on WARFRAME Wiki`}
+                                                className="underline decoration-amber-700 underline-offset-2 hover:text-amber-200">
+                                                Wiki source
+                                            </a>
+                                        )}
                                     </div>
                                 )}
                                 {showDetails && (
