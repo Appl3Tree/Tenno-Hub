@@ -1,5 +1,11 @@
 # Build Planner Optimizer Benchmark
 
+## Coda Bassocyst Alt-Fire model boundary (2026-11-17)
+
+The current [Coda Bassocyst Wiki page](https://wiki.warframe.com/w/Coda_Bassocyst) describes an Alt-Fire mite that can attach to up to six enemies, applies Impact/Magnetic damage and status once per second for ten seconds, and has an eligible-target Mercy-finisher branch. The planner's ordinary attack row does not represent delayed multi-target tick history or the Mercy branch. Its displayed row damage and DPS/TTK values are not valid estimates for this mode, so Auto Optimize refuses it and shows the limitation and Wiki link. Normal Attack remains in the supported score pool.
+
+No optimizer-quality or latency number is recorded for this mode: the displayed source-row scores cannot support a comparison. Reopen the boundary only when the missing event structure is modeled and independently validated, or current authoritative game evidence changes the behavior.
+
 ## Expanded full-catalog Expected TTK one-mod neighborhoods (2026-11-17)
 
 Each case starts from Auto Optimize's eight-mod result for a 100,000 Health / 3,000 Armor Grineer target with no Shields or Overguard, Realistic conditional state, Catalyst, and up to three Forma. The audit evaluated every legal one-mod add, remove, or replacement from the eligible catalog pool using the finite expected encounter score. Arcane and Exilus optimization were disabled so the neighborhood comparison stays on the eight main slots.
