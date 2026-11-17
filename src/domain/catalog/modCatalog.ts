@@ -289,6 +289,8 @@ export type ConditionalTrigger =
 export interface ConditionalEffect {
     trigger: ConditionalTrigger;
     durationSeconds: number;
+    /** Effect can activate only while the scored target is an Eximus. */
+    requiresEximusTarget?: boolean;
     /** Strict player-to-target range threshold for distance-gated effects. */
     minimumTargetDistanceMeters?: number;
     /** Delay before a timed activation condition becomes available, when defined by the source. */
@@ -459,6 +461,25 @@ function explodeStatLines(raw: string): string[] {
 
 function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
     const clean = stripColorTags(raw).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+    // Wiki ranks are additive Secondary Damage; the 10s trigger requires a
+    // headshot on an Eximus. Weak-point-only activations are disclosed in the
+    // calculator trace but are not included in this headshot-share estimate.
+    // https://wiki.warframe.com/w/Eximus_Advantage
+    const eximusAdvantage = clean.match(
+        /^Headshots on Eximus enemies increase Secondary Damage by \+?(\d+(?:\.\d+)?)% for (\d+(?:\.\d+)?) secs?\.?$/i,
+    );
+    if (eximusAdvantage) {
+        return {
+            conditionalEffects: [{
+                trigger: "onHeadshot",
+                durationSeconds: Number(eximusAdvantage[2]),
+                requiresAiming: false,
+                maxStacks: 1,
+                requiresEximusTarget: true,
+                stats: { damageBonus: Number(eximusAdvantage[1]) / 100 },
+            }],
+        };
+    }
     const match = clean.match(/^(On Ability Cast|On Reload From Empty|On Reload|On Headshot Kill|On Headshot|On Weak Point Kill|On Weak Point Hit|On Weak Point hits? with Primary Fire|On Melee Kill|On Kill or Assist|On Consecutive throw|On Hit|On Kill):\s*(.+)$/i);
     if (!match) return {};
 

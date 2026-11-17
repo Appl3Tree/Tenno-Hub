@@ -248,6 +248,8 @@ interface TargetProfile {
     criticalHeadshotMultiplier?: number;
     /** Player's assumed share of direct hits on a headshot location. */
     headshotHitRate?: number;
+    /** Target class used by effects that require an Eximus. */
+    isEximusTarget?: boolean;
 }
 
 export interface TargetProfileOverride {
@@ -282,6 +284,8 @@ export interface TargetProfileOverride {
     headshotMultiplier?: number;
     criticalHeadshotMultiplier?: number;
     headshotHitRate?: number;
+    /** Whether this custom target is a standard Eximus. */
+    isEximusTarget?: boolean;
 }
 
 export interface TargetProfileAssumptions {
@@ -301,6 +305,7 @@ export interface TargetProfileAssumptions {
     headshotMultiplier: number;
     criticalHeadshotMultiplier: number;
     headshotHitRate: number;
+    isEximusTarget: boolean;
 }
 
 interface OptimizerScoringTargetContext {
@@ -636,6 +641,7 @@ export function getTargetProfileAssumptions(
         headshotHitRate: Number.isFinite(target.headshotHitRate)
             ? Math.max(0, Math.min(1, target.headshotHitRate ?? 0))
             : 0,
+        isEximusTarget: target.isEximusTarget === true,
     };
 }
 
@@ -854,6 +860,7 @@ function scoreEffectsCore(
             headshotMultiplier: scoringTarget.pools.headshotMultiplier,
             criticalHeadshotMultiplier: scoringTarget.pools.criticalHeadshotMultiplier,
         } satisfies HitLocationDamageProfile,
+        isEximusTarget: scoringTarget.pools.isEximusTarget,
         conditionalState,
         includeDoTTickDetails: false,
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
