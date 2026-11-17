@@ -1,8 +1,8 @@
 # Build Planner Optimizer Benchmark
 
-## D3-OPT-EXILUS-FORMA-001 — Exilus Forma accounting and 45-case Arcane verification (2026-11-17; release pending)
+## D3-OPT-EXILUS-FORMA-001 — Exilus Forma accounting and 45-case Arcane verification (2026-11-17; released)
 
-Implementation/test/harness commit: `441f01f6` (based on main `4fa153b1e9b3dcca1f0232d0db00395f2c4db797`). Tracking documentation and PR are being finalized; deployment is pending.
+Implementation/test/harness commit: `441f01f6` (based on main `4fa153b1e9b3dcca1f0232d0db00395f2c4db797`). PR [#144](https://github.com/Appl3Tree/Tenno-Hub/pull/144) was squash-merged as `b073bfd54551692a4235390bd47a6cacd95ec868`; Pages deployment [run #225](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44183852758) succeeded.
 
 Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=1 --verify-arcane-selection`
 
