@@ -1943,11 +1943,14 @@ describe("damage calculation status eligibility", () => {
     it("applies a target-specific Cold stack cap to crit support", () => {
         const weapon = { ...makeWeapon({ cold: 100 }), statusChance: 1, fireRate: 1 };
         const normalTarget = calculateBuild(weapon, []).modded;
+        const nineStackTarget = calculateBuild({ ...weapon, statusChance: 1.5 }, []).modded;
         const overguardTarget = calculateBuild(weapon, [], "", { statusStackCaps: { cold: 4 } }).modded;
 
         expect(normalTarget.expectedStacksByType.cold).toBe(6);
+        expect(nineStackTarget.expectedStacksByType.cold).toBe(9);
         expect(overguardTarget.expectedStacksByType.cold).toBe(4);
         expect(normalTarget.coldCritDamageBonus).toBeCloseTo(0.35, 10);
+        expect(nineStackTarget.coldCritDamageBonus).toBeCloseTo(0.5, 10);
         expect(overguardTarget.coldCritDamageBonus).toBeCloseTo(0.25, 10);
     });
 
