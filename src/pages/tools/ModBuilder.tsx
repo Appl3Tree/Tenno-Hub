@@ -193,6 +193,7 @@ function simulateBuilderTargetEncounter(
         damageRampRule: weapon.selectedAttackDamageRamp,
         critChance: stats.critChance,
         critMultiplier: stats.critMultiplier,
+        critTierEnhancementChance: stats.vigilanteCritTierEnhancementChance,
         nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
         expectedProjectiles: stats.multishot,
         expectedDamageMultiplier: stats.damageWeightedMultishot,
@@ -1874,6 +1875,9 @@ function buildMathBreakdown(
                 `Base damage multiplier bracket = 1 + additive damage bonuses = 1 + ${fmt(totals.damageBonus, 5)} = ${fmt(baseDamageMultiplier, 5)}`,
                 `Crit chance = base ${fmt(weapon.critChance, 5)} × (1 + additive crit ${fmt(totals.critChanceBonus, 5)}) + final crit ${fmt(totals.finalCritChanceBonus, 5)} = ${fmt(stats.critChance, 5)} (${fmt(stats.critChance * 100, 3)}%)`,
                 `Crit multiplier = quantized base ${fmt(stats.quantizedBaseCritMultiplier, 7)} × (1 + additive crit mult ${fmt(totals.critMultBonus, 5)}) + final crit mult ${fmt(totals.finalCritMultiplierBonus, 5)} = ${fmt(stats.critMultiplier, 7)}`,
+                ...(weapon.category === "Primary"
+                    ? [`Vigilante set = ${stats.vigilanteSetModCount} distinct pieces × 5% = ${fmt(stats.vigilanteCritTierEnhancementChance * 100, 1)}% chance to raise a landed Primary crit by one tier; expected crit tier = ${fmt(stats.averageCritTier, 5)}.`]
+                    : []),
                 ...(weapon.selectedAttackBaseStatusChancePerCriticalChance !== undefined
                     ? [`Wiseman's Regard = +${fmt(stats.statusChanceFromCritChanceBonus * 100, 3)} percentage points base Status Chance (${fmt(weapon.selectedAttackBaseStatusChancePerCriticalChance * 100, 3)}% of current ${fmt(stats.critChance * 100, 3)}% Critical Chance, capped at ${fmt((weapon.selectedAttackBaseStatusChancePerCriticalChanceCap ?? 0) * 100, 3)}%).`]
                     : []),
@@ -1956,7 +1960,7 @@ function buildMathBreakdown(
                 `Status DoT seed damage share = (damage-weighted multishot ${fmt(stats.damageWeightedMultishot, 5)} + one-hit bonus ${fmt(stats.singleProjectileDamageBonus, 5)}) ÷ multishot ${fmt(stats.multishot, 5)} = ${fmt(stats.multishot > 0 ? attackDamageEquivalent / stats.multishot : 1, 6)}; Spring-Loaded Broadhead enters the seed once and is not applied again to each DoT tick.`,
                 `Average hit damage multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgHitMultiplier, 6)}`,
                 ...hitLocationLines,
-                `Average crit multiplier cross-check = 1 + crit chance × (crit multiplier - 1) = 1 + ${fmt(stats.critChance, 5)} × (${fmt(stats.critMultiplier, 5)} - 1) = ${fmt(1 + stats.critChance * (stats.critMultiplier - 1), 6)}`,
+                `Average crit multiplier cross-check = 1 + expected crit tier × (crit multiplier - 1) = 1 + ${fmt(stats.averageCritTier, 5)} × (${fmt(stats.critMultiplier, 5)} - 1) = ${fmt(1 + stats.averageCritTier * (stats.critMultiplier - 1), 6)}`,
                 `Average direct damage per ${damageUnit} = quantized damage ${fmt(quantizedShotDamage, 5)} × average hit damage multiplier ${fmt(avgHitMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
                 ...(stats.firstShotMagazineDamageBonus > 0
                     ? [
@@ -3558,6 +3562,7 @@ export default function ModBuilder() {
     const [conditionalMode, setConditionalMode] = useState<ConditionalState["mode"]>("realistic");
     const [externalConditionalStacks, setExternalConditionalStacks] = useState(1);
     const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
+    const [externalVigilanteSetModCount, setExternalVigilanteSetModCount] = useState(0);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
     const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
@@ -3581,6 +3586,7 @@ export default function ModBuilder() {
         mode: conditionalMode,
         externalStacks: conditionalMode === "custom" ? externalConditionalStacks : undefined,
         externalStatusTypeCount,
+        externalVigilanteSetModCount,
         externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         externalHeatElementalDamageBonus: parseExternalHeatBonusPercentInput(externalHeatElementalDamageBonusPercentInput) / 100,
@@ -3589,7 +3595,7 @@ export default function ModBuilder() {
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3801,6 +3807,7 @@ export default function ModBuilder() {
             conditionalMode,
             externalConditionalStacks,
             externalStatusTypeCount,
+            externalVigilanteSetModCount,
             externalStatusTypes,
             targetStartsWithHeat,
             externalHeatElementalDamageBonusPercent: parseExternalHeatBonusPercentInput(
@@ -3851,6 +3858,7 @@ export default function ModBuilder() {
         excluded,
         externalConditionalStacks,
         externalStatusTypeCount,
+        externalVigilanteSetModCount,
         externalStatusTypes,
         targetStartsWithHeat,
         externalHeatElementalDamageBonusPercentInput,
@@ -4658,7 +4666,12 @@ export default function ModBuilder() {
                 stats.critMultiplier + stats.coldCritDamageBonus,
                 stats.nonCriticalHitDamageProcs,
                 stats.hitLocation,
+                stats.vigilanteCritTierEnhancementChance,
             ),
+            critChance: stats.critChance + stats.punctureCritChanceBonus,
+            critMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
+            critTierEnhancementChance: stats.vigilanteCritTierEnhancementChance,
+            nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
             singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
@@ -4742,6 +4755,7 @@ export default function ModBuilder() {
             damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
             critChance: stats.critChance,
             critMultiplier: stats.critMultiplier,
+            critTierEnhancementChance: stats.vigilanteCritTierEnhancementChance,
             nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
@@ -5393,6 +5407,7 @@ export default function ModBuilder() {
         // Older or imported builds without planner settings must not inherit a
         // stale external status assumption from the previously loaded build.
         setExternalStatusTypeCount(0);
+        setExternalVigilanteSetModCount(0);
         setExternalStatusTypes([]);
         setExternalStatusTypesOpen(false);
         setTargetStartsWithHeat(false);
@@ -5413,6 +5428,9 @@ export default function ModBuilder() {
             }
             setExternalStatusTypeCount(Number.isFinite(plannerConfig.externalStatusTypeCount)
                 ? Math.max(0, Math.min(16, Math.floor(plannerConfig.externalStatusTypeCount ?? 0)))
+                : 0);
+            setExternalVigilanteSetModCount(Number.isFinite(plannerConfig.externalVigilanteSetModCount)
+                ? Math.max(0, Math.min(6, Math.floor(plannerConfig.externalVigilanteSetModCount ?? 0)))
                 : 0);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
             setExternalStatusTypes(restoredExternalStatusTypes);
@@ -5686,7 +5704,7 @@ export default function ModBuilder() {
                                     )}
                                     {weapon && (
                                         <p role="note" className="mt-2 text-right text-[10px] leading-relaxed text-amber-300">
-                                            Shared set bonuses are not included in damage, TTK, or Auto Optimize, including set mods equipped on other gear. Supported individual stats on selected mods still apply.
+                                            Only Vigilante’s Primary crit-tier set bonus is modeled. Other shared set bonuses remain excluded from damage, TTK, and Auto Optimize, including set mods equipped on other gear. Supported individual stats on selected mods still apply.
                                         </p>
                                     )}
                                     {showOptimizeOptions && (
@@ -5705,6 +5723,28 @@ export default function ModBuilder() {
                                                     <option value="fullyStacked">Fully stacked scenario</option>
                                                     <option value="custom">External stacks</option>
                                                 </select>
+                                                {weapon?.category === "Primary" && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Additional distinct Vigilante pieces on other gear</span>
+                                                            <input
+                                                                aria-label="Additional distinct Vigilante set mods on other gear"
+                                                                type="number"
+                                                                min={0}
+                                                                max={6}
+                                                                step={1}
+                                                                value={externalVigilanteSetModCount}
+                                                                onChange={(event) => setExternalVigilanteSetModCount(Math.max(0, Math.min(6, Math.floor(Number(event.target.value) || 0))))}
+                                                                className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                            />
+                                                        </label>
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">Each distinct set piece adds a 5% chance for a landed Primary critical hit to gain one tier, up to 30%. Count pieces equipped on other gear; do not count a duplicate mod identity of one selected in this build.</p>
+                                                        <div className="mt-1 flex gap-3 text-[10px]">
+                                                            <a href="https://wiki.warframe.com/w/Set_Mod" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki: Set Mods</a>
+                                                            <a href="https://wiki.warframe.com/w/Critical_Multiplier" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Critical Multiplier</a>
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 {sentientSurgeRefillPerKill > 0 && (
                                                     <p role="note" className="basis-full text-[10px] leading-relaxed text-slate-400">
                                                         Sentient Surge uses Wiki-backed rank values automatically: this scenario assumes {sentientSurgeActiveTendrils.toFixed(1)} active tendrils (four maximum). Realistic uses a 70%-of-cap estimate. Tendrils reset on reload or an empty magazine; kill cadence and reset timing are not simulated. The {Math.round(sentientSurgeRefillPerKill * 100)}% kill refill comes from reserve ammo, and extra tendril damage against other targets is outside the single-target score.{" "}
@@ -7336,7 +7376,7 @@ export default function ModBuilder() {
                                                         : undefined,
                                         },
                                         { label: "Crit Multiplier", value: stats.critMultiplier.toFixed(2) + "x", sub: "yellow crit", tooltip: "Damage multiplier applied when a standard yellow crit occurs." },
-                                        { label: "Avg Crit Tier", value: stats.averageCritTier.toFixed(2) + "x", sub: "expected crit level", tooltip: "Expected crit level per hit. 0.55x means you average 0.55 crit tiers per hit, such as roughly a 55% chance to land a yellow crit." },
+                                        { label: "Avg Crit Tier", value: stats.averageCritTier.toFixed(2) + "x", sub: "expected crit level", tooltip: `Expected crit level per hit, including ${fmt(stats.vigilanteCritTierEnhancementChance * 100, 1)}% Vigilante chance to add one tier to a landed Primary crit. 0.55x means 0.55 expected tiers per hit.` },
                                         {
                                             label: "Status Chance",
                                             value: fmt(stats.statusChance * 100, 1) + "%",

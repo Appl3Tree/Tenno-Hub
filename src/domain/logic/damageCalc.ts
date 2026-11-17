@@ -203,6 +203,10 @@ export interface ModdedWeaponStats {
     quantizedBaseCritMultiplier: number;
     critChance: number;
     critMultiplier: number;
+    /** Count of selected and external Vigilante pieces, capped at six. */
+    vigilanteSetModCount: number;
+    /** Chance to upgrade a landed crit by one tier; only active for Primary weapons. */
+    vigilanteCritTierEnhancementChance: number;
     /** Base Status Chance percentage points added by a current-Critical-Chance-scaled weapon perk. */
     statusChanceFromCritChanceBonus: number;
     nonCriticalHitDamageProcs?: NonCriticalHitDamageProc[];
@@ -444,6 +448,8 @@ export interface ConditionalState {
     externalStatusTypes?: readonly ExternalStatusType[];
     /** Probability that the target starts with an externally applied Heat status. */
     externalHeatStatusPresenceProbability?: number;
+    /** Additional distinct Vigilante set mods equipped outside this weapon. Exclude duplicate mod identities selected here. */
+    externalVigilanteSetModCount?: number;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -480,9 +486,17 @@ export function avgHitDamageMultiplier(
     critMult: number,
     nonCriticalHitDamageProcs: readonly NonCriticalHitDamageProc[] = [],
     hitLocation?: HitLocationDamageProfile,
+    critTierEnhancementChance = 0,
 ): number {
     const normalizedCritChance = Math.max(0, Number.isFinite(critChance) ? critChance : 0);
-    const critDamage = avgCritMultiplier(normalizedCritChance, critMult);
+    const normalizedEnhancementChance = Math.max(0, Math.min(1,
+        Number.isFinite(critTierEnhancementChance) ? critTierEnhancementChance : 0,
+    ));
+    // Vigilante upgrades a landed Primary crit by one tier. The expected tier
+    // increment is weighted by both the set chance and the chance to crit.
+    // https://wiki.warframe.com/w/Set_Mod
+    const expectedCritTier = normalizedCritChance + Math.min(1, normalizedCritChance) * normalizedEnhancementChance;
+    const critDamage = avgCritMultiplier(expectedCritTier, critMult);
     const nonCriticalChance = Math.max(0, 1 - Math.min(1, normalizedCritChance));
     const expectedProcMultiplier = nonCriticalHitDamageProcs.reduce((multiplier, proc) => {
         const chance = Math.max(0, Math.min(1, Number.isFinite(proc.chance) ? proc.chance : 0));
@@ -507,7 +521,7 @@ export function avgHitDamageMultiplier(
     const criticalHeadshotMultiplier = Math.max(0, Number.isFinite(hitLocation.criticalHeadshotMultiplier)
         ? hitLocation.criticalHeadshotMultiplier ?? 2
         : 2);
-    const headshotCritDamage = 1 + normalizedCritChance * (criticalHeadshotMultiplier * Math.max(0, critMult) - 1);
+    const headshotCritDamage = 1 + expectedCritTier * (criticalHeadshotMultiplier * Math.max(0, critMult) - 1);
     const ordinaryNonCritProcBonus = nonCriticalChance * (expectedProcMultiplier - 1);
     const bodyshotDamage = bodyshotMultiplier * (critDamage + ordinaryNonCritProcBonus);
     const headshotDamage = headshotMultiplier * (headshotCritDamage + ordinaryNonCritProcBonus);
@@ -525,11 +539,12 @@ export function getHitLocationDotDamageMultiplier(
     critMultiplier: number,
     hitLocation?: HitLocationDamageProfile,
     damageType?: DamageType,
+    critTierEnhancementChance = 0,
 ): number {
     if (!hitLocation) return 1;
     // The calculator's DoT seed uses the inducing hit's critical tier, but
     // noncritical direct-hit bonuses are not inherited by status damage.
-    const baseline = avgHitDamageMultiplier(critChance, critMultiplier);
+    const baseline = avgHitDamageMultiplier(critChance, critMultiplier, [], undefined, critTierEnhancementChance);
     if (baseline <= 0) return 0;
     const bodyshotDamageBonus = Number.isFinite(hitLocation.bodyshotDamageBonus)
         ? hitLocation.bodyshotDamageBonus ?? 0
@@ -548,6 +563,7 @@ export function getHitLocationDotDamageMultiplier(
         critMultiplier,
         [],
         dotHitLocation,
+        critTierEnhancementChance,
     ) / baseline;
 }
 
@@ -1055,6 +1071,7 @@ export function calculateBuild(
     let punctureBonus = 0;
     let slashBonus = 0;
     let critChanceBonus = 0;
+    let vigilanteSetModCount = 0;
     let comboCritChanceBonus = 0;
     let finalCritChanceBonus = 0;
     let critMultBonus = 0;
@@ -1136,6 +1153,7 @@ export function calculateBuild(
         punctureBonus += e.punctureBonus ?? 0;
         slashBonus += e.slashBonus ?? 0;
         critChanceBonus += e.critChanceBonus ?? 0;
+        vigilanteSetModCount += e.vigilanteSetModCount ?? 0;
         if (weapon.selectedAttackUsesHeavyAttackCritChance === true) {
             critChanceBonus += e.heavyAttackCritChanceBonus ?? 0;
         }
@@ -1656,13 +1674,20 @@ export function calculateBuild(
         : 1;
     const comboTiersAboveBase = Math.max(0, meleeComboMultiplier - 1);
     const critChance = weapon.critChance * (1 + critChanceBonus + comboCritChanceBonus * comboTiersAboveBase) + finalCritChanceBonus;
+    const externalVigilanteSetModCount = Number.isFinite(conditionalState.externalVigilanteSetModCount)
+        ? Math.max(0, Math.min(6, Math.floor(conditionalState.externalVigilanteSetModCount ?? 0)))
+        : 0;
+    const totalVigilanteSetModCount = Math.min(6, vigilanteSetModCount + externalVigilanteSetModCount);
+    const vigilanteCritTierEnhancementChance = weapon.category === "Primary"
+        ? totalVigilanteSetModCount * 0.05
+        : 0;
     const baseCritMultiplier = conditionalState.playerSlidingAtImpact &&
         Number.isFinite(weapon.selectedAttackSlideCritMultiplierOverride)
         ? weapon.selectedAttackSlideCritMultiplierOverride ?? weapon.critMultiplier
         : weapon.critMultiplier;
     const quantizedBaseCritMultiplier = quantizeBaseCriticalDamageMultiplier(baseCritMultiplier);
     const critMultiplier = quantizedBaseCritMultiplier * (1 + critMultBonus) + finalCritMultiplierBonus;
-    const averageCritTier = Math.max(0, critChance);
+    const averageCritTier = Math.max(0, critChance) + Math.min(1, Math.max(0, critChance)) * vigilanteCritTierEnhancementChance;
     const statusChanceFromCritChanceBonus = Number.isFinite(weapon.selectedAttackBaseStatusChancePerCriticalChance) &&
         Number.isFinite(weapon.selectedAttackBaseStatusChancePerCriticalChanceCap)
         ? Math.min(
@@ -1964,7 +1989,13 @@ export function calculateBuild(
     const conditionOverloadDamageMultiplier = conditionOverloadDamageBracket / damageBracket;
     const conditionOverloadTotalBase = Math.max(0, totalBase * conditionOverloadDamageMultiplier);
 
-    const critAverageMultiplier = avgHitDamageMultiplier(critChance, critMultiplier, nonCriticalHitDamageProcs);
+    const critAverageMultiplier = avgHitDamageMultiplier(
+        critChance,
+        critMultiplier,
+        nonCriticalHitDamageProcs,
+        undefined,
+        vigilanteCritTierEnhancementChance,
+    );
     const headshotEligibleCategory = weapon.category === "Primary" || weapon.category === "Secondary" || weapon.category === "Arch-Gun";
     const hitLocation: HitLocationDamageProfile = {
         headshotRate: Number.isFinite(options.hitLocation?.headshotRate)
@@ -2004,6 +2035,7 @@ export function calculateBuild(
         critMultiplier,
         hitLocation,
         type,
+        vigilanteCritTierEnhancementChance,
     );
     const dotRemainingMultiplier = (elementalBonus: number, inheritedFactionDamageBonus = factionDamageBonus) => Math.fround(
         Math.fround(
@@ -2294,6 +2326,7 @@ export function calculateBuild(
         critMultiplier,
         nonCriticalHitDamageProcs,
         hitLocation,
+        vigilanteCritTierEnhancementChance,
     );
     const averageShotDamage = totalDamage * attackDamageEquivalent * expectedHitDamageMultiplier;
 
@@ -2440,6 +2473,8 @@ export function calculateBuild(
         quantizedBaseCritMultiplier,
         critChance,
         critMultiplier,
+        vigilanteSetModCount: totalVigilanteSetModCount,
+        vigilanteCritTierEnhancementChance,
         statusChanceFromCritChanceBonus,
         nonCriticalHitDamageProcs,
         averageCritTier,

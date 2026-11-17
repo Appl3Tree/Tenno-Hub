@@ -4119,3 +4119,31 @@ describe("melee combo-scaled mod calculations", () => {
         expect(stats.gasCloudRadius).toBeCloseTo(gasCloudRadiusFromStacks(stats.expectedStacksByType.gas ?? 0), 12);
     });
 });
+
+describe("Vigilante set critical-tier bonus", () => {
+    it("adds expected critical tiers only to Primary weapons and respects the six-piece cap", () => {
+        const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0.5, critMultiplier: 2 };
+        const twoSelectedPieces = { ...emptyEffect(), vigilanteSetModCount: 2 };
+        const primary = calculateBuild(weapon, [twoSelectedPieces], "", {
+            conditionalState: { mode: "initial", externalVigilanteSetModCount: 7.8 },
+        }).modded;
+
+        expect(primary.vigilanteSetModCount).toBe(6);
+        expect(primary.vigilanteCritTierEnhancementChance).toBeCloseTo(0.3);
+        expect(primary.averageCritTier).toBeCloseTo(0.65);
+        expect(avgHitDamageMultiplier(0.5, 2, [], undefined, 0.3)).toBeCloseTo(1.65);
+        expect(avgHitDamageMultiplier(1.5, 2, [], undefined, 0.3)).toBeCloseTo(2.8);
+        expect(avgHitDamageMultiplier(0.5, 2, [], {
+            headshotRate: 1,
+            headshotMultiplier: 1,
+            criticalHeadshotMultiplier: 2,
+        }, 0.3)).toBeCloseTo(2.95);
+
+        const secondary = calculateBuild({ ...weapon, category: "Secondary" }, [twoSelectedPieces], "", {
+            conditionalState: { mode: "initial", externalVigilanteSetModCount: 2 },
+        }).modded;
+        expect(secondary.vigilanteSetModCount).toBe(4);
+        expect(secondary.vigilanteCritTierEnhancementChance).toBe(0);
+        expect(secondary.averageCritTier).toBeCloseTo(0.5);
+    });
+});

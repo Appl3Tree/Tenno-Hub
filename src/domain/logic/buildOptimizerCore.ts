@@ -929,6 +929,7 @@ function scoreEffectsCore(
         Math.max(0, modded.critMultiplier + modded.coldCritDamageBonus),
         modded.nonCriticalHitDamageProcs,
         modded.hitLocation,
+        modded.vigilanteCritTierEnhancementChance,
     );
     const objectiveAttackRate = goal === "burst" ? modded.burstFireRate : modded.fireRate;
     const attackDamageEquivalent =
@@ -2550,6 +2551,7 @@ function expectedEncounterScoreForEffectsAtKillRate(
         damageRampRule: weapon.selectedAttackDamageRamp,
         critChance: stats.critChance,
         critMultiplier: stats.critMultiplier,
+        critTierEnhancementChance: stats.vigilanteCritTierEnhancementChance,
         nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
         hitLocation: stats.hitLocation,
         expectedProjectiles: stats.multishot,
