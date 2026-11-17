@@ -2372,6 +2372,31 @@ describe("build optimizer scoring", () => {
         expect(selectedFinalListArcaneScore).toBeCloseTo(bestFinalListArcaneScore, 12);
     });
 
+    it("keeps an on-reload fire-rate candidate in full-pool finite-TTK refinement", { timeout: 45000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const target = { health: 100000, shields: 0, overguard: 0, armor: 3000 };
+        const conditionalState = { mode: "realistic" as const };
+        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 8, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig: {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            },
+            slotPolarities: weapon!.polarities,
+            defaultSlotPolarities: weapon!.polarities,
+            allowForma: true,
+            maxFormaCount: 3,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            buildForAttack: weapon!.attacks[0] ?? null,
+        });
+
     it("matches the exhaustive finite-encounter optimum for a five-mod legal subset", () => {
         const weapon = makeWeapon({
             fireRate: 4,

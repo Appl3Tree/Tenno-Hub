@@ -2321,6 +2321,7 @@ const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 40;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
+const ENCOUNTER_RELOAD_TEMPO_ALTERNATIVE_LIMIT = 8;
 const ENCOUNTER_REFINE_PASSES = 4;
 const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 12;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
@@ -2445,6 +2446,10 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         Number(entry[key] ?? 0) !== 0,
     ));
     const families: string[] = [];
+    const hasConditionalReloadFireRate = (effect.conditionalEffects ?? []).some((conditional) =>
+        conditional.trigger === "onReload" && Number(conditional.stats.fireRateBonus ?? 0) !== 0,
+    );
+    if (hasConditionalReloadFireRate) families.push("reload-fire-rate");
     if (has(
         "heatBonus", "coldBonus", "electricityBonus", "toxinBonus", "blastBonus", "gasBonus",
         "magneticBonus", "viralBonus", "corrosiveBonus", "radiationBonus", "voidBonus", "tauBonus",
@@ -2835,6 +2840,7 @@ function refineBuildByExpectedEncounter(
             proxyScore: number;
             elementTheme: string;
             elementTransition: string;
+            replacedModUniqueName?: string;
             candidates: Candidate[];
         };
         const proposals = new Map<string, EncounterReplacementProposal>();
@@ -2913,6 +2919,7 @@ function refineBuildByExpectedEncounter(
                         replaced?.mod ?? null,
                         replaced?.rank,
                     ),
+                    replacedModUniqueName: replaced?.mod.uniqueName,
                     candidates: [candidate],
                 });
             }
@@ -2952,27 +2959,64 @@ function refineBuildByExpectedEncounter(
             "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
             "elemental-electricity-status", "elemental-cold", "elemental-toxin",
             "elemental-heat", "elemental-electricity", "elemental",
-            "multishot", "faction-damage", "critical", "fire-rate",
+            "multishot", "faction-damage", "critical", "reload-fire-rate", "fire-rate",
             "base-damage", "status", "weapon-tempo", "other",
         ];
         // Reserve one exact TTK evaluation for every distinct effect family
         // before spending the remaining shortlist on second choices from early
         // families. Proxy order alone can underrank a tempo alternative (for
         // example Vile Acceleration under a short, high-health encounter).
-        for (const familyPass of [1, 2]) {
-            for (const family of singleCandidateFamilies) {
+        for (const family of singleCandidateFamilies) {
+            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+            for (const proposal of sortedProposals) {
+                const candidate = proposal.candidates[0];
+                if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
+                const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+                if (singleCandidateKeys.has(candidateKey)) continue;
+                singleCandidateKeys.add(candidateKey);
+                if (!shortlist.includes(proposal)) shortlist.push(proposal);
+                break;
+            }
+        }
+        // Conditional fire rate can move magazine boundaries and reload cadence,
+        // so its best finite-encounter replacement may differ from the same
+        // candidate's sustained-DPS proxy leader. Keep slot-specific alternatives
+        // for selected on-reload candidates in the exact-scoring budget.
+        const shortlistedReplacementSignatures = new Set(shortlist.map((proposal) => {
+            const candidate = proposal.candidates[0];
+            return candidate
+                ? `${candidate.mod.uniqueName}@${candidate.rank}|${proposal.replacedModUniqueName ?? "<add>"}`
+                : "";
+        }));
+        let reloadTempoAlternatives = 0;
+        for (const proposal of sortedProposals) {
+            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                reloadTempoAlternatives >= ENCOUNTER_RELOAD_TEMPO_ALTERNATIVE_LIMIT) break;
+            const candidate = proposal.candidates[0];
+            if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes("reload-fire-rate")) continue;
+            const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+            if (!singleCandidateKeys.has(candidateKey) || !proposal.replacedModUniqueName) continue;
+            const replacementSignature = `${candidateKey}|${proposal.replacedModUniqueName}`;
+            if (shortlistedReplacementSignatures.has(replacementSignature)) continue;
+            shortlistedReplacementSignatures.add(replacementSignature);
+            shortlist.push(proposal);
+            reloadTempoAlternatives++;
+        }
+        // Second choices from broad effect families use only the remaining budget
+        // after conditional reload-tempo alternatives have been reserved.
+        for (const family of singleCandidateFamilies) {
+            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+            let addedForFamily = 0;
+            for (const proposal of sortedProposals) {
                 if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
-                let addedForFamily = 0;
-                for (const proposal of sortedProposals) {
-                    if (addedForFamily >= familyPass) break;
-                    const candidate = proposal.candidates[0];
-                    if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
-                    const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
-                    if (singleCandidateKeys.has(candidateKey)) continue;
-                    singleCandidateKeys.add(candidateKey);
-                    if (!shortlist.includes(proposal)) shortlist.push(proposal);
-                    addedForFamily++;
-                }
+                const candidate = proposal.candidates[0];
+                if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
+                const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+                if (singleCandidateKeys.has(candidateKey)) continue;
+                singleCandidateKeys.add(candidateKey);
+                if (!shortlist.includes(proposal)) shortlist.push(proposal);
+                addedForFamily++;
+                if (addedForFamily >= 2) break;
             }
         }
         if (shortlist.length < ENCOUNTER_REFINE_CANDIDATE_LIMIT) {
@@ -3028,7 +3072,7 @@ function refineBuildByExpectedEncounter(
                 "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
                 "elemental-electricity-status", "elemental-cold", "elemental-toxin",
                 "elemental-heat", "elemental-electricity",
-                "elemental", "multishot", "critical", "fire-rate", "base-damage",
+                "elemental", "multishot", "critical", "reload-fire-rate", "fire-rate", "base-damage",
                 "faction-damage", "status", "weapon-tempo", "other",
             ];
             for (const family of familyOrder) {

@@ -1,5 +1,13 @@
 # Build Planner Optimizer Benchmark
 
+## Full-catalog exact one-mod Expected TTK neighborhood (2026-11-16)
+
+Command: `npx tsx scripts/auditExpectedTtkFullPool.ts --weapon="Braton Prime" --faction=Grineer --state=realistic --health=100000 --armor=3000`. The audit started from the optimizer's legal eight-mod, three-Forma build against a 100,000 Health / 3,000 Armor custom Grineer target. It scored every legal add, remove, and single-mod replacement from the full eligible catalog pool: 229 neighbors, with 229 exact finite-encounter scores. The eligible pool contained 61 mods (106 catalog candidates before target/effect filtering).
+
+The audit exposed a real search miss. Replacing Radiated Reload with Spring-Loaded Chamber lowered modeled Expected TTK from 2.1426217s to 2.1194748s (1.08%). The sustained-DPS proxy ranked a different replacement slot for Spring-Loaded Chamber, and the finite-TTK shortlist previously retained only one proposal per incoming mod. Refinement now reserves up to eight additional slot-specific replacement proposals for selected on-reload fire-rate candidates within the existing 40 exact single-replacement evaluation limit. A full-catalog regression covers this same case.
+
+After the change, the optimizer returns the 2.1194748s build, and the best exact one-mod neighbor among all 229 legal options does not improve it. This is a local one-mod neighborhood check for one custom target under the planner's own finite-encounter model. It does not prove a global optimum, cover coordinated multi-mod changes, or validate the model against gameplay telemetry.
+
 Run date: 2026-11-16; current full-width refresh: 2026-11-15
 Command: `npm run benchmark:build-planner` (the harness defaults to five runs)
 Environment: Windows x64, Node.js v22.16.0, 28 logical CPUs. This invokes the optimizer core directly in Node. It does not measure a production browser Worker.
