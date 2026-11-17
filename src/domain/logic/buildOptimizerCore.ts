@@ -12,6 +12,7 @@ import { withSelectedAttack } from "../catalog/weaponRules";
 import type { ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
 import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
+import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
 import {
     calculateBuild,
@@ -20,6 +21,7 @@ import {
     avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
     type ConditionalState,
+    type HitLocationDamageProfile,
     type MeleeAverageDpsParameters,
 } from "./damageCalc";
 import { effectiveDrain, fitsWithinCapacity, totalModCapacity, type CapacityConfig } from "./capacityCalc";
@@ -240,6 +242,12 @@ interface TargetProfile {
     statusImmuneTypes?: ReadonlySet<typeof PROC_DAMAGE_KEYS[number]>;
     /** Target-specific status limits, including VIP Puncture or Overguard Cold caps. */
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
+    /** Wiki-typical weak-point multiplier for this named/faction-representative target. */
+    headshotMultiplier?: number;
+    /** Wiki critical-headshot factor; 1 means this representative does not receive headcrits. */
+    criticalHeadshotMultiplier?: number;
+    /** Player's assumed share of direct hits on a headshot location. */
+    headshotHitRate?: number;
 }
 
 export interface TargetProfileOverride {
@@ -271,6 +279,9 @@ export interface TargetProfileOverride {
     nearbyBlastEnemyCount?: number;
     statusImmuneTypes?: Iterable<typeof PROC_DAMAGE_KEYS[number]>;
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
+    headshotMultiplier?: number;
+    criticalHeadshotMultiplier?: number;
+    headshotHitRate?: number;
 }
 
 export interface TargetProfileAssumptions {
@@ -287,6 +298,9 @@ export interface TargetProfileAssumptions {
     statusStackCaps: Partial<Record<StatusDamageType, number>>;
     grouped: boolean;
     crowdControlImmune: boolean;
+    headshotMultiplier: number;
+    criticalHeadshotMultiplier: number;
+    headshotHitRate: number;
 }
 
 interface OptimizerScoringTargetContext {
@@ -546,6 +560,11 @@ function getTargetProfile(targetFaction: string, override?: TargetProfileOverrid
             };
             break;
     }
+    base = {
+        ...base,
+        ...getFactionHitLocationProfile(targetFaction),
+        headshotHitRate: 0,
+    };
     const target = applyTargetProfileOverride(base, override);
     if (!override) TARGET_PROFILE_CACHE.set(cacheKey, target);
     return target;
@@ -608,6 +627,15 @@ export function getTargetProfileAssumptions(
         statusStackCaps: getTargetStatusStackCaps(target),
         grouped: target.grouped,
         crowdControlImmune: target.crowdControlImmune,
+        headshotMultiplier: Number.isFinite(target.headshotMultiplier) && (target.headshotMultiplier ?? -1) >= 0
+            ? target.headshotMultiplier ?? 1
+            : 1,
+        criticalHeadshotMultiplier: Number.isFinite(target.criticalHeadshotMultiplier) && (target.criticalHeadshotMultiplier ?? -1) >= 0
+            ? target.criticalHeadshotMultiplier ?? 1
+            : 1,
+        headshotHitRate: Number.isFinite(target.headshotHitRate)
+            ? Math.max(0, Math.min(1, target.headshotHitRate ?? 0))
+            : 0,
     };
 }
 
@@ -821,6 +849,11 @@ function scoreEffectsCore(
     const damageOptions = {
         statusImmuneTypes,
         statusStackCaps,
+        hitLocation: {
+            headshotRate: scoringTarget.pools.headshotHitRate,
+            headshotMultiplier: scoringTarget.pools.headshotMultiplier,
+            criticalHeadshotMultiplier: scoringTarget.pools.criticalHeadshotMultiplier,
+        } satisfies HitLocationDamageProfile,
         conditionalState,
         includeDoTTickDetails: false,
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
@@ -888,6 +921,7 @@ function scoreEffectsCore(
         Math.max(0, modded.critChance + modded.punctureCritChanceBonus),
         Math.max(0, modded.critMultiplier + modded.coldCritDamageBonus),
         modded.nonCriticalHitDamageProcs,
+        modded.hitLocation,
     );
     const objectiveAttackRate = goal === "burst" ? modded.burstFireRate : modded.fireRate;
     const attackDamageEquivalent =
@@ -2501,6 +2535,7 @@ function expectedEncounterScoreForEffectsAtKillRate(
         critChance: stats.critChance,
         critMultiplier: stats.critMultiplier,
         nonCriticalHitDamageProcs: stats.nonCriticalHitDamageProcs,
+        hitLocation: stats.hitLocation,
         expectedProjectiles: stats.multishot,
         expectedDamageMultiplier: stats.damageWeightedMultishot,
         singleProjectileDamageBonus: stats.singleProjectileDamageBonus,

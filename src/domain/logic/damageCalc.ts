@@ -171,6 +171,12 @@ export interface ModdedWeaponStats {
     /** Timed hit-triggered damage stacks that the finite encounter can ramp from their selected initial state. */
     timedConditionalDamageStacks: TimedConditionalDamageStack[];
     averageShotDamage: number;
+    /** Expected per-projectile multiplier after hit location, critical tiers, and supported noncritical-hit procs. */
+    expectedHitDamageMultiplier: number;
+    /** Hit-location assumptions and static head/body modifiers used for this calculation. */
+    hitLocation: HitLocationDamageProfile;
+    headshotMultiplierBonus: number;
+    bodyshotDamageBonus: number;
     /** Additive multiplicative bonus for the first ammo-consuming shot after each magazine reload. */
     firstShotMagazineDamageBonus: number;
     firstShotMagazineDamageMultiplier: number;
@@ -345,7 +351,6 @@ export interface TimedConditionalDamageStack {
 
 const AIMING_UPTIME_ASSUMPTION = 0.75;
 const ON_KILL_UPTIME_ASSUMPTION = 0.6;
-const ON_HEADSHOT_UPTIME_ASSUMPTION = 0.55;
 const ON_HEADSHOT_KILL_UPTIME_ASSUMPTION = 0.35;
 const ON_HIT_UPTIME_ASSUMPTION = 0.85;
 const WEAK_POINT_HIT_UPTIME_ASSUMPTION = 0.55;
@@ -356,6 +361,9 @@ function probabilityAtLeastOnePoissonArrival(expectedArrivals: number): number {
     if (mean <= 0) return 0;
     if (mean >= 20) return 1;
     return -Math.expm1(-mean);
+}
+function normalizeHitShare(value: number | undefined): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value ?? 0)) : 0;
 }
 
 export interface DamageMetrics {
@@ -398,6 +406,24 @@ export interface DamageCalculationOptions {
     includeTimedConditionalHitStackDetails?: boolean;
     /** Target-specific identical-enemy kill rate for realistic Galvanized per-status stack estimates. */
     expectedKillRatePerSecond?: number;
+    /** Wiki-backed target hit-location profile plus the player's assumed headshot share. */
+    hitLocation?: HitLocationDamageProfile;
+}
+
+/** Hit-location inputs supplied from Wiki-backed faction or named-enemy data. */
+export interface HitLocationDamageProfile {
+    /** Fraction of eligible direct attacks that hit a headshot location. */
+    headshotRate?: number;
+    /** Target body's headshot multiplier; usually 3×, but varies by target. */
+    headshotMultiplier?: number;
+    /** Critical-headshot multiplier applied to the weapon's Critical Damage inside the Wiki formula. 1 means no headcrit bonus. */
+    criticalHeadshotMultiplier?: number;
+    /** Sum of additive headshot-damage bonuses, applied multiplicatively to the headshot multiplier. */
+    headshotMultiplierBonus?: number;
+    /** Signed bodyshot damage bonus; e.g. Meticulous Aim's -45% is -0.45. */
+    bodyshotDamageBonus?: number;
+    /** False for area attacks, melee, and weapon classes outside this headshot model. */
+    canHeadshot?: boolean;
 }
 
 export interface ConditionalState {
@@ -441,6 +467,7 @@ export function avgHitDamageMultiplier(
     critChance: number,
     critMult: number,
     nonCriticalHitDamageProcs: readonly NonCriticalHitDamageProc[] = [],
+    hitLocation?: HitLocationDamageProfile,
 ): number {
     const normalizedCritChance = Math.max(0, Number.isFinite(critChance) ? critChance : 0);
     const critDamage = avgCritMultiplier(normalizedCritChance, critMult);
@@ -450,7 +477,66 @@ export function avgHitDamageMultiplier(
         const bonus = Math.max(0, Number.isFinite(proc.damageBonus) ? proc.damageBonus : 0);
         return multiplier * (1 + chance * bonus);
     }, 1);
-    return critDamage + nonCriticalChance * (expectedProcMultiplier - 1);
+    const ordinaryHitMultiplier = critDamage + nonCriticalChance * (expectedProcMultiplier - 1);
+    if (!hitLocation) return ordinaryHitMultiplier;
+
+    const headshotRate = hitLocation.canHeadshot === false
+        ? 0
+        : Math.max(0, Math.min(1, Number.isFinite(hitLocation.headshotRate) ? hitLocation.headshotRate ?? 0 : 0));
+    const bodyshotDamageBonus = Number.isFinite(hitLocation.bodyshotDamageBonus)
+        ? hitLocation.bodyshotDamageBonus ?? 0
+        : 0;
+    const headshotMultiplierBonus = Number.isFinite(hitLocation.headshotMultiplierBonus)
+        ? hitLocation.headshotMultiplierBonus ?? 0
+        : 0;
+    const bodyshotMultiplier = Math.max(0, 1 + bodyshotDamageBonus);
+    const headshotMultiplier = Math.max(0, Number.isFinite(hitLocation.headshotMultiplier) ? hitLocation.headshotMultiplier ?? 1 : 1) *
+        Math.max(0, 1 + headshotMultiplierBonus);
+    const criticalHeadshotMultiplier = Math.max(0, Number.isFinite(hitLocation.criticalHeadshotMultiplier)
+        ? hitLocation.criticalHeadshotMultiplier ?? 2
+        : 2);
+    const headshotCritDamage = 1 + normalizedCritChance * (criticalHeadshotMultiplier * Math.max(0, critMult) - 1);
+    const ordinaryNonCritProcBonus = nonCriticalChance * (expectedProcMultiplier - 1);
+    const bodyshotDamage = bodyshotMultiplier * (critDamage + ordinaryNonCritProcBonus);
+    const headshotDamage = headshotMultiplier * (headshotCritDamage + ordinaryNonCritProcBonus);
+    return bodyshotDamage * (1 - headshotRate) + headshotDamage * headshotRate;
+}
+
+/**
+ * Relative DoT seed multiplier inherited from the hit location that applied
+ * each proc. Meticulous Aim's current Wiki notes specify a doubled bodyshot
+ * penalty for Slash, Heat, Toxin, and Blast; Electricity and Gas inherit one
+ * bodyshot penalty, and headshots do not receive the bodyshot penalty.
+ */
+export function getHitLocationDotDamageMultiplier(
+    critChance: number,
+    critMultiplier: number,
+    hitLocation?: HitLocationDamageProfile,
+    damageType?: DamageType,
+): number {
+    if (!hitLocation) return 1;
+    // The calculator's DoT seed uses the inducing hit's critical tier, but
+    // noncritical direct-hit bonuses are not inherited by status damage.
+    const baseline = avgHitDamageMultiplier(critChance, critMultiplier);
+    if (baseline <= 0) return 0;
+    const bodyshotDamageBonus = Number.isFinite(hitLocation.bodyshotDamageBonus)
+        ? hitLocation.bodyshotDamageBonus ?? 0
+        : 0;
+    const bodyshotDamageFactor = Math.max(0, 1 + bodyshotDamageBonus);
+    const doubledBodyshotPenalty = damageType === "slash" || damageType === "heat" ||
+        damageType === "toxin" || damageType === "blast";
+    const dotHitLocation = {
+        ...hitLocation,
+        bodyshotDamageBonus: doubledBodyshotPenalty
+            ? bodyshotDamageFactor * bodyshotDamageFactor - 1
+            : bodyshotDamageBonus,
+    };
+    return avgHitDamageMultiplier(
+        critChance,
+        critMultiplier,
+        [],
+        dotHitLocation,
+    ) / baseline;
 }
 
 /**
@@ -651,10 +737,27 @@ export function estimateConditionalUptime(
             uptime = 1;
             break;
         case "onHeadshot":
-            uptime = ON_HEADSHOT_UPTIME_ASSUMPTION;
+            {
+                const headshotRate = normalizeHitShare(context.headshotHitRate);
+                const expectedHeadshots = Math.max(0, fireRate) * headshotRate * Math.max(0, conditional.durationSeconds);
+                uptime = conditional.durationSeconds > 0
+                    ? probabilityAtLeastOnePoissonArrival(expectedHeadshots)
+                    : headshotRate;
+            }
             break;
         case "onHeadshotKill":
-            uptime = ON_HEADSHOT_KILL_UPTIME_ASSUMPTION;
+            {
+                const headshotRate = normalizeHitShare(context.headshotHitRate);
+                const expectedKillRatePerSecond = context.expectedKillRatePerSecond;
+                const expectedHeadshotKills = Number.isFinite(expectedKillRatePerSecond)
+                    ? Math.max(0, expectedKillRatePerSecond ?? 0) * headshotRate * Math.max(0, conditional.durationSeconds)
+                    : 0;
+                uptime = headshotRate <= 0
+                    ? 0
+                    : Number.isFinite(expectedKillRatePerSecond) && conditional.durationSeconds > 0
+                        ? probabilityAtLeastOnePoissonArrival(expectedHeadshotKills)
+                        : ON_HEADSHOT_KILL_UPTIME_ASSUMPTION * headshotRate;
+            }
             break;
         case "onHit":
             uptime = ON_HIT_UPTIME_ASSUMPTION;
@@ -798,6 +901,24 @@ export interface ConditionalStackEstimationContext {
     qualifyingHitRatePerSecond?: number;
     /** Expected weapon kills per second against repeated identical targets. */
     expectedKillRatePerSecond?: number;
+    /** Player's assumed share of direct hits that land on a headshot location. */
+    headshotHitRate?: number;
+}
+
+function estimateCappedPoissonCount(mean: number, cap: number): number {
+    const normalizedCap = Math.max(0, Math.floor(Number.isFinite(cap) ? cap : 0));
+    const normalizedMean = Math.max(0, Number.isFinite(mean) ? mean : 0);
+    if (normalizedCap === 0 || normalizedMean === 0) return 0;
+    if (normalizedMean >= normalizedCap * 8) return normalizedCap;
+    let probability = Math.exp(-normalizedMean);
+    let cumulativeProbability = probability;
+    let expectedCount = 0;
+    for (let count = 1; count < normalizedCap; count++) {
+        probability *= normalizedMean / count;
+        cumulativeProbability += probability;
+        expectedCount += count * probability;
+    }
+    return Math.min(normalizedCap, expectedCount + normalizedCap * (1 - cumulativeProbability));
 }
 
 function estimateConditionalStackFactor(
@@ -847,6 +968,18 @@ function estimateConditionalStackFactor(
             // not simulated.
             return Math.max(0, Math.min(conditional.maxStacks, conditional.maxStacks * 0.7));
         case "onHeadshotKill":
+            {
+                const expectedKillRatePerSecond = context.expectedKillRatePerSecond;
+                if (!Number.isFinite(expectedKillRatePerSecond) || conditional.durationSeconds <= 0) {
+                    return Math.max(1, conditional.maxStacks * 0.5);
+                }
+                const headshotRate = normalizeHitShare(context.headshotHitRate);
+                const mean = Math.max(0, expectedKillRatePerSecond ?? 0) * headshotRate * conditional.durationSeconds;
+                const activeProbability = probabilityAtLeastOnePoissonArrival(mean);
+                return activeProbability > 0
+                    ? estimateCappedPoissonCount(mean, conditional.maxStacks) / activeProbability
+                    : 0;
+            }
         case "onWeakPointKill":
             return Math.max(1, conditional.maxStacks * 0.5);
         case "onHit":
@@ -878,6 +1011,13 @@ export function calculateBuild(
     const killStackContext = Number.isFinite(options.expectedKillRatePerSecond)
         ? { expectedKillRatePerSecond: Math.max(0, options.expectedKillRatePerSecond ?? 0) }
         : undefined;
+    const canHeadshot = (weapon.category === "Primary" || weapon.category === "Secondary" || weapon.category === "Arch-Gun") &&
+        weapon.selectedAttackIsAreaDamage !== true &&
+        options.hitLocation?.canHeadshot !== false;
+    const conditionalTriggerContext: ConditionalStackEstimationContext = {
+        headshotHitRate: canHeadshot ? normalizeHitShare(options.hitLocation?.headshotRate) : 0,
+        ...(killStackContext ?? {}),
+    };
     const infiniteAmmoActive = !!weapon.hasGaleForceAmmoPassive && (
         conditionalState.mode === "fullyStacked" ||
         (conditionalState.mode === "custom" && (conditionalState.externalStacks ?? 0) > 0)
@@ -902,6 +1042,8 @@ export function calculateBuild(
     let finalCritChanceBonus = 0;
     let critMultBonus = 0;
     let finalCritMultiplierBonus = 0;
+    let headshotMultiplierBonus = 0;
+    let bodyshotDamageBonus = 0;
     const nonCriticalHitDamageProcs: NonCriticalHitDamageProc[] = [];
     let statusChanceBonus = 0;
     let areaDamageStatusChanceBonus = 0;
@@ -947,6 +1089,8 @@ export function calculateBuild(
         const e = mods[index];
         if (!e) continue;
         damageBonus += e.damageBonus ?? 0;
+        headshotMultiplierBonus += e.headshotMultiplierBonus ?? 0;
+        bodyshotDamageBonus += e.bodyshotDamageBonus ?? 0;
         physicalDamageConversion ??= e.physicalDamageConversion;
         elementalDamageConversion ??= e.elementalDamageConversion;
         if (weapon.category === "Companion" && weapon.uniqueName.includes("/BeastWeapons/")) {
@@ -1107,13 +1251,9 @@ export function calculateBuild(
             : Math.max(0, (conditionalState.meleeComboMultiplier ?? 1) - 1);
         for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
             if (conditional.trigger === "onNonCriticalNoStatusHit") continue;
-            const conditionalKillStackContext = conditional.trigger === "onKill" &&
-                (conditional.stats.directDamagePerStatusBonus ?? 0) > 0
-                ? killStackContext
-                : undefined;
             const factor =
-                estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalKillStackContext) *
-                estimateConditionalStackFactor(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalKillStackContext);
+                estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalTriggerContext) *
+                estimateConditionalStackFactor(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalTriggerContext);
             eligibilityDamageBonus += (conditional.stats.damageBonus ?? 0) * factor;
             eligibilityCritChanceBonus += (
                 (conditional.stats.critChanceBonus ?? 0) +
@@ -1211,6 +1351,8 @@ export function calculateBuild(
     let conditionalFinalCritChanceBonus = 0;
     let conditionalCritMultBonus = 0;
     let conditionalFinalCritMultiplierBonus = 0;
+    let conditionalHeadshotMultiplierBonus = 0;
+    let conditionalBodyshotDamageBonus = 0;
     let conditionalStatusChanceBonus = 0;
     let conditionalFinalStatusChanceBonus = 0;
     let conditionalStatusDamageBonus = 0;
@@ -1226,10 +1368,6 @@ export function calculateBuild(
     const conditionalDirectBonusBreakdown = emptyBreakdown();
     for (const { effect: conditional, sourceModIndex, sourceEffectIndex } of conditionalEffects) {
         const isTimedHitStack = conditional.trigger === "onNonCriticalNoStatusHit";
-        const conditionalKillStackContext = conditional.trigger === "onKill" &&
-            (conditional.stats.directDamagePerStatusBonus ?? 0) > 0
-            ? killStackContext
-            : undefined;
         const isExplicitTargetStatusCondition = conditional.trigger === "whileTargetHasStatus";
         const isStaticDistanceCondition = conditional.trigger === "whileNoEnemyWithinRange";
         if (
@@ -1246,7 +1384,7 @@ export function calculateBuild(
             Math.min(1, qualifyingHitGroupProbability * triggerUptime),
         );
         const factor =
-            estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalKillStackContext) *
+            estimateConditionalUptime(conditional, baselineRawFireRate, baselineMagazineSize, conditionalState, conditionalTriggerContext) *
             estimateConditionalStackFactor(
                 conditional,
                 baselineRawFireRate,
@@ -1254,11 +1392,11 @@ export function calculateBuild(
                 conditionalState,
                 conditional.trigger === "onNonCriticalNoStatusHit"
                     ? {
+                        ...conditionalTriggerContext,
                         qualifyingHitGroupProbability: conditionalQualifyingGroupProbability,
                         qualifyingHitRatePerSecond: qualifyingHitRatePerSecond * triggerUptime,
-                        ...(conditionalKillStackContext ?? {}),
                     }
-                    : conditionalKillStackContext,
+                    : conditionalTriggerContext,
             );
         if (isTimedHitStack && (conditional.stats.damageBonus ?? 0) !== 0) {
             const maxStacks = Math.max(0, Math.floor(conditional.maxStacks ?? 1));
@@ -1293,6 +1431,8 @@ export function calculateBuild(
         conditionalFinalCritChanceBonus += (conditional.stats.finalCritChanceBonus ?? 0) * factor;
         conditionalCritMultBonus += (conditional.stats.critMultBonus ?? 0) * factor;
         conditionalFinalCritMultiplierBonus += (conditional.stats.finalCritMultiplierBonus ?? 0) * factor;
+        conditionalHeadshotMultiplierBonus += (conditional.stats.headshotMultiplierBonus ?? 0) * factor;
+        conditionalBodyshotDamageBonus += (conditional.stats.bodyshotDamageBonus ?? 0) * factor;
         conditionalStatusChanceBonus += (conditional.stats.statusChanceBonus ?? 0) * factor;
         conditionalFinalStatusChanceBonus += (conditional.stats.finalStatusChanceBonus ?? 0) * factor;
         conditionalStatusDamageBonus += (conditional.stats.statusDamageBonus ?? 0) * factor;
@@ -1333,6 +1473,8 @@ export function calculateBuild(
     finalCritChanceBonus += conditionalFinalCritChanceBonus;
     critMultBonus += conditionalCritMultBonus;
     finalCritMultiplierBonus += conditionalFinalCritMultiplierBonus;
+    headshotMultiplierBonus += conditionalHeadshotMultiplierBonus;
+    bodyshotDamageBonus += conditionalBodyshotDamageBonus;
     statusChanceBonus += conditionalStatusChanceBonus;
     finalStatusChanceBonus += conditionalFinalStatusChanceBonus;
     multishotBonus += conditionalMultishotBonus;
@@ -1806,6 +1948,22 @@ export function calculateBuild(
     const conditionOverloadTotalBase = Math.max(0, totalBase * conditionOverloadDamageMultiplier);
 
     const critAverageMultiplier = avgHitDamageMultiplier(critChance, critMultiplier, nonCriticalHitDamageProcs);
+    const headshotEligibleCategory = weapon.category === "Primary" || weapon.category === "Secondary" || weapon.category === "Arch-Gun";
+    const hitLocation: HitLocationDamageProfile = {
+        headshotRate: Number.isFinite(options.hitLocation?.headshotRate)
+            ? Math.max(0, Math.min(1, options.hitLocation?.headshotRate ?? 0))
+            : 0,
+        headshotMultiplier: Number.isFinite(options.hitLocation?.headshotMultiplier)
+            ? Math.max(0, options.hitLocation?.headshotMultiplier ?? 1)
+            : 1,
+        criticalHeadshotMultiplier: Number.isFinite(options.hitLocation?.criticalHeadshotMultiplier)
+            ? Math.max(0, options.hitLocation?.criticalHeadshotMultiplier ?? 2)
+            : 2,
+        headshotMultiplierBonus,
+        bodyshotDamageBonus,
+        canHeadshot: headshotEligibleCategory && weapon.selectedAttackIsAreaDamage !== true &&
+            options.hitLocation?.canHeadshot !== false,
+    };
     // The first faction multiplier belongs in each stored proc seed. The second
     // is applied with the remaining DoT multipliers after the accumulator and status coefficient.
     const dotSeedPerProcBeforeConditionOverload =
@@ -1818,6 +1976,12 @@ export function calculateBuild(
             Math.fround(Math.fround(conditionOverloadTotalBase * Math.max(0, 1 + factionDamageBonus)) * critAverageMultiplier) *
             procSeedDamageRatio,
         );
+    const dotHitLocationMultiplier = (type: StatusDamageType) => getHitLocationDotDamageMultiplier(
+        critChance,
+        critMultiplier,
+        hitLocation,
+        type,
+    );
     const dotRemainingMultiplier = (elementalBonus: number) => Math.fround(
         Math.fround(
             Math.fround(Math.max(0, statusDamageMultiplier)) *
@@ -1826,7 +1990,7 @@ export function calculateBuild(
     );
     const slashDotTickDamagePerProc = statusImmuneTypes.has("slash")
         ? 0
-        : statusDotTickDamage(dotSeedPerProc, "slash", dotRemainingMultiplier(0), 0);
+        : statusDotTickDamage(dotSeedPerProc * dotHitLocationMultiplier("slash"), "slash", dotRemainingMultiplier(0), 0);
 
     const totalPrimaryElementBonus = (type: "heat" | "cold" | "electricity" | "toxin") => {
         const modBonus = mods.reduce((sum, effect) => {
@@ -1878,6 +2042,9 @@ export function calculateBuild(
     for (const [key, config] of Object.entries(dotConfig) as Array<[StatusDamageType, { elementalBonus: number }]>) {
         const expectedProcsPerShotForType = averageProcsPerShot * (procChanceByType[key] ?? 0);
         if (expectedProcsPerShotForType <= 0) continue;
+        const hitLocationMultiplier = dotHitLocationMultiplier(key);
+        const dotSeedPerProcForType = dotSeedPerProc * hitLocationMultiplier;
+        const dotSeedPerProcBeforeConditionOverloadForType = dotSeedPerProcBeforeConditionOverload * hitLocationMultiplier;
         const rule = STATUS_EFFECT_RULES[key];
         const duration = rule.durationSeconds * statusDurationMultiplier;
         if (duration <= 0) continue;
@@ -1901,10 +2068,10 @@ export function calculateBuild(
             const independentRandomProcProbability = independentRandomProcProbabilityByType[key] ?? 0;
             const probabilityOfAnyProc = 1 - (1 - baseProcProbability) *
                 (1 - forcedProcProbability) * (1 - independentRandomProcProbability);
-            const seedSumFromAttack = expectedProcsPerShotForType * dotSeedPerProc;
-            const seedSumBeforeConditionOverload = expectedProcsPerShotForType * dotSeedPerProcBeforeConditionOverload;
+            const seedSumFromAttack = expectedProcsPerShotForType * dotSeedPerProcForType;
+            const seedSumBeforeConditionOverload = expectedProcsPerShotForType * dotSeedPerProcBeforeConditionOverloadForType;
             const seedTickDamageBeforeConditionOverload = statusDotTickDamage(
-                dotSeedPerProcBeforeConditionOverload,
+                dotSeedPerProcBeforeConditionOverloadForType,
                 key,
                 remainingMultiplier,
                 0,
@@ -1914,7 +2081,7 @@ export function calculateBuild(
             // separate so the encounter simulator can refresh Heat stacks
             // without duplicating the accumulator once per proc.
             dotTickDamagePerProcByType[key] = statusDotTickDamage(
-                dotSeedPerProc,
+                dotSeedPerProcForType,
                 key,
                 remainingMultiplier,
                 0,
@@ -1929,7 +2096,7 @@ export function calculateBuild(
 
             const perShotTicks = independentDotStacks.has(key)
                 ? expectedProcsPerShotForType * statusDotTickDamage(
-                    dotSeedPerProc,
+                    dotSeedPerProcForType,
                     key,
                     remainingMultiplier,
                 )
@@ -1945,7 +2112,7 @@ export function calculateBuild(
 
             const perShotTicksBeforeConditionOverload = independentDotStacks.has(key)
                 ? expectedProcsPerShotForType * statusDotTickDamage(
-                    dotSeedPerProcBeforeConditionOverload,
+                    dotSeedPerProcBeforeConditionOverloadForType,
                     key,
                     remainingMultiplier,
                 )
@@ -1976,12 +2143,12 @@ export function calculateBuild(
             : Math.min(rule.maxStacks, activeStackExpectation);
         const steadyStateTickDamage = independentDotStacks.has(key)
             ? procRate * duration * statusDotTickDamage(
-                dotSeedPerProc,
+                dotSeedPerProcForType,
                 key,
                 remainingMultiplier,
             )
             : statusDotTickDamage(
-                cappedActiveStackExpectation * dotSeedPerProc,
+                cappedActiveStackExpectation * dotSeedPerProcForType,
                 key,
                 remainingMultiplier,
                 probabilityOfActiveTickGroup,
@@ -2052,11 +2219,13 @@ export function calculateBuild(
     const totalDamage = totalDamageOf(damageBreakdown);
     const attackDamageEquivalent = damageWeightedMultishot + springLoadedBroadheadDamageBonus;
     const arsenalDamage = totalDamageOf(directRawBreakdown) * attackDamageEquivalent;
-    const averageShotDamage = totalDamage * attackDamageEquivalent * avgHitDamageMultiplier(
+    const expectedHitDamageMultiplier = avgHitDamageMultiplier(
         critChance,
         critMultiplier,
         nonCriticalHitDamageProcs,
+        hitLocation,
     );
+    const averageShotDamage = totalDamage * attackDamageEquivalent * expectedHitDamageMultiplier;
 
     const coldStacks = expectedStacksByType.cold ?? 0;
     const heatStacks = expectedStacksByType.heat ?? 0;
@@ -2096,12 +2265,12 @@ export function calculateBuild(
     // Damage; physical/elemental bonuses only affect whether the proc occurs.
     const blastStackHitDamagePerProc = Math.fround(
         Math.fround(
-            Math.fround(dotSeedPerProc) * Math.fround(Math.max(0, statusDamageMultiplier)),
+            Math.fround(dotSeedPerProc * dotHitLocationMultiplier("blast")) * Math.fround(Math.max(0, statusDamageMultiplier)),
         ) * Math.fround(Math.max(0, 1 + factionDamageBonus)),
     );
     const blastStackHitDamagePerProcBeforeConditionOverload = Math.fround(
         Math.fround(
-            Math.fround(dotSeedPerProcBeforeConditionOverload) * Math.fround(Math.max(0, statusDamageMultiplier)),
+            Math.fround(dotSeedPerProcBeforeConditionOverload * dotHitLocationMultiplier("blast")) * Math.fround(Math.max(0, statusDamageMultiplier)),
         ) * Math.fround(Math.max(0, 1 + factionDamageBonus)),
     );
     const blastExpiryDamagePerProc = blastStackExpiryDamage(blastStackHitDamagePerProc);
@@ -2167,6 +2336,10 @@ export function calculateBuild(
         totalDamageBonus: damageBonus,
         timedConditionalDamageStacks,
         averageShotDamage,
+        expectedHitDamageMultiplier,
+        hitLocation,
+        headshotMultiplierBonus,
+        bodyshotDamageBonus,
         firstShotMagazineDamageBonus: activeFirstShotMagazineDamageBonus,
         firstShotMagazineDamageMultiplier,
         lastShotMagazineDamageBonus: activeLastShotMagazineDamageBonus,

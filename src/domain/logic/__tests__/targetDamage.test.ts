@@ -675,6 +675,60 @@ describe("target damage progress across defense pools", () => {
 });
 
 describe("single-attack damage against the target's current pools", () => {
+    it("uses the Wiki headshot and critical-headshot profile in direct and finite damage", () => {
+        const hitLocation = {
+            headshotRate: 1,
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 2,
+            canHeadshot: true,
+        } as const;
+        const direct = calculateDirectDamageToInitialPools({
+            damageByType: { impact: 100 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0.5,
+            critMultiplier: 2,
+            hitLocation,
+        });
+        const sequence = simulateDirectAttackSequence({
+            damageByType: { impact: 100 },
+            health: 1_500,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0.5,
+            critMultiplier: 2,
+            hitLocation,
+            attackIntervalSeconds: 1,
+        });
+        const encounter = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 1_500,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0.5,
+            critMultiplier: 2,
+            hitLocation,
+            attackIntervalSeconds: 1,
+            maxAttacks: 2,
+            maxDurationSeconds: 2,
+        });
+
+        // Wiki critical-headshot formula: 3 × (1 + 0.5 × (2 × 2 − 1)) = 7.5×.
+        expect(direct.uncappedDamageByPool.health).toBeCloseTo(750, 10);
+        expect(sequence.attacksToKill).toBe(2);
+        expect(sequence.timeToKillSeconds).toBeCloseTo(1, 10);
+        expect(encounter.attacks).toBe(2);
+        expect(encounter.timeToKillSeconds).toBeCloseTo(1, 10);
+        expect(encounter.directDamageByPool.health).toBeCloseTo(1_500, 10);
+    });
+
     it("routes ordinary damage to shields and Toxin/True to health while shields remain", () => {
         const result = calculateDirectDamageToInitialPools({
             damageByType: { impact: 10, toxin: 10, true: 5 },

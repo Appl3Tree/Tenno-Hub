@@ -189,6 +189,8 @@ export interface UserStateV2 {
 export interface SavedBuildTargetConfig {
     enabled: boolean;
     faction: string;
+    /** Player's estimated share of direct hits landing on a target head/weak point. */
+    headshotRatePercent?: number;
     enemyProfileId?: string;
     isEximus?: boolean;
     /** Applies the current boss-specific four-stack Blast detonation threshold. */
