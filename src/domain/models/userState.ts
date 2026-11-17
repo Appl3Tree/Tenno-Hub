@@ -224,6 +224,8 @@ export interface SavedBuildPlannerConfig {
     externalStatusTypeCount?: number;
     /** Additional distinct Vigilante set mods equipped outside the selected weapon (0–6). */
     externalVigilanteSetModCount?: number;
+    /** Additional distinct Gladiator set mods on the Warframe outside the selected melee weapon (0–3). */
+    externalGladiatorSetModCount?: number;
     /** Named external status types assumed active for Condition Overload and eligible direct-hit bonuses. */
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */

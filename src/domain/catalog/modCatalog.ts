@@ -152,6 +152,8 @@ export interface ModEffect {
     critChanceBonus: number;
     /** Number of distinct Vigilante set members selected on this weapon. */
     vigilanteSetModCount: number;
+    /** Number of distinct Gladiator set members selected on this weapon. */
+    gladiatorSetModCount: number;
     /** Additional critical chance from mods whose base bonus is doubled on selected heavy attacks. */
     heavyAttackCritChanceBonus: number;
     /** Additive critical chance that applies only to selected slide attacks. */
@@ -257,6 +259,7 @@ const SENTIENT_SURGE_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/Nightwa
 const PROTON_JET_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModB";
 const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
 const VIGILANTE_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod";
+const GLADIATOR_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Gladiator/GladiatorSetMod";
 export const SPRING_LOADED_BROADHEAD_PATH = "/Lotus/Upgrades/Mods/PvPMods/Rifle/DaikyuMoreDamageOverDistanceMod";
 const MENTOR_LEGACY_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/TennokaiBaseMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
@@ -350,7 +353,7 @@ export interface ModEntry {
     uniqueName: string;
     path: string;
     name: string;
-    /** WFCD set-bonus record path for set mods. The shared bonus itself is not modeled. */
+    /** WFCD set-bonus record path for set mods; supported shared bonuses are modeled separately. */
     setBonusPath?: string;
     compatBucket: string;
     rawCompatName: string;
@@ -1386,6 +1389,10 @@ function buildCaches(): ModCaches {
         if (item.modSet === VIGILANTE_SET_BONUS_PATH) {
             // Set bonuses are piece-count based and do not depend on mod rank.
             effectsByRank.forEach((effect) => { effect.vigilanteSetModCount = 1; });
+        }
+        if (item.modSet === GLADIATOR_SET_BONUS_PATH) {
+            // Gladiator grants 10% relative melee Critical Chance per combo tier above 1x.
+            effectsByRank.forEach((effect) => { effect.gladiatorSetModCount = 1; });
         }
         if (locksFireRate) {
             // Cannonade's lock applies at every rank and ignores both positive

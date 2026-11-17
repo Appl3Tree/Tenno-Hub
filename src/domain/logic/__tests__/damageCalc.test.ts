@@ -4147,3 +4147,41 @@ describe("Vigilante set critical-tier bonus", () => {
         expect(secondary.averageCritTier).toBeCloseTo(0.5);
     });
 });
+
+describe("Gladiator combo-scaled melee Critical Chance set bonus", () => {
+    it("counts canonical set members at every rank and applies 10% per combo tier above 1x", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon?.category).toBe("Melee");
+        const setPath = "/Lotus/Upgrades/Mods/Sets/Gladiator/GladiatorSetMod";
+        const setMods = getModsForWeapon(weapon!).filter((candidate) => candidate.setBonusPath === setPath);
+        expect(setMods.map((candidate) => candidate.name).sort()).toEqual(["Gladiator Might", "Gladiator Rush", "Gladiator Vice"]);
+        for (const mod of setMods) {
+            expect(mod.effectsByRank.every((effect) => effect.gladiatorSetModCount === 1)).toBe(true);
+        }
+        const selectedEffects = setMods.map((mod) => mod.effectsByRank[mod.fusionLimit]);
+        const atTwelve = calculateBuild(weapon!, selectedEffects, "", {
+            conditionalState: { mode: "realistic", meleeComboMultiplier: 12, externalGladiatorSetModCount: 7.9 },
+        }).modded;
+        expect(atTwelve.gladiatorSetModCount).toBe(6);
+        expect(atTwelve.gladiatorCritChancePerComboTier).toBeCloseTo(0.6, 10);
+        expect(atTwelve.comboCritChancePerTier).toBeCloseTo(weapon!.critChance * 0.6, 10);
+        expect(atTwelve.critChance).toBeCloseTo(weapon!.critChance * (1 + 0.6 * 11), 10);
+        expect(atTwelve.meleeComboMultiplier).toBe(12);
+    });
+
+    it("keeps Gladiator inactive on ranged weapons and adds no bonus at 1x combo", () => {
+        const piece = { ...emptyEffect(), gladiatorSetModCount: 1 };
+        const melee = { ...makeWeapon({ impact: 100 }), category: "Melee" as const, weaponType: "Sword", modCompat: "Melee", critChance: 0.2 };
+        const noCombo = calculateBuild(melee, [piece], "", { conditionalState: { mode: "realistic", meleeComboMultiplier: 1 } }).modded;
+        expect(noCombo.gladiatorSetModCount).toBe(1);
+        expect(noCombo.gladiatorCritChancePerComboTier).toBeCloseTo(0.1, 10);
+        expect(noCombo.critChance).toBeCloseTo(melee.critChance, 10);
+        const rangedWeapon = { ...makeWeapon({ impact: 100 }), critChance: 0.2 };
+        const ranged = calculateBuild(rangedWeapon, [piece], "", {
+            conditionalState: { mode: "realistic", meleeComboMultiplier: 12, externalGladiatorSetModCount: 3 },
+        }).modded;
+        expect(ranged.gladiatorSetModCount).toBe(4);
+        expect(ranged.gladiatorCritChancePerComboTier).toBe(0);
+        expect(ranged.critChance).toBeCloseTo(0.2, 10);
+    });
+});

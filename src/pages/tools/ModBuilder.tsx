@@ -1873,10 +1873,13 @@ function buildMathBreakdown(
             title: "Base Stats",
             lines: [
                 `Base damage multiplier bracket = 1 + additive damage bonuses = 1 + ${fmt(totals.damageBonus, 5)} = ${fmt(baseDamageMultiplier, 5)}`,
-                `Crit chance = base ${fmt(weapon.critChance, 5)} × (1 + additive crit ${fmt(totals.critChanceBonus, 5)}) + final crit ${fmt(totals.finalCritChanceBonus, 5)} = ${fmt(stats.critChance, 5)} (${fmt(stats.critChance * 100, 3)}%)`,
+                `Crit chance = base ${fmt(weapon.critChance, 5)} × (1 + additive crit ${fmt(totals.critChanceBonus, 5)}) + combo-scaled crit ${fmt(stats.comboCritChancePerTier, 5)} per tier × ${fmt(Math.max(0, stats.meleeComboMultiplier - 1), 0)} tiers above 1x + final crit ${fmt(totals.finalCritChanceBonus, 5)} = ${fmt(stats.critChance, 5)} (${fmt(stats.critChance * 100, 3)}%)`,
                 `Crit multiplier = quantized base ${fmt(stats.quantizedBaseCritMultiplier, 7)} × (1 + additive crit mult ${fmt(totals.critMultBonus, 5)}) + final crit mult ${fmt(totals.finalCritMultiplierBonus, 5)} = ${fmt(stats.critMultiplier, 7)}`,
                 ...(weapon.category === "Primary"
                     ? [`Vigilante set = ${stats.vigilanteSetModCount} distinct pieces × 5% = ${fmt(stats.vigilanteCritTierEnhancementChance * 100, 1)}% chance to raise a landed Primary crit by one tier; expected crit tier = ${fmt(stats.averageCritTier, 5)}.`]
+                    : []),
+                ...(usesMeleeDamageModel(weapon.category)
+                    ? [`Gladiator set = ${stats.gladiatorSetModCount} distinct pieces × 10% × ${fmt(Math.max(0, stats.meleeComboMultiplier - 1), 0)} combo tiers above 1x = ${fmt(stats.gladiatorCritChancePerComboTier * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 1)}% relative melee Critical Chance on base.`]
                     : []),
                 ...(weapon.selectedAttackBaseStatusChancePerCriticalChance !== undefined
                     ? [`Wiseman's Regard = +${fmt(stats.statusChanceFromCritChanceBonus * 100, 3)} percentage points base Status Chance (${fmt(weapon.selectedAttackBaseStatusChancePerCriticalChance * 100, 3)}% of current ${fmt(stats.critChance * 100, 3)}% Critical Chance, capped at ${fmt((weapon.selectedAttackBaseStatusChancePerCriticalChanceCap ?? 0) * 100, 3)}%).`]
@@ -3563,6 +3566,7 @@ export default function ModBuilder() {
     const [externalConditionalStacks, setExternalConditionalStacks] = useState(1);
     const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
     const [externalVigilanteSetModCount, setExternalVigilanteSetModCount] = useState(0);
+    const [externalGladiatorSetModCount, setExternalGladiatorSetModCount] = useState(0);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
     const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
@@ -3587,6 +3591,7 @@ export default function ModBuilder() {
         externalStacks: conditionalMode === "custom" ? externalConditionalStacks : undefined,
         externalStatusTypeCount,
         externalVigilanteSetModCount,
+        externalGladiatorSetModCount,
         externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         externalHeatElementalDamageBonus: parseExternalHeatBonusPercentInput(externalHeatElementalDamageBonusPercentInput) / 100,
@@ -3595,7 +3600,7 @@ export default function ModBuilder() {
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3808,6 +3813,7 @@ export default function ModBuilder() {
             externalConditionalStacks,
             externalStatusTypeCount,
             externalVigilanteSetModCount,
+            externalGladiatorSetModCount,
             externalStatusTypes,
             targetStartsWithHeat,
             externalHeatElementalDamageBonusPercent: parseExternalHeatBonusPercentInput(
@@ -3859,6 +3865,7 @@ export default function ModBuilder() {
         externalConditionalStacks,
         externalStatusTypeCount,
         externalVigilanteSetModCount,
+        externalGladiatorSetModCount,
         externalStatusTypes,
         targetStartsWithHeat,
         externalHeatElementalDamageBonusPercentInput,
@@ -5408,6 +5415,7 @@ export default function ModBuilder() {
         // stale external status assumption from the previously loaded build.
         setExternalStatusTypeCount(0);
         setExternalVigilanteSetModCount(0);
+        setExternalGladiatorSetModCount(0);
         setExternalStatusTypes([]);
         setExternalStatusTypesOpen(false);
         setTargetStartsWithHeat(false);
@@ -5431,6 +5439,9 @@ export default function ModBuilder() {
                 : 0);
             setExternalVigilanteSetModCount(Number.isFinite(plannerConfig.externalVigilanteSetModCount)
                 ? Math.max(0, Math.min(6, Math.floor(plannerConfig.externalVigilanteSetModCount ?? 0)))
+                : 0);
+            setExternalGladiatorSetModCount(Number.isFinite(plannerConfig.externalGladiatorSetModCount)
+                ? Math.max(0, Math.min(3, Math.floor(plannerConfig.externalGladiatorSetModCount ?? 0)))
                 : 0);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
             setExternalStatusTypes(restoredExternalStatusTypes);
@@ -5704,7 +5715,7 @@ export default function ModBuilder() {
                                     )}
                                     {weapon && (
                                         <p role="note" className="mt-2 text-right text-[10px] leading-relaxed text-amber-300">
-                                            Only Vigilante’s Primary crit-tier set bonus is modeled. Other shared set bonuses remain excluded from damage, TTK, and Auto Optimize, including set mods equipped on other gear. Supported individual stats on selected mods still apply.
+                                            Only Vigilante’s Primary crit-tier bonus and Gladiator’s combo-scaled melee Critical Chance bonus are modeled. Other shared set bonuses remain excluded from damage, TTK, and Auto Optimize. Enter distinct set pieces equipped outside the selected weapon in Optimization options; supported individual stats on selected mods still apply.
                                         </p>
                                     )}
                                     {showOptimizeOptions && (
@@ -5742,6 +5753,28 @@ export default function ModBuilder() {
                                                         <div className="mt-1 flex gap-3 text-[10px]">
                                                             <a href="https://wiki.warframe.com/w/Set_Mod" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki: Set Mods</a>
                                                             <a href="https://wiki.warframe.com/w/Critical_Multiplier" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Critical Multiplier</a>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {weapon?.category === "Melee" && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Additional distinct Gladiator pieces on your Warframe</span>
+                                                            <input
+                                                                aria-label="Additional Gladiator set mods on your Warframe"
+                                                                type="number"
+                                                                min={0}
+                                                                max={3}
+                                                                step={1}
+                                                                value={externalGladiatorSetModCount}
+                                                                onChange={(event) => setExternalGladiatorSetModCount(Math.max(0, Math.min(3, Math.floor(Number(event.target.value) || 0))))}
+                                                                className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                            />
+                                                        </label>
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">Each distinct Gladiator piece adds 10% relative melee Critical Chance per combo tier above 1x (110% per piece at 12x). Selected melee mods are counted automatically; count distinct Gladiator mods equipped on your Warframe, up to three.</p>
+                                                        <div className="mt-1 flex gap-3 text-[10px]">
+                                                            <a href="https://wiki.warframe.com/w/Set_Mod" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki: Set Mods</a>
+                                                            <a href="https://wiki.warframe.com/w/Critical_Chance" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Critical Chance</a>
                                                         </div>
                                                     </div>
                                                 )}
@@ -7376,7 +7409,7 @@ export default function ModBuilder() {
                                                         : undefined,
                                         },
                                         { label: "Crit Multiplier", value: stats.critMultiplier.toFixed(2) + "x", sub: "yellow crit", tooltip: "Damage multiplier applied when a standard yellow crit occurs." },
-                                        { label: "Avg Crit Tier", value: stats.averageCritTier.toFixed(2) + "x", sub: "expected crit level", tooltip: `Expected crit level per hit, including ${fmt(stats.vigilanteCritTierEnhancementChance * 100, 1)}% Vigilante chance to add one tier to a landed Primary crit. 0.55x means 0.55 expected tiers per hit.` },
+                                        { label: "Avg Crit Tier", value: stats.averageCritTier.toFixed(2) + "x", sub: "expected crit level", tooltip: `Expected crit level per hit; combo-scaled bonuses such as Gladiator are included in Critical Chance, and Vigilante adds ${fmt(stats.vigilanteCritTierEnhancementChance * 100, 1)}% chance to add one tier to a landed Primary crit. 0.55x means 0.55 expected tiers per hit.` },
                                         {
                                             label: "Status Chance",
                                             value: fmt(stats.statusChance * 100, 1) + "%",
