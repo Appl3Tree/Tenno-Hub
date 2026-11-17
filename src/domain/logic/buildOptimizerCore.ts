@@ -3512,6 +3512,7 @@ function optimizeExilusSlot(
         for (let r = mod.fusionLimit; r >= minRank; r--) {
             if (getUnmodeledDamageEffectLines(mod, r).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
+            let selectedPolarity = candidatePolarity;
             if (opts.capacityConfig) {
                 const capSlots = mainSlots;
                 const capRanks = mainSlotRanks;
@@ -3525,6 +3526,7 @@ function optimizeExilusSlot(
                     )
                     : { mainPolarities: [...mainSlotPolarities], exilusPolarity: candidatePolarity };
                 const capPols = cappedPolarities.mainPolarities;
+                selectedPolarity = cappedPolarities.exilusPolarity;
                 const capExtraSlots = [
                     ...(opts.extraCapacitySlots ?? []),
                     { mod, rank: r, polarity: cappedPolarities.exilusPolarity },
@@ -3537,7 +3539,7 @@ function optimizeExilusSlot(
                 bestImprovingScore = s;
                 bestImprovingMod = mod;
                 bestImprovingRank = r;
-                bestImprovingPolarity = candidatePolarity;
+                bestImprovingPolarity = selectedPolarity;
             }
 
         }
@@ -3774,12 +3776,23 @@ function optimizeBuildInternal(
         finalExilusPolarity = ex.polarity;
     }
 
-    const contextualCapacitySlots = exilusMod
+    let contextualCapacitySlots = exilusMod
         ? [
             ...(effectiveOpts.extraCapacitySlots ?? []),
             { mod: exilusMod, rank: exilusRank, polarity: finalExilusPolarity },
         ]
         : (effectiveOpts.extraCapacitySlots ?? []);
+    const getContextualOptions = (): OptimizerOptions => {
+        const exilusFormaUsed = exilusMod && finalExilusPolarity !== exilusPolarity ? 1 : 0;
+        return {
+            ...effectiveOpts,
+            maxFormaCount: effectiveOpts.maxFormaCount === undefined
+                ? undefined
+                : Math.max(0, effectiveOpts.maxFormaCount - exilusFormaUsed),
+            extraCapacitySlots: contextualCapacitySlots,
+        };
+    };
+    let contextualOpts = getContextualOptions();
 
     // Exilus selection checks capacity together with all main and stance slots.
 
@@ -3815,7 +3828,7 @@ function optimizeBuildInternal(
                 slotMods.flatMap((m, i) => (m ? [slotRanks[i]] : [])),
                 candidates,
                 goal,
-                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualOpts,
                 contextualExtraEffects,
                 contextualArcaneEffect,
             );
@@ -3826,7 +3839,7 @@ function optimizeBuildInternal(
                 candidates,
                 goal,
                 slotCount,
-                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualOpts,
                 contextualExtraEffects,
                 contextualArcaneEffect,
             );
@@ -3836,7 +3849,7 @@ function optimizeBuildInternal(
                 filledWithContext.ranks,
                 candidates,
                 goal,
-                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualOpts,
                 contextualExtraEffects,
                 contextualArcaneEffect,
             );
@@ -3854,7 +3867,7 @@ function optimizeBuildInternal(
             slotRanks: [...slotRanks],
             resultPolarities: [...resultPolarities],
         }
-        : assignModsToSlots(mods, ranks, assignmentPolarities, slotCount, allowForma, effectiveOpts.maxFormaCount);
+        : assignModsToSlots(mods, ranks, assignmentPolarities, slotCount, allowForma, contextualOpts.maxFormaCount);
     const minimizedFinalPolarities = allowForma
         ? minimizePolaritiesByCapacity(
             paddedDefaults,
@@ -3871,6 +3884,13 @@ function optimizeBuildInternal(
     if (allowForma && exilusMod) {
         finalExilusPolarity = minimizedFinalPolarities.exilusPolarity;
     }
+    contextualCapacitySlots = exilusMod
+        ? [
+            ...(effectiveOpts.extraCapacitySlots ?? []),
+            { mod: exilusMod, rank: exilusRank, polarity: finalExilusPolarity },
+        ]
+        : (effectiveOpts.extraCapacitySlots ?? []);
+    contextualOpts = getContextualOptions();
     for (let i = 0; i < slotCount; i++) {
         slotMods[i] = reassigned.slotMods[i];
         slotRanks[i] = reassigned.slotRanks[i];
@@ -3971,6 +3991,13 @@ function optimizeBuildInternal(
             greedyImproved = true;
         }
     }
+    contextualCapacitySlots = exilusMod
+        ? [
+            ...(effectiveOpts.extraCapacitySlots ?? []),
+            { mod: exilusMod, rank: exilusRank, polarity: finalExilusPolarity },
+        ]
+        : (effectiveOpts.extraCapacitySlots ?? []);
+    contextualOpts = getContextualOptions();
 
     const effectsForCurrentSlots = () => [
         ...preEquippedEffects,
@@ -3996,7 +4023,7 @@ function optimizeBuildInternal(
             slotMods.flatMap((mod, index) => mod ? [slotRanks[index]] : []),
             candidates,
             goal,
-            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualOpts,
             contextualExtraEffects,
             contextualArcaneEffect,
         );
@@ -4007,7 +4034,7 @@ function optimizeBuildInternal(
             candidates,
             goal,
             slotCount,
-            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualOpts,
             contextualExtraEffects,
             contextualArcaneEffect,
         );
@@ -4017,7 +4044,7 @@ function optimizeBuildInternal(
             filled.ranks,
             candidates,
             goal,
-            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualOpts,
             contextualExtraEffects,
             contextualArcaneEffect,
         );
@@ -4029,7 +4056,7 @@ function optimizeBuildInternal(
             assignmentPolarities,
             slotCount,
             allowForma,
-            effectiveOpts.maxFormaCount,
+            contextualOpts.maxFormaCount,
         );
         const minimized = allowForma
             ? minimizePolaritiesByCapacity(
@@ -4037,9 +4064,9 @@ function optimizeBuildInternal(
                 reassignedMods.slotMods,
                 reassignedMods.slotRanks,
                 capCfg,
-                effectiveOpts.extraCapacitySlots ?? [],
-                exilusMod ? { mod: exilusMod, rank: exilusRank, basePolarity: exilusPolarity } : undefined,
-                effectiveOpts.maxFormaCount,
+                contextualOpts.extraCapacitySlots ?? [],
+                undefined,
+                contextualOpts.maxFormaCount,
                 effectiveOpts.lockedSlotMask ?? [],
             )
             : { mainPolarities: reassignedMods.resultPolarities, exilusPolarity: finalExilusPolarity };
@@ -4048,7 +4075,6 @@ function optimizeBuildInternal(
             slotRanks[index] = reassignedMods.slotRanks[index];
             finalPolarities[index] = minimized.mainPolarities[index] ?? "";
         }
-        if (allowForma && exilusMod) finalExilusPolarity = minimized.exilusPolarity;
     };
 
     // For proxy objectives, Arcane choice and mod refinement use the same score
@@ -4091,10 +4117,10 @@ function optimizeBuildInternal(
             finalPolarities,
             candidates,
             goal,
-            { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+            contextualOpts,
             contextualExtraEffects,
             contextualArcaneEffect,
-            contextualCapacitySlots,
+            contextualOpts.extraCapacitySlots ?? [],
             initial.expectedEncounterSeeds,
         );
         for (let index = 0; index < slotCount; index++) {
@@ -4132,10 +4158,10 @@ function optimizeBuildInternal(
                 finalPolarities,
                 candidates,
                 goal,
-                { ...effectiveOpts, extraCapacitySlots: contextualCapacitySlots },
+                contextualOpts,
                 contextualExtraEffects,
                 contextualArcaneEffect,
-                contextualCapacitySlots,
+                contextualOpts.extraCapacitySlots ?? [],
                 initial.expectedEncounterSeeds,
             );
             for (let index = 0; index < slotCount; index++) {
