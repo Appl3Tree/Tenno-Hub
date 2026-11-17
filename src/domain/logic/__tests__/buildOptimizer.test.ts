@@ -813,7 +813,7 @@ describe("build optimizer scoring", () => {
         expect(getUnmodeledDamageEffectSourceUrl(entropyDetonation!)).toBe("https://wiki.warframe.com/w/Entropy_Detonation");
         for (let rank = 0; rank <= entropyDetonation!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(entropyDetonation!, rank)).toContain(
-                "Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled flat + Enemy Max Health Blast explosion reaches the selected rank’s radius and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.",
+                "Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled Blast explosion combines flat damage with a percentage of enemy Max Health, reaches the selected rank’s radius, and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.",
             );
         }
         const result = optimizeBuild(obex!, [entropyDetonation!], "meleeDps", 1, { allowForma: false });
@@ -830,7 +830,7 @@ describe("build optimizer scoring", () => {
         expect(amalgamBodyCount!.effect.comboDurationBonus).toBeCloseTo(15);
         for (let rank = 0; rank <= amalgamBodyCount!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(amalgamBodyCount!, rank)).toContain(
-                "Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; neighboring-target proc history and stagger utility are not modeled, so Auto Optimize skips this mod.",
+                "Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; it also notes these procs can trigger Shattering Impact. That armor-strip interaction, neighboring-target proc history, and stagger utility are not modeled, so Auto Optimize skips this mod.",
             );
         }
         const result = optimizeBuild(furax!, [amalgamBodyCount!], "meleeDps", 1, { allowForma: false });
