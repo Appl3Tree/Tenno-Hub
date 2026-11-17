@@ -275,3 +275,17 @@ describe("Damage 3.0 shared rules", () => {
         expect(factionDamageTypeModifier("Grineer", "true")).toBe(0);
     });
 });
+
+describe("Sacrificial set source record", () => {
+    it("records the current set and member pages plus its modeled compatibility boundary", () => {
+        expect(DAMAGE_RULESET.sources.setMods).toBe("https://wiki.warframe.com/w/Set_Mods");
+        expect(DAMAGE_RULESET.sources.sacrificialPressure).toBe("https://wiki.warframe.com/w/Sacrificial_Pressure");
+        expect(DAMAGE_RULESET.sources.sacrificialSteel).toBe("https://wiki.warframe.com/w/Sacrificial_Steel");
+        expect(DAMAGE_RULESET.sources.factionDamageBonus).toBe("https://wiki.warframe.com/w/Faction_Damage_Bonus");
+        expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
+            entry.includes("both canonical Sacrificial mods are selected on the active melee weapon") &&
+            entry.includes("Sentients is normalized to the planner's Sentient faction key") &&
+            entry.includes("different inactive weapon"),
+        )).toBe(true);
+    });
+});

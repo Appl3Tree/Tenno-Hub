@@ -48,6 +48,10 @@ export const DAMAGE_RULESET = Object.freeze({
         protonSnap: "https://wiki.warframe.com/w/Proton_Snap",
         motusSetup: "https://wiki.warframe.com/w/Motus_Setup",
         melee: "https://wiki.warframe.com/w/Melee",
+        setMods: "https://wiki.warframe.com/w/Set_Mods",
+        sacrificialSteel: "https://wiki.warframe.com/w/Sacrificial_Steel",
+        sacrificialPressure: "https://wiki.warframe.com/w/Sacrificial_Pressure",
+        factionDamageBonus: "https://wiki.warframe.com/w/Faction_Damage_Bonus",
         meleeUpdate35: "https://wiki.warframe.com/w/Update_35",
         tennokai: "https://wiki.warframe.com/w/Melee#Tennokai",
         tennokaiMods: "https://wiki.warframe.com/w/Tennokai_Mods",
@@ -76,6 +80,7 @@ export const DAMAGE_RULESET = Object.freeze({
         update43: "https://www.warframe.com/en/patch-notes/pc/43-0-0",
     }),
     knownLimitations: Object.freeze([
+        "The two-piece Sacrificial set is applied when both canonical Sacrificial mods are selected on the active melee weapon: each mod's listed damage, critical chance (including its Heavy Attack amount), and Sentient faction bonus is scaled by 25%. Sentients is normalized to the planner's Sentient faction key. Set pieces on a different inactive weapon and individual combat history are outside this selected-weapon model.",
         "Ranged fire-rate calculations apply the Wiki's 10-round/s cap to Semi-Auto trigger pulls and ignore positive and negative Fire Rate modifiers while a compatible Cannonade mod is equipped. Semi/Duplex rates assume perfect manual cadence; steady-state Auto-Spool DPS uses the Wiki's fully spooled Arsenal rate, while finite TTK applies source-backed rate-only ramps to selected Gorgon, Soma, Supra, Tenora, Aksomati, Cestra, Coda Bubonico, Grattler, Phaedra, and Imperator Vandal attack rows. Those sequences start with an immediate first hit and assume a spool reset after an empty magazine. Wiki-confirmed Auto-Spool attacks without a complete supported cadence are explicitly marked, and the finite attack sequence / Expected TTK optimizer is withheld for those rows instead of assuming full rate from the first shot. Variable pellet, per-pellet Status Chance, ammo-cost, and rate ramps are modeled for Kohmak, Twin Kohmak, and Kuva Kohm; their intermediate ammo costs are linearly inferred from Wiki endpoint costs and fractional ammo carries between shots. Standard Kohm finite timing remains unavailable because its current Wiki page omits complete starting-rate and per-shot cadence data. Spool retention between trigger bursts, recoil/accuracy changes, and misses remain unmodeled. Held assumes the source fire rate represents damage ticks.",
         "Primary elemental mods resolve in weapon mod-slot order; repeated types remain at their first slot, conditional effects retain their source mod slot, and innate primary elements append in Heat/Cold/Electricity/Toxin order. Slot-order results are covered by independent fixtures but not in-game telemetry.",
         "The Wiki confirms non-elemental bonuses multiply final quantized values without changing damage composition; the current implementation uses an algebraically equivalent shared-scale application for uniform base-damage bonuses. This equivalence has direct tests but has not been independently compared with in-game telemetry.",

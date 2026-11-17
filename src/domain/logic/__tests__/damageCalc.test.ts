@@ -4185,3 +4185,115 @@ describe("Gladiator combo-scaled melee Critical Chance set bonus", () => {
         expect(ranged.critChance).toBeCloseTo(0.2, 10);
     });
 });
+
+describe("Sacrificial two-piece melee set bonus", () => {
+    it("marks the canonical ranks and boosts damage, normal/heavy crit, and Sentient bonus by 25%", () => {
+        const weapon = makeWeapon({ impact: 100 });
+        const meleeWeapon = {
+            ...weapon,
+            category: "Melee" as const,
+            weaponType: "Sword",
+            modCompat: "Melee",
+            critChance: 0.2,
+            statusChance: 0,
+        };
+        const setPath = "/Lotus/Upgrades/Mods/Sets/Sacrifice/SacrificeSetMod";
+        const setMods = getModsForWeapon(meleeWeapon).filter((candidate) => candidate.setBonusPath === setPath);
+        expect(setMods.map((candidate) => candidate.name).sort()).toEqual(["Sacrificial Pressure", "Sacrificial Steel"]);
+        for (const mod of setMods) {
+            expect(mod.effectsByRank.every((effect) => effect.sacrificialSetModCount === 1)).toBe(true);
+            expect(getUnmodeledDamageEffectLines(mod, mod.fusionLimit)).toEqual([]);
+        }
+        const pressure = setMods.find((mod) => mod.name === "Sacrificial Pressure")!;
+        const steel = setMods.find((mod) => mod.name === "Sacrificial Steel")!;
+        const pressureEffect = pressure.effectsByRank[pressure.fusionLimit];
+        const steelEffect = steel.effectsByRank[steel.fusionLimit];
+        for (const mod of setMods) {
+            expect(mod.effectsByRank.every((effect) => effect.sacrificialSetModId === mod.uniqueName)).toBe(true);
+        }
+        expect(pressureEffect.damageBonus).toBeCloseTo(1.1, 10);
+        expect(pressureEffect.factionDamageBonus).toBeCloseTo(0.33, 10);
+        expect(pressureEffect.targetFaction).toBe("Sentient");
+        expect(steelEffect.critChanceBonus).toBeCloseTo(2.2, 10);
+        expect(steelEffect.heavyAttackCritChanceBonus).toBeCloseTo(2.2, 10);
+        expect(steelEffect.factionDamageBonus).toBeCloseTo(0.33, 10);
+        expect(steelEffect.targetFaction).toBe("Sentient");
+
+        const unpaired = calculateBuild(meleeWeapon, [pressureEffect], "Sentient").modded;
+        expect(unpaired.sacrificialSetModCount).toBe(1);
+        expect(unpaired.totalDamageBonus).toBeCloseTo(1.1, 10);
+        const pair = [pressureEffect, steelEffect];
+        const paired = calculateBuild(meleeWeapon, pair, "Sentient").modded;
+        expect(paired.sacrificialSetModCount).toBe(2);
+        expect(paired.totalDamageBonus).toBeCloseTo(1.375, 10);
+        expect(paired.critChance).toBeCloseTo(0.2 * 3.75, 10);
+        expect(paired.factionDamageBonus).toBeCloseTo(0.825, 10);
+        const otherFaction = calculateBuild(meleeWeapon, pair, "Grineer").modded;
+        expect(otherFaction.factionDamageBonus).toBe(0);
+
+        const duplicateMember = calculateBuild(meleeWeapon, [pressureEffect, pressureEffect], "Sentient").modded;
+        expect(duplicateMember.sacrificialSetModCount).toBe(1);
+        expect(duplicateMember.totalDamageBonus).toBeCloseTo(2.2, 10);
+        expect(duplicateMember.factionDamageBonus).toBeCloseTo(0.66, 10);
+
+        const heavyWeapon = { ...meleeWeapon, selectedAttackUsesHeavyAttackCritChance: true };
+        const heavy = calculateBuild(heavyWeapon, pair, "Sentient").modded;
+        expect(heavy.critChance).toBeCloseTo(0.2 * 6.5, 10);
+        expect(heavy.factionDamageBonus).toBeCloseTo(0.825, 10);
+
+        for (let rank = 0; rank <= Math.min(pressure.fusionLimit, steel.fusionLimit); rank++) {
+            const rankedPressure = pressure.effectsByRank[rank];
+            const rankedSteel = steel.effectsByRank[rank];
+            const rankedPair = calculateBuild(meleeWeapon, [rankedPressure, rankedSteel], "Sentient").modded;
+            expect(rankedPair.totalDamageBonus).toBeCloseTo(
+                ((rankedPressure.damageBonus ?? 0) + (rankedSteel.damageBonus ?? 0)) * 1.25,
+                10,
+            );
+            expect(rankedPair.critChance).toBeCloseTo(
+                meleeWeapon.critChance * (1 + ((rankedPressure.critChanceBonus ?? 0) + (rankedSteel.critChanceBonus ?? 0)) * 1.25),
+                10,
+            );
+            expect(rankedPair.factionDamageBonus).toBeCloseTo(
+                ((rankedPressure.factionDamageBonus ?? 0) + (rankedSteel.factionDamageBonus ?? 0)) * 1.25,
+                10,
+            );
+        }
+    });
+
+    it("does not activate on ranged builds or with only one member", () => {
+        const meleeWeapon = {
+            ...makeWeapon({ impact: 100 }),
+            category: "Melee" as const,
+            weaponType: "Sword",
+            modCompat: "Melee",
+        };
+        const setMods = getModsForWeapon(meleeWeapon).filter((mod) =>
+            mod.setBonusPath === "/Lotus/Upgrades/Mods/Sets/Sacrifice/SacrificeSetMod",
+        );
+        const [pressureMod, steelMod] = setMods;
+        const piece = pressureMod.effectsByRank[pressureMod.fusionLimit];
+        const single = calculateBuild(meleeWeapon, [piece], "Sentient").modded;
+        expect(single.sacrificialSetModCount).toBe(1);
+        expect(single.totalDamageBonus).toBeCloseTo(piece.damageBonus, 10);
+        const rangedWeapon = makeWeapon({ impact: 100 });
+        const ranged = calculateBuild(
+            rangedWeapon,
+            [pressureMod.effectsByRank[pressureMod.fusionLimit], steelMod.effectsByRank[steelMod.fusionLimit]],
+            "Sentient",
+        ).modded;
+        expect(ranged.sacrificialSetModCount).toBe(2);
+        expect(ranged.totalDamageBonus).toBeCloseTo(
+            (pressureMod.effectsByRank[pressureMod.fusionLimit].damageBonus ?? 0) +
+                (steelMod.effectsByRank[steelMod.fusionLimit].damageBonus ?? 0),
+            10,
+        );
+        expect(ranged.critChance).toBeCloseTo(
+            rangedWeapon.critChance +
+                rangedWeapon.critChance * (
+                    (pressureMod.effectsByRank[pressureMod.fusionLimit].critChanceBonus ?? 0) +
+                    (steelMod.effectsByRank[steelMod.fusionLimit].critChanceBonus ?? 0)
+                ),
+            10,
+        );
+    });
+});
