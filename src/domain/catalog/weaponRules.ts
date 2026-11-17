@@ -160,5 +160,6 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackAutoSpoolCadence: attack.autoSpoolCadence,
         selectedAttackAutoSpoolShotSequence: attack.autoSpoolShotSequence,
         selectedAttackAutoSpoolTimingLimitation: attack.autoSpoolTimingLimitation,
+        selectedAttackModelLimitation: attack.modelLimitation,
     };
 }

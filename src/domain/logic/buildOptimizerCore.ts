@@ -4208,6 +4208,14 @@ export function optimizeBuildCore(
     slotCount: number,
     opts: OptimizerOptions = {},
 ): OptimizeResult {
+    const attackModelLimitation = opts.buildForAttack?.modelLimitation ?? weapon.selectedAttackModelLimitation;
+    if (attackModelLimitation) {
+        throw new Error(
+            `Optimization is unavailable for ${weapon.selectedAttackName ?? opts.buildForAttack?.name ?? weapon.name}: ` +
+            `${attackModelLimitation.reason} Wiki: ${attackModelLimitation.sourceUrl}`,
+        );
+    }
+
     const autoSpoolTimingLimitation = opts.buildForAttack?.autoSpoolTimingLimitation ??
         weapon.selectedAttackAutoSpoolTimingLimitation;
     if (goal === "timeToKill" && autoSpoolTimingLimitation) {
