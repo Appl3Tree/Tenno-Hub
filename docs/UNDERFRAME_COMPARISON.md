@@ -1,12 +1,27 @@
 # Tenno-Hub and Underframe comparison
 
-Research checkpoint: 2026-11-16. This comparison records verifiable product and architecture differences; it does not claim numerical superiority before a same-build, same-assumptions benchmark.
+Research checkpoint: 2026-11-17. This comparison records verifiable product and architecture differences; it does not claim general numerical superiority from one paired fixture.
 
 ## Evidence and limits
 
-- The live [Underframe site](https://www.underframe.site/) was reviewed through its current indexed UI and featured-build pages. Its visible controls include weapon/build editing, share links, target and external-buff configuration, a simulation calculator, Auto Build, Riven tools, and Incarnon options. Codex's in-app browser request was queued without a rendered capture, so click-by-click interaction is still unverified.
+- The live [Underframe site](https://www.underframe.site/) was reviewed through its current indexed UI and featured-build pages. Its visible controls include weapon/build editing, share links, target and external-buff configuration, a simulation calculator, Auto Build, Riven tools, and Incarnon options. A saved Braton Prime fixture was also opened in Codex's in-app browser and its target/result controls were click-tested with rendered captures; broader browser interaction coverage remains open.
 - The public [Underframe Desktop repository](https://github.com/NevermindNilas/underframe-desktop/tree/fe38d07f3515a995a068015314ad85acc65bef61) was inspected at commit `fe38d07f3515a995a068015314ad85acc65bef61` (repository last updated 2026-10-25). Relevant sources include its [README](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/README.md), [Auto Build implementation](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/src/shared/auto-build.js), [worker](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/src/renderer/auto-build.worker.js), and [Auto Build port notes](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/docs/port-auto-build.md).
 - The Desktop repository declares `AGPL-3.0-only` for its public application code. Its README and NOTICE identify `core/` as a private submodule containing the damage engine and game data. This review uses public behavior and documentation only; it does not copy code or rely on the private engine.
+
+## Matched Braton Prime saved-build comparison (2026-11-17)
+
+The in-app browser opened the saved `Braton Prime benchmark` Underframe build with these eight mods and ranks: Amalgam Serration R10, Bane of Corpus R5, Bane of Grineer R5, Bane of Infested R5, Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, and Vital Sense R5. The target was the level-100 Grineer Heavy Gunner at 83,818 Health / 2,700 Armor, with no Shields or Overguard. The page had Primary Bulwark at 500/500, no external statuses or buffs, headshots disabled, Accurate Ammo enabled, and a five-second simulation. The temporary Health/Armor edits were restored to the saved page's original 300/500 values after the comparison.
+
+Underframe's rendered standard `Calculate DPS` result showed 1,403 raw + 803 DoT average damage per shot, 21,677 Average DPS, and 3.87 s TTK. Its `Luck Averaged DPS` result showed 1,521 raw + 463 DoT, 19,384 Average DPS, and `? ttk` rather than a finite TTK. The result screenshot was captured in the in-app browser; the accessibility tree confirmed the target values, mod ranks, Bulwark slider, and empty external-status list.
+
+The same saved list was then scored with Tenno-Hub's current-main common finite evaluator using `npx tsx scripts/comparePlannerBuilds.ts --saved-underframe --primary-bulwark --reoptimize --goal=timeToKill --analyze-underframe-swaps`. Both lists used the same target pools and Initial state, no target headshot multiplier, Exilus, or external buffs, a Catalyst, and a three-Forma cap. Primary Bulwark was mapped to its +500% rank-5 cap using 1,500 Warframe Armor, matching Underframe's 500/500 slider. The Underframe list was legal at 57/60 capacity and three Forma; Tenno-Hub's optimized list was legal at 59/60 and three Forma.
+
+| Fixed build | Tenno-Hub modeled Expected TTK | Tenno-Hub encounter DPS |
+| --- | ---: | ---: |
+| Captured Underframe eight-mod build | 4.070981 s | 20,589.14 |
+| Tenno-Hub optimized eight-mod build | 1.428414 s | 58,679.05 |
+
+The bounded 1–4-mod replacement neighborhood between the two captured lists checked 69 combinations (50 legal); none beat the Tenno-Hub baseline under Tenno-Hub's evaluator. Underframe's native luck-averaged button does not report a finite TTK, and the native standard result and the shared expected encounter use different simulators. The close but non-identical results are evidence for this one fixture only, not model validation or general optimizer superiority. A broader same-build corpus across weapons/objectives and independent gameplay validation remain open.
 
 ## Feature comparison
 
@@ -26,4 +41,4 @@ Research checkpoint: 2026-11-16. This comparison records verifiable product and 
 2. Both optimizers use candidate search and refinement. Underframe's public Auto Build source documents a staged heuristic with local swaps; Tenno-Hub uses beam search and finite-score refinement. Tenno-Hub's current tests compare bounded candidate pools against exhaustive legal builds and solver shortlists, while its own work log keeps full-catalog global quality open.
 3. The public Desktop source documents worker isolation and reproducible seeded simulations. Its private core prevents independent audit of the final damage engine, so an observed numerical match would be evidence for that scenario rather than proof that either model is generally correct.
 4. The next useful optimizer comparison is a reproducible paired corpus: same weapon variant and attack, mod/Arcane ranks, Forma/Catalyst, Incarnon choices, target defenses, external buffs, and conditional state. Compare build legality, objective value, per-run latency, and the actual selected setup. Record cases where assumptions cannot be aligned.
-5. The final same-build Underframe comparison remains outstanding until the remaining Damage 3.0 mechanic and optimizer-quality work is closer to completion. The in-app browser has not yet returned a rendered Underframe session, so this document makes no click-tested or same-build result claim.
+5. One click-tested, same-build Braton Prime comparison is recorded above. A broader paired corpus remains outstanding: match several weapon categories, objectives, arcs/conditional settings, target profiles, and repeat counts before making general quality claims.
