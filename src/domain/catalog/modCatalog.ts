@@ -150,6 +150,8 @@ export interface ModEffect {
     tauBonus: number;
     trueBonus: number;
     critChanceBonus: number;
+    /** Number of distinct Vigilante set members selected on this weapon. */
+    vigilanteSetModCount: number;
     /** Additional critical chance from mods whose base bonus is doubled on selected heavy attacks. */
     heavyAttackCritChanceBonus: number;
     /** Additive critical chance that applies only to selected slide attacks. */
@@ -254,6 +256,7 @@ const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjecti
 const SENTIENT_SURGE_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveOcucorAugmentMod";
 const PROTON_JET_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModB";
 const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
+const VIGILANTE_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod";
 export const SPRING_LOADED_BROADHEAD_PATH = "/Lotus/Upgrades/Mods/PvPMods/Rifle/DaikyuMoreDamageOverDistanceMod";
 const MENTOR_LEGACY_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/TennokaiBaseMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
@@ -1380,6 +1383,10 @@ function buildCaches(): ModCaches {
             unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
+        if (item.modSet === VIGILANTE_SET_BONUS_PATH) {
+            // Set bonuses are piece-count based and do not depend on mod rank.
+            effectsByRank.forEach((effect) => { effect.vigilanteSetModCount = 1; });
+        }
         if (locksFireRate) {
             // Cannonade's lock applies at every rank and ignores both positive
             // and negative Fire Rate changes while equipped.

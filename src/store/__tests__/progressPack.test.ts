@@ -27,6 +27,7 @@ describe("progress pack inventory serialization", () => {
                 plannerConfig: {
                     goal: "timeToKill",
                     targetStartsWithHeat: true,
+                    externalVigilanteSetModCount: 3,
                     externalHeatElementalDamageBonusPercent: 90,
                     externalHeatFactionDamageBonusPercent: 55,
                     target: {
@@ -58,6 +59,7 @@ describe("progress pack inventory serialization", () => {
         });
         expect(restored.modBuilder?.savedBuilds[0].plannerConfig).toMatchObject({
             targetStartsWithHeat: true,
+            externalVigilanteSetModCount: 3,
             externalHeatElementalDamageBonusPercent: 90,
             externalHeatFactionDamageBonusPercent: 55,
         });

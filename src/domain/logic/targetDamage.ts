@@ -83,6 +83,8 @@ export interface DirectTargetDamageInput {
     /** Base post-mod critical chance/multiplier for encounter status-state updates. */
     critChance?: number;
     critMultiplier?: number;
+    /** Chance to upgrade a landed Primary crit by one tier. */
+    critTierEnhancementChance?: number;
     nonCriticalHitDamageProcs?: readonly NonCriticalHitDamageProc[];
     expectedProjectiles?: number;
     /** Expected direct-damage multiplier per attack; defaults to expectedProjectiles. */
@@ -124,7 +126,13 @@ export function calculateDirectDamageToInitialPools(
     const expectedDamageMultiplier = finiteNonNegative(input.expectedDamageMultiplier ?? projectileCount);
     const hitDamageMultiplier = finiteNonNegative(input.expectedHitDamageMultiplier ?? (
         input.critChance !== undefined && input.critMultiplier !== undefined
-            ? avgHitDamageMultiplier(input.critChance, input.critMultiplier, input.nonCriticalHitDamageProcs, input.hitLocation)
+            ? avgHitDamageMultiplier(
+                input.critChance,
+                input.critMultiplier,
+                input.nonCriticalHitDamageProcs,
+                input.hitLocation,
+                input.critTierEnhancementChance,
+            )
             : 1
     ));
     const damageRampMultiplier = finiteNonNegative(
@@ -1430,6 +1438,7 @@ export function simulateExpectedWeaponEncounter(
                 input.critMultiplier + coldCritBonus,
                 input.nonCriticalHitDamageProcs,
                 input.hitLocation,
+                input.critTierEnhancementChance,
             )
             : finiteNonNegative(input.expectedHitDamageMultiplier ?? 1);
         return {
@@ -2198,6 +2207,7 @@ export function simulateDirectAttackSequence(
                     combo.critDamageMultiplier,
                     input.nonCriticalHitDamageProcs,
                     input.hitLocation,
+                    input.critTierEnhancementChance,
                 );
             }
             const result = calculateDirectDamageToInitialPools({

@@ -222,6 +222,8 @@ export interface SavedBuildPlannerConfig {
     externalConditionalStacks?: number;
     /** Distinct additional status types assumed active for Condition Overload (including Tau). */
     externalStatusTypeCount?: number;
+    /** Additional distinct Vigilante set mods equipped outside the selected weapon (0–6). */
+    externalVigilanteSetModCount?: number;
     /** Named external status types assumed active for Condition Overload and eligible direct-hit bonuses. */
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */

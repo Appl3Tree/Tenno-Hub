@@ -353,8 +353,14 @@ describe("weapon mod set membership", () => {
         expect(bratonPrime).toBeTruthy();
 
         const mods = getModsForWeapon(bratonPrime!);
-        expect(mods.find((mod) => mod.name === "Vigilante Armaments")?.setBonusPath)
-            .toBe("/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod");
+        const vigilanteSetPath = "/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod";
+        const vigilanteMods = mods.filter((mod) => mod.setBonusPath === vigilanteSetPath);
+        expect(vigilanteMods.map((mod) => mod.name)).toContain("Vigilante Armaments");
+        expect(vigilanteMods.length).toBeGreaterThan(0);
+        for (const mod of vigilanteMods) {
+            expect(mod.effectsByRank.every((effect) => effect.vigilanteSetModCount === 1)).toBe(true);
+        }
         expect(mods.find((mod) => mod.name === "Serration")?.setBonusPath).toBeUndefined();
+        expect(mods.find((mod) => mod.name === "Serration")?.effect.vigilanteSetModCount).toBe(0);
     });
 });

@@ -5184,7 +5184,7 @@ describe("build optimizer scoring", () => {
         ).toBeLessThanOrEqual(5);
     });
 
-    it("does not fill Exilus with movement-only or other unscored utility mods", { timeout: 30000 }, () => {
+    it("selects Vigilante Supplies for its modeled set bonus and skips other unscored Exilus utility", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find(w => w.name === "Acceltra Prime");
         expect(weapon).toBeTruthy();
 
@@ -5206,7 +5206,7 @@ describe("build optimizer scoring", () => {
             buildForAttack: weapon!.attacks[0],
         });
 
-        expect(result.exilusMod).toBeNull();
+        expect(result.exilusMod?.name).toBe("Vigilante Supplies");
         expect(result.capacityValid).toBe(true);
     });
 
@@ -5554,5 +5554,26 @@ describe("damage calculation ramp interactions", () => {
         expect(noReloadBuild.sustainedDPS).toBeCloseTo(noReloadBuild.burstDPS, 6);
         expect(quickdrawBuild.sustainedDPS).toBeCloseTo(quickdrawBuild.burstDPS, 6);
         expect(quickdrawBuild.sustainedDPS).toBeCloseTo(noReloadBuild.sustainedDPS, 6);
+    });
+});
+
+describe("Vigilante set optimizer scoring", () => {
+    it("scores selected and external pieces in fast and finite damage objectives", () => {
+        const weapon = makeWeapon({ critChance: 0.5, critMultiplier: 2 });
+        const setPieceEffect = { ...emptyEffect(), vigilanteSetModCount: 1 };
+        const baseState = { mode: "initial" as const };
+        const externalSetState = { ...baseState, externalVigilanteSetModCount: 2 };
+        const baseBurst = debugScoreBuild(weapon, [], "burst", "", null, null, baseState);
+        const selectedPieceBurst = debugScoreBuild(weapon, [setPieceEffect], "burst", "", null, null, baseState);
+        const externalPiecesBurst = debugScoreBuild(weapon, [], "burst", "", null, null, externalSetState);
+        expect(selectedPieceBurst).toBeGreaterThan(baseBurst);
+        expect(externalPiecesBurst).toBeGreaterThan(baseBurst);
+
+        const target = { health: 100_000, shields: 0, overguard: 0, armor: 0 };
+        const baseFinite = debugScoreExpectedEncounter(weapon, [], "", target, baseState);
+        const setFinite = debugScoreExpectedEncounter(weapon, [setPieceEffect], "", target, externalSetState);
+        expect(baseFinite.timeToKillSeconds).not.toBeNull();
+        expect(setFinite.timeToKillSeconds).not.toBeNull();
+        expect(setFinite.timeToKillSeconds).toBeLessThan(baseFinite.timeToKillSeconds!);
     });
 });
