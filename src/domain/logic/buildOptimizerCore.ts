@@ -2446,6 +2446,10 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         Number(entry[key] ?? 0) !== 0,
     ));
     const families: string[] = [];
+    if (effects.some((entry) =>
+        (Number(entry.fireRateBonus ?? 0) > 0 || Number(entry.attackSpeedBonus ?? 0) > 0) &&
+        Number(entry.damageBonus ?? 0) < 0,
+    )) families.push("tempo-damage-tradeoff");
     const hasConditionalReloadFireRate = (effect.conditionalEffects ?? []).some((conditional) =>
         conditional.trigger === "onReload" && Number(conditional.stats.fireRateBonus ?? 0) !== 0,
     );
@@ -2964,7 +2968,7 @@ function refineBuildByExpectedEncounter(
         // reserve this family before proxy-adjacent base-damage/tempo alternatives
         // can consume the bounded single-replacement shortlist.
         const singleCandidateFamilies = [
-            "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
+            "tempo-damage-tradeoff", "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
             "elemental-electricity-status", "elemental-cold", "elemental-toxin",
             "elemental-heat", "elemental-electricity", "elemental",
             "multishot", "faction-damage", "critical", "reload-fire-rate", "fire-rate",
@@ -2988,7 +2992,7 @@ function refineBuildByExpectedEncounter(
         }
         // The proxy-best replacement slot can miss a better finite-TTK swap when
         // another outgoing mod changes element composition or damage thresholds.
-        // Keep one alternate replacement for selected candidates in these families.
+        // Keep bounded alternate replacement slots for selected candidates.
         const shortlistedReplacementSignatures = new Set(shortlist.map((proposal) => {
             const candidate = proposal.candidates[0];
             return candidate
@@ -3002,13 +3006,41 @@ function refineBuildByExpectedEncounter(
             shortlistedCandidates.set(`${candidate.mod.uniqueName}@${candidate.rank}`, candidate);
         }
         const slotAlternativeFamilies = [
-            "critical", "reload-fire-rate", "base-damage",
+            "tempo-damage-tradeoff", "critical", "reload-fire-rate", "base-damage",
             "elemental-heat-status", "elemental-toxin-status", "elemental-cold-status", "elemental-electricity-status",
             "elemental-heat", "elemental-toxin", "elemental-cold", "elemental-electricity", "elemental",
             "fire-rate", "weapon-tempo", "multishot", "status", "faction-damage",
         ];
         const candidatesWithSlotAlternative = new Set<string>();
         let slotAlternatives = 0;
+        // Fire-rate mods that reduce per-shot damage can rank below direct-damage
+        // proposals even though their faster firing wins the finite encounter.
+        // Keep several outgoing-slot choices for this explicit tradeoff family;
+        // a single proxy-best slot can be the wrong one for Expected TTK.
+        for (const [candidateKey, candidate] of shortlistedCandidates) {
+            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
+            if (!expectedEncounterCandidateFamilies(candidate).includes("tempo-damage-tradeoff")) continue;
+            let alternativesForCandidate = 0;
+            for (const proposal of sortedProposals) {
+                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                    slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
+                const proposalCandidate = proposal.candidates[0];
+                if (!proposalCandidate || !proposal.replacedModUniqueName ||
+                    `${proposalCandidate.mod.uniqueName}@${proposalCandidate.rank}` !== candidateKey) continue;
+                const replacementSignature = `${candidateKey}|${proposal.replacedModUniqueName}`;
+                if (shortlistedReplacementSignatures.has(replacementSignature)) continue;
+                shortlistedReplacementSignatures.add(replacementSignature);
+                candidatesWithSlotAlternative.add(candidateKey);
+                shortlist.push(proposal);
+                alternativesForCandidate++;
+                slotAlternatives++;
+                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                    slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT || alternativesForCandidate >= 3) break;
+            }
+            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
+        }
         for (const family of slotAlternativeFamilies) {
             if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
                 slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;

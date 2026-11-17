@@ -1,5 +1,32 @@
 # Build Planner Optimizer Benchmark
 
+## Seeded 12-weapon full-catalog Expected TTK corpus and tempo-tradeoff correction (2026-11-17)
+
+Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261117`. The repeatable corpus combines eight previously audited anchors with one Mulberry32-uniform candidate from each predeclared underrepresented stratum. The selected seeded cases were Tenet Envoy / Rocket Explosion, Corvas Prime / Charged Shot, Helstrum / Explosion, and Gram Prime / Heavy Slam Attack. The fixed anchors are Braton Prime / Normal Attack, Cedo / Normal Attack, Laetum / Normal Attack, Soma Prime / Fully Spooled, Broken War / Normal Attack, Kuva Nukor / Normal Attack, Nataruk / Perfect Shot, and Torid / Grenade Impact. Candidate strata are: explosive primary (Kuva Ogris, Acceltra Prime, Tenet Envoy); Archgun (Corvas Prime, Mausolon); companion weapon (Verglas Prime, Helstrum); and heavy melee (Gram Prime, Arca Titron). The seed and selected case list are emitted by `--dry-run`.
+
+All cases use Grineer, 100,000 Health / 3,000 Armor, no Shields or Overguard, Realistic conditional state, eight main slots, Catalyst, MR30, up to three Forma, no Arcane or Exilus optimization, and exact finite Expected TTK. Starting from Auto Optimize's legal build, the audit scored every legal one-mod add, remove, or replacement from the eligible full catalog. The pre-fix run on clean main `1a21a0b58bec0fdc08fba12d431f2ad5cee9bca4` found one miss: Helstrum / Explosion's 387 legal neighbors included Continuous Misery → Vile Acceleration, lowering modeled TTK from 62s to 52s. The Vile Acceleration candidate entered refinement, but its proxy-favored replacement slots displaced the exact-best outgoing slot.
+
+The generic fix classifies positive fire-rate/attack-speed effects paired with negative direct damage as `tempo-damage-tradeoff`. It reserves up to three outgoing-slot alternatives for shortlisted candidates in that family, within the existing per-pass limits of 40 exact single replacements and eight slot alternatives. The regression independently scores the returned Helstrum build and checks the legal Vile Acceleration replacement at 52s.
+
+After the fix, the same seeded corpus returns no improving legal one-mod neighbor in any case:
+
+| Weapon / attack | Selection | Eligible mods | Exact legal neighbors | Expected TTK | Forma |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Braton Prime / Normal Attack | Fixed | 61 | 229 | 2.1194748 s | 3 |
+| Cedo / Normal Attack | Fixed | 61 | 404 | 2.6109661 s | 2 |
+| Laetum / Normal Attack | Fixed | 65 | 292 | 1.8867925 s | 3 |
+| Soma Prime / Fully Spooled | Fixed | 62 | 412 | 1.7191106 s | 2 |
+| Broken War / Normal Attack | Fixed | 62 | 365 | 8.0000000 s | 3 |
+| Kuva Nukor / Normal Attack | Fixed | 65 | 359 | 1.4400000 s | 3 |
+| Nataruk / Perfect Shot | Fixed | 59 | 388 | 1.3000000 s | 1 |
+| Torid / Grenade Impact | Fixed | 62 | 318 | 10.0000000 s | 3 |
+| Tenet Envoy / Rocket Explosion | Seeded | 62 | 411 | 2.5364616 s | 2 |
+| Corvas Prime / Charged Shot | Seeded | 34 | 175 | 1.5384615 s | 3 |
+| Helstrum / Explosion | Seeded | 61 | 311 | 52.0000000 s | 3 |
+| Gram Prime / Heavy Slam Attack | Seeded | 62 | 315 | 1.2500000 s | 3 |
+
+The corpus scored 3,979 exact legal neighbors and took about 95.4s total on Windows x64 / Node v22.16.0; this is exhaustive-audit wall time, not planner interaction latency. Three direct-core Helstrum optimization runs returned the same legal build and 52s score in 3,626.6 / 2,747.8 / 2,906.4ms (median 2,906.4ms, maximum 3,626.6ms). Validation passes at 795 tests / 53 files, production TypeScript/Vite build (existing large-chunk warning), source validation, prerequisite audit (227 entries; no unresolved references/cycles), mod-effect coverage (694 weapons / 599 eligible mods / 489 parsed / 110 with no effects / 71 review candidates / 18 partial / 53 fully unparsed / zero pools without parsed damage), focused ESLint, and CRLF-aware diff check. This is bounded one-mod local-optimum evidence under one target/model, not global optimality, gameplay validation, or an Underframe comparison. PR/deployment are pending.
+
 ## Coda Bassocyst Alt-Fire model boundary (2026-11-17)
 
 The current [Coda Bassocyst Wiki page](https://wiki.warframe.com/w/Coda_Bassocyst) describes an Alt-Fire mite that can attach to up to six enemies, applies Impact/Magnetic damage and status once per second for ten seconds, and has an eligible-target Mercy-finisher branch. The planner's ordinary attack row does not represent delayed multi-target tick history or the Mercy branch. Its displayed row damage and DPS/TTK values are not valid estimates for this mode, so Auto Optimize refuses it and shows the limitation and Wiki link. Normal Attack remains in the supported score pool.
