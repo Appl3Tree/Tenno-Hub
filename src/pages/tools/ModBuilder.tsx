@@ -30,7 +30,7 @@ import { getUnmodeledScoringEffectLines } from "../../domain/catalog/modEffectUt
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
@@ -46,6 +46,18 @@ import { useTrackerStore } from "../../store/store";
 import { getHighestOwnedArcaneRankWithFallback, hasOwnedArcane } from "../../domain/logic/arcaneInventory";
 import type { SavedBuild, SavedBuildPlannerConfig, SavedBuildTargetConfig } from "../../domain/models/userState";
 import { WorkspacePanel, WorkspaceSegmented, WorkspaceSegmentedButton } from "../../components/workspace/WorkspaceChrome";
+
+function getTargetHitLocationProfile(
+    targetFaction: string,
+    targetProfileOverride?: TargetProfileOverride | null,
+): HitLocationDamageProfile {
+    const target = getTargetProfileAssumptions(targetFaction, targetProfileOverride);
+    return {
+        headshotRate: target.headshotHitRate,
+        headshotMultiplier: target.headshotMultiplier,
+        criticalHeadshotMultiplier: target.criticalHeadshotMultiplier,
+    };
+}
 
 // ── Polarity icons ────────────────────────────────────────────────────────────
 
@@ -164,6 +176,7 @@ function simulateBuilderTargetEncounter(
         damageByType: stats.damageBreakdownBeforePerStatus,
         rawDamageByType: stats.rawDamageBreakdownBeforePerStatus,
         baseDamageTotal: stats.baseDamageTotal,
+        hitLocation: stats.hitLocation,
         health: targetAssumptions.health,
         shields: targetAssumptions.shields,
         overguard: targetAssumptions.overguard,
@@ -273,6 +286,7 @@ function estimateGalvanizedPerStatusKillRate(
             conditionalState,
             statusImmuneTypes: effectiveStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps ?? targetAssumptions.statusStackCaps,
+            hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
             targetStatusState: "initial",
             expectedKillRatePerSecond: killRate,
         });
@@ -1490,6 +1504,7 @@ function buildMathBreakdown(
         conditionalState,
         statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
+        hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
         includeTimedConditionalHitStackDetails: true,
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
@@ -1500,6 +1515,7 @@ function buildMathBreakdown(
             conditionalState: { mode: "initial" },
             statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
+            hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
             targetStatusState: "initial",
         }).modded
         : null;
@@ -1559,6 +1575,13 @@ function buildMathBreakdown(
     const dotTypeLines = Object.entries(stats.dotDamagePerShotByType)
         .filter(([, value]) => (value ?? 0) > 0)
         .map(([type, value]) => `${type}: DoT per ${damageUnit} ${fmt(value ?? 0, 5)} | DoT DPS ${fmt(stats.dotDpsByType[type as keyof typeof stats.dotDpsByType] ?? 0, 5)}`);
+    const effectiveHeadshotRate = stats.hitLocation.canHeadshot === false
+        ? 0
+        : Math.max(0, Math.min(1, stats.hitLocation.headshotRate ?? 0));
+    const hitLocationLines = [
+        `Wiki hit-location profile = ${fmt(effectiveHeadshotRate * 100, 2)}% assumed headshots; body factor ${fmt(Math.max(0, 1 + (stats.hitLocation.bodyshotDamageBonus ?? 0)), 5)}, head location ${fmt(stats.hitLocation.headshotMultiplier ?? 1, 5)} × (1 + headshot bonus ${fmt(stats.headshotMultiplierBonus, 5)}) = ${fmt((stats.hitLocation.headshotMultiplier ?? 1) * Math.max(0, 1 + stats.headshotMultiplierBonus), 5)}, critical-headshot factor ${fmt(stats.hitLocation.criticalHeadshotMultiplier ?? 2, 5)}. Area/radial and non-firearm attacks use 0% headshots.`,
+        `Status DoT seeds inherit the inducing hit's headshot multiplier; Meticulous Aim's bodyshot penalty is squared for Slash, Heat, Toxin, and Blast. Weak-point-only damage/critical bonuses remain unmodeled. Sources: https://wiki.warframe.com/w/Enemy_Body_Parts · https://wiki.warframe.com/w/Critical_Multiplier · https://wiki.warframe.com/w/Meticulous_Aim`,
+    ];
     const nightwatchNapalmLines = stats.nightwatchNapalm ? [
         `Nightwatch Napalm: ${fmt(stats.nightwatchNapalm.directDamagePerProjectilePerTick, 5)} direct Heat damage per overlapping blaze tick × 6 ticks per ${damageUnit}; the first tick is immediate. Each tick rolls the Wiki's fixed ${(stats.nightwatchNapalm.heatProcChancePerTick * 100).toFixed(0)}% Heat proc chance independently of weapon Status Chance. Heat status lasts ${fmt(stats.nightwatchNapalm.heatStatusDurationSeconds, 3)}s after duration modifiers.`,
         `Napalm DPS = ${fmt(stats.nightwatchNapalm.directDamagePerSecond, 5)} direct tick damage/s + ${fmt(stats.nightwatchNapalm.heatStatusDamagePerSecond, 5)} steady-state Heat status damage/s. Assumes a stationary single target receives every blaze tick; spatial exposure, other on-tick effects (including Toxic Lash and Xata's Whisper), and crowd coverage are not modeled. Data: https://wiki.warframe.com/w/Nightwatch_Napalm`,
@@ -1577,12 +1600,17 @@ function buildMathBreakdown(
             Number.isFinite(expectedKillRatePerSecond)
             ? { expectedKillRatePerSecond }
             : undefined;
+        const triggerContext = {
+            headshotHitRate: stats.hitLocation.canHeadshot === false ? 0 : stats.hitLocation.headshotRate ?? 0,
+            ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
+            ...(killStackContext ?? {}),
+        };
         const uptime = estimateConditionalUptime(
             conditional,
             baselineRateForConditionals,
             baseMagazineForConditionals,
             conditionalState,
-            killStackContext,
+            triggerContext,
         );
         const stackFactor = estimateConditionalStackFactor(
             conditional,
@@ -1590,9 +1618,9 @@ function buildMathBreakdown(
             baseMagazineForConditionals,
             conditionalState,
             {
+                ...triggerContext,
                 qualifyingHitGroupProbability: conditionalQualifyingGroupProbability,
                 qualifyingHitRatePerSecond: stats.fireRate * conditionalQualifyingGroupProbability,
-                ...killStackContext,
             },
         );
         const combinedFactor = uptime * stackFactor;
@@ -1610,7 +1638,10 @@ function buildMathBreakdown(
         const killCadenceModel = killStackContext
             ? ` identical-target kill interval ${expectedKillRatePerSecond! > 0 ? fmt(1 / expectedKillRatePerSecond!, 3) + "s" : "no modeled kills"}; the Wiki timeout removes one stack and resets its timer. The estimate uses a deterministic repeating-target cycle; it does not simulate per-enemy carryover or unrelated kill sources.`
             : "";
-        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${triggerModel}${killCadenceModel}`;
+        const headshotTriggerModel = conditional.trigger === "onHeadshot" || conditional.trigger === "onHeadshotKill"
+            ? ` Wiki headshot-trigger estimate uses the configured ${(triggerContext.headshotHitRate * 100).toFixed(1)}% share of direct hits; ${conditional.trigger === "onHeadshot" ? "hit refreshes use Poisson arrivals over the listed duration" : Number.isFinite(expectedKillRatePerSecond) ? `expected kills at ${fmt(expectedKillRatePerSecond ?? 0, 4)}/s` : "headshot-kill uptime uses the documented 35% baseline scaled by headshot share"}.`
+            : "";
+        return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${triggerModel}${killCadenceModel}${headshotTriggerModel}`;
     });
     if (conditionalEntries.some((conditional) => conditional.trigger === "onOcucorTendrilKill")) {
         const ocucorTendrilCondition = conditionalEntries.find((conditional) => conditional.trigger === "onOcucorTendrilKill")!;
@@ -1893,6 +1924,7 @@ function buildMathBreakdown(
                 `Quantized direct damage per ${damageUnit} = ${fmt(stats.totalDamage, 5)} × attack damage equivalent ${fmt(attackDamageEquivalent, 5)} = ${fmt(quantizedShotDamage, 5)}`,
                 `Status DoT seed damage share = (damage-weighted multishot ${fmt(stats.damageWeightedMultishot, 5)} + one-hit bonus ${fmt(stats.singleProjectileDamageBonus, 5)}) ÷ multishot ${fmt(stats.multishot, 5)} = ${fmt(stats.multishot > 0 ? attackDamageEquivalent / stats.multishot : 1, 6)}; Spring-Loaded Broadhead enters the seed once and is not applied again to each DoT tick.`,
                 `Average hit damage multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgHitMultiplier, 6)}`,
+                ...hitLocationLines,
                 `Average crit multiplier cross-check = 1 + crit chance × (crit multiplier - 1) = 1 + ${fmt(stats.critChance, 5)} × (${fmt(stats.critMultiplier, 5)} - 1) = ${fmt(1 + stats.critChance * (stats.critMultiplier - 1), 6)}`,
                 `Average direct damage per ${damageUnit} = quantized damage ${fmt(quantizedShotDamage, 5)} × average hit damage multiplier ${fmt(avgHitMultiplier, 6)} = ${fmt(stats.averageShotDamage, 5)}`,
                 ...(stats.firstShotMagazineDamageBonus > 0
@@ -2064,6 +2096,7 @@ function buildExportPayload(args: {
         conditionalState,
         statusImmuneTypes: targetStatusImmunities,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
+        hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
     const meleeDpsBaseline = usesMeleeDamageModel(weapon.category) &&
@@ -2072,6 +2105,7 @@ function buildExportPayload(args: {
             conditionalState: { mode: "initial" },
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
+            hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
             targetStatusState: "initial",
         }).modded
         : null;
@@ -3181,7 +3215,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
                                 weaponState.selectedWeapon,
                                 [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)],
                                 targetFaction,
-                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps },
+                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) },
                             );
                             return (
                                 <div key={b.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-2">
@@ -3212,7 +3246,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
                                 weaponState.selectedWeapon,
                                 [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)],
                                 targetFaction,
-                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps },
+                                { conditionalState, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) },
                             );
                         })() : null;
                         return (
@@ -3526,6 +3560,7 @@ export default function ModBuilder() {
     const [faction, setFaction]          = useState("Grineer");
     const [selectedEnemyProfileId, setSelectedEnemyProfileId] = useState("");
     const [useCustomTargetStats, setUseCustomTargetStats] = useState(false);
+    const [headshotRatePercent, setHeadshotRatePercent] = useState(0);
     const [nearbyEnemyCount, setNearbyEnemyCount] = useState(0);
     const [nearbyGasOuterEnemyCount, setNearbyGasOuterEnemyCount] = useState(0);
     const [nearbyBlastEnemyCount, setNearbyBlastEnemyCount] = useState(0);
@@ -3598,7 +3633,17 @@ export default function ModBuilder() {
         };
     }, [customTargetStats, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, enemyCurrentLevel, isEximus, isSteelPath]);
     const targetProfileOverride = useMemo<TargetProfileOverride | undefined>(() => {
-        if (!useCustomTargetStats) return undefined;
+        const selectedProfile = getEnemyProfile(selectedEnemyProfileId);
+        if (!useCustomTargetStats) {
+            if (!selectedProfile && (!factionOn || headshotRatePercent <= 0)) return undefined;
+            return {
+                headshotHitRate: factionOn ? headshotRatePercent / 100 : 0,
+                ...(selectedProfile ? {
+                    headshotMultiplier: selectedProfile.headshotMultiplier,
+                    criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
+                } : {}),
+            };
+        }
         const hasActiveOverguard = resolvedCustomTargetStats.overguard > 0;
         const statusStackCaps = {
             ...(bossBlastStackCap ? { blast: 4 } : {}),
@@ -3606,6 +3651,11 @@ export default function ModBuilder() {
         };
         return {
             ...resolvedCustomTargetStats,
+            headshotHitRate: factionOn ? headshotRatePercent / 100 : 0,
+            ...(selectedProfile ? {
+                headshotMultiplier: selectedProfile.headshotMultiplier,
+                criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
+            } : {}),
             armorBaseValue: customTargetStats.armor,
             armorLevelMultiplier: scaleCustomTargetByLevel
                 ? enemyStatLevelMultiplier(
@@ -3630,7 +3680,7 @@ export default function ModBuilder() {
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps,
         };
-    }, [useCustomTargetStats, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel]);
+    }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel]);
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
     const [maxFormaAllowed, setMaxFormaAllowed] = useState(9);
@@ -3688,6 +3738,7 @@ export default function ModBuilder() {
         const target: SavedBuildTargetConfig = {
             enabled: factionOn,
             faction,
+            headshotRatePercent,
             enemyProfileId: selectedEnemyProfileId || undefined,
             isEximus,
             bossBlastStackCap,
@@ -3767,6 +3818,7 @@ export default function ModBuilder() {
         warframeEnergyPercent,
         faction,
         factionOn,
+        headshotRatePercent,
         goal,
         maxFormaAllowed,
         optArcane,
@@ -4475,9 +4527,10 @@ export default function ModBuilder() {
             conditionalState,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
+            hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         }) : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions, expectedKillRatePerSecond],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride],
     );
     const phantasmaBeamDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
@@ -4487,9 +4540,10 @@ export default function ModBuilder() {
             conditionalState: { mode: "initial" },
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
+            hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             targetStatusState: "initial",
         }) : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, activeTargetAssumptions],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, activeTargetAssumptions, targetProfileOverride],
     );
     const meleeAverageDps = useMemo(() => {
         if (
@@ -4507,6 +4561,7 @@ export default function ModBuilder() {
             conditionalState,
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
+            hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             targetStatusState: "initial",
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         }) : null,
@@ -4548,10 +4603,12 @@ export default function ModBuilder() {
             magneticDefenseDamageBonus: stats.magneticShieldDamageBonus,
             toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
             damageRampRule: activeCalcWeapon?.selectedAttackDamageRamp,
+            hitLocation: stats.hitLocation,
             expectedHitDamageMultiplier: avgHitDamageMultiplier(
                 stats.critChance + stats.punctureCritChanceBonus,
                 stats.critMultiplier + stats.coldCritDamageBonus,
                 stats.nonCriticalHitDamageProcs,
+                stats.hitLocation,
             ),
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
@@ -5317,6 +5374,9 @@ export default function ModBuilder() {
             const target = plannerConfig.target;
             setFactionOn(target?.enabled ?? false);
             setFaction(target?.faction || "Grineer");
+            setHeadshotRatePercent(Number.isFinite(target?.headshotRatePercent)
+                ? Math.max(0, Math.min(100, target?.headshotRatePercent ?? 0))
+                : 0);
             setSelectedEnemyProfileId(target?.enemyProfileId && getEnemyProfile(target.enemyProfileId)
                 ? target.enemyProfileId
                 : "");
@@ -5381,6 +5441,7 @@ export default function ModBuilder() {
             // whichever experimental target happened to be selected at load time.
             setFactionOn(false);
             setSelectedEnemyProfileId("");
+            setHeadshotRatePercent(0);
             setUseCustomTargetStats(false);
             setIsEximus(false);
             setBossBlastStackCap(false);
@@ -5997,6 +6058,31 @@ export default function ModBuilder() {
                                                                         {f.label}
                                                                     </button>
                                                                 ))}
+                                                            </div>
+                                                            <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <label htmlFor="planner-headshot-rate" className="text-[10px] text-slate-300">
+                                                                        Assumed headshot hit share
+                                                                    </label>
+                                                                    <span className="font-mono text-[10px] text-slate-200">{headshotRatePercent}%</span>
+                                                                </div>
+                                                                <input
+                                                                    id="planner-headshot-rate"
+                                                                    aria-label="Assumed headshot hit share"
+                                                                    type="range"
+                                                                    min={0}
+                                                                    max={100}
+                                                                    step={1}
+                                                                    value={headshotRatePercent}
+                                                                    onChange={(event) => setHeadshotRatePercent(Math.max(0, Math.min(100, Math.round(Number(event.target.value) || 0))))}
+                                                                    className="w-full accent-sky-400"
+                                                                />
+                                                                <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                    Tenno-Hub fills the selected target's headshot multiplier and critical-headshot rule from the WARFRAME Wiki; this control is only your estimated headshot share. Area/radial attacks do not headshot. General faction values are typical estimates, while a named enemy uses its listed hit location. Weak-point-only damage and critical bonuses remain outside this model. Sources: {" "}
+                                                                    <a href="https://wiki.warframe.com/w/Enemy_Body_Parts" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Enemy Body Parts</a>, {" "}
+                                                                    <a href="https://wiki.warframe.com/w/Critical_Multiplier" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Critical Multiplier</a>, {" "}
+                                                                    <a href="https://wiki.warframe.com/w/Meticulous_Aim" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Meticulous Aim</a>.
+                                                                </p>
                                                             </div>
                                                             <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
                                                                 <input type="checkbox" checked={useCustomTargetStats} onChange={(event) => { setUseCustomTargetStats(event.target.checked); setSelectedEnemyProfileId(""); if (!event.target.checked) { setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyGasOuterEnemyCount(0); setNearbyBlastEnemyCount(0); } }} />
@@ -7030,6 +7116,7 @@ export default function ModBuilder() {
                                         conditionalState,
                                         statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
                                         statusStackCaps: targetProfileOverride?.statusStackCaps,
+                                        hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
                                     });
                                 };
                                 // Damage type rows for a given damage object

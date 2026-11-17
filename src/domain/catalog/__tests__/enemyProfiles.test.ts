@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENEMY_PROFILES, getEnemyProfile } from "../enemyProfiles";
+import { ENEMY_PROFILES, getEnemyProfile, getFactionHitLocationProfile } from "../enemyProfiles";
 import { scaleEnemyStat } from "../../logic/enemyScaling";
 
 describe("curated Build Planner enemy baselines", () => {
@@ -77,6 +77,37 @@ describe("curated Build Planner enemy baselines", () => {
             health: 80,
             shields: 0,
             armor: 0,
+        });
+    });
+
+    it("uses current Wiki headshot and critical-headshot exceptions", () => {
+        expect(getEnemyProfile("grineer-lancer")).toMatchObject({
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 2,
+        });
+        expect(getEnemyProfile("corpus-crewman")).toMatchObject({
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 1,
+        });
+        expect(getEnemyProfile("corpus-moa")).toMatchObject({
+            headshotMultiplier: 1,
+            criticalHeadshotMultiplier: 1,
+        });
+        expect(getEnemyProfile("infested-charger")).toMatchObject({
+            headshotMultiplier: 1,
+            criticalHeadshotMultiplier: 1,
+        });
+        expect(getFactionHitLocationProfile("Grineer")).toEqual({
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 2,
+        });
+        expect(getFactionHitLocationProfile("Corpus")).toEqual({
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 1,
+        });
+        expect(getFactionHitLocationProfile("The Murmur")).toEqual({
+            headshotMultiplier: 1.5,
+            criticalHeadshotMultiplier: 1,
         });
     });
 });

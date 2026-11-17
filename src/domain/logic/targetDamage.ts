@@ -31,6 +31,7 @@ import {
 import { advanceDamageRampMultiplier, getInitialDamageRampMultiplier } from "./weaponDamageRamp";
 import { getAutoSpoolShotSequenceState } from "./weaponAutoSpool";
 import { avgHitDamageMultiplier } from "./damageCalc";
+import type { HitLocationDamageProfile } from "./damageCalc";
 import type { TimedConditionalDamageStack } from "./damageCalc";
 import type { NonCriticalHitDamageProc } from "../catalog/modCatalog";
 import {
@@ -75,6 +76,8 @@ export interface DirectTargetDamageInput {
     damageRampMultiplier?: number;
     /** Expected per-hit multiplier after crit tiers and supported noncritical-hit procs. */
     expectedHitDamageMultiplier?: number;
+    /** Wiki-backed target hit-location profile and player's headshot-share assumption. */
+    hitLocation?: HitLocationDamageProfile;
     /** Additional direct-damage fraction applied to one projectile per attack. */
     singleProjectileDamageBonus?: number;
     /** Base post-mod critical chance/multiplier for encounter status-state updates. */
@@ -121,7 +124,7 @@ export function calculateDirectDamageToInitialPools(
     const expectedDamageMultiplier = finiteNonNegative(input.expectedDamageMultiplier ?? projectileCount);
     const hitDamageMultiplier = finiteNonNegative(input.expectedHitDamageMultiplier ?? (
         input.critChance !== undefined && input.critMultiplier !== undefined
-            ? avgHitDamageMultiplier(input.critChance, input.critMultiplier, input.nonCriticalHitDamageProcs)
+            ? avgHitDamageMultiplier(input.critChance, input.critMultiplier, input.nonCriticalHitDamageProcs, input.hitLocation)
             : 1
     ));
     const damageRampMultiplier = finiteNonNegative(
@@ -1372,6 +1375,7 @@ export function simulateExpectedWeaponEncounter(
                 input.critChance + punctureCritBonus,
                 input.critMultiplier + coldCritBonus,
                 input.nonCriticalHitDamageProcs,
+                input.hitLocation,
             )
             : finiteNonNegative(input.expectedHitDamageMultiplier ?? 1);
         return {
@@ -2135,6 +2139,7 @@ export function simulateDirectAttackSequence(
                     currentCritChance,
                     combo.critDamageMultiplier,
                     input.nonCriticalHitDamageProcs,
+                    input.hitLocation,
                 );
             }
             const result = calculateDirectDamageToInitialPools({

@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -2256,6 +2256,87 @@ describe("damage calculation status eligibility", () => {
         expect(result.radiation).toBeGreaterThan(0);
         expect(result.blast).toBe(0);
         expect(result.corrosive).toBe(0);
+    });
+
+    it("applies Wiki headshot, critical-headshot, bodyshot, and inherited DoT modifiers", () => {
+        const hitLocation = {
+            headshotRate: 0.25,
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 2,
+            headshotMultiplierBonus: 0.6,
+            bodyshotDamageBonus: -0.45,
+        } as const;
+
+        // A body hit averages 1.5x critical damage, then the 0.55 body factor.
+        // A head hit uses 3x × (1 + 60%) and the 2x critical-headshot rule.
+        expect(avgHitDamageMultiplier(0.5, 2, [], hitLocation)).toBeCloseTo(3.61875, 10);
+        expect(avgHitDamageMultiplier(0.5, 2, [], { ...hitLocation, headshotRate: 0 })).toBeCloseTo(0.825, 10);
+        expect(avgHitDamageMultiplier(0.5, 2, [], { ...hitLocation, headshotRate: 1 })).toBeCloseTo(12, 10);
+        expect(avgHitDamageMultiplier(0.5, 2, [], { ...hitLocation, canHeadshot: false })).toBeCloseTo(0.825, 10);
+
+        // Meticulous Aim applies its bodyshot penalty twice to Slash, but once
+        // to Electricity; status seeds from a headshot inherit the headshot bonus.
+        expect(getHitLocationDotDamageMultiplier(0.5, 2, { ...hitLocation, headshotRate: 0 }, "slash"))
+            .toBeCloseTo(0.3025, 10);
+        expect(getHitLocationDotDamageMultiplier(0.5, 2, { ...hitLocation, headshotRate: 0 }, "electricity"))
+            .toBeCloseTo(0.55, 10);
+        expect(getHitLocationDotDamageMultiplier(0.5, 2, { ...hitLocation, headshotRate: 1 }, "electricity"))
+            .toBeCloseTo(8, 10);
+
+        const targetHitLocation = {
+            headshotRate: 0.25,
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 2,
+        } as const;
+        const hitLocationMod = {
+            ...emptyEffect(),
+            headshotMultiplierBonus: 0.6,
+            bodyshotDamageBonus: -0.45,
+        };
+        const directWeapon = { ...makeWeapon({ slash: 100 }), critChance: 0.5, critMultiplier: 2 };
+        const direct = calculateBuild(directWeapon, [hitLocationMod], "", { hitLocation: targetHitLocation }).modded;
+        const radial = calculateBuild(
+            { ...directWeapon, selectedAttackIsAreaDamage: true },
+            [hitLocationMod],
+            "",
+            { hitLocation: targetHitLocation },
+        ).modded;
+        expect(direct.hitLocation.canHeadshot).toBe(true);
+        expect(radial.hitLocation.canHeadshot).toBe(false);
+        expect(radial.expectedHitDamageMultiplier).toBeCloseTo(
+            0.55 * (1 + 0.5 * (radial.critMultiplier - 1)),
+            10,
+        );
+    });
+
+    it("uses the configured headshot share for on-headshot triggers and excludes radial hits", () => {
+        const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0.1, critMultiplier: 2 };
+        const onHeadshot = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onHeadshot" as const,
+                durationSeconds: 12,
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { critChanceBonus: 1 },
+            }],
+        };
+        const target = { headshotRate: 1, headshotMultiplier: 3, criticalHeadshotMultiplier: 2 };
+        const bodyOnly = calculateBuild(weapon, [onHeadshot], "", {
+            conditionalState: { mode: "realistic" },
+            hitLocation: { ...target, headshotRate: 0 },
+        }).modded;
+        const headshots = calculateBuild(weapon, [onHeadshot], "", {
+            conditionalState: { mode: "realistic" },
+            hitLocation: target,
+        }).modded;
+        const radial = calculateBuild({ ...weapon, selectedAttackIsAreaDamage: true }, [onHeadshot], "", {
+            conditionalState: { mode: "realistic" },
+            hitLocation: target,
+        }).modded;
+        expect(bodyOnly.critChance).toBeCloseTo(0.1, 10);
+        expect(headshots.critChance).toBeGreaterThan(0.199);
+        expect(radial.critChance).toBeCloseTo(0.1, 10);
     });
 
     it("uses critical multiplier quantization before relative critical damage bonuses", () => {

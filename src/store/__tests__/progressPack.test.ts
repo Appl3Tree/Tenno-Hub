@@ -29,6 +29,7 @@ describe("progress pack inventory serialization", () => {
                     target: {
                         enabled: true,
                         faction: "Grineer",
+                        headshotRatePercent: 35,
                         useCustomStats: true,
                         baseStats: { health: 1000, shields: 0, overguard: 0, armor: 0 },
                         scaleByLevel: false,
@@ -48,6 +49,7 @@ describe("progress pack inventory serialization", () => {
         const restored = replaceProgressPackState(parsed);
 
         expect(restored.modBuilder?.savedBuilds[0].plannerConfig?.target).toMatchObject({
+            headshotRatePercent: 35,
             nearbyEnemyCount: 2,
             nearbyGasOuterEnemyCount: 7,
         });

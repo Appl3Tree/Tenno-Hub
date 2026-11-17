@@ -188,6 +188,8 @@ export interface ModEffect {
     punchThrough: number;
     rangeBonus: number;
     headshotMultiplierBonus: number;
+    /** Signed multiplicative bodyshot damage modifier (Meticulous Aim is negative). */
+    bodyshotDamageBonus: number;
     weakPointDamageBonus: number;
     weakPointCritChanceBonus: number;
     comboDurationBonus: number;
@@ -318,6 +320,7 @@ export interface ConditionalEffect {
         | "statusDamageBonus"
         | "punchThrough"
         | "headshotMultiplierBonus"
+        | "bodyshotDamageBonus"
         | "weakPointDamageBonus"
         | "blastBonus"
         | "heatBonus"
@@ -402,7 +405,7 @@ const CONDITIONAL_STAT_KEYS: (keyof ConditionalEffect["stats"])[] = [
     "finalCritMultiplierBonus", "statusChanceBonus", "finalStatusChanceBonus",
     "multishotBonus", "multishotDamageBonus", "fireRateBonus", "attackSpeedBonus", "magazineBonus",
     "reloadSpeedBonus", "projectileSpeedBonus", "beamRangeBonus", "accuracyBonus",
-    "statusDamageBonus", "punchThrough", "headshotMultiplierBonus", "weakPointDamageBonus",
+    "statusDamageBonus", "punchThrough", "headshotMultiplierBonus", "bodyshotDamageBonus", "weakPointDamageBonus",
     "blastBonus", "heatBonus", "coldBonus", "electricityBonus", "toxinBonus",
     "radiationBonus", "magneticBonus", "gasBonus", "viralBonus", "corrosiveBonus",
     "voidBonus", "tauBonus", "trueBonus", "ammoEfficiencyBonus", "directDamagePerStatusBonus", "initialComboBonus",
@@ -696,7 +699,8 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "heavy attack wind up speed") return { heavyAttackWindUpBonus: scaled };
     if (rest === "combo count chance" || rest === "additional combo count chance") return { comboCountChanceBonus: scaled };
     if (rest === "final status chance") return { finalStatusChanceBonus: scaled };
-    if (rest.includes("headshot multiplier")) return { headshotMultiplierBonus: scaled };
+    if (rest.includes("headshot multiplier") || rest.includes("headshot damage")) return { headshotMultiplierBonus: scaled };
+    if (rest.includes("bodyshot damage")) return { bodyshotDamageBonus: scaled };
     if (rest.includes("weak point damage")) return { weakPointDamageBonus: scaled };
     if (rest.includes("weak point critical chance")) return { weakPointCritChanceBonus: scaled };
     if (rest.includes("life steal")) return { lifeStealBonus: scaled };

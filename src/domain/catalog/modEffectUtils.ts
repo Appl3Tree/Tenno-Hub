@@ -19,12 +19,11 @@ export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nigh
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
-    ["headshotMultiplierBonus", "Headshot multiplier bonus"],
     ["weakPointDamageBonus", "Weak-point damage bonus"],
     ["weakPointCritChanceBonus", "Weak-point critical chance bonus"],
 ] as const;
 
-/** Parsed effects that the current damage and optimizer models cannot apply without hit-location assumptions. */
+/** Parsed effects that the current damage and optimizer models cannot safely apply. */
 export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | null): string[] {
     if (!effect) return [];
     const lines: string[] = [];
@@ -64,7 +63,7 @@ export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | nul
         for (const [key, label] of UNSCORED_HIT_LOCATION_EFFECTS) {
             const value = source.stats[key];
             if (typeof value === "number" && Number.isFinite(value) && value !== 0) {
-                lines.push(`${source.label}: ${label} is not scored because the hit location is not modeled.`);
+                lines.push(`${source.label}: ${label} is not scored because the target's weak-point rules are not modeled.`);
             }
         }
     }
@@ -142,7 +141,7 @@ export function emptyEffect(): ModEffect {
         nightwatchNapalmEffect: 0,
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
-        headshotMultiplierBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
+        headshotMultiplierBonus: 0, bodyshotDamageBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
         comboDurationBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
         heavyAttackEfficiencyBonus: 0, heavyAttackWindUpBonus: 0,
         lifeStealBonus: 0, ammoEfficiencyBonus: 0, directDamagePerStatusBonus: 0,

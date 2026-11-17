@@ -600,6 +600,37 @@ describe("build optimizer scoring", () => {
         expect(normalTarget.statusStackCaps.cold).toBeUndefined();
     });
 
+    it("carries faction and player headshot assumptions into optimizer damage profiles", () => {
+        const grineer = getTargetProfileAssumptions("Grineer", { headshotHitRate: 0.35 });
+        const corpus = getTargetProfileAssumptions("Corpus", { headshotHitRate: 0.8 });
+        const charger = getTargetProfileAssumptions("Infested", {
+            health: 80,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            headshotHitRate: 0.5,
+            headshotMultiplier: 1,
+            criticalHeadshotMultiplier: 1,
+        });
+
+        expect(grineer).toMatchObject({
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 2,
+            headshotHitRate: 0.35,
+        });
+        expect(corpus).toMatchObject({
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 1,
+            headshotHitRate: 0.8,
+        });
+        expect(charger).toMatchObject({
+            headshotMultiplier: 1,
+            criticalHeadshotMultiplier: 1,
+            headshotHitRate: 0.5,
+        });
+        expect(getTargetProfileAssumptions("Grineer", { headshotHitRate: Number.NaN }).headshotHitRate).toBe(0);
+    });
+
     it("applies an explicit boss Blast stack cap without changing other status caps", () => {
         const bossTarget = getTargetProfileAssumptions("Grineer", {
             health: 100,
@@ -690,25 +721,43 @@ describe("build optimizer scoring", () => {
         expect(stackedStatusChance - baseStatusChance).toBeCloseTo(baseStatusChance * 0.9, 8);
     });
 
-    it("discloses and excludes unscored hit-location damage from Auto Optimize", () => {
-        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
+    it("scores Wiki-backed headshot bonuses at the configured hit share and keeps weak-point-only bonuses unscored", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Vulkar Wraith");
         expect(weapon).toBeDefined();
         const mods = getModsForWeapon(weapon!);
         const targetAcquired = mods.find((mod) => mod.name === "Target Acquired");
+        const meticulousAim = mods.find((mod) => mod.name === "Meticulous Aim");
         const primaryAcuity = mods.find((mod) => mod.name === "Primary Acuity");
         expect(targetAcquired?.hasDamageEffect).toBe(true);
+        expect(meticulousAim).toBeDefined();
         expect(primaryAcuity?.hasDamageEffect).toBe(true);
-        expect(getUnmodeledDamageEffectLines(targetAcquired!, targetAcquired!.fusionLimit))
-            .toContain("Effect: Headshot multiplier bonus is not scored because the hit location is not modeled.");
+        expect(getUnmodeledDamageEffectLines(targetAcquired!, targetAcquired!.fusionLimit)).toEqual([]);
+        expect(meticulousAim!.effectsByRank.map((effect) => effect.headshotMultiplierBonus)).toEqual([
+            0.175, 0.35, 0.525, 0.7, 0.875, 1.05,
+        ]);
+        expect(meticulousAim!.effectsByRank.map((effect) => effect.bodyshotDamageBonus)).toEqual([
+            -0.075, -0.15, -0.225, -0.3, -0.375, -0.45,
+        ]);
         expect(getUnmodeledDamageEffectLines(primaryAcuity!, primaryAcuity!.fusionLimit)).toEqual(expect.arrayContaining([
-            "Effect: Weak-point damage bonus is not scored because the hit location is not modeled.",
-            "Effect: Weak-point critical chance bonus is not scored because the hit location is not modeled.",
+            "Effect: Weak-point damage bonus is not scored because the target's weak-point rules are not modeled.",
+            "Effect: Weak-point critical chance bonus is not scored because the target's weak-point rules are not modeled.",
         ]));
 
-        for (const mod of [targetAcquired!, primaryAcuity!]) {
-            const result = optimizeBuild(weapon!, [mod], "burst", 1, { allowForma: false });
-            expect(result.slots, mod.name).toEqual([null]);
-        }
+        const target = { headshotHitRate: 1 };
+        const baseline = debugScoreBuild(weapon!, [], "burst", "Grineer", null, target, { mode: "initial" });
+        const headshotScore = debugScoreBuild(
+            weapon!,
+            [targetAcquired!.effectsByRank[targetAcquired!.fusionLimit]],
+            "burst",
+            "Grineer",
+            null,
+            target,
+            { mode: "initial" },
+        );
+        expect(headshotScore).toBeGreaterThan(baseline);
+
+        const result = optimizeBuild(weapon!, [primaryAcuity!], "burst", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
     });
 
     it("keeps Combustion Beam out of Auto Optimize until its kill explosion is modeled", () => {
@@ -815,21 +864,36 @@ describe("build optimizer scoring", () => {
         expect(highHealthOptimization.slots).toContain(napalm);
     }, 20_000);
 
-    it("does not optimize an owned Arcane rank whose hit-location bonus is unscored", () => {
-        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Perigale Prime");
+    it("scores Primary Deadhead's Wiki headshot bonus when the configured target can be headshot", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Vulkar Wraith");
         const primaryDeadhead = getArcanesByWeaponCategory("Primary").find((arcane) => arcane.name === "Primary Deadhead");
         expect(weapon).toBeDefined();
         expect(primaryDeadhead).toBeDefined();
         expect(getUnmodeledScoringEffectLines(primaryDeadhead!.optimizerEffectByRank[primaryDeadhead!.maxRank]))
-            .toContain("Effect: Headshot multiplier bonus is not scored because the hit location is not modeled.");
+            .toEqual([]);
 
-        const result = optimizeBuild(weapon!, [], "burst", 0, {
+        const bodyOnly = optimizeBuild(weapon!, [], "burst", 0, {
             optimizeArcane: true,
             arcaneCandidates: [primaryDeadhead!],
             ownedArcaneUniqueNames: new Set([primaryDeadhead!.uniqueName]),
             ownedArcaneMaxRankByUniqueName: { [primaryDeadhead!.uniqueName]: primaryDeadhead!.maxRank },
+            targetFaction: "Grineer",
+            targetProfileOverride: { headshotHitRate: 0 },
+            conditionalState: { mode: "initial" },
         });
-        expect(result.arcane).toBeNull();
+        expect(bodyOnly.arcane).toBeNull();
+
+        const headshotBuild = optimizeBuild(weapon!, [], "burst", 0, {
+            optimizeArcane: true,
+            arcaneCandidates: [primaryDeadhead!],
+            ownedArcaneUniqueNames: new Set([primaryDeadhead!.uniqueName]),
+            ownedArcaneMaxRankByUniqueName: { [primaryDeadhead!.uniqueName]: primaryDeadhead!.maxRank },
+            targetFaction: "Grineer",
+            targetProfileOverride: { headshotHitRate: 1 },
+            conditionalState: { mode: "initial" },
+        });
+        expect(headshotBuild.arcane?.name).toBe("Primary Deadhead");
+        expect(headshotBuild.arcaneRank).toBe(primaryDeadhead!.maxRank);
     });
 
     it("discloses and excludes Melee Influence until nearby status spread is modeled", () => {
@@ -3830,9 +3894,10 @@ describe("build optimizer scoring", () => {
             }],
         };
 
-        const burstScore = debugScoreBuild(weapon, [stackedHeadshotPackage], "burst", "grineer");
-        const scalingScore = debugScoreBuild(weapon, [stackedHeadshotPackage], "scaling", "grineer");
-        const unconditionedBurstScore = debugScoreBuild(weapon, [emptyEffect()], "burst", "grineer");
+        const target = { headshotHitRate: 1 };
+        const burstScore = debugScoreBuild(weapon, [stackedHeadshotPackage], "burst", "grineer", null, target);
+        const scalingScore = debugScoreBuild(weapon, [stackedHeadshotPackage], "scaling", "grineer", null, target);
+        const unconditionedBurstScore = debugScoreBuild(weapon, [emptyEffect()], "burst", "grineer", null, target);
 
         expect(burstScore).toBeGreaterThan(scalingScore);
         expect(burstScore).toBeGreaterThan(unconditionedBurstScore);
