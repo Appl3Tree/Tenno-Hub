@@ -10,6 +10,16 @@ Validation in the isolated clean snapshot: `buildOptimizer.test.ts` 144/144; foc
 
 This pass did not open current Wiki pages. The trigger, attribution, radial damage, target selection, falloff, line of sight, and chain behavior are not established here. Keep both effects unscored and excluded until current authoritative sources support a complete model; do not treat the catalog text as mechanic validation. No browser, live-game, or Underframe validation is claimed.
 
+## D3-MOD-ONKILL-SOURCE-CLARITY-001 — source-backed warnings and Wiki links (2026-11-17; released)
+
+The current [Entropy Detonation Wiki page](https://wiki.warframe.com/w/Entropy_Detonation) says the explosion triggers only on a Ground Finisher kill, combines rank-scaled flat Blast damage with a percentage of enemy Max Health, uses the selected rank's radius, and requires line of sight. Ordinary attacks against prone enemies do not trigger it. The current planner has no Ground Finisher attack mode, and its single-target damage path cannot resolve this explosion or Entropy side effect.
+
+The current [Amalgam Furax Body Count Wiki page](https://wiki.warframe.com/w/Amalgam_Furax_Body_Count) says melee kills (including melee DoT kills) trigger Blast and stagger through line of sight, except Exalted and pseudo-exalted kills. Its blast/stagger radius scales with rank. The Wiki reports roughly six Blast/Impact proc stacks, varying up to ten, with only 1 damage per Blast stack; it also notes those procs can trigger Shattering Impact. The planner lacks neighboring-target proc histories, the associated Shattering Impact armor strip, and stagger utility.
+
+PR [#148](https://github.com/Appl3Tree/Tenno-Hub/pull/148) adds direct Wiki links and clearer source-backed warnings while keeping both effects excluded from Auto Optimize. PR [#149](https://github.com/Appl3Tree/Tenno-Hub/pull/149) sharpens the max-Health and Shattering Impact wording. No damage or area-effect scoring changed. PR #148 merged as `6987e0c178f7caccd27f6d2fafebda5744992d62` (Pages [run #229](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44196302594), success); PR #149 merged as `91dfab61256dc37b2c43d7e3fe6cea07b506fdee` (Pages [run #230](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44196950087), success).
+
+Validation: the optimizer test file passed 144/144 after the source-link implementation; the two focused regressions passed after wording refinement (2 passed, 142 skipped), focused ESLint passed, and the production build passed with the existing Vite large-chunk warning. The full suite was not rerun. The in-app browser could not reach the local preview on ports 80 or 5173, so no rendered QA is claimed. This source boundary does not establish live-game accuracy or optimizer quality.
+
 ## D3-OPT-EXILUS-FORMA-001 — Exilus Forma accounting and 45-case Arcane verification (2026-11-17; released)
 
 Implementation/test/harness commit: `441f01f6` (based on main `4fa153b1e9b3dcca1f0232d0db00395f2c4db797`). PR [#144](https://github.com/Appl3Tree/Tenno-Hub/pull/144) was squash-merged as `b073bfd54551692a4235390bd47a6cacd95ec868`; Pages deployment [run #225](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44183852758) succeeded.
