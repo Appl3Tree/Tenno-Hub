@@ -1,5 +1,23 @@
 # Build Planner Optimizer Benchmark
 
+## D3-OPT-EXILUS-FORMA-001 — Exilus Forma accounting and 45-case Arcane verification (2026-11-17; release pending)
+
+Implementation/test/harness commit: `441f01f6` (based on main `4fa153b1e9b3dcca1f0232d0db00395f2c4db797`). Tracking documentation and PR are being finalized; deployment is pending.
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=1 --verify-arcane-selection`
+
+The 45-case corpus covers Burst, Scaling, melee DPS proxy, and finite Expected TTK objectives. The benchmark now passes per-case Warframe Armor and Energy inputs into both optimization and final-build Arcane re-scoring; the added Braton Prime Expected TTK fixture uses 1,500 Warframe Armor and 1,000 maximum Energy at 100%. For each returned fixed mod/Exilus list, the verifier compares the selected Arcane and rank against every eligible catalog Arcane rank under that case's supplied context.
+
+Before the correction, this audit found two genuinely over-capacity Expected TTK builds: Kuva Ogris / Rocket Explosion at 81/80 and Nataruk / Perfect Shot at 62/60, with `capacityValid: false`. Exilus scoring had forwarded the mod's matching polarity even when the capacity planner had not assigned that Forma. Later finite refinement treated the Exilus polarity as fixed and could spend the configured Forma limit again on main slots; a final polarity minimization then reset Exilus to its original polarity while retaining the refined mod list.
+
+The optimizer now uses the Exilus polarity actually assigned by capacity planning, reserves a Forma used by Exilus from the remaining main-slot refinement budget, and refreshes the fixed extra-slot context whenever polarity assignment changes. A regression covers both affected catalog builds and independently checks the returned capacity summary and three-Forma limit. The benchmark's Arcane verifier now carries Warframe Armor as well as Energy context, so armor-scaled Arcane ranks are included when the fixture supplies that input.
+
+After the fix, all 45 outputs were legal, every fixed-build Arcane audit selected a score tied with the best eligible rank (zero measured gap), and the added Braton case selected Primary Overcharge R5 at 0.5330 s modeled Expected TTK. This is conditional-on-returned-build evidence. The exhaustive joint Expected TTK oracle remains restricted to small curated candidate pools, and neither result proves full-catalog joint or global Arcane/mod optimality.
+
+One optimizer run per case measured 1.425–6.794 s on Windows x64 / Node 22.16.0. The independent all-rank re-scoring occurs after the optimizer timer stops. These are single observations, not repeatability, population-tail, packaged Worker, cold-start, or mobile results. Release validation passes: 798 tests / 53 files; production TypeScript/Vite build; source validation; prerequisite audit (162 entries, no unresolved references or dependency cycles); mod-effect audit (694 weapons / 599 eligible mods / 490 parsed / 109 without parsed effects / 71 review candidates / 18 partial / 53 fully unparsed / zero weapon pools without parsed damage); focused ESLint; and `git diff --check`. Vite retains its existing large-chunk warning. Browser QA and live-game validation were not performed.
+
+Reopen if a supported fixture returns an over-capacity build, the Forma count exceeds its configured limit, or the all-rank final-build Arcane audit finds a nonzero gap under matched context. This does not resolve full-catalog joint Arcane/mod quality.
+
 ## Set-mod coverage audit (2026-11-17)
 
 The checked-in WFCD `external/warframe-items/raw/Mods.json` snapshot has 73 records with `modSet` across 19 distinct set-bonus paths. Static source tracing finds the paths imported into the general catalog but no shared-set effect consumer in weapon-stat math, finite Expected TTK, or optimizer scoring. The selected mod entries retain their individual stats, so set bonuses are currently omitted from the modeled build score.

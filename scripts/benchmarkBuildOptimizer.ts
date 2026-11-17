@@ -17,6 +17,7 @@ interface BenchmarkCase {
     targetFaction: string;
     stanceName?: string;
     targetDistanceMeters?: number;
+    warframeArmor?: number;
     warframeMaxEnergy?: number;
     warframeEnergyPercent?: number;
 }
@@ -90,6 +91,7 @@ const allCases: BenchmarkCase[] = [
     { weaponName: "Nataruk", attackName: "Perfect Shot", category: "precision bow", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Gram Prime", attackName: "Heavy Slam Attack", category: "melee heavy-attack proxy", goal: "burst", targetFaction: "Grineer" },
     { weaponName: "Braton Prime", category: "energy-gated Primary Overcharge", goal: "burst", targetFaction: "Grineer", warframeMaxEnergy: 1000, warframeEnergyPercent: 100 },
+    { weaponName: "Braton Prime", category: "armor- and energy-gated Primary Arcanes", goal: "timeToKill", targetFaction: "Grineer", warframeArmor: 1500, warframeMaxEnergy: 1000, warframeEnergyPercent: 100 },
     { weaponName: "Daikyu Prime", category: "Spring-Loaded Broadhead distance-conditional bow", goal: "burst", targetFaction: "Grineer", targetDistanceMeters: 16 },
     { weaponName: "Braton Prime", category: "Expected TTK finite-encounter objective", goal: "timeToKill", targetFaction: "Grineer" },
     { weaponName: "Kuva Ogris", attackName: "Rocket Explosion", category: "Nightwatch Napalm finite-encounter objective", goal: "timeToKill", targetFaction: "Grineer" },
@@ -136,6 +138,7 @@ function calculateResultScore(
     result: OptimizeResult,
     goal: OptimizeGoal,
     targetFaction: string,
+    warframeArmor?: number,
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
     meleeStanceCombo?: ReturnType<typeof getWikiMeleeStanceCombo>,
@@ -148,6 +151,7 @@ function calculateResultScore(
         targetFaction,
         result.arcane,
         result.arcaneRank,
+        warframeArmor,
         warframeMaxEnergy,
         warframeEnergyPercent,
         meleeStanceCombo ?? undefined,
@@ -162,6 +166,7 @@ function calculateScoreWithArcane(
     targetFaction: string,
     arcane: ArcaneEntry | null,
     arcaneRank: number,
+    warframeArmor?: number,
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
     meleeStanceCombo?: ReturnType<typeof getWikiMeleeStanceCombo>,
@@ -175,7 +180,7 @@ function calculateScoreWithArcane(
         effects.push(result.exilusMod.effectsByRank[result.exilusRank] ?? result.exilusMod.effect);
     }
     const arcaneEffect = arcane
-        ? getArcaneEffectAtRank(arcane, arcaneRank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent })
+        ? getArcaneEffectAtRank(arcane, arcaneRank, warframeArmor, true, { warframeMaxEnergy, warframeEnergyPercent })
         : null;
     return debugScoreBuild(withSelectedAttack(weapon, selectedAttackIdx), effects, goal, targetFaction, arcaneEffect, undefined, conditionalState, meleeStanceCombo ?? undefined);
 }
@@ -187,6 +192,7 @@ function auditArcaneSelectionOnFinalMods(
     goal: OptimizeGoal,
     targetFaction: string,
     arcaneCandidates: ArcaneEntry[],
+    warframeArmor?: number,
     warframeMaxEnergy?: number,
     warframeEnergyPercent?: number,
     meleeStanceCombo?: ReturnType<typeof getWikiMeleeStanceCombo>,
@@ -210,7 +216,7 @@ function auditArcaneSelectionOnFinalMods(
         const scoringWeapon = withSelectedAttack(weapon, selectedAttackIdx);
         const evaluate = (arcane: ArcaneEntry | null, rank: number) => {
             const effect = arcane
-                ? getArcaneEffectAtRank(arcane, rank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent })
+                ? getArcaneEffectAtRank(arcane, rank, warframeArmor, true, { warframeMaxEnergy, warframeEnergyPercent })
                 : null;
             return debugScoreExpectedEncounter(
                 scoringWeapon,
@@ -236,7 +242,7 @@ function auditArcaneSelectionOnFinalMods(
         let best = evaluate(null, 0);
         for (const arcane of arcaneCandidates) {
             for (let rank = 0; rank <= arcane.maxRank; rank++) {
-                if (!getArcaneEffectAtRank(arcane, rank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent })) continue;
+                if (!getArcaneEffectAtRank(arcane, rank, warframeArmor, true, { warframeMaxEnergy, warframeEnergyPercent })) continue;
                 const candidate = evaluate(arcane, rank);
                 if (isBetter(candidate, best)) best = candidate;
             }
@@ -262,15 +268,15 @@ function auditArcaneSelectionOnFinalMods(
         };
     }
 
-    const selectedScore = calculateResultScore(weapon, selectedAttackIdx, result, goal, targetFaction, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo);
-    let bestScore = calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, null, 0, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo);
+    const selectedScore = calculateResultScore(weapon, selectedAttackIdx, result, goal, targetFaction, warframeArmor, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo);
+    let bestScore = calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, null, 0, warframeArmor, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo);
     for (const arcane of arcaneCandidates) {
         for (let rank = 0; rank <= arcane.maxRank; rank++) {
-            const effect = getArcaneEffectAtRank(arcane, rank, undefined, true, { warframeMaxEnergy, warframeEnergyPercent });
+            const effect = getArcaneEffectAtRank(arcane, rank, warframeArmor, true, { warframeMaxEnergy, warframeEnergyPercent });
             if (!effect) continue;
             bestScore = Math.max(
                 bestScore,
-                calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, arcane, rank, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo),
+                calculateScoreWithArcane(weapon, selectedAttackIdx, result, goal, targetFaction, arcane, rank, warframeArmor, warframeMaxEnergy, warframeEnergyPercent, meleeStanceCombo),
             );
         }
     }
@@ -340,6 +346,7 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
         const startedAt = performance.now();
         const result = optimizeBuild(weapon, availableMods, benchmarkCase.goal, 8, {
             targetFaction: benchmarkCase.targetFaction,
+            warframeArmor: benchmarkCase.warframeArmor,
             warframeMaxEnergy: benchmarkCase.warframeMaxEnergy,
             warframeEnergyPercent: benchmarkCase.warframeEnergyPercent,
             conditionalState,
@@ -380,6 +387,7 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
                 benchmarkCase.goal,
                 benchmarkCase.targetFaction,
                 arcaneCandidates,
+                benchmarkCase.warframeArmor,
                 benchmarkCase.warframeMaxEnergy,
                 benchmarkCase.warframeEnergyPercent,
                 meleeStanceCombo,
@@ -393,6 +401,7 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
                 result,
                 benchmarkCase.goal,
                 benchmarkCase.targetFaction,
+                benchmarkCase.warframeArmor,
                 benchmarkCase.warframeMaxEnergy,
                 benchmarkCase.warframeEnergyPercent,
                 meleeStanceCombo,

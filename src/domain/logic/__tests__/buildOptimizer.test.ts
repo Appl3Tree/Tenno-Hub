@@ -5246,6 +5246,60 @@ describe("build optimizer scoring", () => {
         ).toBeLessThanOrEqual(1);
     });
 
+    it("keeps Exilus-assisted Expected TTK builds within capacity and the total Forma cap", { timeout: 60000 }, () => {
+        const scenarios = [
+            { weaponName: "Kuva Ogris", attackName: "Rocket Explosion" },
+            { weaponName: "Nataruk", attackName: "Perfect Shot" },
+        ];
+
+        for (const scenario of scenarios) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeTruthy();
+            const attack = weapon!.attacks.find((entry) => entry.name === scenario.attackName);
+            expect(attack, `${scenario.weaponName} / ${scenario.attackName}`).toBeTruthy();
+            const capacityConfig = {
+                weaponRank: weapon!.canOverLevel ? 40 : 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            };
+            const result = optimizeBuild(
+                weapon!,
+                filterBuilderExpertVariants(getModsForWeapon(weapon!)),
+                "timeToKill",
+                8,
+                {
+                    targetFaction: "Grineer",
+                    capacityConfig,
+                    slotPolarities: weapon!.polarities,
+                    defaultSlotPolarities: weapon!.polarities,
+                    allowCatalyst: true,
+                    allowForma: true,
+                    maxFormaCount: 3,
+                    optimizeExilus: true,
+                    exilusPolarity: "",
+                    optimizeArcane: true,
+                    arcaneCandidates: getArcanesForWeapon(weapon!),
+                    buildForAttack: attack!,
+                    conditionalState: { mode: "initial" },
+                },
+            );
+            const capacity = computeCapacity(
+                capacityConfig,
+                [...result.slotPolarities.map((polarity) => ({ polarity })), { polarity: result.exilusPolarity }],
+                [...result.slots, result.exilusMod],
+                [...result.slotRanks, result.exilusMod ? result.exilusRank : 0],
+            );
+
+            expect(result.capacityValid, scenario.weaponName).toBe(true);
+            expect(capacity.overCapacity, scenario.weaponName).toBe(false);
+            expect(
+                countFormaLikeUi(weapon!, result.slotPolarities, "", result.exilusPolarity),
+                scenario.weaponName,
+            ).toBeLessThanOrEqual(3);
+        }
+    });
+
     it("preserves capacity-feasible slot placement for Cedo's alternate-fire build", { timeout: 30000 }, () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Cedo");
         expect(weapon).toBeTruthy();
