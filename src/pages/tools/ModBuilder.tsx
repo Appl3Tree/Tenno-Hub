@@ -217,6 +217,10 @@ function simulateBuilderTargetEncounter(
                 heatStatusDurationSeconds: stats.nightwatchNapalm.heatStatusDurationSeconds,
                 heatDotDamagePerProcPerTick: stats.nightwatchNapalm.heatDotDamagePerProcPerTick,
                 heatDotAccumulatorDamagePerTick: stats.nightwatchNapalm.heatDotAccumulatorDamagePerTick,
+                heatDotDamagePerProcPerTickWhenExternallyInherited:
+                    stats.nightwatchNapalm.heatDotDamagePerProcPerTickWhenExternallyInherited,
+                heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+                    stats.nightwatchNapalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
             },
         } : {}),
         targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
@@ -231,6 +235,10 @@ function simulateBuilderTargetEncounter(
         ) as Partial<Record<StatusDamageType, number>>,
         heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
         heatDotAccumulatorDamagePerTick: stats.dotTickAccumulatorDamageByType.heat,
+        heatDotTickDamagePerProcWhenExternallyInherited:
+            stats.heatDotTickDamagePerProcWhenExternallyInherited,
+        heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+            stats.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
         dotSeedDamagePerApplicationByType: stats.dotDamagePerApplicationSeedByType,
         dotAccumulatorDamagePerApplicationByType: stats.dotDamagePerApplicationAccumulatorByType,
         statusProcWeightsByType: stats.damageBreakdownBeforePerStatus,
@@ -658,6 +666,20 @@ function parseWarframeEnergyPercentInput(value: string): number | undefined {
     return Number.isFinite(parsed) && parsed >= 0
         ? Math.min(100, parsed)
         : undefined;
+}
+
+function parseExternalHeatBonusPercentInput(value: string): number {
+    if (!value.trim()) return 0;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0
+        ? Math.min(10_000, parsed)
+        : 0;
+}
+
+function readExternalHeatBonusPercent(value: number | undefined): number {
+    return Number.isFinite(value) && (value ?? -1) >= 0
+        ? Math.min(10_000, value ?? 0)
+        : 0;
 }
 
 interface BuildExportPayload {
@@ -1878,6 +1900,9 @@ function buildMathBreakdown(
                 `Status damage bonus = ${fmt(totals.statusDamageBonus * 100, 3)}% | status duration bonus = ${fmt(totals.statusDurationBonus * 100, 3)}% | faction damage bonus tracked here = ${fmt(totals.factionDamageBonus * 100, 3)}% | effective mod direct damage per status = ${fmt(stats.directDamagePerStatusBonus * 100, 3)}% | effective intrinsic direct damage per status = ${fmt(stats.intrinsicDamagePerStatusBonus * 100, 3)}% (${stats.intrinsicDamagePerStatusMode})`,
                 ...(stats.targetStatusDamageVulnerabilityBonus > 0
                     ? [`Burning Hate = +${fmt(stats.targetStatusDamageVulnerabilityBonus * 100, 3)}% permanent target Status Damage vulnerability after Hate damages a Heat-afflicted enemy; finite encounter starts with ${(conditionalState.externalHeatStatusPresenceProbability ?? 0) > 0 ? "external Heat" : "no external Heat"} and activates it only after a qualifying event.`]
+                    : []),
+                ...((conditionalState.externalHeatStatusPresenceProbability ?? 0) > 0
+                    ? [`Heat Inherit assumes the external first Heat source has +${fmt((conditionalState.externalHeatElementalDamageBonus ?? 0) * 100, 2)}% Heat and +${fmt((conditionalState.externalHeatFactionDamageBonus ?? 0) * 100, 2)}% faction damage. Later Heat procs use those inherited bonuses while retaining their own base and Status Damage; direct hits are unchanged. The external source's own damage and armor-strip history are not simulated.`]
                     : []),
                 `Condition Overload = ${fmt(stats.conditionOverloadDamagePerStatusBonus * 100, 3)}% additive base damage per active type × ${fmt(stats.conditionOverloadStatusTypes, 3)} expected types (named external: ${conditionalState.externalStatusTypes?.join(", ") || "none"}; legacy unnamed: ${conditionalState.externalStatusTypeCount ?? 0}); multiplier ${fmt(stats.conditionOverloadDamageMultiplier, 5)}.`,
             ],
@@ -3536,6 +3561,8 @@ export default function ModBuilder() {
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
     const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
+    const [externalHeatElementalDamageBonusPercentInput, setExternalHeatElementalDamageBonusPercentInput] = useState("0");
+    const [externalHeatFactionDamageBonusPercentInput, setExternalHeatFactionDamageBonusPercentInput] = useState("0");
     const [playerSlidingAtImpact, setPlayerSlidingAtImpact] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
@@ -3556,11 +3583,13 @@ export default function ModBuilder() {
         externalStatusTypeCount,
         externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
+        externalHeatElementalDamageBonus: parseExternalHeatBonusPercentInput(externalHeatElementalDamageBonusPercentInput) / 100,
+        externalHeatFactionDamageBonus: parseExternalHeatBonusPercentInput(externalHeatFactionDamageBonusPercentInput) / 100,
         playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3774,6 +3803,12 @@ export default function ModBuilder() {
             externalStatusTypeCount,
             externalStatusTypes,
             targetStartsWithHeat,
+            externalHeatElementalDamageBonusPercent: parseExternalHeatBonusPercentInput(
+                externalHeatElementalDamageBonusPercentInput,
+            ),
+            externalHeatFactionDamageBonusPercent: parseExternalHeatBonusPercentInput(
+                externalHeatFactionDamageBonusPercentInput,
+            ),
             playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
             meleeComboMultiplier,
             phantasmaChargeAmmo,
@@ -3818,6 +3853,8 @@ export default function ModBuilder() {
         externalStatusTypeCount,
         externalStatusTypes,
         targetStartsWithHeat,
+        externalHeatElementalDamageBonusPercentInput,
+        externalHeatFactionDamageBonusPercentInput,
         playerSlidingAtImpact,
         supportsKineticKiller,
         meleeComboMultiplier,
@@ -4729,6 +4766,10 @@ export default function ModBuilder() {
                     heatStatusDurationSeconds: stats.nightwatchNapalm.heatStatusDurationSeconds,
                     heatDotDamagePerProcPerTick: stats.nightwatchNapalm.heatDotDamagePerProcPerTick,
                     heatDotAccumulatorDamagePerTick: stats.nightwatchNapalm.heatDotAccumulatorDamagePerTick,
+                heatDotDamagePerProcPerTickWhenExternallyInherited:
+                    stats.nightwatchNapalm.heatDotDamagePerProcPerTickWhenExternallyInherited,
+                heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+                    stats.nightwatchNapalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
                 },
             } : {}),
             targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
@@ -4743,6 +4784,10 @@ export default function ModBuilder() {
             ) as Partial<Record<StatusDamageType, number>>,
             heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
             heatDotAccumulatorDamagePerTick: stats.dotTickAccumulatorDamageByType.heat,
+            heatDotTickDamagePerProcWhenExternallyInherited:
+                stats.heatDotTickDamagePerProcWhenExternallyInherited,
+            heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+                stats.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
             dotSeedDamagePerApplicationByType: stats.dotDamagePerApplicationSeedByType,
             dotAccumulatorDamagePerApplicationByType: stats.dotDamagePerApplicationAccumulatorByType,
             statusProcWeightsByType: stats.damageBreakdownBeforePerStatus,
@@ -5343,6 +5388,8 @@ export default function ModBuilder() {
         setExternalStatusTypes([]);
         setExternalStatusTypesOpen(false);
         setTargetStartsWithHeat(false);
+        setExternalHeatElementalDamageBonusPercentInput("0");
+        setExternalHeatFactionDamageBonusPercentInput("0");
         setPlayerSlidingAtImpact(false);
         setWarframeArmorInput(readWarframeArmor(build.plannerConfig?.warframeArmor)?.toString() ?? "");
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
@@ -5363,6 +5410,12 @@ export default function ModBuilder() {
             setExternalStatusTypes(restoredExternalStatusTypes);
             setExternalStatusTypesOpen(restoredExternalStatusTypes.length > 0);
             setTargetStartsWithHeat(plannerConfig.targetStartsWithHeat === true);
+            setExternalHeatElementalDamageBonusPercentInput(
+                readExternalHeatBonusPercent(plannerConfig.externalHeatElementalDamageBonusPercent).toString(),
+            );
+            setExternalHeatFactionDamageBonusPercentInput(
+                readExternalHeatBonusPercent(plannerConfig.externalHeatFactionDamageBonusPercent).toString(),
+            );
             setPlayerSlidingAtImpact(plannerConfig.playerSlidingAtImpact === true && supportsKineticKiller);
             setMeleeComboMultiplier(Number.isFinite(plannerConfig.meleeComboMultiplier)
                 ? clampMeleeComboMultiplier(weapon, plannerConfig.meleeComboMultiplier ?? 1)
@@ -5670,6 +5723,62 @@ export default function ModBuilder() {
                                                     <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
                                                         Assume these named statuses are already active and maintained by allies, abilities, or other sources. Wiki rules are applied automatically: target-immune damage statuses are ignored; Tau counts for Condition Overload and Cedo-style status passives, not Galvanized bonuses; selecting external Tau assumes one maintained stack for Status Chance vulnerability; Lifted and Knockdown cannot coexist. The finite encounter carries expected Tau applications between sequential projectiles as a mean-field estimate. Tau and forced procs are not amplified, and external status stack counts beyond one are not configurable here.
                                                     </p>
+                                                    <div className="mt-2 rounded-md border border-slate-800 bg-slate-950/50 p-2">
+                                                        <label className="flex items-center gap-2 text-[10px] text-slate-300">
+                                                            <input
+                                                                aria-label="Target starts with external Heat status"
+                                                                type="checkbox"
+                                                                checked={targetStartsWithHeat}
+                                                                onChange={(event) => setTargetStartsWithHeat(event.target.checked)}
+                                                                className="accent-sky-500"
+                                                            />
+                                                            <span>Target starts with Heat from an external source</span>
+                                                        </label>
+                                                        {targetStartsWithHeat && (
+                                                            <>
+                                                                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                                                                    The current Wiki describes Heat Inherit as a community mechanic and marks this section in progress. Later Heat DoT procs inherit the first source's Heat and faction bonuses; each later proc keeps its own base and Status Damage, and direct hits are unchanged. The external source's own damage and armor-strip history are not simulated; its starting Heat duration is treated as fresh. Leave both bonuses at 0% for a source with neither bonus.
+                                                                </p>
+                                                                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                                    <label className="grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-2 text-[10px] text-slate-300">
+                                                                        <span>First-source Heat bonus (%)</span>
+                                                                        <input
+                                                                            aria-label="External first Heat source Heat bonus percent"
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={10_000}
+                                                                            step={1}
+                                                                            value={externalHeatElementalDamageBonusPercentInput}
+                                                                            onChange={(event) => setExternalHeatElementalDamageBonusPercentInput(event.target.value)}
+                                                                            onBlur={() => setExternalHeatElementalDamageBonusPercentInput(
+                                                                                parseExternalHeatBonusPercentInput(externalHeatElementalDamageBonusPercentInput).toString(),
+                                                                            )}
+                                                                            className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                                        />
+                                                                    </label>
+                                                                    <label className="grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-2 text-[10px] text-slate-300">
+                                                                        <span>First-source Faction bonus (%)</span>
+                                                                        <input
+                                                                            aria-label="External first Heat source Faction bonus percent"
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={10_000}
+                                                                            step={1}
+                                                                            value={externalHeatFactionDamageBonusPercentInput}
+                                                                            onChange={(event) => setExternalHeatFactionDamageBonusPercentInput(event.target.value)}
+                                                                            onBlur={() => setExternalHeatFactionDamageBonusPercentInput(
+                                                                                parseExternalHeatBonusPercentInput(externalHeatFactionDamageBonusPercentInput).toString(),
+                                                                            )}
+                                                                            className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                                        />
+                                                                    </label>
+                                                                </div>
+                                                                <a href="https://wiki.warframe.com/w/Damage/Heat_Damage" target="_blank" rel="noreferrer" className="mt-1.5 inline-block text-[10px] text-sky-400 underline underline-offset-2">
+                                                                    WARFRAME Wiki: Heat Damage and Heat Inherit
+                                                                </a>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                     {externalStatusTypeCount > 0 && (
                                                         <div role="note" className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-amber-300/90">
                                                             <span>This saved configuration also has {externalStatusTypeCount} unnamed legacy status type{externalStatusTypeCount === 1 ? "" : "s"}; those count for Condition Overload only and may overlap named types.</span>
@@ -5766,18 +5875,6 @@ export default function ModBuilder() {
                                                             </a>
                                                         )}
                                                     </div>
-                                                )}
-                                                {activeBuildEffects.some((effect) => (effect?.targetStatusDamageVulnerabilityBonus ?? 0) > 0) && (
-                                                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
-                                                        <input
-                                                            aria-label="Target starts with external Heat status"
-                                                            type="checkbox"
-                                                            checked={targetStartsWithHeat}
-                                                            onChange={(event) => setTargetStartsWithHeat(event.target.checked)}
-                                                            className="accent-sky-500"
-                                                        />
-                                                        <span title="Assume another source applied Heat before the first Hate hit. Burning Hate then activates on that first hit; the triggering hit's status procs remain unamplified.">Target starts with Heat (external source)</span>
-                                                    </label>
                                                 )}
                                                 {supportsKineticKiller && incarnonRecord && (
                                                     <label className="flex items-center gap-2 text-[10px] text-slate-400">

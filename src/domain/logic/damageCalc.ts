@@ -277,12 +277,16 @@ export interface ModdedWeaponStats {
     dotDpsByType: Partial<Record<DamageKey, number>>;
     /** Per-proc DoT tick contribution before the grouped +1 accumulator. */
     dotTickDamagePerProcByType: Partial<Record<DamageKey, number>>;
+    /** Heat proc seed tick when an external first Heat source supplies inherited bonuses. */
+    heatDotTickDamagePerProcWhenExternallyInherited: number;
     /** One Slash DoT tick for a forced proc, independent of the weapon's Slash status weight. */
     slashDotTickDamagePerProc: number;
     /** Proc-seed tick before the steady-state Condition Overload mean-field bonus. */
     dotTickDamagePerProcBeforeConditionOverloadByType: Partial<Record<DamageKey, number>>;
     /** Group accumulator contribution for each active consolidated DoT tick. */
     dotTickAccumulatorDamageByType: Partial<Record<DamageKey, number>>;
+    /** Heat +1 accumulator tick under the external first Heat source's inherited bonuses. */
+    heatDotAccumulatorDamagePerTickWhenExternallyInherited: number;
     /** Full-lifetime seed damage from one DoT application before Condition Overload. */
     dotDamagePerApplicationSeedByType: Partial<Record<DamageKey, number>>;
     /** Full-lifetime grouped accumulator share per DoT application, never scaled by Condition Overload. */
@@ -295,6 +299,8 @@ export interface ModdedWeaponStats {
         heatStatusDurationSeconds: number;
         heatDotDamagePerProcPerTick: number;
         heatDotAccumulatorDamagePerTick: number;
+        heatDotDamagePerProcPerTickWhenExternallyInherited: number;
+        heatDotAccumulatorDamagePerTickWhenExternallyInherited: number;
         heatStatusDamagePerSecond: number;
     };
     viralHealthDamageBonus: number;
@@ -438,6 +444,10 @@ export interface ConditionalState {
     externalStatusTypes?: readonly ExternalStatusType[];
     /** Probability that the target starts with an externally applied Heat status. */
     externalHeatStatusPresenceProbability?: number;
+    /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
+    externalHeatElementalDamageBonus?: number;
+    /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
+    externalHeatFactionDamageBonus?: number;
     /** User-entered melee combo tier; selected heavy attacks use it, but post-attack combo consumption/rebuild is not simulated. */
     meleeComboMultiplier?: number;
     /** User-selected ammo consumed by one Phantasma charged alternate-fire attack. */
@@ -1983,17 +1993,23 @@ export function calculateBuild(
             Math.fround(Math.fround(conditionOverloadTotalBase * Math.max(0, 1 + factionDamageBonus)) * critAverageMultiplier) *
             procSeedDamageRatio,
         );
+    const externalHeatElementalDamageBonus = Number.isFinite(options.conditionalState?.externalHeatElementalDamageBonus)
+        ? Math.max(-1, options.conditionalState?.externalHeatElementalDamageBonus ?? 0)
+        : 0;
+    const externalHeatFactionDamageBonus = Number.isFinite(options.conditionalState?.externalHeatFactionDamageBonus)
+        ? Math.max(-1, options.conditionalState?.externalHeatFactionDamageBonus ?? 0)
+        : 0;
     const dotHitLocationMultiplier = (type: StatusDamageType) => getHitLocationDotDamageMultiplier(
         critChance,
         critMultiplier,
         hitLocation,
         type,
     );
-    const dotRemainingMultiplier = (elementalBonus: number) => Math.fround(
+    const dotRemainingMultiplier = (elementalBonus: number, inheritedFactionDamageBonus = factionDamageBonus) => Math.fround(
         Math.fround(
             Math.fround(Math.max(0, statusDamageMultiplier)) *
             Math.fround(Math.max(0, 1 + elementalBonus)),
-        ) * Math.fround(Math.max(0, 1 + factionDamageBonus)),
+        ) * Math.fround(Math.max(0, 1 + inheritedFactionDamageBonus)),
     );
     const slashDotTickDamagePerProc = statusImmuneTypes.has("slash")
         ? 0
@@ -2043,8 +2059,17 @@ export function calculateBuild(
     const dotTickAccumulatorDamageByType: Partial<Record<DamageKey, number>> = {};
     const dotDamagePerApplicationSeedByType: Partial<Record<DamageKey, number>> = {};
     const dotDamagePerApplicationAccumulatorByType: Partial<Record<DamageKey, number>> = {};
+    let heatDotTickDamagePerProcWhenExternallyInherited = 0;
+    let heatDotAccumulatorDamagePerTickWhenExternallyInherited = 0;
     let dotDamagePerShot = 0;
     let dotDps = 0;
+    const externalHeatStatusPresenceProbability = Number.isFinite(options.conditionalState?.externalHeatStatusPresenceProbability)
+        ? Math.max(0, Math.min(1, options.conditionalState?.externalHeatStatusPresenceProbability ?? 0))
+        : 0;
+    const externalHeatRemainingMultiplier = dotRemainingMultiplier(
+        externalHeatElementalDamageBonus,
+        externalHeatFactionDamageBonus,
+    );
     const independentDotStacks = new Set<StatusDamageType>(["slash", "toxin"]);
     for (const [key, config] of Object.entries(dotConfig) as Array<[StatusDamageType, { elementalBonus: number }]>) {
         const expectedProcsPerShotForType = averageProcsPerShot * (procChanceByType[key] ?? 0);
@@ -2059,6 +2084,21 @@ export function calculateBuild(
         const tickCount = includePerAttackDotEstimate ? countStatusDamageTicks(key, duration) : 0;
         const remainingMultiplier = dotRemainingMultiplier(config.elementalBonus);
         const procRate = procRatePerSecondByType[key] ?? 0;
+
+        if (key === "heat" && !statusImmuneTypes.has("heat")) {
+            heatDotTickDamagePerProcWhenExternallyInherited = statusDotTickDamage(
+                dotSeedPerProcBeforeConditionOverloadForType,
+                "heat",
+                externalHeatRemainingMultiplier,
+                0,
+            );
+            heatDotAccumulatorDamagePerTickWhenExternallyInherited = statusDotTickDamage(
+                0,
+                "heat",
+                externalHeatRemainingMultiplier,
+                1,
+            );
+        }
 
         if (includePerAttackDotEstimate && tickCount > 0) {
             const baseProcProbability = probabilityAtLeastOneStatusProc(
@@ -2101,34 +2141,42 @@ export function calculateBuild(
                 1,
             );
 
-            const perShotTicks = independentDotStacks.has(key)
+            const perShotTicksForMultiplier = (tickMultiplier: number) => independentDotStacks.has(key)
                 ? expectedProcsPerShotForType * statusDotTickDamage(
                     dotSeedPerProcForType,
                     key,
-                    remainingMultiplier,
+                    tickMultiplier,
                 )
                 : statusDotTickDamage(
                     seedSumFromAttack,
                     key,
-                    remainingMultiplier,
+                    tickMultiplier,
                     probabilityOfAnyProc,
                 );
+            const perShotTicks = key === "heat"
+                ? perShotTicksForMultiplier(remainingMultiplier) * (1 - externalHeatStatusPresenceProbability) +
+                    perShotTicksForMultiplier(externalHeatRemainingMultiplier) * externalHeatStatusPresenceProbability
+                : perShotTicksForMultiplier(remainingMultiplier);
             const perShotDamage = perShotTicks * tickCount;
             dotDamagePerShotByType[key] = perShotDamage;
             dotDamagePerShot += perShotDamage;
 
-            const perShotTicksBeforeConditionOverload = independentDotStacks.has(key)
+            const perShotTicksBeforeConditionOverloadForMultiplier = (tickMultiplier: number) => independentDotStacks.has(key)
                 ? expectedProcsPerShotForType * statusDotTickDamage(
                     dotSeedPerProcBeforeConditionOverloadForType,
                     key,
-                    remainingMultiplier,
+                    tickMultiplier,
                 )
                 : statusDotTickDamage(
                     seedSumBeforeConditionOverload,
                     key,
-                    remainingMultiplier,
+                    tickMultiplier,
                     probabilityOfAnyProc,
                 );
+            const perShotTicksBeforeConditionOverload = key === "heat"
+                ? perShotTicksBeforeConditionOverloadForMultiplier(remainingMultiplier) * (1 - externalHeatStatusPresenceProbability) +
+                    perShotTicksBeforeConditionOverloadForMultiplier(externalHeatRemainingMultiplier) * externalHeatStatusPresenceProbability
+                : perShotTicksBeforeConditionOverloadForMultiplier(remainingMultiplier);
             const seedDamagePerApplication = seedTickDamageBeforeConditionOverload * tickCount;
             const accumulatorDamagePerShot = Math.max(
                 0,
@@ -2148,7 +2196,22 @@ export function calculateBuild(
         const cappedActiveStackExpectation = rule.maxStacks === null
             ? activeStackExpectation
             : Math.min(rule.maxStacks, activeStackExpectation);
-        const steadyStateTickDamage = independentDotStacks.has(key)
+        const steadyStateTickDamageForMultiplier = (tickMultiplier: number) => independentDotStacks.has(key)
+            ? procRate * duration * statusDotTickDamage(
+                dotSeedPerProcForType,
+                key,
+                tickMultiplier,
+            )
+            : statusDotTickDamage(
+                cappedActiveStackExpectation * dotSeedPerProcForType,
+                key,
+                tickMultiplier,
+                probabilityOfActiveTickGroup,
+            );
+        const steadyStateTickDamage = key === "heat"
+            ? steadyStateTickDamageForMultiplier(remainingMultiplier) * (1 - externalHeatStatusPresenceProbability) +
+                steadyStateTickDamageForMultiplier(externalHeatRemainingMultiplier) * externalHeatStatusPresenceProbability
+            : independentDotStacks.has(key)
             ? procRate * duration * statusDotTickDamage(
                 dotSeedPerProcForType,
                 key,
@@ -2313,9 +2376,26 @@ export function calculateBuild(
             const heatDotAccumulatorDamagePerTick = statusImmuneTypes.has("heat")
                 ? 0
                 : statusDotTickDamage(0, "heat", heatDotRemainingMultiplier, 1);
+            const heatDotDamagePerProcPerTickWhenExternallyInherited = statusImmuneTypes.has("heat")
+                ? 0
+                : statusDotTickDamage(
+                    directDamagePerProjectilePerTick * Math.max(0, 1 + factionDamageBonus),
+                    "heat",
+                    externalHeatRemainingMultiplier,
+                    0,
+                );
+            const heatDotAccumulatorDamagePerTickWhenExternallyInherited = statusImmuneTypes.has("heat")
+                ? 0
+                : statusDotTickDamage(0, "heat", externalHeatRemainingMultiplier, 1);
             const expectedHeatProcsPerSecond = fireRate * moddedMultishot * 6 * 0.68;
             const expectedActiveHeatProcs = expectedHeatProcsPerSecond * heatStatusDurationSeconds;
             const heatGroupPresenceProbability = 1 - Math.exp(-expectedActiveHeatProcs);
+            const heatDotDamagePerProcPerTickForSteadyState = heatDotDamagePerProcPerTick *
+                (1 - externalHeatStatusPresenceProbability) +
+                heatDotDamagePerProcPerTickWhenExternallyInherited * externalHeatStatusPresenceProbability;
+            const heatDotAccumulatorDamagePerTickForSteadyState = heatDotAccumulatorDamagePerTick *
+                (1 - externalHeatStatusPresenceProbability) +
+                heatDotAccumulatorDamagePerTickWhenExternallyInherited * externalHeatStatusPresenceProbability;
             return {
                 directDamagePerProjectilePerTick,
                 directDamagePerSecond: directDamagePerProjectilePerTick * moddedMultishot * 6 * fireRate,
@@ -2323,9 +2403,11 @@ export function calculateBuild(
                 heatStatusDurationSeconds,
                 heatDotDamagePerProcPerTick,
                 heatDotAccumulatorDamagePerTick,
+                heatDotDamagePerProcPerTickWhenExternallyInherited,
+                heatDotAccumulatorDamagePerTickWhenExternallyInherited,
                 heatStatusDamagePerSecond: heatStatusTickCount > 0
-                    ? heatDotDamagePerProcPerTick * expectedActiveHeatProcs +
-                        heatDotAccumulatorDamagePerTick * heatGroupPresenceProbability
+                    ? heatDotDamagePerProcPerTickForSteadyState * expectedActiveHeatProcs +
+                        heatDotAccumulatorDamagePerTickForSteadyState * heatGroupPresenceProbability
                     : 0,
             };
         })()
@@ -2407,9 +2489,11 @@ export function calculateBuild(
         dotDamagePerShotByType,
         dotDpsByType,
         dotTickDamagePerProcByType,
+        heatDotTickDamagePerProcWhenExternallyInherited,
         slashDotTickDamagePerProc,
         dotTickDamagePerProcBeforeConditionOverloadByType,
         dotTickAccumulatorDamageByType,
+        heatDotAccumulatorDamagePerTickWhenExternallyInherited,
         dotDamagePerApplicationSeedByType,
         dotDamagePerApplicationAccumulatorByType,
         nightwatchNapalm,

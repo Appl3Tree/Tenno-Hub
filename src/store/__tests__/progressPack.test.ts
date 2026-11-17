@@ -9,7 +9,7 @@ import { migrateToUserStateV2 } from "../migrations";
 import { PR } from "../../domain/ids/prereqIds";
 
 describe("progress pack inventory serialization", () => {
-    it("preserves saved Gas annulus neighbors through profile export and restore", () => {
+    it("preserves saved Heat inheritance and Gas annulus assumptions through profile export and restore", () => {
         const source = makeDefaultState();
         source.modBuilder = {
             ownedModNames: [],
@@ -26,6 +26,9 @@ describe("progress pack inventory serialization", () => {
                 createdAt: "2026-11-16T00:00:00.000Z",
                 plannerConfig: {
                     goal: "timeToKill",
+                    targetStartsWithHeat: true,
+                    externalHeatElementalDamageBonusPercent: 90,
+                    externalHeatFactionDamageBonusPercent: 55,
                     target: {
                         enabled: true,
                         faction: "Grineer",
@@ -52,6 +55,11 @@ describe("progress pack inventory serialization", () => {
             headshotRatePercent: 35,
             nearbyEnemyCount: 2,
             nearbyGasOuterEnemyCount: 7,
+        });
+        expect(restored.modBuilder?.savedBuilds[0].plannerConfig).toMatchObject({
+            targetStartsWithHeat: true,
+            externalHeatElementalDamageBonusPercent: 90,
+            externalHeatFactionDamageBonusPercent: 55,
         });
     });
 

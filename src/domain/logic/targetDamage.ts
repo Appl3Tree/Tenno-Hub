@@ -322,6 +322,10 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     heatDotTickDamagePerProc?: number;
     /** The +1 accumulator's per-tick damage while an expected Heat group is active. */
     heatDotAccumulatorDamagePerTick?: number;
+    /** Heat seed tick when a still-active external first Heat source supplies the inherited bonuses. */
+    heatDotTickDamagePerProcWhenExternallyInherited?: number;
+    /** Heat +1 accumulator tick when a still-active external first Heat source supplies inherited bonuses. */
+    heatDotAccumulatorDamagePerTickWhenExternallyInherited?: number;
     /** Ogris Nightwatch Napalm's six fixed Heat ticks and independent 68% Heat proc rolls. */
     nightwatchNapalm?: {
         directDamagePerProjectilePerTick: number;
@@ -329,6 +333,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
         heatStatusDurationSeconds: number;
         heatDotDamagePerProcPerTick: number;
         heatDotAccumulatorDamagePerTick: number;
+        heatDotDamagePerProcPerTickWhenExternallyInherited?: number;
+        heatDotAccumulatorDamagePerTickWhenExternallyInherited?: number;
     };
     /** Expected ordinary status applications per attack when dynamic proc weights are unavailable. */
     expectedStatusApplicationsPerAttackByType?: Partial<Record<StatusDamageType, number>>;
@@ -408,6 +414,15 @@ interface HeatStatusApplicationOverride {
     durationSeconds: number;
     tickDamagePerProc: number;
     accumulatorDamagePerTick: number;
+    tickDamagePerProcWhenExternallyInherited?: number;
+    accumulatorDamagePerTickWhenExternallyInherited?: number;
+}
+
+interface HeatInheritanceState {
+    expiresAt: number;
+    durationSeconds: number;
+    /** Probability that the original source was external and remains the inherited source. */
+    externalSourceProbability: number;
 }
 
 interface GasCloudTickGroup {
@@ -579,9 +594,13 @@ interface HeatDotState {
  * is one shared tick stream. Simultaneous Electricity ticks share one pulse
  * while keeping their timers. Configured Electricity/Gas ticks deplete separate
  * same-profile pools, and Gas continues after the host dies; at Gas cap, old
- * stack tick events are reduced with oldest-stack replacement. Cross-source
- * Heat, neighbor status/position histories, attenuation, and TTK distributions
- * are not simulated; outer-ring Gas exposure is an area-uniform expectation.
+ * stack tick events are reduced with oldest-stack replacement. A configured
+ * initial external Heat source supplies its inherited Heat/faction bonuses to
+ * later Heat DoTs while its status remains active. This uses expected-value
+ * source probabilities and does not simulate the external source's damage or
+ * armor-strip history, or later independent sources. Neighbor status/position
+ * histories, attenuation, and TTK distributions are also not simulated;
+ * outer-ring Gas exposure is an area-uniform expectation.
  * Enemy Shield Gates reduce direct
  * Health damage for a short window; scheduled status ticks remain ungated.
  */
@@ -658,6 +677,7 @@ export function simulateExpectedWeaponEncounter(
     const cancelledTickSequences = new Set<number>();
     const heatArmorStripState: { current: HeatArmorStripState | null } = { current: null };
     const heatDotState: { current: HeatDotState | null } = { current: null };
+    const heatInheritanceState: { current: HeatInheritanceState | null } = { current: null };
     let coldFreezeUntil: number | null = null;
     let enemyShieldGateUntil = Number.NEGATIVE_INFINITY;
     let nextTickSequence = 0;
@@ -677,9 +697,10 @@ export function simulateExpectedWeaponEncounter(
 
     const initialHeatPresenceProbability = clampProbability(input.initialHeatStatusPresenceProbability ?? 0);
     if (initialHeatPresenceProbability > 0 && durationMultiplier > 0) {
+        const initialHeatDurationSeconds = STATUS_EFFECT_RULES.heat.durationSeconds * durationMultiplier;
         const heatQueue: ExpectedStatusStackQueue = {
             entries: [{
-                expiresAt: STATUS_EFFECT_RULES.heat.durationSeconds * durationMultiplier,
+                expiresAt: initialHeatDurationSeconds,
                 stacks: initialHeatPresenceProbability,
                 presenceProbability: initialHeatPresenceProbability,
             }],
@@ -690,6 +711,11 @@ export function simulateExpectedWeaponEncounter(
         };
         addStatusPresence(heatQueue, initialHeatPresenceProbability);
         statusStackQueues.set("heat", heatQueue);
+        heatInheritanceState.current = {
+            expiresAt: initialHeatDurationSeconds,
+            durationSeconds: initialHeatDurationSeconds,
+            externalSourceProbability: initialHeatPresenceProbability,
+        };
     }
 
     const activeStatusDamageMultiplier = (): number =>
@@ -1048,22 +1074,37 @@ export function simulateExpectedWeaponEncounter(
             if (type === "cold" && remainingPools.overguard > 0) cap = Math.min(cap, 4);
 
             let queue = statusStackQueues.get(type);
+            let resolvedDuration = duration;
+            let externalHeatInheritanceProbability = 0;
             if (type === "heat") {
+                const previousInheritanceState = heatInheritanceState.current;
+                const heatWasActive = previousInheritanceState !== null &&
+                    attackTime <= previousInheritanceState.expiresAt + 1e-9;
+                externalHeatInheritanceProbability = heatWasActive
+                    ? previousInheritanceState.externalSourceProbability
+                    : 0;
+                resolvedDuration = Math.max(duration, heatWasActive ? previousInheritanceState.durationSeconds : 0);
+                heatInheritanceState.current = {
+                    expiresAt: attackTime + resolvedDuration,
+                    durationSeconds: resolvedDuration,
+                    externalSourceProbability: externalHeatInheritanceProbability,
+                };
                 const previousHeatState = heatArmorStripState.current;
                 const canRefresh = previousHeatState !== null &&
                     attackTime < previousHeatState.lastAppliedAt + previousHeatState.durationSeconds - 1e-9;
                 heatArmorStripState.current = {
                     firstAppliedAt: canRefresh ? previousHeatState.firstAppliedAt : attackTime,
                     lastAppliedAt: attackTime,
-                    durationSeconds: duration,
+                    durationSeconds: resolvedDuration,
                     activeWeight: Math.min(1, (canRefresh ? previousHeatState.activeWeight : 0) + applications),
                 };
                 if (queue) {
                     for (let index = queue.head; index < queue.entries.length; index++) {
-                        queue.entries[index].expiresAt = attackTime + duration;
+                        queue.entries[index].expiresAt = attackTime + resolvedDuration;
                     }
                 }
             }
+            const applicationDuration = type === "heat" ? resolvedDuration : duration;
             if (!queue) {
                 queue = {
                     entries: [],
@@ -1216,7 +1257,7 @@ export function simulateExpectedWeaponEncounter(
                 continue;
             }
             queue.entries.push({
-                expiresAt: attackTime + duration,
+                expiresAt: attackTime + applicationDuration,
                 stacks: addedStacks,
                 presenceProbability,
                 ...(type === "gas" && gasCloudGroup ? { gasCloud: gasCloudGroup } : {}),
@@ -1250,24 +1291,37 @@ export function simulateExpectedWeaponEncounter(
             // Other DoTs keep their independent scheduled instances below.
             if (type === "heat") {
                 const perApplicationDamage = finiteNonNegative(input.dotDamagePerApplicationByType?.heat ?? 0);
-                const tickCount = countStatusDamageTicks("heat", duration);
-                const seedTickDamage = finiteNonNegative(heatStatusOverride?.tickDamagePerProc ??
-                    input.heatDotTickDamagePerProc ?? (tickCount > 0 ? perApplicationDamage / tickCount : 0)) *
-                    conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier;
-                const accumulatorTickDamage = finiteNonNegative(
+                const tickCount = countStatusDamageTicks("heat", applicationDuration);
+                const ordinarySeedTickDamage = finiteNonNegative(heatStatusOverride?.tickDamagePerProc ??
+                    input.heatDotTickDamagePerProc ?? (tickCount > 0 ? perApplicationDamage / tickCount : 0));
+                const inheritedSeedTickDamage = finiteNonNegative(
+                    heatStatusOverride?.tickDamagePerProcWhenExternallyInherited ??
+                    input.heatDotTickDamagePerProcWhenExternallyInherited ?? ordinarySeedTickDamage,
+                );
+                const seedTickDamage = ordinarySeedTickDamage * (1 - externalHeatInheritanceProbability) +
+                    inheritedSeedTickDamage * externalHeatInheritanceProbability;
+                const ordinaryAccumulatorTickDamage = finiteNonNegative(
                     heatStatusOverride?.accumulatorDamagePerTick ?? input.heatDotAccumulatorDamagePerTick ?? 0,
-                ) *
-                    statusDamageMultiplier;
-                if ((seedTickDamage > 0 || accumulatorTickDamage > 0) && tickCount > 0) {
+                );
+                const inheritedAccumulatorTickDamage = finiteNonNegative(
+                    heatStatusOverride?.accumulatorDamagePerTickWhenExternallyInherited ??
+                    input.heatDotAccumulatorDamagePerTickWhenExternallyInherited ?? ordinaryAccumulatorTickDamage,
+                );
+                const accumulatorTickDamage = ordinaryAccumulatorTickDamage * (1 - externalHeatInheritanceProbability) +
+                    inheritedAccumulatorTickDamage * externalHeatInheritanceProbability;
+                const adjustedSeedTickDamage = seedTickDamage *
+                    conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier;
+                const adjustedAccumulatorTickDamage = accumulatorTickDamage * statusDamageMultiplier;
+                if ((adjustedSeedTickDamage > 0 || adjustedAccumulatorTickDamage > 0) && tickCount > 0) {
                     const previousHeatDot = heatDotState.current;
                     const remainsActive = previousHeatDot !== null && attackTime <= previousHeatDot.expiresAt + 1e-9;
                     const nextTickAt = remainsActive ? previousHeatDot.nextTickAt : attackTime + 1;
                     heatDotState.current = {
-                        expiresAt: attackTime + duration,
+                        expiresAt: attackTime + applicationDuration,
                         nextTickAt,
                         tickDamage: (remainsActive ? previousHeatDot.tickDamage : 0) +
-                            seedTickDamage * addedStacks,
-                        accumulatorDamage: accumulatorTickDamage,
+                            adjustedSeedTickDamage * addedStacks,
+                        accumulatorDamage: adjustedAccumulatorTickDamage,
                     };
                     if (!remainsActive && nextTickAt <= maxDurationSeconds + 1e-9) {
                         heapPush(ticks, {
@@ -1863,6 +1917,10 @@ export function simulateExpectedWeaponEncounter(
                         durationSeconds: napalm.heatStatusDurationSeconds,
                         tickDamagePerProc: napalm.heatDotDamagePerProcPerTick,
                         accumulatorDamagePerTick: napalm.heatDotAccumulatorDamagePerTick,
+                        tickDamagePerProcWhenExternallyInherited:
+                            napalm.heatDotDamagePerProcPerTickWhenExternallyInherited,
+                        accumulatorDamagePerTickWhenExternallyInherited:
+                            napalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
                     },
                 );
                 killed = isEncounterTargetDefeated(initialHealth, remainingPools);

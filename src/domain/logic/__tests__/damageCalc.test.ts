@@ -987,6 +987,45 @@ describe("damage calculation status eligibility", () => {
         expect(assumedExternalHeat.steadyStateTargetStatusDamageMultiplier).toBeCloseTo(2.2, 12);
     });
 
+    it("applies the first external Heat source's Heat and faction bonuses only to later Heat DoT", () => {
+        const weapon = makeWeapon({ heat: 100 });
+        const currentSourceEffect = {
+            ...emptyEffect(),
+            damageBonus: 1,
+            heatBonus: 0.5,
+            statusDamageBonus: 0.25,
+            targetFaction: "Grineer",
+            factionDamageBonus: 0.4,
+        };
+        const ownFirstSource = calculateBuild(weapon, [currentSourceEffect], "Grineer").modded;
+        const externalFirstSource = calculateBuild(weapon, [currentSourceEffect], "Grineer", {
+            conditionalState: {
+                mode: "initial",
+                externalHeatStatusPresenceProbability: 1,
+                externalHeatElementalDamageBonus: 0.2,
+                externalHeatFactionDamageBonus: 0.3,
+            },
+        }).modded;
+        const mixedFirstSource = calculateBuild(weapon, [currentSourceEffect], "Grineer", {
+            conditionalState: {
+                mode: "initial",
+                externalHeatStatusPresenceProbability: 0.5,
+                externalHeatElementalDamageBonus: 0.2,
+                externalHeatFactionDamageBonus: 0.3,
+            },
+        }).modded;
+
+        expect(externalFirstSource.rawDamageBreakdown).toEqual(ownFirstSource.rawDamageBreakdown);
+        expect(ownFirstSource.dotTickDamagePerProcBeforeConditionOverloadByType.heat).toBeCloseTo(367.5, 6);
+        expect(externalFirstSource.heatDotTickDamagePerProcWhenExternallyInherited).toBeCloseTo(273, 6);
+        expect(externalFirstSource.heatDotAccumulatorDamagePerTickWhenExternallyInherited).toBeCloseTo(0.975, 6);
+        expect(externalFirstSource.dotDpsByType.heat).toBeLessThan(ownFirstSource.dotDpsByType.heat ?? 0);
+        expect(mixedFirstSource.dotDpsByType.heat).toBeCloseTo(
+            ((ownFirstSource.dotDpsByType.heat ?? 0) + (externalFirstSource.dotDpsByType.heat ?? 0)) / 2,
+            6,
+        );
+    });
+
     it("doubles Galvanized Steel critical chance on heavy attacks only", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         expect(weapon).toBeDefined();

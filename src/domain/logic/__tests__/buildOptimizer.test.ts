@@ -2171,6 +2171,67 @@ describe("build optimizer scoring", () => {
         expect(result.encounterTimeToKillSeconds!).toBeLessThanOrEqual(screeningEncounter.timeToKillSeconds!);
     });
 
+    it("uses configured first-source Heat bonuses in Expected TTK optimization", () => {
+        const baseWeapon = makeWeapon();
+        const weapon = makeWeapon({
+            damage: {
+                ...baseWeapon.damage,
+                total: 100,
+                impact: 0,
+                puncture: 0,
+                slash: 0,
+                heat: 100,
+                cold: 0,
+                electricity: 0,
+                toxin: 0,
+                blast: 0,
+                radiation: 0,
+                gas: 0,
+                magnetic: 0,
+                viral: 0,
+                corrosive: 0,
+                void: 0,
+                tau: 0,
+                true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 1,
+            fireRate: 1,
+            magazineSize: 10,
+            reloadTime: 1,
+        });
+        const target = { health: 10_000, shields: 0, overguard: 0, armor: 0 };
+        const baselineState = {
+            mode: "initial" as const,
+            externalHeatStatusPresenceProbability: 1,
+        };
+        const inheritedState = {
+            ...baselineState,
+            externalHeatElementalDamageBonus: 1,
+        };
+        const baseline = optimizeBuild(weapon, [], "timeToKill", 0, {
+            targetProfileOverride: target,
+            conditionalState: baselineState,
+        });
+        const inherited = optimizeBuild(weapon, [], "timeToKill", 0, {
+            targetProfileOverride: target,
+            conditionalState: inheritedState,
+        });
+        const independentlyScored = debugScoreExpectedEncounter(
+            weapon,
+            [],
+            "",
+            target,
+            inheritedState,
+        );
+
+        expect(baseline.encounterTimeToKillSeconds).not.toBeNull();
+        expect(inherited.encounterTimeToKillSeconds).not.toBeNull();
+        expect(inherited.encounterTimeToKillSeconds!).toBeLessThan(baseline.encounterTimeToKillSeconds!);
+        expect(inherited.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+    });
+
     it("scores same-trigger Galvanized direct damage in the Expected TTK objective", () => {
         const baseWeapon = makeWeapon();
         const weapon = makeWeapon({
