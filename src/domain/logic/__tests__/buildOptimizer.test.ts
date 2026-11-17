@@ -2608,6 +2608,55 @@ describe("build optimizer scoring", () => {
         expect(independentlyScored.timeToKillSeconds).toBeLessThanOrEqual(1.886792452831);
     });
 
+    it("finds the Torid two-mod pair swap in full-pool finite-TTK refinement", { timeout: 60000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Torid");
+        expect(weapon).toBeTruthy();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const attack = weapon!.attacks[attackIndex]!;
+        const target = { health: 100000, shields: 0, overguard: 0, armor: 3000 };
+        const conditionalState = { mode: "realistic" as const };
+        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 8, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig: {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            },
+            slotPolarities: weapon!.polarities,
+            defaultSlotPolarities: weapon!.polarities,
+            allowForma: true,
+            maxFormaCount: 3,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            buildForAttack: attack,
+        });
+        const selectedNames = result.mods.map((mod) => mod.name);
+        const effects = result.slots.map((mod, index) => mod
+            ? mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+            : null);
+        const independentlyScored = debugScoreExpectedEncounter(
+            withSelectedAttack(weapon!, attackIndex),
+            effects,
+            "Grineer",
+            target,
+            conditionalState,
+        );
+        const independentlyScoredTtk = independentlyScored.timeToKillSeconds ?? Number.NaN;
+
+        expect(result.capacityValid).toBe(true);
+        expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
+        expect(selectedNames).toContain("Thermite Rounds");
+        expect(selectedNames).toContain("Vile Acceleration");
+        expect(selectedNames).not.toContain("Hellfire");
+        expect(selectedNames).not.toContain("Spring-Loaded Chamber");
+        expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+        expect(independentlyScoredTtk).toBeCloseTo(10, 4);
+    });
     it("matches the exhaustive finite-encounter optimum for a five-mod legal subset", () => {
         const weapon = makeWeapon({
             fireRate: 4,
