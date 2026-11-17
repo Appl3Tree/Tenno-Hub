@@ -5563,12 +5563,12 @@ export default function ModBuilder() {
                                                     ].join(" ")}>
                                                     {optimizing ? "Cancel Optimization" : optimizeMode === "fill" ? "Fill & Optimize" : "Optimize Build"}
                                                 </button>
-                                                <div className="relative w-10 border-l border-amber-600/40">
+                                                <div className="relative w-10 border-l border-amber-600/40 focus-within:ring-2 focus-within:ring-amber-300/70">
                                                     <select
                                                         value={optimizeMode}
                                                         onChange={(e) => setOptimizeMode(e.target.value as OptimizeMode)}
                                                         disabled={optimizing}
-                                                        className="h-full w-full appearance-none bg-transparent text-transparent outline-none"
+                                                        className="h-full w-full appearance-none bg-transparent text-transparent opacity-0 outline-none"
                                                         aria-label="Optimization mode"
                                                     >
                                                         <option value="optimize" className="bg-slate-950 text-slate-100">Optimize</option>
