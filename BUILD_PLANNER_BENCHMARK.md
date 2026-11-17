@@ -24,9 +24,26 @@ The local code parses the set-member identity at every rank, normalizes the raw 
 
 Validation passes: full suite 797/797 across 53 files; focused Sacrificial slice 4/4; TypeScript/production build; source validation; prerequisite audit (162 entries, no unresolved references/cycles); mod-effect audit (694 weapons / 599 eligible mods / 490 parsed / 109 without effects / 71 review candidates / 18 partial / 53 fully unparsed / zero pools without parsed damage); focused ESLint; and CRLF-aware diff check. The existing Vite large-chunk warning remains. PR [#140](https://github.com/Appl3Tree/Tenno-Hub/pull/140) was squash-merged as `693929198a911890968870cae4438e25d231d078`; Pages deployment [run #221](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44168533966) succeeded. This is calculator/optimizer coverage, not a broad build-quality benchmark, Underframe comparison, browser verification, or live-game validation; no optimizer quality or performance gain is claimed.
 
-## Second seeded 12-weapon full-catalog Expected TTK corpus — D3-OPT-SEED-CORPUS-002 (2026-11-17; in progress)
+## Second seeded 12-weapon full-catalog Expected TTK corpus — D3-OPT-SEED-CORPUS-002 (2026-11-17; completed)
 
-Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261144`. The runner combines eight fixed anchors with one Mulberry32-seeded candidate from each predeclared explosive-primary, Archgun, companion-weapon, and heavy-melee stratum. This seed selects Kuva Ogris / Rocket Explosion, Mausolon / Charged Shot Explosion, Verglas Prime / Normal Attack, and Arca Titron / Heavy Slam Attack. All cases use Grineer, 100,000 Health / 3,000 Armor, Realistic state, eight main slots, Catalyst, MR30, up to three Forma, and exact finite Expected TTK for every legal one-mod add/remove/replacement. The audit is running; per-case results, quality findings, and timings will be recorded after completion. No result is claimed yet.
+Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261144`. The runner combines eight fixed anchors with one Mulberry32-selected candidate from each predeclared explosive-primary, Archgun, companion-weapon, and heavy-melee stratum: Kuva Ogris / Rocket Explosion, Mausolon / Charged Shot Explosion, Verglas Prime / Normal Attack, and Arca Titron / Heavy Slam Attack. All twelve cases use Grineer, 100,000 Health / 3,000 Armor, Realistic state, eight main slots, Catalyst, MR30, up to three Forma, no Arcane or Exilus optimization, and exact finite Expected TTK for every legal one-mod add/remove/replacement from Auto Optimize's baseline.
+
+| Weapon / attack | Exact legal neighbors | Optimizer = best neighbor TTK |
+|---|---:|---:|
+| Braton Prime / Normal Attack | 234 | 2.1194748 s |
+| Cedo / Normal Attack | 412 | 2.6109661 s |
+| Laetum / Normal Attack | 292 | 1.8867925 s |
+| Soma Prime / Fully Spooled | 420 | 1.7191106 s |
+| Broken War / Normal Attack | 365 | 8.0000000 s |
+| Kuva Nukor / Normal Attack | 359 | 1.4400000 s |
+| Nataruk / Perfect Shot | 396 | 1.3000000 s |
+| Torid / Grenade Impact | 326 | 10.0000000 s |
+| Kuva Ogris / Rocket Explosion | 450 | 2.0000000 s |
+| Mausolon / Charged Shot Explosion | 163 | 1.0526316 s |
+| Verglas Prime / Normal Attack | 250 | 2.8070175 s |
+| Arca Titron / Heavy Slam Attack | 299 | 1.5591503 s |
+
+All 3,966 neighbors tied or lost; every reported optimizer TTK equals the best legal neighbor TTK. The pair of seeded corpora now covers sixteen distinct weapon/attack fixtures across the original eight anchors and eight randomized representatives, but the one-mod checks remain specific to this single target/faction/state/objective and use the planner's own damage model. This is not global optimality, Underframe comparison, live-game validation, or browser/mobile latency evidence. No application code changed.
 
 ## Seeded 12-weapon full-catalog Expected TTK corpus and tempo-tradeoff correction (2026-11-17)
 
