@@ -1,5 +1,23 @@
 # Build Planner Optimizer Benchmark
 
+## Expanded full-catalog Expected TTK one-mod neighborhoods (2026-11-17)
+
+Each case starts from Auto Optimize's eight-mod result for a 100,000 Health / 3,000 Armor Grineer target with no Shields or Overguard, Realistic conditional state, Catalyst, and up to three Forma. The audit evaluated every legal one-mod add, remove, or replacement from the eligible catalog pool using the finite expected encounter score. Arcane and Exilus optimization were disabled so the neighborhood comparison stays on the eight main slots.
+
+| Weapon / attack | Eligible mods | Legal one-mod neighbors | Optimizer TTK | Best-neighbor result |
+| --- | ---: | ---: | ---: | --- |
+| Braton Prime / Normal Attack | 61 | 229 | 2.1194748 s | No improvement |
+| Cedo / default attack | 61 | 404 | 2.6109661 s | No improvement |
+| Laetum / Normal Attack | 65 | 292 | 1.8867925 s | No improvement after the follow-up |
+| Soma Prime / Fully Spooled | 62 | 412 | 1.7191106 s | No improvement |
+| Broken War / Normal Attack | 62 | 365 | 8.0000000 s | No improvement |
+
+The Laetum audit exposed a real search gap after PR #119: replacing Expel Grineer with Creeping Bullseye improved modeled TTK from 1.8965517 s to 1.8867925 s. A locked-slot optimizer replay confirmed the exact one-mod build and score. The gap remained because the four-pass refinement reached a better Gunslinger replacement on its last pass, leaving no pass to test the next critical replacement from that new incumbent. Critical replacement-slot alternatives now receive priority within the existing per-pass candidate cap, and the bounded pass count is five. The full-pool optimizer now returns the 1.8867925 s result; all 292 legal one-mod neighbors tie or lose.
+
+The five neighborhoods are a limited local-optimality check under the planner's own model and custom target. They do not establish global optimality, quality for coordinated multi-mod changes, or agreement with live gameplay. The extra refinement pass may add work to Expected TTK search; broad latency plus cold/mobile browser measurements remain open.
+
+After the fifth-pass change, `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=1 --verify-arcane-selection` completed all 44 configured cases with legal builds and passed the returned-build Arcane checks. The single-call observations ranged from 1,607.7 ms to 6,763.7 ms on Windows x64 / Node 22.16.0. Since every case ran once, these are not p95 or repeatability results, and the Node harness does not measure the browser Worker, cold startup, or mobile hardware.
+
 ## Full-catalog exact one-mod Expected TTK neighborhood (2026-11-16)
 
 Command: `npx tsx scripts/auditExpectedTtkFullPool.ts --weapon="Braton Prime" --faction=Grineer --state=realistic --health=100000 --armor=3000`. The audit started from the optimizer's legal eight-mod, three-Forma build against a 100,000 Health / 3,000 Armor custom Grineer target. It scored every legal add, remove, and single-mod replacement from the full eligible catalog pool: 229 neighbors, with 229 exact finite-encounter scores. The eligible pool contained 61 mods (106 catalog candidates before target/effect filtering).
