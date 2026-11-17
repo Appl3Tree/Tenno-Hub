@@ -4,7 +4,7 @@ import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
-import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
+import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
@@ -810,9 +810,10 @@ describe("build optimizer scoring", () => {
         expect(obex).toBeDefined();
         const entropyDetonation = getModsForWeapon(obex!).find((mod) => mod.name === "Entropy Detonation");
         expect(entropyDetonation).toBeDefined();
+        expect(getUnmodeledDamageEffectSourceUrl(entropyDetonation!)).toBe("https://wiki.warframe.com/w/Entropy_Detonation");
         for (let rank = 0; rank <= entropyDetonation!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(entropyDetonation!, rank)).toContain(
-                "Entropy Detonation’s lethal-ground-attack Blast explosion and Entropy effect are not scored; Auto Optimize skips this mod until its trigger and radial damage are modeled.",
+                "Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled flat + Enemy Max Health Blast explosion reaches the selected rank’s radius and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.",
             );
         }
         const result = optimizeBuild(obex!, [entropyDetonation!], "meleeDps", 1, { allowForma: false });
@@ -824,11 +825,12 @@ describe("build optimizer scoring", () => {
         expect(furax).toBeDefined();
         const amalgamBodyCount = getModsForWeapon(furax!).find((mod) => mod.name === "Amalgam Furax Body Count");
         expect(amalgamBodyCount).toBeDefined();
+        expect(getUnmodeledDamageEffectSourceUrl(amalgamBodyCount!)).toBe("https://wiki.warframe.com/w/Amalgam_Furax_Body_Count");
         expect(amalgamBodyCount!.effect.fireRateBonus).toBeCloseTo(0.45);
         expect(amalgamBodyCount!.effect.comboDurationBonus).toBeCloseTo(15);
         for (let rank = 0; rank <= amalgamBodyCount!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(amalgamBodyCount!, rank)).toContain(
-                "Amalgam Furax Body Count’s melee-kill Blast and stagger in 15m are not scored; Auto Optimize skips this mod until the area-effect damage and trigger are modeled.",
+                "Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; neighboring-target proc history and stagger utility are not modeled, so Auto Optimize skips this mod.",
             );
         }
         const result = optimizeBuild(furax!, [amalgamBodyCount!], "meleeDps", 1, { allowForma: false });
