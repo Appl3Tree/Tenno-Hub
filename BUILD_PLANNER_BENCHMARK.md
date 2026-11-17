@@ -43,7 +43,7 @@ Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261144`. The runner
 | Verglas Prime / Normal Attack | 250 | 2.8070175 s |
 | Arca Titron / Heavy Slam Attack | 299 | 1.5591503 s |
 
-All 3,966 neighbors tied or lost; every reported optimizer TTK equals the best legal neighbor TTK. The pair of seeded corpora now covers sixteen distinct weapon/attack fixtures across the original eight anchors and eight randomized representatives, but the one-mod checks remain specific to this single target/faction/state/objective and use the planner's own damage model. This is not global optimality, Underframe comparison, live-game validation, or browser/mobile latency evidence. No application code changed.
+All 3,966 neighbors tied or lost; every reported optimizer TTK equals the best legal neighbor TTK. The pair of seeded corpora now covers sixteen distinct weapon/attack fixtures across the original eight anchors and eight randomized representatives, but the one-mod checks remain specific to this single target/faction/state/objective and use the planner's own damage model. This is not global optimality, Underframe comparison, live-game validation, or browser/mobile latency evidence. No application code changed. PR [#142](https://github.com/Appl3Tree/Tenno-Hub/pull/142) was squash-merged as `ec6b083061c1241a2976bb8ca62bd30b6c8f6203`; Pages deployment [run #223](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44174273199) succeeded.
 
 ## Second seeded 12-fixture two-mod Expected TTK sample — D3-OPT-RANDOM-PAIR-AUDIT-002 (2026-11-17; completed)
 
@@ -64,7 +64,7 @@ Command: `npx tsx scripts/auditExpectedTtkPairSample.ts --seed=20261144 --sample
 | Verglas Prime / Normal Attack | 2.8070175 s | 3.0263158 s | 2,406 | 1,024 | 0 |
 | Arca Titron / Heavy Slam Attack | 1.5591503 s | 1.8190086 s | 2,090 | 1,024 | 0 |
 
-Total: 12,288 legal sampled builds from 24,675 distinct raw tuples, with no improvements. Kuva Ogris and Mausolon had a sampled tie; the remaining best sampled candidates were slower. This reduces the chance that an obvious coordinated two-mod replacement exists in these sampled neighborhoods but does not prove pair-local or global optimality, and does not compare to Underframe or live gameplay. The full-pool sample's 12-fixture latency is not a product interaction measurement.
+Total: 12,288 legal sampled builds from 24,675 distinct raw tuples, with no improvements. Kuva Ogris and Mausolon had a sampled tie; the remaining best sampled candidates were slower. This reduces the chance that an obvious coordinated two-mod replacement exists in these sampled neighborhoods but does not prove pair-local or global optimality, and does not compare to Underframe or live gameplay. The full-pool sample's 12-fixture latency is not a product interaction measurement. PR [#142](https://github.com/Appl3Tree/Tenno-Hub/pull/142) was squash-merged as `ec6b083061c1241a2976bb8ca62bd30b6c8f6203`; Pages deployment [run #223](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44174273199) succeeded.
 
 ## Seeded 12-weapon full-catalog Expected TTK corpus and tempo-tradeoff correction (2026-11-17)
 
