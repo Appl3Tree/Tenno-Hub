@@ -27,6 +27,27 @@ After the fix, the same seeded corpus returns no improving legal one-mod neighbo
 
 The corpus scored 3,979 exact legal neighbors and took about 95.4s total on Windows x64 / Node v22.16.0; this is exhaustive-audit wall time, not planner interaction latency. Three direct-core Helstrum optimization runs returned the same legal build and 52s score in 3,626.6 / 2,747.8 / 2,906.4ms (median 2,906.4ms, maximum 3,626.6ms). Validation passes at 795 tests / 53 files, production TypeScript/Vite build (existing large-chunk warning), source validation, prerequisite audit (227 entries; no unresolved references/cycles), mod-effect coverage (694 weapons / 599 eligible mods / 489 parsed / 110 with no effects / 71 review candidates / 18 partial / 53 fully unparsed / zero pools without parsed damage), focused ESLint, and CRLF-aware diff check. This is bounded one-mod local-optimum evidence under one target/model, not global optimality, gameplay validation, or an Underframe comparison. PR [#130](https://github.com/Appl3Tree/Tenno-Hub/pull/130) was squash-merged as db3fa3634966c44c11c9ee6474c1d029513f02c1; Pages deployment [run #209](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44123588584) succeeded. Production integrated-browser smoke verification remains unverified because the open request queued and Computer Use was interrupted before a rendered check.
 
+## Seeded full-pool two-mod replacement sample (2026-11-17)
+
+The reproducible runner is npx tsx scripts/auditExpectedTtkPairSample.ts --seed=20261117 --samples=1024. It reuses the 12 fixtures selected by auditExpectedTtkCorpus.ts --seed=20261117. Per-fixture seeds are derived from the base seed using Mulberry32 and the documented uint32 offset formula in the runner. Each fixture sampled 1,024 distinct legal two-mod replacements, chosen uniformly from the legal tuple space by randomizing raw tuples and rejecting illegal builds, then exact-scored with finite Expected TTK. Incoming mods were full-catalog eligible max-rank candidates with fully modeled damage effects and were not in the baseline build. The same Grineer 100,000 Health / 3,000 Armor Realistic scenario, eight slots, Catalyst, MR30, up to three Forma, and no Arcane/Exilus optimization were used.
+
+| Weapon / attack | Baseline TTK | Best sampled pair TTK | Improving samples |
+| --- | ---: | ---: | ---: |
+| Braton Prime / Normal Attack | 2.1194748 s | 2.3074387 s | 0 / 1,024 |
+| Cedo / Normal Attack | 2.6109661 s | 2.9515268 s | 0 / 1,024 |
+| Laetum / Normal Attack | 1.8867925 s | 2.0000000 s | 0 / 1,024 |
+| Soma Prime / Fully Spooled | 1.7191106 s | 2.0531907 s | 0 / 1,024 |
+| Broken War / Normal Attack | 8.0000000 s | 9.0322581 s | 0 / 1,024 |
+| Kuva Nukor / Normal Attack | 1.4400000 s | 1.7831325 s | 0 / 1,024 |
+| Nataruk / Perfect Shot | 1.3000000 s | 1.4750000 s | 0 / 1,024 |
+| Torid / Grenade Impact | 10.0000000 s | 11.0000000 s | 0 / 1,024 |
+| Tenet Envoy / Rocket Explosion | 2.5364616 s | 2.7995801 s | 0 / 1,024 |
+| Corvas Prime / Charged Shot | 1.5384615 s | 1.5384615 s | 0 / 1,024 |
+| Helstrum / Explosion | 52.0000000 s | 63.0000000 s | 0 / 1,024 |
+| Gram Prime / Heavy Slam Attack | 1.2500000 s | 2.4193548 s | 0 / 1,024 |
+
+Across the corpus, the sampler examined 24,170 raw tuples to collect 12,288 legal moves. The proportion of each raw tuple universe examined ranged from 2.876% to 14.967%. This finds no improvement in the sampled pairs; it does not establish a pair-local optimum or global optimality. The sample is one faction, target, objective, and conditional state; it excludes effects without fully modeled damage lines and is not an Underframe or live-game comparison. No optimizer code changed in this audit.
+
 ## Coda Bassocyst Alt-Fire model boundary (2026-11-17)
 
 The current [Coda Bassocyst Wiki page](https://wiki.warframe.com/w/Coda_Bassocyst) describes an Alt-Fire mite that can attach to up to six enemies, applies Impact/Magnetic damage and status once per second for ten seconds, and has an eligible-target Mercy-finisher branch. The planner's ordinary attack row does not represent delayed multi-target tick history or the Mercy branch. Its displayed row damage and DPS/TTK values are not valid estimates for this mode, so Auto Optimize refuses it and shows the limitation and Wiki link. Normal Attack remains in the supported score pool.
