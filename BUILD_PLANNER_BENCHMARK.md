@@ -45,6 +45,27 @@ Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261144`. The runner
 
 All 3,966 neighbors tied or lost; every reported optimizer TTK equals the best legal neighbor TTK. The pair of seeded corpora now covers sixteen distinct weapon/attack fixtures across the original eight anchors and eight randomized representatives, but the one-mod checks remain specific to this single target/faction/state/objective and use the planner's own damage model. This is not global optimality, Underframe comparison, live-game validation, or browser/mobile latency evidence. No application code changed.
 
+## Second seeded 12-fixture two-mod Expected TTK sample — D3-OPT-RANDOM-PAIR-AUDIT-002 (2026-11-17; completed)
+
+Command: `npx tsx scripts/auditExpectedTtkPairSample.ts --seed=20261144 --samples=1024`. Each fixture uses a derived Mulberry32 seed and 1,024 sampled legal max-rank two-out/two-in replacements from the full damage-effect catalog. The sampler draws without replacement from outgoing-slot-pair × incoming-mod-pair tuples, rejecting duplicate, incompatible, unsupported, capacity/Forma-illegal, and duplicate-build outcomes. Exact finite Expected TTK scores use the same Grineer / 100,000 Health / 3,000 Armor / Realistic / eight-slot / Catalyst / three-Forma settings as the seeded one-mod corpus.
+
+| Weapon / attack | Baseline TTK | Best sampled TTK | Raw tuples examined | Legal moves | Improvements |
+|---|---:|---:|---:|---:|---:|
+| Braton Prime / Normal Attack | 2.1194748 s | 2.4476280 s | 3,057 | 1,024 | 0 |
+| Cedo / Normal Attack | 2.6109661 s | 2.7202623 s | 1,568 | 1,024 | 0 |
+| Laetum / Normal Attack | 1.8867925 s | 2.0000000 s | 2,383 | 1,024 | 0 |
+| Soma Prime / Fully Spooled | 1.7191106 s | 2.1050755 s | 1,594 | 1,024 | 0 |
+| Broken War / Normal Attack | 8.0000000 s | 9.0000000 s | 1,789 | 1,024 | 0 |
+| Kuva Nukor / Normal Attack | 1.4400000 s | 1.7500000 s | 1,796 | 1,024 | 0 |
+| Nataruk / Perfect Shot | 1.3000000 s | 1.4750000 s | 1,548 | 1,024 | 0 |
+| Torid / Grenade Impact | 10.0000000 s | 11.0000000 s | 2,425 | 1,024 | 0 |
+| Kuva Ogris / Rocket Explosion | 2.0000000 s | 2.0000000 s | 1,418 | 1,024 | 0 |
+| Mausolon / Charged Shot Explosion | 1.0526316 s | 1.0526316 s | 2,601 | 1,024 | 0 |
+| Verglas Prime / Normal Attack | 2.8070175 s | 3.0263158 s | 2,406 | 1,024 | 0 |
+| Arca Titron / Heavy Slam Attack | 1.5591503 s | 1.8190086 s | 2,090 | 1,024 | 0 |
+
+Total: 12,288 legal sampled builds from 24,675 distinct raw tuples, with no improvements. Kuva Ogris and Mausolon had a sampled tie; the remaining best sampled candidates were slower. This reduces the chance that an obvious coordinated two-mod replacement exists in these sampled neighborhoods but does not prove pair-local or global optimality, and does not compare to Underframe or live gameplay. The full-pool sample's 12-fixture latency is not a product interaction measurement.
+
 ## Seeded 12-weapon full-catalog Expected TTK corpus and tempo-tradeoff correction (2026-11-17)
 
 Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261117`. The repeatable corpus combines eight previously audited anchors with one Mulberry32-uniform candidate from each predeclared underrepresented stratum. The selected seeded cases were Tenet Envoy / Rocket Explosion, Corvas Prime / Charged Shot, Helstrum / Explosion, and Gram Prime / Heavy Slam Attack. The fixed anchors are Braton Prime / Normal Attack, Cedo / Normal Attack, Laetum / Normal Attack, Soma Prime / Fully Spooled, Broken War / Normal Attack, Kuva Nukor / Normal Attack, Nataruk / Perfect Shot, and Torid / Grenade Impact. Candidate strata are: explosive primary (Kuva Ogris, Acceltra Prime, Tenet Envoy); Archgun (Corvas Prime, Mausolon); companion weapon (Verglas Prime, Helstrum); and heavy melee (Gram Prime, Arca Titron). The seed and selected case list are emitted by `--dry-run`.
