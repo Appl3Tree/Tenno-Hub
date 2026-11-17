@@ -258,6 +258,14 @@ console.log(JSON.stringify({
         .sort((left, right) => better(left.score, right.score) ? -1 : better(right.score, left.score) ? 1 : 0)
         .slice(0, 10)
         .map(({ mods, score, proxyScore, change }) => ({ mods, score: scoreSummary(score), proxyScore, change })),
+    topProxyNeighbors: [...neighborAudit]
+        .sort((left, right) => right.proxyScore - left.proxyScore)
+        .slice(0, 15)
+        .map(({ mods, score, proxyScore, change }) => ({ mods, score: scoreSummary(score), proxyScore, change })),
+    blazeProposals: neighborAudit
+        .filter((entry) => entry.change.name === "Blaze")
+        .sort((left, right) => right.proxyScore - left.proxyScore)
+        .map(({ mods, score, proxyScore, change }) => ({ mods, score: scoreSummary(score), proxyScore, change })),
     springLoadedChamberProposals: neighborAudit
         .filter((entry) => entry.change.name === "Spring-Loaded Chamber")
         .sort((left, right) => right.proxyScore - left.proxyScore)
