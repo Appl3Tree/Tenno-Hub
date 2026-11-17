@@ -2,24 +2,24 @@
 
 Generated from `PREREQ_REGISTRY`, `MILESTONE_REGISTRY`, `SOURCE_INDEX`, and `STAR_CHART_DATA` by `npm run audit:prerequisites`.
 
-- Registry entries: 164
-- Direct required edges: 181
+- Registry entries: 162
+- Direct required edges: 179
 - Alternative prerequisite references: 18
 - Typed blocking conditions: 25
-- Blocking relationships in edge matrix: 224
+- Blocking relationships in edge matrix: 222
 - Non-blocking onboarding links: 11
 - Milestone rollups: 47
 - Source catalog entries: 16256
-- Source-catalog gate relationships: 5730 across 151 exact gate patterns
+- Source-catalog gate relationships: 5730 across 149 exact gate patterns
 - Star Chart nodes: 514
 - Star Chart junctions: 13
-- Prerequisite categories: Quests 27; Systems 53; SideQuests 21; Hubs 7; Railjack 11; Segments 11; Necramech 4; Syndicates 30
+- Prerequisite categories: Quests 27; Systems 51; SideQuests 21; Hubs 7; Railjack 11; Segments 11; Necramech 4; Syndicates 30
 - Root entries: quest_awakening
 - Entries not connected to Awakening: none
 - Non-quest entries without downstream content: none
 - Invalid external prerequisite consumers: none
-- Entries with release metadata: 13
-- Entries introduced after the Update 41 baseline: 4 (Quests 1; Railjack 1; Systems 2)
+- Entries with release metadata: 11
+- Entries introduced after the Update 41 baseline: 2 (Quests 1; Railjack 1)
 - Duplicate IDs: none
 - Duplicate milestone IDs: none
 - Duplicate canonical labels: none
@@ -178,8 +178,6 @@ Each blocking AND edge, OR alternative, and typed condition has its own row. The
 | `activity_circuit_completed` Completed The Circuit on Normal | and:activity_the_circuit · Complete The Circuit | required-and | [wiki](https://wiki.warframe.com/w/The_Steel_Path) (2026-11-14; required): The current Duviri Steel Path access rule explicitly requires completing The Circuit in Normal mode. | Retain as required AND gate |
 | `activity_netracells` Netracells | and:quest_whispers_in_the_walls · Complete Whispers in the Walls | required-and | [wiki](https://wiki.warframe.com/w/Netracells) (2026-11-14; required): Netracell missions require completion of Whispers in the Walls; Tagfer in the Sanctum Anatomica is the access point, and that hub is unlocked by the same quest. | Retain as required AND gate |
 | `system_uranus_proxima` Uranus Proxima Access | and:quest_jade_shadows_constellations · Complete Jade Shadows: Constellations | required-and | [official](https://www.warframe.com/en/patch-notes/pc/43-0-0) (2026-11-14; required): Completion unlocks Uranus Proxima; the update says the missions can be launched using a provided Railjack. | Retain as required AND gate |
-| `activity_kuva_wytch` The Kuva Wytch | and:system_uranus_proxima · Complete Uranus Proxima Access | required-and | [official](https://www.warframe.com/en/patch-notes/pc/43-0-0) (2026-11-14; required): Listed as one of the two missions unlocked by completing the quest. | Retain as required AND gate |
-| `activity_scorias_angel` Scoria's Angel | and:system_uranus_proxima · Complete Uranus Proxima Access | required-and | [official](https://www.warframe.com/en/patch-notes/pc/43-0-0) (2026-11-14; required): Listed as one of the two missions unlocked by completing the quest. | Retain as required AND gate |
 | `activity_kuva_lich` Kuva Lich System | and:quest_the_war_within · Complete The War Within | required-and | [wiki](https://wiki.warframe.com/w/Kuva_Lich) (2026-11-14; required): The current Kuva Lich requirements are The War Within, MR5, and an acquired Railjack. Rising Tide is one Railjack acquisition route; the game also permits Railjack purchase, so ownership is modeled as either route.; [wiki](https://wiki.warframe.com/w/Adversary_System) (2026-11-14; required): The current Adversary System permits only one active Adversary at a time; clear the existing Lich, Sister, or Coda before generating another. | Retain as required AND gate |
 | `activity_kuva_lich` Kuva Lich System | and:system_adversary_slot_clear · Complete Adversary Slot Clear | required-and | [wiki](https://wiki.warframe.com/w/Kuva_Lich) (2026-11-14; required): The current Kuva Lich requirements are The War Within, MR5, and an acquired Railjack. Rising Tide is one Railjack acquisition route; the game also permits Railjack purchase, so ownership is modeled as either route.; [wiki](https://wiki.warframe.com/w/Adversary_System) (2026-11-14; required): The current Adversary System permits only one active Adversary at a time; clear the existing Lich, Sister, or Coda before generating another. | Retain as required AND gate |
 | `activity_kuva_lich` Kuva Lich System | or:system_railjack_constructed · Use this alternative: Railjack: Ship Constructed | alternative-or | [wiki](https://wiki.warframe.com/w/Kuva_Lich) (2026-11-14; required): The current Kuva Lich requirements are The War Within, MR5, and an acquired Railjack. Rising Tide is one Railjack acquisition route; the game also permits Railjack purchase, so ownership is modeled as either route.; [wiki](https://wiki.warframe.com/w/Adversary_System) (2026-11-14; required): The current Adversary System permits only one active Adversary at a time; clear the existing Lich, Sister, or Coda before generating another. | Retain as an alternative route |
@@ -347,6 +345,7 @@ The source catalog contains many generated rows that share the same location-spe
 | The Steel Path Unlocked AND Lua Access | 12 | data:node/lua/circulus-extra, data:node/lua/yuvarium-extra, data:drop:node:lua:circulus_extra | [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path); [Lua Access](https://wiki.warframe.com/w/Star_Chart) |
 | The Steel Path Unlocked AND The Old Peace | 12 | data:wfitems:loc:the-descendia-common-rewards-steel-path, data:wfitems:loc:the-descendia-infernum-20-triple-arcane-rewards-steel-path, data:wfitems:loc:the-descendia-infernum-6-and-13-arcane-rewards-steel-path | [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path); [The Old Peace](https://wiki.warframe.com/w/The_Old_Peace) |
 | Void Storms | 10 | data:wfitems:loc:10x-corrupted-holokey, data:wfitems:loc:3x-corrupted-holokey, data:wfitems:loc:4x-corrupted-holokey | [Void Storms](https://wiki.warframe.com/w/Empyrean) |
+| Uranus Proxima Access | 10 | data:node/uranus/scorias-angel, data:node/uranus/the-kuva-wytch, data:drop:node:uranus:scorias_angel | [Uranus Proxima Access](https://www.warframe.com/en/patch-notes/pc/43-0-0) |
 | Nightwave Access | 9 | data:landing-craft/nightwave, data:nightwave/cred-offerings, data:nightwave/rank-reward | [Nightwave Access](https://wiki.warframe.com/w/Nightwave) |
 | Stolen Dreams | 9 | data:wfitems:loc:arcane-boiler, data:enemymod/anarch-libritor, data:enemymod/arcane-boiler | [Stolen Dreams](https://wiki.warframe.com/w/Stolen_Dreams) |
 | The Steel Path Unlocked AND The Hex | 8 | data:wfitems:loc:faceoff-single-squad-steel-path-rotation-a, data:wfitems:loc:faceoff-single-squad-steel-path-rotation-b, data:wfitems:loc:faceoff-squad-vs-squad-steel-path-winner | [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path); [The Hex](https://wiki.warframe.com/w/The_Hex_%28Quest%29) |
@@ -354,12 +353,11 @@ The source catalog contains many generated rows that share the same location-spe
 | Invasions Available | 7 | data:invasion/rewards, data:resource/mutagen-mass, data:resource/detonite-injector | [Invasions Available](https://www.warframe.com/en/news/vors-prize-guide); [Invasions Available](https://wiki.warframe.com/w/Invasion) |
 | The New Strange | 7 | data:node/sanctuary/sanctuary-onslaught, data:drop:node:sanctuary:sanctuary_onslaught, data:missionreward/sanctuary/sanctuary-onslaught | [The New Strange](https://wiki.warframe.com/w/The_New_Strange) |
 | Clan Dojo Access | 7 | data:dojo/chem-lab, data:dojo/energy-lab, data:dojo/bio-lab | [Clan Dojo Access](https://wiki.warframe.com/w/Clan_Dojo) |
+| The Steel Path Unlocked AND Uranus Proxima Access | 6 | data:node/uranus/scorias-angel-extra, data:node/uranus/the-kuva-wytch-extra, data:drop:node:uranus:scorias_angel_extra | [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path); [Uranus Proxima Access](https://www.warframe.com/en/patch-notes/pc/43-0-0) |
 | The Hex AND The Hex: Rank 5 (Pizza Party) | 6 | data:wfitems:loc:temporal-archimedea-gold-rewards, data:wfitems:loc:temporal-archimedea-legendary-rewards, data:wfitems:loc:temporal-archimedea-silver-rewards | [The Hex](https://wiki.warframe.com/w/The_Hex_%28Quest%29); [The Hex: Rank 5 (Pizza Party)](https://wiki.warframe.com/w/The_Hex_(Syndicate)) |
 | The New Strange AND Rank 30 Warframe Activity Eligibility | 6 | data:node/sanctuary/elite-sanctuary-onslaught, data:drop:node:sanctuary:elite_sanctuary_onslaught, data:missionreward/sanctuary/elite-sanctuary-onslaught | [The New Strange](https://wiki.warframe.com/w/The_New_Strange); [Rank 30 Warframe Activity Eligibility](https://wiki.warframe.com/w/Sortie); [Rank 30 Warframe Activity Eligibility](https://wiki.warframe.com/w/Arbitrations); [Rank 30 Warframe Activity Eligibility](https://wiki.warframe.com/w/Sanctuary_Onslaught) |
 | Whispers in the Walls AND Cavia: Rank 5 (Illuminate) | 6 | data:wfitems:loc:deep-archimedea-gold-rewards, data:wfitems:loc:deep-archimedea-legendary-rewards, data:wfitems:loc:deep-archimedea-silver-rewards | [Whispers in the Walls](https://wiki.warframe.com/w/Whispers_in_the_Walls); [Cavia: Rank 5 (Illuminate)](https://wiki.warframe.com/w/Cavia) |
-| The Kuva Wytch | 5 | data:node/uranus/the-kuva-wytch, data:drop:node:uranus:the-kuva-wytch, data:drop:node:uranus:the_kuva_wytch | [The Kuva Wytch](https://www.warframe.com/en/patch-notes/pc/43-0-0) |
 | Nightmare Missions Unlocked | 5 | data:wfitems:loc:animal-instinct, data:wfitems:loc:nightmare-mode-rewards-rotation-a, data:wfitems:loc:nightmare-mode-rewards-rotation-b | [Nightmare Missions Unlocked](https://wiki.warframe.com/w/Nightmare_Mode) |
-| Scoria's Angel | 5 | data:node/uranus/scorias-angel, data:drop:node:uranus:scorias_angel, data:drop:node:uranus:scorias-angel | [Scoria's Angel](https://www.warframe.com/en/patch-notes/pc/43-0-0) |
 | Angels of the Zariman | 5 | data:wfitems:loc:15x-thrax-plasm, data:wfitems:loc:3x-lua-thrax-plasm, data:wfitems:loc:5x-lua-thrax-plasm | [Angels of the Zariman](https://wiki.warframe.com/w/Angels_of_the_Zariman) |
 | Once Awake AND Saya's Vigil | 5 | data:node/earth/sayas-visions, data:drop:node:earth:sayas_visions, data:drop:node:earth:sayas-visions | [Once Awake](https://wiki.warframe.com/w/Once_Awake); [Saya's Vigil](https://wiki.warframe.com/w/Saya%27s_Vigil) |
 | Whispers in the Walls | 5 | data:wfitems:loc:the-fragmented-suzerain, data:additionalitembyavatar/the-fragmented-suzerain, data:enemymod/rupturing-fragment | [Whispers in the Walls](https://wiki.warframe.com/w/Whispers_in_the_Walls) |
@@ -369,9 +367,7 @@ The source catalog contains many generated rows that share the same location-spe
 | Chains of Harrow | 4 | data:vendor/iron-wake/palladino, data:vendor/relay/aspirant-zorba, data:wfitems:loc:3x-nightmare-tatters | [Chains of Harrow](https://www.warframe.com/en/patch-notes/pc/35-5-0) |
 | The Deadlock Protocol | 4 | data:wfitems:loc:nightmare-granum-void-rotation-a, data:wfitems:loc:nightmare-granum-void-rotation-b, data:wfitems:loc:nightmare-granum-void-rotation-c | [The Deadlock Protocol](https://wiki.warframe.com/w/The_Deadlock_Protocol) |
 | The Silver Grove | 4 | data:wfitems:loc:orphid-specter, data:enemymod/gyre-roller-sentry, data:enemymod/orphid-specter | [The Silver Grove](https://wiki.warframe.com/w/The_Silver_Grove) |
-| The Kuva Wytch AND The Steel Path Unlocked | 3 | data:node/uranus/the-kuva-wytch-extra, data:drop:node:uranus:the_kuva_wytch_extra, data:missionreward/uranus/the-kuva-wytch-extra | [The Kuva Wytch](https://www.warframe.com/en/patch-notes/pc/43-0-0); [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path) |
 | Netracells | 3 | data:additionalitembyavatar/entrati-netracell-coffer, data:resourcebyavatar/entrati-netracell-coffer-level-0-100, src:resourcebyavatar/entrati-netracell-coffer-level-0-100 | [Netracells](https://wiki.warframe.com/w/Netracells) |
-| Scoria's Angel AND The Steel Path Unlocked | 3 | data:node/uranus/scorias-angel-extra, data:drop:node:uranus:scorias_angel_extra, data:missionreward/uranus/scorias-angel-extra | [Scoria's Angel](https://www.warframe.com/en/patch-notes/pc/43-0-0); [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path) |
 | The Steel Path Unlocked AND Junction: Deimos → Jupiter | 3 | data:node/jupiter/the-ropalolyst-extra, data:drop:node:jupiter:the_ropalolyst_extra, data:missionreward/jupiter/the-ropalolyst-extra | [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path); [Junction: Deimos → Jupiter](https://wiki.warframe.com/w/Deimos); [Junction: Deimos → Jupiter](https://www.warframe.com/en/patch-notes/pc/38-5-0); [Junction: Deimos → Jupiter](https://www.warframe.com/en/patch-notes/pc/39-0-0) |
 | The Steel Path Unlocked AND Junction: Mars → Ceres | 3 | data:node/ceres/exta-extra, data:drop:node:ceres:exta_extra, data:missionreward/ceres/exta-extra | [The Steel Path Unlocked](https://wiki.warframe.com/w/Steel_Path); [Junction: Mars → Ceres](https://wiki.warframe.com/w/Junctions) |
 | Void Fissures | 3 | data:wfitems:loc:10x-void-traces, data:wfitems:loc:15x-void-traces, data:wfitems:loc:5x-void-traces | [Void Fissures](https://wiki.warframe.com/w/Void_Fissure) |
@@ -536,9 +532,7 @@ The source catalog contains many generated rows that share the same location-spe
 | `activity_duviri_lone_story_completed` | Completed The Lone Story on Normal | Systems | The Duviri Paradox | — | — | Duviri Steel Path Access | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/The_Steel_Path); release not tagged |
 | `activity_circuit_completed` | Completed The Circuit on Normal | Systems | The Circuit | — | — | Duviri Steel Path Access | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/The_Steel_Path); release not tagged |
 | `activity_netracells` | Netracells | Systems | Whispers in the Walls | — | — | — | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Netracells); release not tagged |
-| `system_uranus_proxima` | Uranus Proxima Access | Railjack | Jade Shadows: Constellations | — | — | Scoria's Angel, The Kuva Wytch | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/patch-notes/pc/43-0-0); introduced Update 43 (June 17, 2026) |
-| `activity_kuva_wytch` | The Kuva Wytch | Systems | Uranus Proxima Access | — | — | — | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/patch-notes/pc/43-0-0); introduced Update 43 (June 17, 2026) |
-| `activity_scorias_angel` | Scoria's Angel | Systems | Uranus Proxima Access | — | — | — | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/patch-notes/pc/43-0-0); introduced Update 43 (June 17, 2026) |
+| `system_uranus_proxima` | Uranus Proxima Access | Railjack | Jade Shadows: Constellations | — | — | — | manual `state.prereqs.completed` checkbox | [official](https://www.warframe.com/en/patch-notes/pc/43-0-0); introduced Update 43 (June 17, 2026) |
 | `activity_kuva_lich` | Kuva Lich System | Systems | The War Within, Adversary Slot Clear | Railjack: Ship Constructed OR Railjack Purchased from the Market | Mastery Rank 5 | — | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Kuva_Lich); [wiki](https://wiki.warframe.com/w/Adversary_System); release not tagged |
 | `activity_sister_of_parvos` | Sisters of Parvos System | Systems | The War Within, Call of the Tempestarii, Adversary Slot Clear | — | Mastery Rank 5 | — | manual `state.prereqs.completed` checkbox | [wiki](https://wiki.warframe.com/w/Sisters_of_Parvos); [wiki](https://wiki.warframe.com/w/Adversary_System); release not tagged |
 | `activity_abyssal_zone` | Abyssal Zone Access | Systems | Junction: Mars → Ceres | — | — | — | any syndicate rank 2 | [wiki](https://wiki.warframe.com/w/Abyssal_Zone); release not tagged |

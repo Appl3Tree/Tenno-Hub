@@ -39,7 +39,7 @@ The official PC patch index currently ends at **Iceblade of Narin: The Icebind H
 
 ## Validation and sources
 
-The current prerequisite audit reports **164 registry entries, 181 direct required edges, 18 alternative references, 25 typed conditions, 47 milestone rollups, 16,256 source entries, 514 Star Chart nodes, and 13 Junctions**. It reports no non-quest leaf entries, duplicate IDs or labels, dangling references, invalid conditions, cycles, redundant direct edges, invalid chart relationships, external-consumer errors, or missing hard-gate evidence.
+The current prerequisite audit reports **162 registry entries, 179 direct required edges, 18 alternative references, 25 typed conditions, 47 milestone rollups, 16,256 source entries, 514 Star Chart nodes, and 13 Junctions**. It reports no non-quest leaf entries, duplicate IDs or labels, dangling references, invalid conditions, cycles, redundant direct edges, invalid chart relationships, external-consumer errors, or missing hard-gate evidence.
 
 The independent quest reconciliation now verifies all **48** Wiki-index entries against the registry, Handbook projection, and server-rendered Handbook quest-name order. On the current `origin/main` base, `npm test` passed **789 tests across 53 files**; `npm run build`, `npm run validate:sources`, the prerequisite audit, focused ESLint for the touched TypeScript files, and `git -c core.whitespace=cr-at-eol diff --check` all passed. Vite emitted its existing large-chunk warning. The prior full-repository ESLint baseline was 1,870 errors and 37 warnings; whole-repository lint was not run for this quest integration.
 

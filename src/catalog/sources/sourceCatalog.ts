@@ -228,16 +228,14 @@ function inferSourceMetadataFromLabel(label: string): Pick<RawSource, "label" | 
     }
 
     // Update 43's two Uranus Proxima missions are named without "Proxima" in
-    // several upstream source feeds. Match them before the generic Uranus
-    // region rule so every alias follows the Constellations unlock route.
+    // several upstream source feeds. Gate their source rows on the shared
+    // Uranus Proxima access milestone; completing either mission is not a
+    // prerequisite for accessing its rewards or any later progression.
     if (/\bUranus\b/i.test(quantityNormalized)) {
-        const missionPrereq = /\bScoria'?s?\s+Angel\b/i.test(quantityNormalized)
-            ? PR.ACTIVITY_SCORIAS_ANGEL
-            : /\bKuva\s+Wytch\b/i.test(quantityNormalized)
-                ? PR.ACTIVITY_KUVA_WYTCH
-                : null;
-        if (missionPrereq) {
-            const prereqIds: string[] = [missionPrereq];
+        const isUranusProximaMission = /\bScoria'?s?\s+Angel\b/i.test(quantityNormalized)
+            || /\bKuva\s+Wytch\b/i.test(quantityNormalized);
+        if (isUranusProximaMission) {
+            const prereqIds: string[] = [PR.SYSTEM_URANUS_PROXIMA];
             if (/Steel Path/i.test(quantityNormalized)) prereqIds.push(PR.ACTIVITY_STEEL_PATH);
             return { label: raw, prereqIds, type: "drop" };
         }

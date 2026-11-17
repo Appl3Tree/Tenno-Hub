@@ -78,25 +78,29 @@ describe("source prerequisite access", () => {
             .toEqual([PR.JUNCTION_MARS_CERES, PR.ACTIVITY_STEEL_PATH]);
     });
 
-    it("routes every Uranus Proxima mission-source alias through its Update 43 unlock", () => {
+    it("gates Uranus Proxima mission sources on region access, not mission completion", () => {
         const aliases = [
-            { id: "data:node/uranus/scorias-angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
-            { id: "data:drop:node:uranus:scorias_angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
-            { id: "data:drop:node:uranus:scorias-angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
-            { id: "data:missionreward/uranus/scorias-angel", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
-            { id: "data:wfitems:loc:uranusscorias-angel-skirmish", prereq: PR.ACTIVITY_SCORIAS_ANGEL },
-            { id: "data:node/uranus/the-kuva-wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
-            { id: "data:drop:node:uranus:the_kuva_wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
-            { id: "data:drop:node:uranus:the-kuva-wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
-            { id: "data:missionreward/uranus/the-kuva-wytch", prereq: PR.ACTIVITY_KUVA_WYTCH },
-            { id: "data:wfitems:loc:uranusthe-kuva-wytch-skirmish", prereq: PR.ACTIVITY_KUVA_WYTCH },
+            "data:node/uranus/scorias-angel",
+            "data:drop:node:uranus:scorias_angel",
+            "data:drop:node:uranus:scorias-angel",
+            "data:missionreward/uranus/scorias-angel",
+            "data:wfitems:loc:uranusscorias-angel-skirmish",
+            "data:node/uranus/the-kuva-wytch",
+            "data:drop:node:uranus:the_kuva_wytch",
+            "data:drop:node:uranus:the-kuva-wytch",
+            "data:missionreward/uranus/the-kuva-wytch",
+            "data:wfitems:loc:uranusthe-kuva-wytch-skirmish",
         ];
 
-        for (const { id, prereq } of aliases) {
+        for (const id of aliases) {
             const sourceId = normalizeSourceId(id);
-            expect(SOURCE_INDEX[sourceId]?.prereqIds, id).toEqual([prereq]);
+            expect(SOURCE_INDEX[sourceId]?.prereqIds, id).toEqual([PR.SYSTEM_URANUS_PROXIMA]);
             expect(SOURCE_INDEX[sourceId]?.prereqIds, id).not.toContain(PR.JUNCTION_SATURN_URANUS);
-            expect(evaluateSourcePrerequisiteAccess(sourceId, {}).missingPrereqs, id).toEqual([prereq]);
+            expect(evaluateSourcePrerequisiteAccess(sourceId, {}).missingPrereqs, id).toEqual([PR.SYSTEM_URANUS_PROXIMA]);
+            expect(evaluateSourcePrerequisiteAccess(sourceId, { [PR.SYSTEM_URANUS_PROXIMA]: true }), id).toMatchObject({
+                accessible: true,
+                missingPrereqs: [],
+            });
         }
 
         const steelPathAliases = [
@@ -109,8 +113,9 @@ describe("source prerequisite access", () => {
         ];
         for (const id of steelPathAliases) {
             const sourceId = normalizeSourceId(id);
-            const expectedActivity = /scoria/i.test(id) ? PR.ACTIVITY_SCORIAS_ANGEL : PR.ACTIVITY_KUVA_WYTCH;
-            expect(SOURCE_INDEX[sourceId]?.prereqIds, id).toEqual([expectedActivity, PR.ACTIVITY_STEEL_PATH]);
+            expect(SOURCE_INDEX[sourceId]?.prereqIds, id).toEqual([PR.SYSTEM_URANUS_PROXIMA, PR.ACTIVITY_STEEL_PATH]);
+            expect(evaluateSourcePrerequisiteAccess(sourceId, { [PR.SYSTEM_URANUS_PROXIMA]: true }).missingPrereqs, id)
+                .toEqual([PR.ACTIVITY_STEEL_PATH]);
         }
     });
 

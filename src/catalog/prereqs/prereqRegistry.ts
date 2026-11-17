@@ -970,24 +970,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Completion unlocks Uranus Proxima; the update says the missions can be launched using a provided Railjack." }]
     },
     {
-        id: PR.ACTIVITY_KUVA_WYTCH,
-        label: "The Kuva Wytch",
-        category: "Systems",
-        description: "Access this Uranus Proxima Railjack mission after Jade Shadows: Constellations.",
-        prerequisites: [PR.SYSTEM_URANUS_PROXIMA],
-        introducedIn: "Update 43 (June 17, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Listed as one of the two missions unlocked by completing the quest." }]
-    },
-    {
-        id: PR.ACTIVITY_SCORIAS_ANGEL,
-        label: "Scoria's Angel",
-        category: "Systems",
-        description: "Access this Uranus Proxima Railjack mission after Jade Shadows: Constellations.",
-        prerequisites: [PR.SYSTEM_URANUS_PROXIMA],
-        introducedIn: "Update 43 (June 17, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Listed as one of the two missions unlocked by completing the quest." }]
-    },
-    {
         id: PR.ACTIVITY_KUVA_LICH,
         label: "Kuva Lich System",
         category: "Systems",

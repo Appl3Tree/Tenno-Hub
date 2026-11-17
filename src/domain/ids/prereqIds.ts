@@ -241,8 +241,6 @@ export const PR = {
                                                                         //   rank-30 frame required; instant-death on down
     ACTIVITY_ABYSSAL_ZONE:          "activity_abyssal_zone",            // Ceres access + an Abyssal Beacon from any main Syndicate at Rank 2
     SYSTEM_URANUS_PROXIMA:          "system_uranus_proxima",             // Update 43; Jade Shadows: Constellations
-    ACTIVITY_KUVA_WYTCH:            "activity_kuva_wytch",               // Update 43 Uranus Proxima mission
-    ACTIVITY_SCORIAS_ANGEL:         "activity_scorias_angel",            // Update 43 Uranus Proxima mission
     SYSTEM_HEX_ALL_LIKED:           "system_hex_all_liked",              // Manual KIM state; Rank 3 + Liked with six members
 
     // ---- Open World Bounties ----
