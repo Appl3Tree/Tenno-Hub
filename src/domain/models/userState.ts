@@ -226,6 +226,10 @@ export interface SavedBuildPlannerConfig {
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */
     targetStartsWithHeat?: boolean;
+    /** Heat bonus percentage on the first external Heat source. */
+    externalHeatElementalDamageBonusPercent?: number;
+    /** Faction Damage bonus percentage on the first external Heat source. */
+    externalHeatFactionDamageBonusPercent?: number;
     /** Assume Kinetic Killer's sliding-at-impact condition is active for each scored Furax attack. */
     playerSlidingAtImpact?: boolean;
     meleeComboMultiplier?: number;

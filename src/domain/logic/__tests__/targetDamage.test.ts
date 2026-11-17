@@ -345,6 +345,48 @@ describe("target damage progress across defense pools", () => {
         expect(result.statusDamageByPool.health).toBeCloseTo(42, 8);
     });
 
+    it("uses external first-source Heat inheritance until expiry, then starts a weapon-owned Heat group", () => {
+        const inherited = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 7,
+            initialHeatStatusPresenceProbability: 1,
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
+            heatDotTickDamagePerProc: 10,
+            heatDotAccumulatorDamagePerTick: 1,
+            heatDotTickDamagePerProcWhenExternallyInherited: 40,
+            heatDotAccumulatorDamagePerTickWhenExternallyInherited: 2,
+            maxAttacks: 2,
+            maxDurationSeconds: 8,
+        });
+        const partialExternalSource = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 1 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            initialHeatStatusPresenceProbability: 0.5,
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
+            heatDotTickDamagePerProc: 10,
+            heatDotAccumulatorDamagePerTick: 1,
+            heatDotTickDamagePerProcWhenExternallyInherited: 40,
+            heatDotAccumulatorDamagePerTickWhenExternallyInherited: 2,
+            maxAttacks: 1,
+            maxDurationSeconds: 1,
+        });
+
+        // Six ticks use the external first-source bonuses (42 each); after the
+        // initial Heat status expires, the next source starts a normal 10+1 tick.
+        expect(inherited.statusDamageByPool.health).toBeCloseTo(263, 8);
+        expect(partialExternalSource.statusDamageByPool.health).toBeCloseTo(26.5, 8);
+    });
+
     it("requires both Burning Hate and a Heat status, and keeps the vulnerability after Heat expires", () => {
         const base = {
             damageByType: { impact: 1 },

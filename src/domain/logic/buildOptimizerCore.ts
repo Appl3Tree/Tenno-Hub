@@ -2571,6 +2571,10 @@ function expectedEncounterScoreForEffectsAtKillRate(
                 heatStatusDurationSeconds: stats.nightwatchNapalm.heatStatusDurationSeconds,
                 heatDotDamagePerProcPerTick: stats.nightwatchNapalm.heatDotDamagePerProcPerTick,
                 heatDotAccumulatorDamagePerTick: stats.nightwatchNapalm.heatDotAccumulatorDamagePerTick,
+                heatDotDamagePerProcPerTickWhenExternallyInherited:
+                    stats.nightwatchNapalm.heatDotDamagePerProcPerTickWhenExternallyInherited,
+                heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+                    stats.nightwatchNapalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
             },
         } : {}),
         targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
@@ -2579,6 +2583,10 @@ function expectedEncounterScoreForEffectsAtKillRate(
         dotDamagePerApplicationByType,
         heatDotTickDamagePerProc: stats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
         heatDotAccumulatorDamagePerTick: stats.dotTickAccumulatorDamageByType.heat,
+        heatDotTickDamagePerProcWhenExternallyInherited:
+            stats.heatDotTickDamagePerProcWhenExternallyInherited,
+        heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+            stats.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
         dotSeedDamagePerApplicationByType: stats.dotDamagePerApplicationSeedByType,
         dotAccumulatorDamagePerApplicationByType: stats.dotDamagePerApplicationAccumulatorByType,
         statusProcWeightsByType: stats.damageBreakdownBeforePerStatus,
