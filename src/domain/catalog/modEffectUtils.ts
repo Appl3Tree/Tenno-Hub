@@ -98,10 +98,10 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.");
     }
     if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
-        lines.push("Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled flat + Enemy Max Health Blast explosion reaches the selected rank’s radius and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.");
+        lines.push("Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled Blast explosion combines flat damage with a percentage of enemy Max Health, reaches the selected rank’s radius, and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.");
     }
     if (mod.path === AMALGAM_FURAX_BODY_COUNT_MOD_PATH) {
-        lines.push("Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; neighboring-target proc history and stagger utility are not modeled, so Auto Optimize skips this mod.");
+        lines.push("Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; it also notes these procs can trigger Shattering Impact. That armor-strip interaction, neighboring-target proc history, and stagger utility are not modeled, so Auto Optimize skips this mod.");
     }
     if (mod.path === VILE_DISCHARGE_MOD_PATH) {
         // Vile Discharge needs a timed build-up/release encounter, not a static
