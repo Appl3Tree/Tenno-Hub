@@ -347,6 +347,8 @@ export interface ModEntry {
     uniqueName: string;
     path: string;
     name: string;
+    /** WFCD set-bonus record path for set mods. The shared bonus itself is not modeled. */
+    setBonusPath?: string;
     compatBucket: string;
     rawCompatName: string;
     polarity: string;
@@ -1818,6 +1820,7 @@ function buildCaches(): ModCaches {
             uniqueName: String(item.uniqueName ?? ""),
             path,
             name,
+            setBonusPath: typeof item.modSet === "string" && item.modSet.length > 0 ? item.modSet : undefined,
             compatBucket: bucket,
             rawCompatName: rawCompat,
             polarity: String(item.polarity ?? ""),

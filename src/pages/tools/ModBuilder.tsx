@@ -5684,6 +5684,11 @@ export default function ModBuilder() {
                                                 : <span className="text-slate-400">{optimizerProgress}</span>}
                                         </div>
                                     )}
+                                    {weapon && (
+                                        <p role="note" className="mt-2 text-right text-[10px] leading-relaxed text-amber-300">
+                                            Shared set bonuses are not included in damage, TTK, or Auto Optimize, including set mods equipped on other gear. Supported individual stats on selected mods still apply.
+                                        </p>
+                                    )}
                                     {showOptimizeOptions && (
                                         <div className="mt-3 rounded-2xl border border-slate-800/80 bg-slate-950/30 p-3">
                                             <p className="mb-2 text-[11px] text-slate-400">Capacity is enforced for every optimized build. Catalyst and Forma are included only when their options are enabled.</p>

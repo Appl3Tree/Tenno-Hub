@@ -346,3 +346,15 @@ describe("weapon catalog stance inference", () => {
         expect(failures).toEqual([]);
     });
 });
+
+describe("weapon mod set membership", () => {
+    it("retains source set identity while leaving ordinary mods ungrouped", () => {
+        const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(bratonPrime).toBeTruthy();
+
+        const mods = getModsForWeapon(bratonPrime!);
+        expect(mods.find((mod) => mod.name === "Vigilante Armaments")?.setBonusPath)
+            .toBe("/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod");
+        expect(mods.find((mod) => mod.name === "Serration")?.setBonusPath).toBeUndefined();
+    });
+});
