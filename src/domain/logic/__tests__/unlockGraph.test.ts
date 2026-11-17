@@ -22,7 +22,6 @@ describe("auto-tracked prerequisite derivation", () => {
         const merged = deriveCompletedMap({}, [], 8);
         expect(merged[PR.MR_5]).toBe(true);
         expect(merged[PR.MR_8]).toBe(true);
-        expect(merged[PR.MR_10]).not.toBe(true);
     });
 
     it("flags mastery milestones as auto-tracked", () => {

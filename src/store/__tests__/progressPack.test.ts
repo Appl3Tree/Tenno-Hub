@@ -137,13 +137,14 @@ describe("progress pack inventory serialization", () => {
         expect(merged.prereqs.completed[PR.AWAKENING]).toBe(true);
     });
 
-    it("migrates the retired Tau series completion into both released chapter completions", () => {
+    it("migrates the retired Tau series completion into its older chapters, not later Eris Mortem", () => {
         const legacyState = makeDefaultState();
         legacyState.prereqs.completed[PR.TAU_PROLOGUE] = true;
 
         const migrated = migrateToUserStateV2(legacyState)!;
         expect(migrated.prereqs.completed[PR.TAU_PROLOGUE_LUA]).toBe(true);
         expect(migrated.prereqs.completed[PR.TAU_PROLOGUE_VESSEL]).toBe(true);
+        expect(migrated.prereqs.completed).not.toHaveProperty(PR.TAU_PROLOGUE_ERIS_MORTEM);
         expect(migrated.prereqs.completed).not.toHaveProperty(PR.TAU_PROLOGUE);
 
         const imported = mergeProgressPackIntoState(makeDefaultState(), {
@@ -151,6 +152,7 @@ describe("progress pack inventory serialization", () => {
         });
         expect(imported.prereqs.completed[PR.TAU_PROLOGUE_LUA]).toBe(true);
         expect(imported.prereqs.completed[PR.TAU_PROLOGUE_VESSEL]).toBe(true);
+        expect(imported.prereqs.completed).not.toHaveProperty(PR.TAU_PROLOGUE_ERIS_MORTEM);
         expect(imported.prereqs.completed).not.toHaveProperty(PR.TAU_PROLOGUE);
     });
 

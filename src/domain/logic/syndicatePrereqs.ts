@@ -9,6 +9,7 @@
 // Syndicates tracker already reflects the required rank.
 
 import { ARCHWING_CATALOG_IDS, PREREQ_REGISTRY } from "../../catalog/prereqs/prereqRegistry";
+import { DERIVED_PREREQUISITE_COMPLETIONS } from "../../catalog/prereqs/externalPrerequisiteConsumers";
 import { PR } from "../ids/prereqIds";
 import { SY } from "../ids/syndicateIds";
 import type { SyndicateState } from "../types";
@@ -142,17 +143,9 @@ export function deriveCompletedMap(
         merged[PR.SYSTEM_RAILJACK_ARMAMENTS_ACCESS] = true;
     }
 
-    // The Mote Amp is one valid Operator Amp and therefore satisfies the generic
-    // equipment gate used by The New War. Other owned Amp models can be marked there.
-    if (merged[PR.AMP_MOTE] === true) {
-        merged[PR.SYSTEM_OPERATOR_AMP] = true;
-    }
-
-    // Dark Refractory becomes available in Navigation after The Old Peace or
-    // after the player opts into Mission Preview; The Teacher alone only makes
-    // the preview button available and is not itself an access grant.
-    if (merged[PR.THE_OLD_PEACE] === true || merged[PR.SYSTEM_DARK_REFRACTORY_PREVIEW] === true) {
-        merged[PR.ACTIVITY_DARK_REFRACTORY] = true;
+    // Preserve valid specific-to-generic completion routes used by access gates.
+    for (const { prerequisiteId, dependentPrerequisiteId } of DERIVED_PREREQUISITE_COMPLETIONS) {
+        if (merged[prerequisiteId] === true) merged[dependentPrerequisiteId] = true;
     }
 
     return merged;

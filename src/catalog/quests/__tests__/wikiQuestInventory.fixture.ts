@@ -1,8 +1,9 @@
 /**
  * Independently transcribed from the current WARFRAME Wiki Quest index and
- * individual quest pages on 2026-11-10. This expected inventory is deliberately
- * not generated from Tenno-Hub data; it is a regression oracle for bidirectional
- * quest-catalog / Handbook reconciliation.
+ * individual quest pages on 2026-11-10; the Prologue to Tau pages and current
+ * chapter listing were rechecked on 2026-11-17. This expected inventory is
+ * deliberately not generated from Tenno-Hub data; it is a regression oracle
+ * for bidirectional quest-catalog / Handbook reconciliation.
  */
 export type WikiQuestClassification = "main" | "side" | "warframe";
 
@@ -45,6 +46,7 @@ export const WIKI_QUEST_INVENTORY: WikiQuestInventoryEntry[] = [
     { internalId: "quest_the_old_peace", canonicalName: "The Old Peace", classification: "main", sourceUrl: "https://wiki.warframe.com/w/The_Old_Peace", subgroup: "Arc 4: Void War Saga · Kalymos Sequence" },
     { internalId: "quest_tau_prologue_lua", canonicalName: "Lua", classification: "main", sourceUrl: "https://wiki.warframe.com/w/Lua_(Quest)", subgroup: "Arc 4: Void War Saga · Prologue to Tau", introducedIn: "Hotfix 44.1.2 (2026-10-15)" },
     { internalId: "quest_tau_prologue_vessel", canonicalName: "Vessel", classification: "main", sourceUrl: "https://wiki.warframe.com/w/Vessel_(Quest)", subgroup: "Arc 4: Void War Saga · Prologue to Tau", introducedIn: "Hotfix 44.1.2 (2026-10-15)" },
+    { internalId: "quest_tau_prologue_eris_mortem", canonicalName: "Eris Mortem", classification: "main", sourceUrl: "https://wiki.warframe.com/w/Eris_Mortem", subgroup: "Arc 4: Void War Saga · Prologue to Tau", introducedIn: "Hotfix 44.1.4.1 (2026-10-28)" },
     { internalId: "quest_jade_shadows", canonicalName: "Jade Shadows", classification: "main", sourceUrl: "https://wiki.warframe.com/w/Jade_Shadows", subgroup: "Arc 4: Void War Saga · Jade Shadows Arc" },
     { internalId: "quest_jade_shadows_constellations", canonicalName: "Jade Shadows: Constellations", classification: "main", sourceUrl: "https://wiki.warframe.com/w/Jade_Shadows:_Constellations", subgroup: "Arc 4: Void War Saga · Jade Shadows Arc", introducedIn: "Update 43 (2026-06-17)" },
     { internalId: "quest_angels_of_the_zariman", canonicalName: "Angels of the Zariman", classification: "main", sourceUrl: "https://wiki.warframe.com/w/Angels_of_the_Zariman", subgroup: "Arc 4: Void War Saga · One-Offs" },

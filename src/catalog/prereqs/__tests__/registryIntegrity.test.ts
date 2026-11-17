@@ -277,13 +277,6 @@ describe("prerequisite registry integrity", () => {
         expect(byId.get(PR.JUNCTION_NEPTUNE_PLUTO)?.prerequisites).toEqual([PR.SECOND_DREAM]);
         expect(byId.get(PR.JUNCTION_PLUTO_SEDNA)?.prerequisites).toEqual([PR.WAR_WITHIN, PR.SYSTEM_ERIS_FOCUS_LENS]);
         expect(byId.get(PR.ACTIVITY_STEEL_PATH_HONORS)?.prerequisites).toEqual([PR.ACTIVITY_STEEL_PATH]);
-        expect(byId.get(PR.ACTIVITY_ROPALOLYST)?.prerequisites).toEqual([PR.CHIMERA_PROLOGUE]);
-        expect(byId.get(PR.ACTIVITY_FABLES_FRONTIERS)?.prerequisites).toEqual([
-            PR.THE_HEX,
-            PR.THE_HEX_FINALE,
-            PR.SYNDICATE_HEX_RANK5,
-            PR.SYSTEM_AMIR_CLOSE,
-        ]);
     });
 
     it("has no redundant direct AND edges unless the game explicitly checks both flags", () => {
@@ -339,25 +332,17 @@ describe("prerequisite registry integrity", () => {
             `${PR.SECOND_DREAM} -> ${PR.NATAH}`,
             `${PR.WAR_WITHIN} -> ${PR.SECOND_DREAM}`,
             `${PR.PATIENT_ZERO} -> ${PR.ONCE_AWAKE}`,
-            `${PR.ACTIVITY_DEEP_ARCHIMEDEA} -> ${PR.WHISPERS_WALL}`,
-            `${PR.ACTIVITY_TEMPORAL_ARCHIMEDEA} -> ${PR.THE_HEX}`,
             `${PR.SAYA_VIGIL} -> ${PR.VORS_PRIZE}`,
-            `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX}`,
-            `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX_FINALE}`,
-            `${PR.SYNDICATE_VOX_RANK1} -> ${PR.VOX_SOLARIS}`,
             `${PR.ACTIVITY_DUVIRI_STEEL_PATH} -> ${PR.DUVIRI_PARADOX}`,
         ].sort());
     });
 
-    it("uses separate open-world and Railjack deployment requirements for Necramechs", () => {
+    it("tracks open-world Necramech access requirements", () => {
         const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
         const openWorld = byId.get(PR.NECRAMECH_UNLOCKED)!;
-        const railjack = byId.get(PR.NECRAMECH_RAILJACK_DEPLOYMENT)!;
         expect(openWorld.prerequisites).toEqual([PR.WAR_WITHIN]);
         expect(openWorld.anyPrerequisites).toEqual([PR.NECRAMECH_VOIDRIG, PR.NECRAMECH_BONEWIDOW, PR.NECRAMECH_MARKET]);
         expect(openWorld.conditions).toBeUndefined();
-        expect(railjack.prerequisites).toEqual([PR.NECRAMECH_UNLOCKED, PR.SYSTEM_PROXIMA_ACCESS]);
-        expect(railjack.conditions).toContainEqual({ type: "railjack_intrinsic_rank", rank: 5, skillId: "LPS_TACTICAL" });
     });
 
     it("tracks the shared dynamic Adversary slot for Lich, Sister, and Coda creation", () => {
@@ -396,11 +381,4 @@ describe("prerequisite registry integrity", () => {
         expect(purchasedRailjack.unlocked).toBe(true);
     });
 
-    it("tracks the actual Kavat segment and mature Helminth cyst requirements", () => {
-        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
-        expect(byId.get(PR.SEGMENT_KAVAT_UPGRADE)?.prerequisites).toEqual([PR.SEGMENT_INCUBATOR]);
-        expect(byId.get(PR.COMPANION_KAVAT)?.prerequisites).toEqual([PR.SEGMENT_KAVAT_UPGRADE]);
-        expect(byId.get(PR.COMPANION_HELMINTH_CHARGER)?.prerequisites).toEqual([PR.SEGMENT_INCUBATOR, PR.COMPANION_MATURE_CYST]);
-        expect(byId.get(PR.COMPANION_HELMINTH_CHARGER)?.prerequisites).not.toContain(PR.SEGMENT_HELMINTH);
-    });
 });

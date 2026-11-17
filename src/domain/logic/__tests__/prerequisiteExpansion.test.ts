@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PREREQ_REGISTRY } from "../../../catalog/prereqs/prereqRegistry";
 import { PR } from "../../ids/prereqIds";
-import { computeUnlockGraphSnapshot, isPrereqUnlocked } from "../unlockGraph";
+import { computeUnlockGraphSnapshot } from "../unlockGraph";
 import { computeMilestoneSnapshot } from "../milestoneEngine";
 import { deriveCompletedMap } from "../syndicatePrereqs";
 import { isAutoTrackedPrereq } from "../syndicatePrereqs";
@@ -98,49 +98,6 @@ describe("current Warframe progression gates", () => {
         expect(definition(PR.CHAINS_HARROW).prerequisites).toEqual([PR.SYSTEM_ONKKO_VISITED]);
         expect(definition(PR.SYSTEM_ONKKO_VISITED).prerequisites).toEqual([PR.WAR_WITHIN, PR.HUB_CETUS]);
         expect(definition(PR.AMP_MOTE).prerequisites).toEqual([PR.SYSTEM_ONKKO_VISITED]);
-    });
-
-    it("requires Saya's Vigil and a Quills visit for full Focus access, not Quills rank 1", () => {
-        expect(definition(PR.FOCUS_FULL).prerequisites).toEqual([PR.SYSTEM_ONKKO_VISITED, PR.SAYA_VIGIL]);
-        expect(isPrereqUnlocked({ [PR.SYSTEM_ONKKO_VISITED]: true }, PR.FOCUS_FULL)).toBe(false);
-        expect(isPrereqUnlocked({ [PR.SYSTEM_ONKKO_VISITED]: true, [PR.SAYA_VIGIL]: true }, PR.FOCUS_FULL)).toBe(true);
-        expect(definition(PR.FOCUS_FULL).prerequisites).not.toContain(PR.SYNDICATE_QUILLS_RANK1);
-    });
-
-    it("requires The Old Peace and one actually unlocked Focus school for permanent Tauron Strike access", () => {
-        const schoolIds = [
-            PR.FOCUS_SCHOOL_MADURAI,
-            PR.FOCUS_SCHOOL_NARAMON,
-            PR.FOCUS_SCHOOL_UNAIRU,
-            PR.FOCUS_SCHOOL_VAZARIN,
-            PR.FOCUS_SCHOOL_ZENURIK,
-        ];
-        const statusWithoutSchool = computeUnlockGraphSnapshot({
-            [PR.THE_OLD_PEACE]: true,
-            [PR.FOCUS_UNLOCKED]: true,
-        }).byId[PR.SYSTEM_TAURON_STRIKE];
-        expect(statusWithoutSchool.unlocked).toBe(false);
-        expect(statusWithoutSchool.missingAnyPrerequisites).toEqual(schoolIds);
-
-        const statusWithoutOldPeace = computeUnlockGraphSnapshot({
-            [PR.FOCUS_UNLOCKED]: true,
-            [PR.FOCUS_SCHOOL_ZENURIK]: true,
-        }).byId[PR.SYSTEM_TAURON_STRIKE];
-        expect(statusWithoutOldPeace.unlocked).toBe(false);
-        expect(statusWithoutOldPeace.missing).toContain(PR.THE_OLD_PEACE);
-
-        const ready = computeUnlockGraphSnapshot({
-            [PR.THE_OLD_PEACE]: true,
-            [PR.FOCUS_UNLOCKED]: true,
-            [PR.FOCUS_SCHOOL_ZENURIK]: true,
-        }).byId[PR.SYSTEM_TAURON_STRIKE];
-        expect(ready.unlocked).toBe(true);
-        expect(definition(PR.SYSTEM_TAURON_STRIKE).prerequisites).toEqual([PR.THE_OLD_PEACE]);
-        expect(definition(PR.SYSTEM_TAURON_STRIKE).anyPrerequisites).toEqual(schoolIds);
-        expect(definition(PR.SYSTEM_TAURON_STRIKE).introducedIn).toContain("Update 41");
-        for (const id of schoolIds) {
-            expect(definition(id).evidence?.[0].classification).toBe("conditional");
-        }
     });
 
     it("models the current main Star Chart quest tasks and relocated Pluto/Eris/Sedna gates", () => {
@@ -335,7 +292,6 @@ describe("current Warframe progression gates", () => {
         expect(definition(PR.WAR_WITHIN).conditions).toBeUndefined();
         expect(definition(PR.RISING_TIDE).prerequisites).toEqual([PR.WAR_WITHIN]);
         expect(definition(PR.ACTIVITY_NIGHTWAVE).prerequisites).toEqual([PR.THE_TEACHER]);
-        expect(definition(PR.SEGMENT_MODDING).prerequisites).toEqual([PR.THE_TEACHER]);
         expect(definition(PR.SEGMENT_VOID_RELIC).prerequisites).toEqual([PR.ONCE_AWAKE]);
         expect(definition(PR.ACTIVITY_VOID_FISSURES).prerequisites).toEqual([PR.VORS_PRIZE]);
         expect(definition(PR.ACTIVITY_VOID_FISSURES).prerequisites).not.toContain(PR.SEGMENT_VOID_RELIC);
@@ -346,7 +302,6 @@ describe("current Warframe progression gates", () => {
         }).byId[PR.ACTIVITY_VOID_STORMS];
         expect(joinVoidStormWithoutRailjack.unlocked).toBe(true);
         expect(joinVoidStormWithoutRailjack.missing).not.toContain(PR.RAILJACK_CONSTRUCTED);
-        expect(definition(PR.ACTIVITY_KUVA_SIPHON).conditions).toContainEqual({ type: "mastery_rank", value: 5 });
         expect(definition(PR.ACTIVITY_DEFECTION).anyPrerequisites).toEqual([
             PR.JUNCTION_MARS_PHOBOS,
             PR.JUNCTION_EUROPA_SATURN,
@@ -365,40 +320,14 @@ describe("current Warframe progression gates", () => {
             PR.NECRAMECH_MARKET,
         ]);
         expect(definition(PR.NECRAMECH_UNLOCKED).conditions).toBeUndefined();
-        expect(definition(PR.NECRAMECH_RAILJACK_DEPLOYMENT).conditions).toContainEqual({
-            type: "railjack_intrinsic_rank",
-            rank: 5,
-            skillId: "LPS_TACTICAL",
-        });
         expect(definition(PR.NECRAMECH_VOIDRIG).prerequisites).toEqual([PR.HEART_OF_DEIMOS]);
         expect(definition(PR.NECRAMECH_BONEWIDOW).prerequisites).toEqual([PR.SYNDICATE_NECRALOID_RANK3]);
         expect(definition(PR.ACTIVITY_ABYSSAL_ZONE).prerequisites).toEqual([PR.JUNCTION_MARS_CERES]);
         expect(definition(PR.ACTIVITY_ABYSSAL_ZONE).prerequisites).not.toContain(PR.HUB_RELAY);
-        expect(definition(PR.COMPANION_KAVAT).prerequisites).not.toContain(PR.HEART_OF_DEIMOS);
-        expect(definition(PR.COMPANION_HELMINTH_CHARGER).prerequisites).not.toContain(PR.SEGMENT_HELMINTH);
-        expect(definition(PR.COMPANION_NAUTILUS).prerequisites).toEqual([
-            PR.SYSTEM_PROXIMA_NEPTUNE_ACCESS,
-            PR.RAILJACK_CORPUS_NODES,
-        ]);
-        expect(definition(PR.COMPANION_HOUND).prerequisites).toEqual([PR.ACTIVITY_SISTER_VANQUISHED]);
-        expect(definition(PR.ACTIVITY_SISTER_VANQUISHED).prerequisites).toEqual([PR.ACTIVITY_SISTER_PARVOS]);
-        expect(definition(PR.ACTIVITY_DEEP_ARCHIMEDEA).prerequisites).toEqual([
-            PR.WHISPERS_WALL,
-            PR.SYNDICATE_CAVIA_RANK5,
-            PR.ACTIVITY_NETRACELL_COMPLETED,
-        ]);
-        expect(definition(PR.ACTIVITY_NETRACELL_COMPLETED).prerequisites).toEqual([PR.ACTIVITY_NETRACELLS]);
         expect(definition(PR.ACTIVITY_TECHNOCYTE_CODA).conditions ?? [])
             .not.toContainEqual({ type: "mastery_rank", value: 5 });
         expect(definition(PR.ACTIVITY_TECHNOCYTE_CODA).evidence?.find((source) => source.url.endsWith("/Adversary_System")))
             .toMatchObject({ classification: "conditional" });
-        expect(definition(PR.ACTIVITY_TEMPORAL_ARCHIMEDEA).prerequisites).toEqual([PR.THE_HEX, PR.SYNDICATE_HEX_RANK5]);
-        expect(definition(PR.ACTIVITY_FABLES_FRONTIERS).prerequisites).toEqual([
-            PR.THE_HEX,
-            PR.THE_HEX_FINALE,
-            PR.SYNDICATE_HEX_RANK5,
-            PR.SYSTEM_AMIR_CLOSE,
-        ]);
         for (const id of [PR.ACTIVITY_KUVA_LICH, PR.ACTIVITY_SISTER_PARVOS, PR.ACTIVITY_TECHNOCYTE_CODA]) {
             expect(definition(id).prerequisites).toContain(PR.SYSTEM_ADVERSARY_SLOT_CLEAR);
         }
@@ -439,31 +368,6 @@ describe("current Warframe progression gates", () => {
             .byId[PR.SEGMENT_HELMINTH_INVIGORATION].unlocked).toBe(true);
     });
 
-    it("separates open-world Necramech access from Railjack Tactical Intrinsic access", () => {
-        const openWorld = {
-            [PR.WAR_WITHIN]: true,
-            [PR.NECRAMECH_VOIDRIG]: true,
-        };
-        const withoutTacticalFive = computeUnlockGraphSnapshot(openWorld, undefined, { railjackIntrinsics: { LPS_TACTICAL: 4 } });
-        expect(withoutTacticalFive.byId[PR.NECRAMECH_UNLOCKED].unlocked).toBe(true);
-
-        const deployment = {
-            ...openWorld,
-            [PR.NECRAMECH_UNLOCKED]: true,
-            [PR.SYSTEM_PROXIMA_ACCESS]: true,
-        };
-        const tooLow = computeUnlockGraphSnapshot(deployment, undefined, { railjackIntrinsics: { LPS_TACTICAL: 4 } });
-        expect(tooLow.byId[PR.NECRAMECH_RAILJACK_DEPLOYMENT].unlocked).toBe(false);
-        expect(tooLow.byId[PR.NECRAMECH_RAILJACK_DEPLOYMENT].missingConditions).toContainEqual({
-            type: "railjack_intrinsic_rank",
-            rank: 5,
-            skillId: "LPS_TACTICAL",
-        });
-
-        const ready = computeUnlockGraphSnapshot(deployment, undefined, { railjackIntrinsics: { LPS_TACTICAL: 5 } });
-        expect(ready.byId[PR.NECRAMECH_RAILJACK_DEPLOYMENT].unlocked).toBe(true);
-    });
-
     it("keeps syndicate rank chains on their immediate previous rank", () => {
         expect(definition(PR.SYNDICATE_ENTRATI_RANK1).prerequisites).toEqual([PR.HUB_NECRALISK]);
         expect(definition(PR.SYNDICATE_ENTRATI_RANK2).prerequisites).toEqual([PR.SYNDICATE_ENTRATI_RANK1]);
@@ -502,98 +406,6 @@ describe("current Warframe progression gates", () => {
         expect(deriveCompletedMap({ [PR.ARCHWING]: true }, [], 0)[PR.SYSTEM_RAILJACK_ARMAMENTS_ACCESS]).toBe(true);
     });
 
-    it("evaluates a true OR route while preserving mandatory AND requirements", () => {
-        const icebind = computeUnlockGraphSnapshot({
-            [PR.ANGELS_ZARIMAN]: true,
-            [PR.WHISPERS_WALL]: true,
-            [PR.ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA]: true,
-        }).byId[PR.ACTIVITY_ICEBIND];
-        expect(icebind.unlocked).toBe(true);
-        expect(icebind.missing).toEqual([]);
-        expect(icebind.missingAnyPrerequisites).toEqual([]);
-
-        const missingBoth = computeUnlockGraphSnapshot({
-            [PR.ANGELS_ZARIMAN]: true,
-            [PR.WHISPERS_WALL]: true,
-        }).byId[PR.ACTIVITY_ICEBIND];
-        expect(missingBoth.unlocked).toBe(false);
-        expect(missingBoth.missingAnyPrerequisites).toEqual([
-            PR.ACTIVITY_ELITE_DEEP_ARCHIMEDEA,
-            PR.ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA,
-        ]);
-
-        const missingMandatory = computeUnlockGraphSnapshot({
-            [PR.ANGELS_ZARIMAN]: true,
-            [PR.ACTIVITY_ELITE_DEEP_ARCHIMEDEA]: true,
-        }).byId[PR.ACTIVITY_ICEBIND];
-        expect(missingMandatory.missing).toContain(PR.WHISPERS_WALL);
-        expect(missingMandatory.unlocked).toBe(false);
-    });
-
-    it("supports Dark Refractory access after The Old Peace or opting into preview after The Teacher", () => {
-        expect(isPrereqUnlocked({ [PR.THE_OLD_PEACE]: true }, PR.ACTIVITY_DARK_REFRACTORY)).toBe(true);
-        expect(isPrereqUnlocked({ [PR.THE_TEACHER]: true }, PR.ACTIVITY_DARK_REFRACTORY)).toBe(false);
-        expect(isPrereqUnlocked({}, PR.ACTIVITY_DARK_REFRACTORY)).toBe(false);
-
-        const previewAvailable = deriveCompletedMap({ [PR.THE_TEACHER]: true }, [], 0);
-        expect(previewAvailable[PR.SYSTEM_DARK_REFRACTORY_PREVIEW]).toBeUndefined();
-        expect(previewAvailable[PR.ACTIVITY_DARK_REFRACTORY]).toBeUndefined();
-        expect(isPrereqUnlocked(previewAvailable, PR.SYSTEM_DARK_REFRACTORY_PREVIEW)).toBe(true);
-        expect(isPrereqUnlocked(previewAvailable, PR.ACTIVITY_DARK_REFRACTORY)).toBe(false);
-
-        const previewUsed = deriveCompletedMap({
-            [PR.THE_TEACHER]: true,
-            [PR.SYSTEM_DARK_REFRACTORY_PREVIEW]: true,
-        }, [], 0);
-        expect(isPrereqUnlocked(previewUsed, PR.ACTIVITY_DARK_REFRACTORY)).toBe(true);
-        expect(previewUsed[PR.ACTIVITY_DARK_REFRACTORY]).toBe(true);
-        expect(isPrereqUnlocked(previewUsed, PR.ACTIVITY_DESCENDIA)).toBe(true);
-        expect(isPrereqUnlocked(previewUsed, PR.ACTIVITY_PERITA_REBELLION)).toBe(true);
-
-        const questRoute = deriveCompletedMap({ [PR.THE_OLD_PEACE]: true }, [], 0);
-        expect(isPrereqUnlocked(questRoute, PR.ACTIVITY_DESCENDIA)).toBe(true);
-        expect(isPrereqUnlocked(questRoute, PR.ACTIVITY_PERITA_REBELLION)).toBe(true);
-    });
-
-    it("allows Amp gilding through either Quills Adherent or Vox Solaris Hand", () => {
-        expect(definition(PR.AMP_GILDING).anyPrerequisites).toEqual([
-            PR.SYNDICATE_QUILLS_RANK3,
-            PR.SYNDICATE_VOX_RANK3,
-        ]);
-        expect(isPrereqUnlocked({ [PR.SYNDICATE_QUILLS_RANK3]: true }, PR.AMP_GILDING)).toBe(true);
-        expect(isPrereqUnlocked({ [PR.SYNDICATE_VOX_RANK3]: true }, PR.AMP_GILDING)).toBe(true);
-        expect(isPrereqUnlocked({}, PR.AMP_GILDING)).toBe(false);
-    });
-
-    it("requires current Vox Solaris syndicate access and follows every tracked rank", () => {
-        expect(definition(PR.SYNDICATE_VOX_RANK1).prerequisites).toEqual([
-            PR.VOX_SOLARIS,
-            PR.SYSTEM_ONKKO_VISITED,
-        ]);
-        expect(definition(PR.SYNDICATE_VOX_RANK4).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK3]);
-        expect(definition(PR.SYNDICATE_VOX_RANK5).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK4]);
-
-        const blocked = computeUnlockGraphSnapshot({ [PR.VOX_SOLARIS]: true }).byId[PR.SYNDICATE_VOX_RANK1];
-        expect(blocked.unlocked).toBe(false);
-        expect(blocked.missing).toContain(PR.SYSTEM_ONKKO_VISITED);
-
-        const unlocked = computeUnlockGraphSnapshot({
-            [PR.VOX_SOLARIS]: true,
-            [PR.SYSTEM_ONKKO_VISITED]: true,
-        }).byId[PR.SYNDICATE_VOX_RANK1];
-        expect(unlocked.unlocked).toBe(true);
-    });
-
-    it("gates each Amp parts tier at its actual syndicate rank", () => {
-        expect(definition(PR.AMP_TIER1).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK1]);
-        expect(definition(PR.AMP_TIER2).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK2]);
-        expect(definition(PR.AMP_TIER3).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK3]);
-        expect(definition(PR.AMP_TIER4).prerequisites).toEqual([PR.SYNDICATE_QUILLS_RANK4]);
-        expect(definition(PR.AMP_TIER5).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK2]);
-        expect(definition(PR.AMP_TIER6).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK3]);
-        expect(definition(PR.AMP_TIER7).prerequisites).toEqual([PR.SYNDICATE_VOX_RANK4]);
-    });
-
     it("keeps recommendations nonblocking", () => {
         const recommendedOnly = {
             id: PR.VORS_PRIZE,
@@ -607,7 +419,7 @@ describe("current Warframe progression gates", () => {
 
     });
 
-    it("requires both parent quests for Lua, then Lua for Vessel, and Chains of Harrow for Follie's Hunt", () => {
+    it("requires both parent quests for Lua, then Lua for Vessel, then Vessel for Eris Mortem", () => {
         const oneParent = computeUnlockGraphSnapshot({
             [PR.THE_HEX]: true,
         }).byId[PR.TAU_PROLOGUE_LUA];
@@ -618,8 +430,10 @@ describe("current Warframe progression gates", () => {
         expect(oneParent.unlocked).toBe(false);
         expect(bothParents.byId[PR.TAU_PROLOGUE_LUA].unlocked).toBe(true);
         expect(bothParents.byId[PR.TAU_PROLOGUE_VESSEL].unlocked).toBe(false);
+        expect(bothParents.byId[PR.TAU_PROLOGUE_ERIS_MORTEM].unlocked).toBe(false);
         expect(computeUnlockGraphSnapshot({ [PR.TAU_PROLOGUE_LUA]: true }).byId[PR.TAU_PROLOGUE_VESSEL].unlocked).toBe(true);
-        expect(definition(PR.ACTIVITY_FOLLIES_HUNT).prerequisites).toEqual([PR.CHAINS_HARROW]);
+        expect(computeUnlockGraphSnapshot({ [PR.TAU_PROLOGUE_VESSEL]: true }).byId[PR.TAU_PROLOGUE_ERIS_MORTEM].unlocked).toBe(true);
+        expect(definition(PR.TAU_PROLOGUE_ERIS_MORTEM).prerequisites).toEqual([PR.TAU_PROLOGUE_VESSEL]);
     });
 
     it("uses current syndicate rank for the Hex Finale trigger milestone", () => {
@@ -643,13 +457,19 @@ describe("milestone rule evaluation", () => {
         expect(onePath.completedCount).toBe(1);
     });
 
-    it("resolves the Tau Prologue milestone only after both released chapters are complete", () => {
+    it("resolves the Tau Prologue milestone only after all three released chapters are complete", () => {
         const incomplete = computeMilestoneSnapshot({}).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
         const oneChapter = computeMilestoneSnapshot({ [PR.TAU_PROLOGUE_LUA]: true }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
-        const complete = computeMilestoneSnapshot({ [PR.TAU_PROLOGUE_LUA]: true, [PR.TAU_PROLOGUE_VESSEL]: true }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
+        const twoChapters = computeMilestoneSnapshot({ [PR.TAU_PROLOGUE_LUA]: true, [PR.TAU_PROLOGUE_VESSEL]: true }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
+        const complete = computeMilestoneSnapshot({
+            [PR.TAU_PROLOGUE_LUA]: true,
+            [PR.TAU_PROLOGUE_VESSEL]: true,
+            [PR.TAU_PROLOGUE_ERIS_MORTEM]: true,
+        }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
         expect(incomplete.completed).toBe(false);
         expect(oneChapter.completed).toBe(false);
+        expect(twoChapters.completed).toBe(false);
         expect(complete.completed).toBe(true);
-        expect(complete.completedPrereqs).toEqual([PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL]);
+        expect(complete.completedPrereqs).toEqual([PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL, PR.TAU_PROLOGUE_ERIS_MORTEM]);
     });
 });

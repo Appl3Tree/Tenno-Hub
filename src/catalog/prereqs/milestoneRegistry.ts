@@ -125,10 +125,10 @@ export const MILESTONE_REGISTRY: MilestoneDef[] = [
     {
         id: "ms_main_tau_prologue_complete",
         label: "Prologue to Tau: Released Chapters Complete",
-        description: "Both currently released permanent chapters, Lua and Vessel, are complete. Unreleased chapters are not counted.",
+        description: "All three released permanent chapters, Lua, Vessel, and Eris Mortem, are complete.",
         category: "Mainline",
         showWhenComplete: true,
-        rule: { type: "all", prereqIds: [PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL] }
+        rule: { type: "all", prereqIds: [PR.TAU_PROLOGUE_LUA, PR.TAU_PROLOGUE_VESSEL, PR.TAU_PROLOGUE_ERIS_MORTEM] }
     },
 
     // =========================================================================

@@ -50,7 +50,7 @@ describe("Wiki-derived quest coverage", () => {
         }
 
         expect(QUEST_GUIDE_GROUPS.map((group) => [group.id, group.entries.length])).toEqual([
-            ["main", 29],
+            ["main", 30],
             ["side", 6],
             ["warframe", 12],
         ]);
@@ -72,25 +72,44 @@ describe("Wiki-derived quest coverage", () => {
         expect(rendered).toContain("Jade Shadows</span>");
     });
 
-    it("models the two released Prologue to Tau chapters without exposing an unreleased chapter", () => {
+    it("models all three released Prologue to Tau chapters without adding the temporary operation", () => {
         const lua = byId.get(PR.TAU_PROLOGUE_LUA)!;
         const vessel = byId.get(PR.TAU_PROLOGUE_VESSEL)!;
+        const erisMortem = byId.get(PR.TAU_PROLOGUE_ERIS_MORTEM)!;
         expect(lua.prerequisites).toEqual([PR.THE_HEX, PR.THE_OLD_PEACE]);
         expect(vessel.prerequisites).toEqual([PR.TAU_PROLOGUE_LUA]);
+        expect(erisMortem.prerequisites).toEqual([PR.TAU_PROLOGUE_VESSEL]);
         expect(lua.introducedIn).toBe("Hotfix 44.1.2 (October 15, 2026)");
         expect(vessel.introducedIn).toBe(lua.introducedIn);
+        expect(erisMortem.introducedIn).toBe("Hotfix 44.1.4.1 (October 28, 2026)");
         expect(WIKI_QUEST_INVENTORY.find((entry) => entry.internalId === PR.TAU_PROLOGUE_LUA)?.introducedIn)
             .toBe("Hotfix 44.1.2 (2026-10-15)");
+        expect(WIKI_QUEST_INVENTORY.find((entry) => entry.internalId === PR.TAU_PROLOGUE_ERIS_MORTEM)?.introducedIn)
+            .toBe("Hotfix 44.1.4.1 (2026-10-28)");
 
         expect(computeUnlockGraphSnapshot({ [PR.THE_HEX]: true }).byId[PR.TAU_PROLOGUE_LUA].unlocked).toBe(false);
         expect(computeUnlockGraphSnapshot({ [PR.THE_HEX]: true, [PR.THE_OLD_PEACE]: true }).byId[PR.TAU_PROLOGUE_LUA].unlocked).toBe(true);
         expect(computeUnlockGraphSnapshot({ [PR.TAU_PROLOGUE_LUA]: true }).byId[PR.TAU_PROLOGUE_VESSEL].unlocked).toBe(true);
+        expect(computeUnlockGraphSnapshot({ [PR.TAU_PROLOGUE_LUA]: true }).byId[PR.TAU_PROLOGUE_ERIS_MORTEM].unlocked).toBe(false);
+        expect(computeUnlockGraphSnapshot({ [PR.TAU_PROLOGUE_VESSEL]: true }).byId[PR.TAU_PROLOGUE_ERIS_MORTEM].unlocked).toBe(true);
+
+        const incompleteMilestone = computeMilestoneSnapshot({
+            [PR.TAU_PROLOGUE_LUA]: true,
+            [PR.TAU_PROLOGUE_VESSEL]: true,
+        }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
+        const completeMilestone = computeMilestoneSnapshot({
+            [PR.TAU_PROLOGUE_LUA]: true,
+            [PR.TAU_PROLOGUE_VESSEL]: true,
+            [PR.TAU_PROLOGUE_ERIS_MORTEM]: true,
+        }).milestones.find((milestone) => milestone.id === "ms_main_tau_prologue_complete")!;
+        expect(incompleteMilestone.completed).toBe(false);
+        expect(completeMilestone.completed).toBe(true);
 
         const rendered = renderToStaticMarkup(createElement(Handbook));
         expect(rendered).toContain("Prologue to Tau");
         expect(rendered).toContain("Lua");
         expect(rendered).toContain("Vessel");
-        expect(rendered).not.toContain("???");
+        expect(rendered).toContain("Eris Mortem");
         expect(rendered).not.toContain("Operation: Taubound");
     });
 

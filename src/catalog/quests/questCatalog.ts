@@ -61,9 +61,10 @@ const QUEST_PRESENTATION: Partial<Record<PrereqId, QuestPresentation>> = {
     [PR.THE_OLD_PEACE]: { classification: "main", order: 350, subgroup: "Arc 4: Void War Saga · Kalymos Sequence", summary: "Continues the Kalymos Sequence and opens its associated locations and activities." },
     [PR.TAU_PROLOGUE_LUA]: { classification: "main", order: 360, subgroup: "Arc 4: Void War Saga · Prologue to Tau", summary: "First released, permanent, replayable Prologue to Tau chapter." },
     [PR.TAU_PROLOGUE_VESSEL]: { classification: "main", order: 370, subgroup: "Arc 4: Void War Saga · Prologue to Tau", summary: "Second released, permanent, replayable Prologue to Tau chapter; follows Lua." },
-    [PR.JADE_SHADOWS]: { classification: "main", order: 380, subgroup: "Arc 4: Void War Saga · Jade Shadows Arc", summary: "Stalker story quest that awards Jade's main blueprint." },
-    [PR.JADE_SHADOWS_CONSTELLATIONS]: { classification: "main", order: 390, subgroup: "Arc 4: Void War Saga · Jade Shadows Arc", summary: "Update 43 quest that opens Uranus Proxima, two Railjack missions, and Pontis Tower." },
-    [PR.ANGELS_ZARIMAN]: { classification: "main", order: 400, subgroup: "Arc 4: Void War Saga · One-Offs", summary: "Post-New War quest that opens Zariman missions, the Chrysalith, and Holdfasts." },
+    [PR.TAU_PROLOGUE_ERIS_MORTEM]: { classification: "main", order: 380, subgroup: "Arc 4: Void War Saga · Prologue to Tau", summary: "Third released, permanent, replayable Prologue to Tau chapter; follows Vessel." },
+    [PR.JADE_SHADOWS]: { classification: "main", order: 390, subgroup: "Arc 4: Void War Saga · Jade Shadows Arc", summary: "Stalker story quest that awards Jade's main blueprint." },
+    [PR.JADE_SHADOWS_CONSTELLATIONS]: { classification: "main", order: 400, subgroup: "Arc 4: Void War Saga · Jade Shadows Arc", summary: "Update 43 quest that opens Uranus Proxima, two Railjack missions, and Pontis Tower." },
+    [PR.ANGELS_ZARIMAN]: { classification: "main", order: 410, subgroup: "Arc 4: Void War Saga · One-Offs", summary: "Post-New War quest that opens Zariman missions, the Chrysalith, and Holdfasts." },
 
     [PR.HOWL_KUBROW]: { classification: "side", order: 10, summary: "Unlocks Kubrow incubation and breeding." },
     [PR.STOLEN_DREAMS]: { classification: "side", order: 20, summary: "Maroo quest that opens the weekly Ayatan Treasure Hunt." },

@@ -390,6 +390,17 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         chapterIndex: 2,
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vessel_(Quest)", verifiedOn: "2026-11-14", classification: "required", note: "The quest page identifies Vessel as a replayable Main Quest, the second Prologue to Tau act, introduced October 15, 2026, with completed Lua as its direct requirement." }]
     },
+    {
+        id: PR.TAU_PROLOGUE_ERIS_MORTEM,
+        label: "Eris Mortem",
+        category: "Quests",
+        description: "Third released main quest chapter of Prologue to Tau. Requires completing Vessel.",
+        prerequisites: [PR.TAU_PROLOGUE_VESSEL],
+        introducedIn: "Hotfix 44.1.4.1 (October 28, 2026)",
+        partOf: "Prologue to Tau",
+        chapterIndex: 3,
+        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Eris_Mortem", verifiedOn: "2026-11-17", classification: "required", note: "The current quest page identifies Eris Mortem as a replayable Main Quest and the final Prologue to Tau act, introduced October 28, 2026; completed Vessel is its direct requirement." }]
+    },
 
     // =========================================================================
     // SIDE QUESTS — Feature Gates
@@ -817,40 +828,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         prerequisites: [PR.THE_HEX]
     },
     {
-        id: PR.HUB_YUVAN_PEAK,
-        label: "Yuvan Peak Access",
-        category: "Hubs",
-        description: "Reach Yuvan Peak in the Zariman. Requires both Angels of the Zariman and Whispers in the Walls.",
-        prerequisites: [PR.ANGELS_ZARIMAN, PR.WHISPERS_WALL],
-        introducedIn: "Update 44 (September 23, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/44-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Update 44 explicitly requires both quests to access Yuvan Peak." }]
-    },
-    {
-        id: PR.HUB_PONTIS_TOWER,
-        label: "Pontis Tower Access",
-        category: "Hubs",
-        description: "Access the Zariman outpost at Pontis Tower from Uranus Proxima.",
-        prerequisites: [PR.SYSTEM_URANUS_PROXIMA],
-        introducedIn: "Update 43 (June 17, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Pontis Tower and Uranus Proxima are unlocked by Jade Shadows: Constellations." }]
-    },
-    {
-        id: PR.HUB_LA_CATHEDRALE,
-        label: "La Cathédrale Access",
-        category: "Hubs",
-        description: "Access La Cathédrale after The Old Peace. Entry uses the Drifter; this character choice is not a progression gate.",
-        prerequisites: [PR.THE_OLD_PEACE],
-        introducedIn: "Update 41 (December 10, 2025)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/41-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Completing The Old Peace unlocks La Cathédrale." }]
-    },
-    {
-        id: PR.HUB_DRIFTERS_CAMP,
-        label: "Drifter's Camp Access",
-        category: "Hubs",
-        description: "Access to Kahl's Garrison weekly missions in the Drifter's Camp.",
-        prerequisites: [PR.NEW_WAR]
-    },
-    {
         id: PR.CLAN_DOJO,
         label: "Clan Dojo Access",
         category: "Systems",
@@ -942,15 +919,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Empyrean", verifiedOn: "2026-11-14", classification: "required", note: "Empyrean access requires completing The Archwing to join a mission; the host's Railjack is used, so owning a Railjack is not an alternative access route. Rising Tide is required only to pilot a personally owned Railjack." }, { kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/30-0-0", verifiedOn: "2026-11-14", classification: "historical", note: "Update 30 introduced Void Storms as Empyrean fissures; the current access rule is documented on the Empyrean page." }]
     },
     {
-        id: PR.ACTIVITY_KUVA_SIPHON,
-        label: "Kuva Siphon and Flood Missions",
-        category: "Systems",
-        description: "Access Kuva Siphon and Flood missions after The War Within and Mastery Rank 5. Individual mission nodes still follow Star Chart access.",
-        prerequisites: [PR.WAR_WITHIN],
-        conditions: [{ type: "mastery_rank", value: 5 }],
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/35-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Update 35 explicitly adds MR5 to Kuva Siphon missions, alongside The War Within access." }]
-    },
-    {
         id: PR.ACTIVITY_CIRCUIT,
         label: "The Circuit",
         category: "Systems",
@@ -993,77 +961,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Netracells", verifiedOn: "2026-11-14", classification: "required", note: "Netracell missions require completion of Whispers in the Walls; Tagfer in the Sanctum Anatomica is the access point, and that hub is unlocked by the same quest." }]
     },
     {
-        id: PR.ACTIVITY_NETRACELL_COMPLETED,
-        showInPlanner: false,
-        label: "Completed a Netracell Mission",
-        category: "Systems",
-        description: "Manual milestone: complete at least one Netracell mission. Deep Archimedea checks for a completed run, not just access to Netracells.",
-        prerequisites: [PR.ACTIVITY_NETRACELLS]
-    },
-    {
-        id: PR.ACTIVITY_DEEP_ARCHIMEDEA,
-        label: "Deep Archimedea",
-        category: "Systems",
-        description: "Access Deep Archimedea by speaking to Necraloid in Sanctum Anatomica. The game checks Whispers in the Walls, Cavia Rank 5, and at least one completed Netracell mission.",
-        prerequisites: [PR.WHISPERS_WALL, PR.SYNDICATE_CAVIA_RANK5, PR.ACTIVITY_NETRACELL_COMPLETED],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Elite_Deep_Archimedea", verifiedOn: "2026-11-14", classification: "required", note: "The current access rule explicitly lists Whispers in the Walls, one completed Netracell, and Cavia Rank 5. Whispers is retained as a direct edge because the game lists it separately even though Cavia access already implies it." }]
-    },
-    {
-        id: PR.ACTIVITY_ELITE_DEEP_ARCHIMEDEA,
-        label: "Elite Deep Archimedea Unlocked",
-        category: "Systems",
-        description: "Manual milestone: reach the 25 Research Point threshold in Deep Archimedea to unlock Elite Deep Archimedea. The threshold does not require completing an Elite run.",
-        prerequisites: [PR.ACTIVITY_DEEP_ARCHIMEDEA],
-        introducedIn: "Update 35.5 (March 2024)",
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Elite_Deep_Archimedea", verifiedOn: "2026-11-14", classification: "required", note: "Elite Deep Archimedea unlocks after accumulating 25 Research Points in Deep Archimedea." }]
-    },
-    {
-        id: PR.ACTIVITY_TEMPORAL_ARCHIMEDEA,
-        label: "Temporal Archimedea",
-        category: "Systems",
-        description: "Access Temporal Archimedea in Höllvania. Requires The Hex and Hex Syndicate Rank 5.",
-        prerequisites: [PR.THE_HEX, PR.SYNDICATE_HEX_RANK5],
-        introducedIn: "Update 38 (December 2024)",
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Update_38", verifiedOn: "2026-11-14", classification: "required", note: "Temporal Archimedea requires both The Hex and Hex Syndicate Rank 5; the game lists the quest separately even though the rank path requires it." }]
-    },
-    {
-        id: PR.ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA,
-        label: "Elite Temporal Archimedea Unlocked",
-        category: "Systems",
-        description: "Manual milestone: reach the 25 Research Point threshold in Temporal Archimedea to unlock its Elite variant. The threshold does not require completing an Elite run.",
-        prerequisites: [PR.ACTIVITY_TEMPORAL_ARCHIMEDEA],
-        introducedIn: "Update 38 (December 2024)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/psn/38-5-0", verifiedOn: "2026-11-14", classification: "required", note: "The update describes Elite Temporal Archimedea unlocking after 25 Research Points in Temporal Archimedea." }]
-    },
-    {
-        id: PR.ACTIVITY_ICEBIND,
-        label: "The Icebind",
-        category: "Systems",
-        description: "Access the permanent Icebind endgame mode from Yuvan's Peak. Requires both Angels of the Zariman and Whispers in the Walls, plus either Elite Deep Archimedea or Elite Temporal Archimedea unlocked.",
-        prerequisites: [PR.ANGELS_ZARIMAN, PR.WHISPERS_WALL],
-        anyPrerequisites: [PR.ACTIVITY_ELITE_DEEP_ARCHIMEDEA, PR.ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA],
-        introducedIn: "Update 44.1 (October 7, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/44-1-0", verifiedOn: "2026-11-14", classification: "required", note: "The Icebind requires both quests and access to either Elite Deep Archimedea or Elite Temporal Archimedea." }]
-    },
-    {
-        id: PR.ACTIVITY_FOLLIES_HUNT,
-        label: "Follie's Hunt",
-        category: "Systems",
-        description: "Access the permanent Follie's Hunt activity at Vesper Relay. Requires Chains of Harrow.",
-        prerequisites: [PR.CHAINS_HARROW],
-        introducedIn: "Update 42 (March 26, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/42-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Update 42 states Chains of Harrow is required to access Follie's Hunt." }]
-    },
-    {
-        id: PR.ACTIVITY_ASPIRANT_ZORBA,
-        label: "Aspirant Zorba Access",
-        category: "Systems",
-        description: "Access the Zorba offerings and associated currency through Follie's Hunt. Requires Chains of Harrow.",
-        prerequisites: [PR.CHAINS_HARROW],
-        introducedIn: "Update 42 (March 26, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/42-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Update 42 makes Chains of Harrow the access requirement for Aspirant Zorba." }]
-    },
-    {
         id: PR.SYSTEM_URANUS_PROXIMA,
         label: "Uranus Proxima Access",
         category: "Railjack",
@@ -1089,70 +986,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         prerequisites: [PR.SYSTEM_URANUS_PROXIMA],
         introducedIn: "Update 43 (June 17, 2026)",
         evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Listed as one of the two missions unlocked by completing the quest." }]
-    },
-    {
-        id: PR.SYSTEM_DEVILS_TRIAD_KIM,
-        label: "Devil's Triad KIM Access",
-        category: "Systems",
-        description: "Access the Devil's Triad KIM feature after The Old Peace.",
-        prerequisites: [PR.THE_OLD_PEACE],
-        introducedIn: "Update 41 (December 10, 2025)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/41-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Completing The Old Peace unlocks the Devil's Triad KIM feature." }]
-    },
-    {
-        id: PR.SYSTEM_DARK_REFRACTORY_PREVIEW,
-        label: "Opt into Dark Refractory Mission Preview",
-        category: "Systems",
-        description: "Use Mission Preview from Update Highlights or the Pause Menu after The Teacher. This is a conditional access route for Descendia and The Perita Rebellion; it does not unlock La Cathédrale, Devil's Triad vendors, KIM, or other quest-gated content.",
-        prerequisites: [PR.THE_TEACHER],
-        introducedIn: "Update 41 (December 10, 2025)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/41-0-0", verifiedOn: "2026-11-14", classification: "conditional", note: "The preview button is accessed from Update Highlights or the Pause Menu; players must complete The Teacher before using it. Using the feature makes Dark Refractory appear at Navigation." }]
-    },
-    {
-        id: PR.ACTIVITY_DARK_REFRACTORY,
-        label: "Dark Refractory Access",
-        category: "Systems",
-        description: "Dark Refractory appears at Navigation after The Old Peace or after opting into Mission Preview. Mission Preview requires The Teacher; MR10 is required for public matchmaking only, not solo or invite-only access.",
-        prerequisites: [],
-        anyPrerequisites: [PR.THE_OLD_PEACE, PR.SYSTEM_DARK_REFRACTORY_PREVIEW],
-        introducedIn: "Update 41 (December 10, 2025)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/41-0-0", verifiedOn: "2026-11-14", classification: "conditional", note: "The update distinguishes normal access after The Old Peace from Codex preview access after The Teacher; MR10 applies to public matchmaking." }]
-    },
-    {
-        id: PR.ACTIVITY_DESCENDIA,
-        label: "The Descendia",
-        category: "Systems",
-        description: "Access the permanent Descendia game mode through Dark Refractory after The Old Peace, or through Mission Preview after The Teacher.",
-        prerequisites: [PR.ACTIVITY_DARK_REFRACTORY],
-        introducedIn: "Update 41 (December 10, 2025)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/41-0-0", verifiedOn: "2026-11-14", classification: "conditional", note: "The activity is reached through Dark Refractory; its separate Codex Mission Preview route is available after The Teacher." }]
-    },
-    {
-        id: PR.ACTIVITY_PERITA_REBELLION,
-        label: "The Perita Rebellion",
-        category: "Systems",
-        description: "Access the permanent Perita Rebellion game mode through Dark Refractory after The Old Peace, or through Mission Preview after The Teacher. The limited Operation: Blood of Perita was a separate event.",
-        prerequisites: [PR.ACTIVITY_DARK_REFRACTORY],
-        introducedIn: "Update 41 (December 10, 2025)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/41-0-0", verifiedOn: "2026-11-14", classification: "conditional", note: "The activity is reached through Dark Refractory; its separate Codex Mission Preview route is available after The Teacher." }]
-    },
-    {
-        id: PR.SYSTEM_AMIR_CLOSE,
-        label: "Amir Chemistry: Close",
-        category: "Systems",
-        description: "Manual KIM chemistry milestone. Fables & Frontiers requires Amir Chemistry Rank 5 (Close).",
-        prerequisites: [PR.HUB_HOLLVANIA],
-        introducedIn: "Update 43.5 (August 12, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-5-0", verifiedOn: "2026-11-14", classification: "required", note: "The permanent Running Late quest requires Amir Chemistry Rank 5 (Close)." }]
-    },
-    {
-        id: PR.ACTIVITY_FABLES_FRONTIERS,
-        label: "Fables & Frontiers: Running Late",
-        category: "Systems",
-        description: "Access the permanent Running Late KIM adventure. The game explicitly checks The Hex and The Hex Finale, Hex Rank 5, and Amir Chemistry Rank 5 (Close).",
-        prerequisites: [PR.THE_HEX, PR.THE_HEX_FINALE, PR.SYNDICATE_HEX_RANK5, PR.SYSTEM_AMIR_CLOSE],
-        introducedIn: "Update 43.5 (August 12, 2026)",
-        evidence: [{ kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/43-5-0", verifiedOn: "2026-11-14", classification: "required", note: "Update 43.5 explicitly requires both The Hex Quest and The Hex Finale, Hex Rank 5 (Pizza Party), and Chemistry Rank 5 (Close) with Amir. The Hex Finale depends on The Hex in the registry, but the game lists both separately." }]
     },
     {
         id: PR.ACTIVITY_KUVA_LICH,
@@ -1196,15 +1029,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
             classification: "required",
             note: "Only one Adversary can be active at a time, including Kuva Liches, Sisters of Parvos, and Technocyte Codas."
         }]
-    },
-    {
-        id: PR.ACTIVITY_SISTER_VANQUISHED,
-        showInPlanner: false,
-        label: "Vanquished a Sister of Parvos",
-        category: "Systems",
-        description: "Manual milestone: vanquish a Sister of Parvos. The vanquished Sister's Hound is awarded as a Companion; converting a Sister is not this milestone.",
-        prerequisites: [PR.ACTIVITY_SISTER_PARVOS],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Hound", verifiedOn: "2026-11-14", classification: "required", note: "The current Hound page says vanquishing a Sister rewards her Hound as a Companion. Sister creation eligibility alone does not grant that reward." }]
     },
     {
         id: PR.ACTIVITY_ABYSSAL_ZONE,
@@ -1267,16 +1091,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         prerequisites: [PR.JUNCTION_URANUS_NEPTUNE]
     },
     {
-        id: PR.ACTIVITY_ROPALOLYST,
-        label: "Ropalolyst Assassination",
-        category: "Systems",
-        description: "Unlock the Ropalolyst fight on Jupiter after Chimera Prologue.",
-        // Chimera Prologue is only offered after The Sacrifice; that story chain
-        // already requires Pluto access, which implies Jupiter access. Keep the
-        // quest as the direct node gate instead of duplicating a transitive Junction.
-        prerequisites: [PR.CHIMERA_PROLOGUE]
-    },
-    {
         id: PR.ACTIVITY_DEFECTION,
         label: "Defection Missions",
         category: "Systems",
@@ -1308,39 +1122,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         prerequisites: [PR.WAR_WITHIN]
     },
     {
-        id: PR.SEGMENT_ARSENAL,
-        showInPlanner: false,
-        label: "Orbiter: Arsenal Segment",
-        category: "Segments",
-        description: "Base Orbiter function installed during Vor's Prize.",
-        prerequisites: [PR.VORS_PRIZE]
-    },
-    {
-        id: PR.SEGMENT_COMMUNICATIONS,
-        showInPlanner: false,
-        label: "Orbiter: Communications Segment",
-        category: "Segments",
-        description: "Base Orbiter communication function installed during Vor's Prize.",
-        prerequisites: [PR.VORS_PRIZE]
-    },
-    {
-        id: PR.SEGMENT_FOUNDRY,
-        showInPlanner: false,
-        label: "Orbiter: Foundry Segment",
-        category: "Segments",
-        description: "Base Foundry access installed during Vor's Prize.",
-        prerequisites: [PR.VORS_PRIZE]
-    },
-    {
-        id: PR.SEGMENT_MODDING,
-        showInPlanner: false,
-        label: "Orbiter: Modding Segment",
-        category: "Segments",
-        description: "Mod Segment installed after The Teacher; modding tutorials and mod management are introduced in that quest.",
-        prerequisites: [PR.THE_TEACHER],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/The_Teacher", verifiedOn: "2026-11-14", classification: "required", note: "The Teacher quest awards and installs the Mod Segment." }]
-    },
-    {
         id: PR.SEGMENT_VOID_RELIC,
         label: "Orbiter: Void Relic Segment",
         category: "Segments",
@@ -1354,15 +1135,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         category: "Segments",
         description: "Required for Kubrow and Kavat companion breeding. Awarded by completing Howl of the Kubrow.",
         prerequisites: [PR.HOWL_KUBROW]
-    },
-    {
-        id: PR.SEGMENT_KAVAT_UPGRADE,
-        showInPlanner: false,
-        label: "Kavat Incubator Upgrade Segment Installed",
-        category: "Segments",
-        description: "Manual milestone: install the Kavat Incubator Upgrade Segment. Its blueprint can be researched in a Clan Dojo, dropped by Hyekka Masters, or purchased fully built from the Market.",
-        prerequisites: [PR.SEGMENT_INCUBATOR],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Kavat", verifiedOn: "2026-11-14", classification: "required", note: "Kavat breeding requires the Kavat Incubator Upgrade Segment in addition to the base Incubator; the segment has Dojo, enemy-drop, and Market acquisition routes." }]
     },
     {
         id: PR.SEGMENT_MELEE_UPGRADE,
@@ -1481,16 +1253,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Necramech", verifiedOn: "2026-11-14", classification: "conditional", note: "Pre-built Necramechs are sold from the Market; this bypasses the Heart of Deimos/Necraloid crafting routes but not The War Within deployment gate." }]
     },
     {
-        id: PR.NECRAMECH_RAILJACK_DEPLOYMENT,
-        showInPlanner: false,
-        label: "Necramech: Railjack Deployment Access",
-        category: "Necramech",
-        description: "Deploy an owned Necramech in the grounded portions of Railjack missions. Tactical Intrinsic Rank 5 is only required for this route, not for open-world deployment.",
-        prerequisites: [PR.NECRAMECH_UNLOCKED, PR.SYSTEM_PROXIMA_ACCESS],
-        conditions: [{ type: "railjack_intrinsic_rank", rank: 5, skillId: "LPS_TACTICAL" }],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Necramech", verifiedOn: "2026-11-14", classification: "required", note: "Tactical Intrinsic Rank 5 unlocks Necramech summoning in grounded Empyrean/Railjack missions. Open-world summon access has no Tactical Rank 5 requirement." }]
-    },
-    {
         id: PR.RAILJACK_CONSTRUCTED,
         label: "Railjack: Ship Constructed",
         category: "Railjack",
@@ -1569,23 +1331,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         description: "Access the Railjack Intrinsics tree after completing your first Railjack mission.",
         prerequisites: [PR.ARCHWING],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Empyrean", verifiedOn: "2026-11-14", classification: "required", note: "After The Archwing, a player can join Empyrean missions hosted by another player; this is enough to start earning Intrinsic progress without owning a Railjack." }]
-    },
-    {
-        id: PR.RAILJACK_CORPUS_NODES,
-        showInPlanner: false,
-        label: "Railjack: Corpus Proxima Access",
-        category: "Railjack",
-        description: "Unlock Corpus Proxima Railjack nodes after Call of the Tempestarii.",
-        prerequisites: [PR.CALL_TEMPESTARII]
-    },
-    {
-        id: PR.RAILJACK_VOID_STORMS,
-        showInPlanner: false,
-        label: "Railjack: Void Storm Access",
-        category: "Railjack",
-        description: "Compatibility alias for general Void Storm access; Corpus Proxima is not required to join a Void Storm on another player's Railjack.",
-        prerequisites: [PR.ACTIVITY_VOID_STORMS],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Empyrean", verifiedOn: "2026-11-14", classification: "required", note: "Empyrean missions use the host's Railjack; joining does not require owning one or completing Call of the Tempestarii." }]
     },
     {
         id: PR.SYSTEM_ARCHWING_OWNED,
@@ -1693,242 +1438,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
             classification: "required",
             note: "The game allows only one active Adversary at a time; the slot becomes available again after the current Lich, Sister, or Coda is resolved."
         }]
-    },
-    {
-        id: PR.FOCUS_UNLOCKED,
-        showInPlanner: false,
-        label: "Focus System Unlocked",
-        category: "Systems",
-        description: "Unlock the Focus system by completing The Second Dream.",
-        prerequisites: [PR.SECOND_DREAM]
-    },
-    {
-        id: PR.FOCUS_FULL,
-        showInPlanner: false,
-        label: "Focus Schools Fully Accessible",
-        category: "Systems",
-        description: "Unlock the standard Focus abilities after completing The War Within and Saya's Vigil, then visiting The Quills. Quills Rank 1 is not required. Tauron Strike access is tracked separately because it requires a Tektolyst Artifact.",
-        prerequisites: [PR.SYSTEM_ONKKO_VISITED, PR.SAYA_VIGIL],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Focus", verifiedOn: "2026-11-14", classification: "required", note: "The current Focus reference says the remaining Focus abilities require The War Within, Saya's Vigil, and visiting The Quills; the War Within prerequisite is already implied by the tracked Quills visit." }]
-    },
-    {
-        id: PR.FOCUS_SCHOOL_ZENURIK,
-        showInPlanner: false,
-        label: "Focus School: Zenurik",
-        category: "Systems",
-        description: "Choose Zenurik as the free starting school after The Second Dream, or unlock it later by spending 50,000 Focus. Mark complete only after this school is unlocked; school selection and unlock state are manual because profile import does not expose them.",
-        prerequisites: [PR.FOCUS_UNLOCKED]
-    },
-    {
-        id: PR.FOCUS_SCHOOL_VAZARIN,
-        showInPlanner: false,
-        label: "Focus School: Vazarin",
-        category: "Systems",
-        description: "Choose Vazarin as the free starting school after The Second Dream, or unlock it later by spending 50,000 Focus. Mark complete only after this school is unlocked; school selection and unlock state are manual because profile import does not expose them.",
-        prerequisites: [PR.FOCUS_UNLOCKED]
-    },
-    {
-        id: PR.FOCUS_SCHOOL_NARAMON,
-        showInPlanner: false,
-        label: "Focus School: Naramon",
-        category: "Systems",
-        description: "Choose Naramon as the free starting school after The Second Dream, or unlock it later by spending 50,000 Focus. Mark complete only after this school is unlocked; school selection and unlock state are manual because profile import does not expose them.",
-        prerequisites: [PR.FOCUS_UNLOCKED]
-    },
-    {
-        id: PR.FOCUS_SCHOOL_UNAIRU,
-        showInPlanner: false,
-        label: "Focus School: Unairu",
-        category: "Systems",
-        description: "Choose Unairu as the free starting school after The Second Dream, or unlock it later by spending 50,000 Focus. Mark complete only after this school is unlocked; school selection and unlock state are manual because profile import does not expose them.",
-        prerequisites: [PR.FOCUS_UNLOCKED]
-    },
-    {
-        id: PR.FOCUS_SCHOOL_MADURAI,
-        showInPlanner: false,
-        label: "Focus School: Madurai",
-        category: "Systems",
-        description: "Choose Madurai as the free starting school after The Second Dream, or unlock it later by spending 50,000 Focus. Mark complete only after this school is unlocked; school selection and unlock state are manual because profile import does not expose them.",
-        prerequisites: [PR.FOCUS_UNLOCKED]
-    },
-    {
-        id: PR.SYSTEM_TAURON_STRIKE,
-        label: "Tauron Strike Unlocked",
-        category: "Systems",
-        description: "Acquire a Tektolyst Artifact for an unlocked Focus School from Marie in La Cathédrale. The Old Peace opens the vendor; resources are awarded by its quest and the matching Perita Rebellion final encounters, or supplied by the one-time Market acquisition pack. Mark this manual milestone complete after acquiring an Artifact; owning it unlocks that school's Tauron Strike outside Perita Rebellion.",
-        prerequisites: [PR.THE_OLD_PEACE],
-        anyPrerequisites: [
-            PR.FOCUS_SCHOOL_MADURAI,
-            PR.FOCUS_SCHOOL_NARAMON,
-            PR.FOCUS_SCHOOL_UNAIRU,
-            PR.FOCUS_SCHOOL_VAZARIN,
-            PR.FOCUS_SCHOOL_ZENURIK,
-        ],
-        introducedIn: "Update 41 (December 10, 2025)",
-        evidence: [
-            { kind: "official", url: "https://www.warframe.com/en/patch-notes/pc/41-0-0", verifiedOn: "2026-11-14", classification: "required", note: "Update 41 says an Artifact must be acquired to access its Tauron Strike, the school must already be unlocked, and Marie sells Artifacts in La Cathédrale; The Old Peace unlocks that hub. The one-time Market pack supplies the resources but does not replace the Marie purchase." },
-            { kind: "wiki", url: "https://wiki.warframe.com/w/Focus", verifiedOn: "2026-11-14", classification: "required", note: "The current Focus reference states that each school's Tauron Strike requires its Tektolyst Artifact, which is acquired after The Old Peace from Marie in La Cathédrale; owning the Artifact unlocks the Strike outside The Perita Rebellion." },
-        ]
-    },
-    {
-        id: PR.AMP_SIROCCO,
-        showInPlanner: false,
-        label: "Operator: Sirocco Acquired",
-        category: "Systems",
-        description: "Receive the built Sirocco Amp from The New War.",
-        prerequisites: [PR.NEW_WAR]
-    },
-    {
-        id: PR.AMP_TIER1,
-        showInPlanner: false,
-        label: "Amp Parts: Tier 1",
-        category: "Systems",
-        description: "Unlock Tier 1 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK1],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 1 components at The Quills Rank 1 (Mote)." }]
-    },
-    {
-        id: PR.AMP_TIER2,
-        showInPlanner: false,
-        label: "Amp Parts: Tier 2",
-        category: "Systems",
-        description: "Unlock Tier 2 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK2],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 2 components at The Quills Rank 2 (Observer)." }]
-    },
-    {
-        id: PR.AMP_TIER3,
-        showInPlanner: false,
-        label: "Amp Parts: Tier 3",
-        category: "Systems",
-        description: "Unlock Tier 3 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK3],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 3 components at The Quills Rank 3 (Adherent)." }]
-    },
-    {
-        id: PR.AMP_TIER4,
-        showInPlanner: false,
-        label: "Amp Parts: Tier 4",
-        category: "Systems",
-        description: "Unlock Tier 4 Amp parts from The Quills.",
-        prerequisites: [PR.SYNDICATE_QUILLS_RANK4],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 4 components at The Quills Rank 4 (Instrument)." }]
-    },
-    {
-        id: PR.AMP_TIER5,
-        showInPlanner: false,
-        label: "Amp Parts: Tier 5",
-        category: "Systems",
-        description: "Unlock Tier 5 Amp parts from Vox Solaris.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK2],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 5 components at Vox Solaris Rank 2 (Agent)." }]
-    },
-    {
-        id: PR.AMP_TIER6,
-        showInPlanner: false,
-        label: "Amp Parts: Tier 6",
-        category: "Systems",
-        description: "Unlock Tier 6 Amp parts from Vox Solaris.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK3],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 6 components at Vox Solaris Rank 3 (Hand)." }]
-    },
-    {
-        id: PR.AMP_TIER7,
-        showInPlanner: false,
-        label: "Amp Parts: Tier 7",
-        category: "Systems",
-        description: "Unlock Tier 7 Amp parts from Vox Solaris.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK4],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "The current Amp parts table places Tier 7 components at Vox Solaris Rank 4 (Instrument)." }]
-    },
-    {
-        id: PR.AMP_GILDING,
-        showInPlanner: false,
-        label: "Amp Gilding Unlocked",
-        category: "Systems",
-        description: "Unlock Amp gilding through advanced Quills or Vox Solaris rank progression.",
-        prerequisites: [],
-        anyPrerequisites: [PR.SYNDICATE_QUILLS_RANK3, PR.SYNDICATE_VOX_RANK3],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Amp", verifiedOn: "2026-11-14", classification: "required", note: "Amp gilding becomes available at The Quills rank Adherent or Vox Solaris rank Hand; either vendor route qualifies." }]
-    },
-    {
-        id: PR.COMPANION_KUBROW,
-        showInPlanner: false,
-        label: "Kubrow Breeding",
-        category: "Systems",
-        description: "Unlock Kubrow breeding after obtaining the Incubator Segment, which is awarded by Howl of the Kubrow.",
-        prerequisites: [PR.SEGMENT_INCUBATOR],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Howl_of_the_Kubrow", verifiedOn: "2026-11-14", classification: "required", note: "Howl of the Kubrow awards the Incubator Segment; the Segment is the direct system gate for Kubrow breeding." }]
-    },
-    {
-        id: PR.COMPANION_KAVAT,
-        showInPlanner: false,
-        label: "Kavat Breeding",
-        category: "Systems",
-        description: "Kavat breeding uses the Orbiter Incubator and Kavat Upgrade Segment. Genetic Codes can be scanned from Feral Kavats on Deimos or purchased; Heart of Deimos is not a hard gate.",
-        prerequisites: [PR.SEGMENT_KAVAT_UPGRADE],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Kavat", verifiedOn: "2026-11-14", classification: "required", note: "Kavat incubation requires the Incubator and Kavat Incubator Upgrade Segment. Genetic Codes are obtainable from Feral Kavats on Deimos, but the codes and segment also have Market acquisition paths, so Heart of Deimos/Deimos access is not a mandatory gate." }]
-    },
-    {
-        id: PR.COMPANION_MATURE_CYST,
-        showInPlanner: false,
-        label: "Mature Helminth Cyst Available",
-        category: "Systems",
-        description: "Manual, dynamic milestone: have a mature Helminth Cyst on an eligible Warframe. Nidus or another infected player can transmit it; it matures over time.",
-        prerequisites: [],
-        progressionAfter: [PR.AWAKENING],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Helminth_Charger", verifiedOn: "2026-11-14", classification: "required", note: "Helminth Charger incubation requires a mature cyst; infection can be received from Nidus or another player and the cyst needs time to mature." }]
-    },
-    {
-        id: PR.COMPANION_HELMINTH_CHARGER,
-        showInPlanner: false,
-        label: "Helminth Charger Companion",
-        category: "Systems",
-        description: "Incubate a Helminth Charger with the Orbiter Incubator and a mature Helminth Cyst. A cyst can come from Nidus or another infected player; the Helminth Segment is not required.",
-        prerequisites: [PR.SEGMENT_INCUBATOR, PR.COMPANION_MATURE_CYST],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Helminth_Charger", verifiedOn: "2026-11-14", classification: "required", note: "Howl of the Kubrow supplies the operating Incubator. The Charger requires a mature cyst, which can spread from another player; the Helminth Segment only unlocks the ability-replacement system and is not a Charger breeding gate." }]
-    },
-    {
-        id: PR.COMPANION_MOA,
-        showInPlanner: false,
-        label: "MOA Companion Assembly",
-        category: "Systems",
-        description: "Unlock MOA companion assembly in Fortuna after completing Vox Solaris.",
-        prerequisites: [PR.VOX_SOLARIS]
-    },
-    {
-        id: PR.COMPANION_HOUND,
-        showInPlanner: false,
-        label: "Hound Companion Reward",
-        category: "Systems",
-        description: "Track the Hound companion rewarded for vanquishing a Sister of Parvos.",
-        prerequisites: [PR.ACTIVITY_SISTER_VANQUISHED],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Hound", verifiedOn: "2026-11-14", classification: "required", note: "The current Hound page identifies the player companion as the Sister's Hound reward after vanquishing her." }]
-    },
-    {
-        id: PR.COMPANION_PREDASITE,
-        showInPlanner: false,
-        label: "Predasite Companion Access",
-        category: "Systems",
-        description: "Unlock Predasite companions through Deimos companion conservation and revivification.",
-        prerequisites: [PR.HUB_NECRALISK]
-    },
-    {
-        id: PR.COMPANION_VULPAPHYLA,
-        showInPlanner: false,
-        label: "Vulpaphyla Companion Access",
-        category: "Systems",
-        description: "Unlock Vulpaphyla companions through Deimos companion conservation and revivification.",
-        prerequisites: [PR.HUB_NECRALISK]
-    },
-    {
-        id: PR.COMPANION_NAUTILUS,
-        showInPlanner: false,
-        label: "Nautilus Companion Access",
-        category: "Systems",
-        description: "Nautilus blueprints drop from Neptune Proxima points of interest and Arva Vector Defense. This tracks the mission reward route; Market purchase and player trading can bypass that route.",
-        prerequisites: [PR.SYSTEM_PROXIMA_NEPTUNE_ACCESS, PR.RAILJACK_CORPUS_NODES],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Nautilus", verifiedOn: "2026-11-14", classification: "conditional", note: "The mission reward path is limited to Neptune Proxima POIs and Arva Vector Defense, so it requires Neptune Proxima and Corpus Proxima access. The blueprint/components are also available through Market purchase/player trade; those are alternate acquisition routes, not prerequisites for the mission path." }]
     },
 
     // =========================================================================
@@ -2074,55 +1583,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         description: "Maximum Solaris United rank. Required to start Orb Vallis heists such as Profit-Taker and Exploiter.",
         prerequisites: [PR.SYNDICATE_SOLARIS_RANK4],
         evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Solaris_United", verifiedOn: "2026-11-14", classification: "required", note: "Old Mate is Solaris United Rank 5 and follows Rank 4 Cove. It is required to access Profit-Taker and other Heists." }]
-    },
-    {
-        id: PR.SYNDICATE_VOX_RANK1,
-        validatedBySyndicate: { syndicateId: SY.VOX_SOLARIS, rank: 1 },
-        showInPlanner: false,
-        label: "Vox Solaris: Rank 1 (Operative)",
-        category: "Syndicates",
-        description: "Unlock the first Little Duck standing tier and early Vox Amp parts.",
-        prerequisites: [PR.VOX_SOLARIS, PR.SYSTEM_ONKKO_VISITED],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vox_Solaris_%28Syndicate%29", verifiedOn: "2026-11-14", classification: "required", note: "Vox Solaris syndicate access requires the Vox Solaris quest, The War Within, and speaking with Onkko at least once; the Onkko milestone already carries The War Within and Cetus access." }]
-    },
-    {
-        id: PR.SYNDICATE_VOX_RANK2,
-        validatedBySyndicate: { syndicateId: SY.VOX_SOLARIS, rank: 2 },
-        showInPlanner: false,
-        label: "Vox Solaris: Rank 2 (Agent)",
-        category: "Syndicates",
-        description: "Unlock additional Little Duck offerings and Tier 6 Amp parts.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK1],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vox_Solaris_%28Syndicate%29", verifiedOn: "2026-11-14", classification: "required", note: "Vox Solaris standing advances in order from Operative to Agent." }]
-    },
-    {
-        id: PR.SYNDICATE_VOX_RANK3,
-        validatedBySyndicate: { syndicateId: SY.VOX_SOLARIS, rank: 3 },
-        showInPlanner: false,
-        label: "Vox Solaris: Rank 3 (Hand)",
-        category: "Syndicates",
-        description: "Unlock advanced Little Duck offerings, Tier 7 Amp parts, and Amp gilding.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK2],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vox_Solaris_%28Syndicate%29", verifiedOn: "2026-11-14", classification: "required", note: "Vox Solaris standing advances in order from Agent to Hand." }]
-    },
-    {
-        id: PR.SYNDICATE_VOX_RANK4,
-        validatedBySyndicate: { syndicateId: SY.VOX_SOLARIS, rank: 4 },
-        showInPlanner: false,
-        label: "Vox Solaris: Rank 4 (Instrument)",
-        category: "Syndicates",
-        description: "Unlock Rank 4 Little Duck offerings and the Instrument standing tier.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK3],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vox_Solaris_%28Syndicate%29", verifiedOn: "2026-11-14", classification: "required", note: "The Vox Solaris standing list includes Instrument as Rank 4 between Hand and Shadow." }]
-    },
-    {
-        id: PR.SYNDICATE_VOX_RANK5,
-        validatedBySyndicate: { syndicateId: SY.VOX_SOLARIS, rank: 5 },
-        label: "Vox Solaris: Rank 5 (Shadow)",
-        category: "Syndicates",
-        description: "Maximum Vox Solaris rank. Unlocks top-tier Little Duck offerings.",
-        prerequisites: [PR.SYNDICATE_VOX_RANK4],
-        evidence: [{ kind: "wiki", url: "https://wiki.warframe.com/w/Vox_Solaris_%28Syndicate%29", verifiedOn: "2026-11-14", classification: "required", note: "Vox Solaris standing advances from Instrument Rank 4 to Shadow Rank 5." }]
     },
     {
         id: PR.SYNDICATE_ENTRATI_RANK1,
@@ -2279,36 +1739,6 @@ export const PREREQ_REGISTRY: PrereqDef[] = [
         prerequisites: [],
         progressionAfter: [PR.AWAKENING]
     },
-    {
-        id: PR.MR_10,
-        validatedByMasteryRank: 10,
-        showInPlanner: false,
-        label: "Mastery Rank 10",
-        category: "Systems",
-        description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: [],
-        progressionAfter: [PR.AWAKENING]
-    },
-    {
-        id: PR.MR_15,
-        validatedByMasteryRank: 15,
-        showInPlanner: false,
-        label: "Mastery Rank 15",
-        category: "Systems",
-        description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: [],
-        progressionAfter: [PR.AWAKENING]
-    },
-    {
-        id: PR.MR_30,
-        validatedByMasteryRank: 30,
-        showInPlanner: false,
-        label: "Mastery Rank 30",
-        category: "Systems",
-        description: "Automatically tracked from your profile. Mastery Rank is an independent account progression value, not a quest unlock.",
-        prerequisites: [],
-        progressionAfter: [PR.AWAKENING]
-    },
 
 ];
 
@@ -2331,6 +1761,7 @@ const ENTRY_EVIDENCE_PAGES = new Map<PrereqId, string>([
     [PR.JADE_SHADOWS_CONSTELLATIONS, "https://wiki.warframe.com/w/Jade_Shadows:_Constellations"],
     [PR.TAU_PROLOGUE_LUA, "https://wiki.warframe.com/w/Lua_(Quest)"],
     [PR.TAU_PROLOGUE_VESSEL, "https://wiki.warframe.com/w/Vessel_(Quest)"],
+    [PR.TAU_PROLOGUE_ERIS_MORTEM, "https://wiki.warframe.com/w/Eris_Mortem"],
     [PR.A_MAN_FEW_WORDS, "https://wiki.warframe.com/w/A_Man_of_Few_Words"],
     [PR.HOWL_KUBROW, "https://wiki.warframe.com/w/Howl_of_the_Kubrow"],
     [PR.STOLEN_DREAMS, "https://wiki.warframe.com/w/Stolen_Dreams"],
@@ -2348,9 +1779,6 @@ const ENTRY_EVIDENCE_PAGES = new Map<PrereqId, string>([
     [PR.HIDDEN_MESSAGES, "https://wiki.warframe.com/w/Hidden_Messages"],
     [PR.WAVERIDER, "https://wiki.warframe.com/w/The_Waverider"],
     [PR.HUB_SANCTUM, "https://wiki.warframe.com/w/Whispers_in_the_Walls"],
-    [PR.HUB_YUVAN_PEAK, "https://www.warframe.com/en/patch-notes/pc/44-0-0"],
-    [PR.HUB_PONTIS_TOWER, "https://www.warframe.com/en/patch-notes/pc/43-0-0"],
-    [PR.HUB_LA_CATHEDRALE, "https://www.warframe.com/en/patch-notes/pc/41-0-0"],
     [PR.JUNCTION_MARS_PHOBOS, "https://wiki.warframe.com/w/Junctions"],
     [PR.JUNCTION_JUPITER_EUROPA, "https://wiki.warframe.com/w/Junctions"],
     [PR.JUNCTION_SATURN_URANUS, "https://wiki.warframe.com/w/Junctions"],
@@ -2373,45 +1801,18 @@ const ENTRY_EVIDENCE_PAGES = new Map<PrereqId, string>([
     [PR.HUB_NECRALISK, "https://wiki.warframe.com/w/Heart_of_Deimos"],
     [PR.HUB_ZARIMAN, "https://wiki.warframe.com/w/Angels_of_the_Zariman"],
     [PR.HUB_HOLLVANIA, "https://wiki.warframe.com/w/The_Hex_%28Quest%29"],
-    [PR.HUB_DRIFTERS_CAMP, "https://wiki.warframe.com/w/The_New_War"],
     [PR.ACTIVITY_STEEL_PATH_HONORS, "https://wiki.warframe.com/w/The_Steel_Path"],
     [PR.ACTIVITY_CIRCUIT_STEEL_PATH, "https://wiki.warframe.com/w/The_Circuit"],
     [PR.ACTIVITY_CIRCUIT, "https://wiki.warframe.com/w/The_Duviri_Paradox"],
     [PR.ACTIVITY_NETRACELLS, "https://wiki.warframe.com/w/Netracells"],
-    [PR.ACTIVITY_NETRACELL_COMPLETED, "https://wiki.warframe.com/w/Netracells"],
     [PR.ACTIVITY_SISTER_PARVOS, "https://wiki.warframe.com/w/Sisters_of_Parvos"],
     [PR.ACTIVITY_INDEX, "https://wiki.warframe.com/w/The_Index"],
-    [PR.ACTIVITY_ROPALOLYST, "https://wiki.warframe.com/w/Ropalolyst"],
     [PR.SEGMENT_PERSONAL_QUARTERS, "https://wiki.warframe.com/w/Orbiter_Segments"],
-    [PR.SEGMENT_ARSENAL, "https://wiki.warframe.com/w/Orbiter_Segments"],
-    [PR.SEGMENT_COMMUNICATIONS, "https://wiki.warframe.com/w/Orbiter_Segments"],
-    [PR.SEGMENT_FOUNDRY, "https://wiki.warframe.com/w/Orbiter_Segments"],
     [PR.SEGMENT_INCUBATOR, "https://wiki.warframe.com/w/Orbiter_Segments"],
     [PR.SEGMENT_MELEE_UPGRADE, "https://wiki.warframe.com/w/Orbiter_Segments"],
     [PR.SEGMENT_HELMINTH, "https://wiki.warframe.com/w/Helminth"],
     [PR.SEGMENT_HELMINTH_ARCHON_SHARD, "https://wiki.warframe.com/w/Helminth"],
     [PR.RAILJACK_CONSTRUCTED, "https://wiki.warframe.com/w/Rising_Tide"],
-    [PR.RAILJACK_CORPUS_NODES, "https://wiki.warframe.com/w/Call_of_the_Tempestarii"],
-    [PR.FOCUS_UNLOCKED, "https://wiki.warframe.com/w/Focus"],
-    [PR.FOCUS_SCHOOL_ZENURIK, "https://wiki.warframe.com/w/Focus"],
-    [PR.FOCUS_SCHOOL_VAZARIN, "https://wiki.warframe.com/w/Focus"],
-    [PR.FOCUS_SCHOOL_NARAMON, "https://wiki.warframe.com/w/Focus"],
-    [PR.FOCUS_SCHOOL_UNAIRU, "https://wiki.warframe.com/w/Focus"],
-    [PR.FOCUS_SCHOOL_MADURAI, "https://wiki.warframe.com/w/Focus"],
-    [PR.AMP_SIROCCO, "https://wiki.warframe.com/w/The_New_War"],
-    [PR.AMP_TIER1, "https://wiki.warframe.com/w/Amp"],
-    [PR.AMP_TIER2, "https://wiki.warframe.com/w/Amp"],
-    [PR.AMP_TIER3, "https://wiki.warframe.com/w/Amp"],
-    [PR.AMP_TIER4, "https://wiki.warframe.com/w/Amp"],
-    [PR.AMP_TIER5, "https://wiki.warframe.com/w/Amp"],
-    [PR.AMP_TIER6, "https://wiki.warframe.com/w/Amp"],
-    [PR.AMP_TIER7, "https://wiki.warframe.com/w/Amp"],
-    [PR.COMPANION_KAVAT, "https://wiki.warframe.com/w/Kavat"],
-    [PR.COMPANION_MOA, "https://wiki.warframe.com/w/MOA_%28Companion%29"],
-    [PR.COMPANION_HOUND, "https://wiki.warframe.com/w/Hound"],
-    [PR.COMPANION_PREDASITE, "https://wiki.warframe.com/w/Predasite"],
-    [PR.COMPANION_VULPAPHYLA, "https://wiki.warframe.com/w/Vulpaphyla"],
-    [PR.COMPANION_NAUTILUS, "https://wiki.warframe.com/w/Nautilus"],
     [PR.SYNDICATE_HOLDFASTS_RANK1, "https://wiki.warframe.com/w/The_Holdfasts"],
     [PR.SYNDICATE_HOLDFASTS_RANK2, "https://wiki.warframe.com/w/The_Holdfasts"],
     [PR.SYNDICATE_HOLDFASTS_RANK3, "https://wiki.warframe.com/w/The_Holdfasts"],
@@ -2436,9 +1837,6 @@ const ENTRY_EVIDENCE_PAGES = new Map<PrereqId, string>([
     [PR.SYNDICATE_HEX_RANK4, "https://www.warframe.com/en/patch-notes/pc/38-5-0"],
     [PR.MR_5, "https://wiki.warframe.com/w/Mastery_Rank"],
     [PR.MR_8, "https://wiki.warframe.com/w/Mastery_Rank"],
-    [PR.MR_10, "https://wiki.warframe.com/w/Mastery_Rank"],
-    [PR.MR_15, "https://wiki.warframe.com/w/Mastery_Rank"],
-    [PR.MR_30, "https://wiki.warframe.com/w/Mastery_Rank"],
 ]);
 
 const ENTRY_EVIDENCE_FACTS = new Map<PrereqId, string>([
@@ -2472,43 +1870,16 @@ const ENTRY_EVIDENCE_FACTS = new Map<PrereqId, string>([
     [PR.HUB_NECRALISK, "The Heart of Deimos quest page states that completing the quest opens Necralisk and the Entrati services there."],
     [PR.HUB_ZARIMAN, "The Zariman access page ties the Chrysalith and Holdfasts access to completion of Angels of the Zariman."],
     [PR.HUB_HOLLVANIA, "The Hex quest page identifies the Central Mall and Höllvania access as quest unlocks."],
-    [PR.HUB_DRIFTERS_CAMP, "The New War page identifies Drifter's Camp as an access location unlocked through that quest."],
     [PR.ACTIVITY_STEEL_PATH_HONORS, "Steel Path honors are offered by Teshin after Steel Path access is unlocked."],
     [PR.ACTIVITY_CIRCUIT_STEEL_PATH, "The Circuit reference requires both The Duviri Paradox quest and an unlocked Steel Path for its Steel Path reward path."],
     [PR.ACTIVITY_CIRCUIT, "The Circuit page explicitly says it becomes accessible after completing The Duviri Paradox quest."],
-    [PR.ACTIVITY_NETRACELL_COMPLETED, "Netracell access requires Whispers in the Walls; completing a run is the event recorded by this separate milestone."],
     [PR.ACTIVITY_INDEX, "The Index mission is on Neptune, so the Star Chart must be opened through the Uranus-to-Neptune Junction."],
-    [PR.ACTIVITY_ROPALOLYST, "The Ropalolyst page says its Jupiter assassination node requires Chimera Prologue to battle it."],
     [PR.SEGMENT_PERSONAL_QUARTERS, "The Personal Quarters Segment is awarded during The War Within and enables the Apostasy quest interaction."],
-    [PR.SEGMENT_ARSENAL, "The Orbiter Segments page lists the Arsenal Segment as a reward from Vor's Prize."],
-    [PR.SEGMENT_COMMUNICATIONS, "The Orbiter Segments page lists the Communications Segment as a reward from Vor's Prize."],
-    [PR.SEGMENT_FOUNDRY, "The Orbiter Segments page lists the Foundry Segment as a reward from Vor's Prize."],
     [PR.SEGMENT_INCUBATOR, "The Orbiter Segments page states that the Incubator Segment is obtained by initiating and completing Howl of the Kubrow."],
     [PR.SEGMENT_MELEE_UPGRADE, "The Melee Upgrade Segment was introduced as a Whispers in the Walls quest reward; the current segment page lists its Melee Exilus and Arcane functions."],
     [PR.SEGMENT_HELMINTH_ARCHON_SHARD, "The Helminth page ties the Archon Shard Segment to the Veilbreaker unlock path and requires the base Helminth system to use it."],
-    [PR.RAILJACK_CORPUS_NODES, "The Call of the Tempestarii page identifies its completion as unlocking Corpus Proxima missions."],
-    [PR.FOCUS_UNLOCKED, "The Focus reference says the system becomes available by completing The Second Dream."],
-    [PR.FOCUS_SCHOOL_ZENURIK, "The Focus page says players choose one starting school at the end of The Second Dream; each of the remaining schools costs 50,000 Focus to unlock. This manual milestone means the named school has actually been unlocked."],
-    [PR.FOCUS_SCHOOL_VAZARIN, "The Focus page says players choose one starting school at the end of The Second Dream; each of the remaining schools costs 50,000 Focus to unlock. This manual milestone means the named school has actually been unlocked."],
-    [PR.FOCUS_SCHOOL_NARAMON, "The Focus page says players choose one starting school at the end of The Second Dream; each of the remaining schools costs 50,000 Focus to unlock. This manual milestone means the named school has actually been unlocked."],
-    [PR.FOCUS_SCHOOL_UNAIRU, "The Focus page says players choose one starting school at the end of The Second Dream; each of the remaining schools costs 50,000 Focus to unlock. This manual milestone means the named school has actually been unlocked."],
-    [PR.FOCUS_SCHOOL_MADURAI, "The Focus page says players choose one starting school at the end of The Second Dream; each of the remaining schools costs 50,000 Focus to unlock. This manual milestone means the named school has actually been unlocked."],
     [PR.MR_5, "Mastery Rank is an independent profile progression value. This milestone is derived from the imported profile and does not require a quest."],
     [PR.MR_8, "Mastery Rank is an independent profile progression value. This milestone is derived from the imported profile and does not require a quest."],
-    [PR.MR_10, "Mastery Rank is an independent profile progression value. This milestone is derived from the imported profile and does not require a quest."],
-    [PR.MR_15, "Mastery Rank is an independent profile progression value. This milestone is derived from the imported profile and does not require a quest."],
-    [PR.MR_30, "Mastery Rank is an independent profile progression value. This milestone is derived from the imported profile and does not require a quest."],
-    [PR.AMP_SIROCCO, "The New War quest rewards the built Sirocco Amp."],
-    [PR.AMP_TIER1, "The Amp parts table places Tier 1 components at The Quills Rank 1 (Mote)."],
-    [PR.AMP_TIER2, "The Amp parts table places Tier 2 components at The Quills Rank 2 (Observer)."],
-    [PR.AMP_TIER3, "The Amp parts table places Tier 3 components at The Quills Rank 3 (Adherent)."],
-    [PR.AMP_TIER4, "The Amp parts table places Tier 4 components at The Quills Rank 4 (Instrument)."],
-    [PR.AMP_TIER5, "The Amp parts table places Tier 5 components at Vox Solaris Rank 2 (Agent)."],
-    [PR.AMP_TIER6, "The Amp parts table places Tier 6 components at Vox Solaris Rank 3 (Hand)."],
-    [PR.AMP_TIER7, "The Amp parts table places Tier 7 components at Vox Solaris Rank 4 (Instrument)."],
-    [PR.COMPANION_MOA, "The MOA companion page places its assembly service with Legs in Fortuna after the Vox Solaris quest unlocks Solaris United access."],
-    [PR.COMPANION_PREDASITE, "Predasites are Deimos conservation companions; the Necralisk and Cambion Drift access are unlocked through Heart of Deimos."],
-    [PR.COMPANION_VULPAPHYLA, "Vulpaphylas are Deimos conservation companions; the Necralisk and Cambion Drift access are unlocked through Heart of Deimos."],
     [PR.SYNDICATE_HOLDFASTS_RANK1, "The Holdfasts syndicate is based in the Chrysalith and becomes available after Angels of the Zariman opens the Zariman."],
     [PR.SYNDICATE_HOLDFASTS_RANK2, "The Holdfasts rank table identifies Watcher as Rank 2, following Rank 1 Fallen."],
     [PR.SYNDICATE_HOLDFASTS_RANK3, "The Holdfasts rank table identifies Guardian as Rank 3, following Rank 2 Watcher."],
@@ -2531,13 +1902,7 @@ for (const def of PREREQ_REGISTRY) {
                 : "wiki",
         url: sourceUrl,
         verifiedOn: "2026-11-14",
-        classification: def.id === PR.FOCUS_SCHOOL_ZENURIK
-            || def.id === PR.FOCUS_SCHOOL_VAZARIN
-            || def.id === PR.FOCUS_SCHOOL_NARAMON
-            || def.id === PR.FOCUS_SCHOOL_UNAIRU
-            || def.id === PR.FOCUS_SCHOOL_MADURAI
-            ? "conditional"
-            : "required",
+        classification: "required",
         note,
     }];
 }

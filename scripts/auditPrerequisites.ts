@@ -6,6 +6,10 @@ import { STAR_CHART_DATA } from "../src/domain/catalog/starChart";
 import { FULL_CATALOG } from "../src/domain/catalog/loadFullCatalog";
 import { PR } from "../src/domain/ids/prereqIds";
 import { SY } from "../src/domain/ids/syndicateIds";
+import {
+    DERIVED_PREREQUISITE_COMPLETIONS,
+    STAR_CHART_REGION_PREREQUISITES,
+} from "../src/catalog/prereqs/externalPrerequisiteConsumers";
 
 const ids = PREREQ_REGISTRY.map((def) => def.id);
 const idSet = new Set(ids);
@@ -17,6 +21,12 @@ const duplicateLabels = [...new Set(PREREQ_REGISTRY
     .map((def) => def.label.trim().toLowerCase())
     .filter((label, i, all) => all.indexOf(label) !== i))];
 const dependents = new Map<string, string[]>();
+const downstreamUses = new Map<string, Set<string>>();
+function addDownstreamUse(prereqId: string, dependentId: string): void {
+    const uses = downstreamUses.get(prereqId) ?? new Set<string>();
+    uses.add(dependentId);
+    downstreamUses.set(prereqId, uses);
+}
 const missingRefs: string[] = [];
 const selfReferences: string[] = [];
 const duplicateEdges: string[] = [];
@@ -39,6 +49,7 @@ for (const def of PREREQ_REGISTRY) {
         duplicateEdges.push(def.id);
     }
     for (const id of requiredAndAny) {
+        addDownstreamUse(id, def.id);
         if (id === def.id) selfReferences.push(def.id);
         if (!idSet.has(id)) missingRefs.push(`${def.id} -> ${id}`);
         const list = dependents.get(id) ?? [];
@@ -194,14 +205,9 @@ const explicitlyRequiredRedundancies = new Set([
     `${PR.SECOND_DREAM} -> ${PR.NATAH}`,
     `${PR.WAR_WITHIN} -> ${PR.SECOND_DREAM}`,
     `${PR.PATIENT_ZERO} -> ${PR.ONCE_AWAKE}`,
-    `${PR.ACTIVITY_DEEP_ARCHIMEDEA} -> ${PR.WHISPERS_WALL}`,
-    `${PR.ACTIVITY_TEMPORAL_ARCHIMEDEA} -> ${PR.THE_HEX}`,
     `${PR.ACTIVITY_SISTER_PARVOS} -> ${PR.WAR_WITHIN}`,
     `${PR.SAYA_VIGIL} -> ${PR.VORS_PRIZE}`,
     `${PR.VOX_SOLARIS} -> ${PR.THE_TEACHER}`,
-    `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX}`,
-    `${PR.ACTIVITY_FABLES_FRONTIERS} -> ${PR.THE_HEX_FINALE}`,
-    `${PR.SYNDICATE_VOX_RANK1} -> ${PR.VOX_SOLARIS}`,
     `${PR.ACTIVITY_DUVIRI_STEEL_PATH} -> ${PR.DUVIRI_PARADOX}`,
 ]);
 const unapprovedRedundantEdges = redundantEdges.filter((edge) => !explicitlyRequiredRedundancies.has(edge));
@@ -216,6 +222,28 @@ const milestoneMissingRefs = MILESTONE_REGISTRY.flatMap((milestone) =>
         .filter((id) => !idSet.has(id))
         .map((id) => `${milestone.id} -> ${id}`),
 );
+for (const milestone of MILESTONE_REGISTRY) {
+    for (const prereqId of milestone.rule.prereqIds) addDownstreamUse(prereqId, `milestone:${milestone.id}`);
+}
+for (const [sourceId, source] of Object.entries(SOURCE_INDEX)) {
+    for (const prereqId of source.prereqIds ?? []) addDownstreamUse(prereqId, `source:${sourceId}`);
+}
+for (const { prerequisiteId, regionId } of STAR_CHART_REGION_PREREQUISITES) {
+    addDownstreamUse(prerequisiteId, `star-chart:${regionId}`);
+}
+for (const { prerequisiteId, dependentPrerequisiteId } of DERIVED_PREREQUISITE_COMPLETIONS) {
+    addDownstreamUse(prerequisiteId, dependentPrerequisiteId);
+}
+const externalRelationshipIssues = [
+    ...STAR_CHART_REGION_PREREQUISITES.flatMap(({ prerequisiteId, regionId }) => [
+        ...(!idSet.has(prerequisiteId) ? [`Star Chart region ${regionId}: unknown prerequisite ${prerequisiteId}`] : []),
+        ...(!chartPlanetIds.has(regionId) ? [`${prerequisiteId}: unknown Star Chart region ${regionId}`] : []),
+    ]),
+    ...DERIVED_PREREQUISITE_COMPLETIONS.flatMap(({ prerequisiteId, dependentPrerequisiteId }) => [
+        ...(!idSet.has(prerequisiteId) ? [`derived completion: unknown prerequisite ${prerequisiteId}`] : []),
+        ...(!idSet.has(dependentPrerequisiteId) ? [`${prerequisiteId}: unknown derived prerequisite ${dependentPrerequisiteId}`] : []),
+    ]),
+];
 const junctionIssues = STAR_CHART_DATA.nodes
     .filter((node) => node.nodeType === "junction")
     .flatMap((node) => {
@@ -234,6 +262,10 @@ const chartReferenceIssues = STAR_CHART_DATA.nodes.flatMap((node) => [
     ...(node.unlocksPlanetId && !chartPlanetIds.has(node.unlocksPlanetId) ? [`${node.id}: unknown unlock destination ${node.unlocksPlanetId}`] : []),
     ...node.edges.filter((id) => !chartNodeIds.has(id)).map((id) => `${node.id}: unknown chart edge ${id}`),
 ]);
+const nonQuestLeafEntries = PREREQ_REGISTRY
+    .filter((def) => def.category !== "Quests" && def.category !== "SideQuests")
+    .filter((def) => !downstreamUses.get(def.id)?.size)
+    .map((def) => `${def.id} (${def.label})`);
 
 const byCategory = new Map<string, number>();
 for (const def of PREREQ_REGISTRY) byCategory.set(def.category, (byCategory.get(def.category) ?? 0) + 1);
@@ -327,6 +359,8 @@ const lines = [
     `- Prerequisite categories: ${[...byCategory.entries()].map(([category, count]) => `${category} ${count}`).join("; ")}`,
     `- Root entries: ${roots.map((def) => def.id).join(", ") || "none"}`,
     `- Entries not connected to Awakening: ${disconnectedFromAwakening.length ? disconnectedFromAwakening.join(", ") : "none"}`,
+    `- Non-quest entries without downstream content: ${nonQuestLeafEntries.length ? nonQuestLeafEntries.join("; ") : "none"}`,
+    `- Invalid external prerequisite consumers: ${externalRelationshipIssues.length ? externalRelationshipIssues.join("; ") : "none"}`,
     `- Entries with release metadata: ${rowsWithRelease.length}`,
     `- Entries introduced after the Update 41 baseline: ${introducedAfterUpdate41.length}${introducedAfterUpdate41.length ? ` (${[...postCutoffByCategory.entries()].map(([category, count]) => `${category} ${count}`).join("; ")})` : ""}`,
     `- Duplicate IDs: ${duplicates.length ? duplicates.join(", ") : "none"}`,
@@ -447,6 +481,6 @@ for (const def of PREREQ_REGISTRY) {
 
 console.log(lines.join("\n"));
 
-if (duplicates.length || duplicateMilestoneIds.length || duplicateLabels.length || selfReferences.length || duplicateEdges.length || missingRefs.length || progressionMissingRefs.length || disconnectedFromAwakening.length || roots.length !== 1 || roots[0]?.id !== PR.AWAKENING || sourceMissingRefs.length || milestoneMissingRefs.length || conditionMissingRefs.length || cyclicComponents.length || unapprovedRedundantEdges.length || junctionIssues.length || duplicateChartNodeIds.length || chartReferenceIssues.length || entriesWithoutEvidence.length || gatedEntriesWithoutEvidence.length || gatedEntriesWithoutCurrentEvidence.length || relationshipEvidenceGaps.length || invalidEvidence.length) {
+if (duplicates.length || duplicateMilestoneIds.length || duplicateLabels.length || selfReferences.length || duplicateEdges.length || missingRefs.length || progressionMissingRefs.length || disconnectedFromAwakening.length || nonQuestLeafEntries.length || externalRelationshipIssues.length || roots.length !== 1 || roots[0]?.id !== PR.AWAKENING || sourceMissingRefs.length || milestoneMissingRefs.length || conditionMissingRefs.length || cyclicComponents.length || unapprovedRedundantEdges.length || junctionIssues.length || duplicateChartNodeIds.length || chartReferenceIssues.length || entriesWithoutEvidence.length || gatedEntriesWithoutEvidence.length || gatedEntriesWithoutCurrentEvidence.length || relationshipEvidenceGaps.length || invalidEvidence.length) {
     process.exitCode = 1;
 }

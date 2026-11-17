@@ -9,9 +9,7 @@
 //   HUB_*        — open-world / hub access
 //   SYSTEM_*     — major gameplay system unlock (feature gate, not a quest)
 //   SEGMENT_*    — Orbiter segment installation
-//   FOCUS_*      — Focus school / Operator progression milestones
-//   AMP_*        — Operator Amp tier unlocks
-//   COMPANION_*  — companion system unlock milestones
+//   AMP_*        — Amp ownership checks used by other access gates
 //   NECRAMECH_*  — Necramech system milestones
 //   RAILJACK_*   — Railjack system milestones
 //   ACTIVITY_*   — specific repeatable endgame activity access gates
@@ -93,6 +91,7 @@ export const PR = {
     TAU_PROLOGUE:           "quest_tau_prologue_series",    // Legacy series-completion key, migrated to the released chapters below
     TAU_PROLOGUE_LUA:       "quest_tau_prologue_lua",       // First released Prologue to Tau quest; requires The Hex and The Old Peace
     TAU_PROLOGUE_VESSEL:    "quest_tau_prologue_vessel",    // Second released Prologue to Tau quest; requires Lua
+    TAU_PROLOGUE_ERIS_MORTEM: "quest_tau_prologue_eris_mortem", // Third released Prologue to Tau quest; requires Vessel
 
     // =========================================================================
     // SIDE QUESTS — Feature Gates
@@ -157,11 +156,7 @@ export const PR = {
     HUB_ZARIMAN:            "hub_zariman",                  // Chrysalith; gates Holdfasts; req. Angels of Zariman
     HUB_SANCTUM:            "hub_sanctum_anatomica",        // Sanctum Anatomica; gates Cavia; req. Whispers in the Walls
     HUB_HOLLVANIA:          "hub_hollvania",                // 1999 hub; req. The Hex
-    HUB_YUVAN_PEAK:         "hub_yuvan_peak",               // Update 44; req. Angels of the Zariman + Whispers in the Walls
-    HUB_PONTIS_TOWER:       "hub_pontis_tower",             // Update 43; unlocked with Uranus Proxima
-    HUB_LA_CATHEDRALE:      "hub_la_cathedrale",            // Update 41; Old Peace complete, enter as the Drifter
     HUB_RELAY:              "hub_relay",                    // Any Relay; gates Cephalon Simaris, Syndicates, Conclave
-    HUB_DRIFTERS_CAMP:      "hub_drifters_camp",            // Drifter's Camp; gates Kahl's Garrison; req. New War
     CLAN_DOJO:              "system_clan_dojo_access",      // Join or create a Clan and access its Dojo; gates clan research and dojo replication
     CLAN_DRY_DOCK:          "system_clan_dry_dock_access",  // Access a Clan Dojo with a constructed Dry Dock
 
@@ -170,14 +165,9 @@ export const PR = {
     // =========================================================================
 
     // Obtained via Vor's Prize (base ship function; always present):
-    SEGMENT_ARSENAL:                "segment_arsenal",
-    SEGMENT_COMMUNICATIONS:         "segment_communications",
-    SEGMENT_FOUNDRY:                "segment_foundry",
-    SEGMENT_MODDING:                "segment_modding_table",
 
     // Obtained via Junctions or Quests:
     SEGMENT_INCUBATOR:              "segment_incubator",                // Companion incubation; granted by Howl of the Kubrow
-    SEGMENT_KAVAT_UPGRADE:          "segment_kavat_upgrade",            // Installed Kavat Incubator Upgrade Segment
     SEGMENT_VOID_RELIC:             "segment_void_relic",               // Void fissures & relics
     SEGMENT_PERSONAL_QUARTERS:      "segment_personal_quarters",        // War Within quest reward; REQUIRED for Apostasy Prologue
     SEGMENT_MELEE_UPGRADE:          "segment_melee_upgrade",            // Melee Arcanes + Exilus slots; Whispers in the Walls reward
@@ -199,26 +189,7 @@ export const PR = {
     SEGMENT_HELMINTH_INVIGORATION_SON_ACCESS: "system_helminth_invigoration_son_access", // Son route: MR8 + Entrati rank 5
     HELMINTH_MARKET_BUNDLE:         "system_helminth_market_bundle_acquired", // Purchased Helminth Segments Market bundle
 
-    // =========================================================================
-    // OPERATOR / FOCUS SYSTEM
-    // =========================================================================
-
-    FOCUS_UNLOCKED:                 "focus_system_unlocked",            // Focus passives (2 per school); req. Second Dream completion
-    FOCUS_FULL:                     "focus_full_trees_unlocked",        // All 10 Ways per school unlockable;
-                                                                        //   req. War Within + Quills Rank 1 (Cetus access; Saya's Vigil is not required)
-
-    // Focus Schools (choose 1 at end of Second Dream; buy others for 50,000 Focus each):
-    FOCUS_SCHOOL_ZENURIK:           "focus_school_zenurik",             // Energy/Void regen — most popular for energy sustain
-    FOCUS_SCHOOL_VAZARIN:           "focus_school_vazarin",             // Healing / Operator survival
-    FOCUS_SCHOOL_NARAMON:           "focus_school_naramon",             // Melee combo / shadow step
-    FOCUS_SCHOOL_UNAIRU:            "focus_school_unairu",              // Defense stripping / armor break
-    FOCUS_SCHOOL_MADURAI:           "focus_school_madurai",             // Damage amp / Void Strike (Eidolon meta)
-
-    // =========================================================================
-    SYSTEM_TAURON_STRIKE:           "system_tauron_strike",              // Permanent Tauron Strike access after acquiring a Tektolyst Artifact
-
-    // AMP SYSTEM (Operator weapon tiers)
-    // Tiers 1–4 from The Quills (Cetus); tiers 5–7 from Vox Solaris (Fortuna)
+    // Amp ownership gates
     // =========================================================================
 
     AMP_MOTE:               "amp_mote",                                 // Mote Amp item ownership, kept on its stable saved-state key
@@ -227,29 +198,6 @@ export const PR = {
     SYSTEM_RANK30_WARFRAME: "system_rank30_warframe_eligible",           // Rank 30 Warframe or MR30+Forma exception for Sorties/Arbitrations
     SYSTEM_ADVERSARY_SLOT_CLEAR: "system_adversary_slot_clear",          // Manual dynamic gate: no active Kuva Lich, Sister, or Technocyte Coda
     SYSTEM_ONKKO_VISITED:    "system_onkko_visited",                     // Current Chains of Harrow gate: visit Onkko after War Within
-    AMP_SIROCCO:            "amp_sirocco",                              // Pre-built Amp reward from The New War
-    AMP_TIER1:              "amp_tier1_parts",                          // Raplak/Pencha/Clapkra parts; req. Quills rank 1
-    AMP_TIER2:              "amp_tier2_parts",                          // Shwaak/Shraksun/Juttni parts; req. Quills rank 2
-    AMP_TIER3:              "amp_tier3_parts",                          // Granmu/Phahd/Lohrin parts; req. Quills rank 3
-    AMP_TIER4:              "amp_tier4_parts",                          // Propa/Klebrik/Certus parts; req. Quills rank 4 (Instrument)
-    AMP_TIER5:              "amp_tier5_parts",                          // T5 parts; req. Vox Solaris rank 2 (Agent)
-    AMP_TIER6:              "amp_tier6_parts",                          // T6 parts; req. Vox Solaris rank 3 (Hand)
-    AMP_TIER7:              "amp_tier7_parts",                          // T7 parts; req. Vox Solaris rank 4 (Instrument)
-    AMP_GILDING:            "amp_gilding_unlocked",                     // Gild Amp (base dmg boost + Lens slot); req. Quills rank 3 or Vox rank 3
-
-    // =========================================================================
-    // COMPANION SYSTEMS
-    // =========================================================================
-
-    COMPANION_KUBROW:               "companion_kubrow_breeding",        // Kubrow; req. Howl of the Kubrow + Incubator segment
-    COMPANION_KAVAT:                "companion_kavat_breeding",         // Kavat; requires the Incubator plus Kavat upgrade segment
-    COMPANION_HELMINTH_CHARGER:     "companion_helminth_charger",       // Requires the Incubator plus a mature Helminth Cyst
-    COMPANION_MATURE_CYST:          "companion_mature_helminth_cyst",   // Manual, dynamic prerequisite for Helminth Charger incubation
-    COMPANION_MOA:                  "companion_moa",                    // MOA robotic companion; crafted in Fortuna; req. Solaris United rank 1
-    COMPANION_HOUND:                "companion_hound",                  // Hound; obtained by keeping a defeated Sister of Parvos's Hound
-    COMPANION_PREDASITE:            "companion_predasite",              // Req. Necralisk + Daughter (Son's sister); Deimos companion
-    COMPANION_VULPAPHYLA:           "companion_vulpaphyla",             // Req. Necralisk + Daughter; Deimos fox companion
-    COMPANION_NAUTILUS:             "companion_nautilus",               // Archwing companion; blueprint from Rising Tide quest
 
     // =========================================================================
     // NECRAMECH SYSTEM
@@ -259,7 +207,6 @@ export const PR = {
     NECRAMECH_VOIDRIG:      "system_necramech_voidrig",                 // Voidrig build/acquisition milestone; blueprint from Heart of Deimos
     NECRAMECH_BONEWIDOW:    "system_necramech_bonewidow",               // Bonewidow build/acquisition milestone; main BP at Necraloid R3
     NECRAMECH_MARKET:       "system_necramech_market_acquired",         // Pre-built Necramech purchased from the Market
-    NECRAMECH_RAILJACK_DEPLOYMENT: "system_necramech_railjack_deployment", // Deploy an owned Necramech in Railjack; Tactical 5
 
     // =========================================================================
     // RAILJACK SYSTEM
@@ -268,8 +215,6 @@ export const PR = {
     RAILJACK_CONSTRUCTED:   "system_railjack_constructed",              // Railjack built + playable; req. Rising Tide quest
     RAILJACK_MARKET_ACQUIRED: "system_railjack_market_acquired",         // Purchased Railjack ownership alternative to Rising Tide
     RAILJACK_INTRINSICS:    "system_railjack_intrinsics",               // Intrinsics skill tree; can be progressed after joining Railjack missions
-    RAILJACK_CORPUS_NODES:  "system_railjack_corpus_nodes",             // Corpus Proxima nodes; req. Call of the Tempestarii
-    RAILJACK_VOID_STORMS:   "system_railjack_void_storms",              // Compatibility alias for general Void Storm access
     SYSTEM_PROXIMA_ACCESS:          "system_proxima_access",             // Proxima public mission access after The Archwing
     SYSTEM_PROXIMA_SATURN_ACCESS:   "system_proxima_saturn_access",      // Saturn Proxima; any Railjack Intrinsic Rank 3
     SYSTEM_PROXIMA_NEPTUNE_ACCESS:  "system_proxima_neptune_access",     // Neptune Proxima; any Railjack Intrinsic Rank 3
@@ -287,7 +232,6 @@ export const PR = {
     ACTIVITY_NIGHTMARE:            "activity_nightmare_missions",      // Nightmare mission access; req. all nodes complete on a planet
     ACTIVITY_THERMIA_FRACTURES:    "activity_thermia_fractures",       // Orb Vallis event; requires access to Orb Vallis
     ACTIVITY_NIGHTWAVE:             "activity_nightwave",               // Nightwave system active/unlocked enough to earn Creds and rank rewards
-    ACTIVITY_ROPALOLYST:            "activity_ropalolyst",              // Jupiter boss node; req. Chimera Prologue + Jupiter node access
     ACTIVITY_INDEX:                 "activity_the_index",               // The Index arena on Neptune
     ACTIVITY_DEFECTION:             "activity_defection",               // Defection missions
 
@@ -296,26 +240,10 @@ export const PR = {
     ACTIVITY_ARBITRATIONS:          "activity_arbitrations",            // Arbitration rotation; req. Eris Junction task "Equip a Focus Lens" (Update 39+)
                                                                         //   rank-30 frame required; instant-death on down
     ACTIVITY_ABYSSAL_ZONE:          "activity_abyssal_zone",            // Ceres access + an Abyssal Beacon from any main Syndicate at Rank 2
-    ACTIVITY_DEEP_ARCHIMEDEA:       "activity_deep_archimedea",         // Elite endgame activity; req. Whispers + Cavia rank 5 (Family)
-    ACTIVITY_NETRACELL_COMPLETED:   "activity_netracell_completed",     // Persistent milestone: at least one Netracell has been completed
-    ACTIVITY_SISTER_VANQUISHED:     "activity_sister_vanquished",       // Manual milestone for the vanquished Sister's Hound reward
-    ACTIVITY_ELITE_DEEP_ARCHIMEDEA: "activity_elite_deep_archimedea",   // Manually track permanent unlock after 25 research points
-    ACTIVITY_TEMPORAL_ARCHIMEDEA:   "activity_temporal_archimedea",     // Update 38; Hex quest + Hex rank 5
-    ACTIVITY_ELITE_TEMPORAL_ARCHIMEDEA: "activity_elite_temporal_archimedea", // Manually track permanent unlock after 25 research points
-    ACTIVITY_ICEBIND:               "activity_icebind",                 // Update 44.1; two quests + either Elite Archimedea unlock
-    ACTIVITY_FOLLIES_HUNT:          "activity_follies_hunt",            // Update 42; Chains of Harrow
-    ACTIVITY_ASPIRANT_ZORBA:        "activity_aspirant_zorba_vendor",    // Update 42; Chains of Harrow
-    ACTIVITY_DARK_REFRACTORY:       "activity_dark_refractory",         // Update 41; Old Peace or conditional mission preview
-    ACTIVITY_DESCENDIA:             "activity_descendia",               // Update 41; accessible from Dark Refractory
-    ACTIVITY_PERITA_REBELLION:      "activity_perita_rebellion",        // Update 41; accessible from Dark Refractory
-    ACTIVITY_FABLES_FRONTIERS:      "activity_fables_frontiers",        // Update 43.5; Hex finale/rank 5/Amir Close
     SYSTEM_URANUS_PROXIMA:          "system_uranus_proxima",             // Update 43; Jade Shadows: Constellations
     ACTIVITY_KUVA_WYTCH:            "activity_kuva_wytch",               // Update 43 Uranus Proxima mission
     ACTIVITY_SCORIAS_ANGEL:         "activity_scorias_angel",            // Update 43 Uranus Proxima mission
-    SYSTEM_DEVILS_TRIAD_KIM:        "system_devils_triad_kim",           // Update 41; The Old Peace
-    SYSTEM_DARK_REFRACTORY_PREVIEW: "system_dark_refractory_preview",     // Update 41; opt-in to Mission Preview after The Teacher
     SYSTEM_HEX_ALL_LIKED:           "system_hex_all_liked",              // Manual KIM state; Rank 3 + Liked with six members
-    SYSTEM_AMIR_CLOSE:              "system_amir_chemistry_close",       // Manual KIM state; Amir Chemistry Rank 5
 
     // ---- Open World Bounties ----
     ACTIVITY_CETUS_BOUNTY_COMPLETED: "activity_cetus_bounty_completed", // Manual Saya's Vigil unlock task: complete one Cetus bounty
@@ -331,7 +259,6 @@ export const PR = {
     // ---- Void Fissures ----
     ACTIVITY_VOID_FISSURES:         "activity_void_fissures",           // Fissure missions on unlocked nodes; segment is for refining relics
     ACTIVITY_VOID_STORMS:           "activity_void_storms",             // Join after Empyrean access; own Railjack only to host
-    ACTIVITY_KUVA_SIPHON:           "activity_kuva_siphon",             // Kuva Siphon/Flood missions; requires MR5 + War Within
 
     // ---- Nemesis Systems ----
     ACTIVITY_KUVA_LICH:             "activity_kuva_lich",               // Kuva Lich creation; War Within + MR5 + owned Railjack + empty slot
@@ -389,22 +316,12 @@ export const PR = {
     SYNDICATE_HEX_RANK4:            "syndicate_hex_rank4",              // Hot & Fresh; requires The Hex Finale
     SYNDICATE_HEX_RANK5:            "syndicate_hex_rank5",              // Pizza Party (rank 5) — Temporal Archimedea access
 
-    // Vox Solaris (Fortuna) — gates Profit-Taker + T5–7 Amp parts:
-    SYNDICATE_VOX_RANK1:            "syndicate_vox_rank1",              // Operative — T5 Amp parts
-    SYNDICATE_VOX_RANK2:            "syndicate_vox_rank2",              // Agent — T6 Amp parts
-    SYNDICATE_VOX_RANK3:            "syndicate_vox_rank3",              // Hand — T7 Amp parts + Amp gilding
-    SYNDICATE_VOX_RANK4:            "syndicate_vox_rank4",              // Instrument — rank 4 Little Duck offerings
-    SYNDICATE_VOX_RANK5:            "syndicate_vox_rank5",              // Shadow — top-tier Little Duck offerings
-
     // =========================================================================
     // MASTERY RANK THRESHOLDS
     // =========================================================================
 
     MR_5:                           "mastery_rank_5",                   // Gates: Sorties, Vay Hek node on Oro (Earth)
     MR_8:                           "mastery_rank_8",                   // Gates: Helminth Segment + Invigoration Segment purchase
-    MR_10:                          "mastery_rank_10",                  // Common informal threshold for certain content
-    MR_15:                          "mastery_rank_15",                  // Various item purchase gates
-    MR_30:                          "mastery_rank_30",                  // Riven cap, some quality-of-life features
 
 } as const;
 
