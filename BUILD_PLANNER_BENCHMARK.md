@@ -11,12 +11,20 @@ Each case starts from Auto Optimize's eight-mod result for a 100,000 Health / 3,
 | Laetum / Normal Attack | 65 | 292 | 1.8867925 s | No improvement after the follow-up |
 | Soma Prime / Fully Spooled | 62 | 412 | 1.7191106 s | No improvement |
 | Broken War / Normal Attack | 62 | 365 | 8.0000000 s | No improvement |
+| Kuva Nukor / Normal Attack | 65 | 359 | 1.4400000 s | No improvement |
+| Nataruk / Perfect Shot | 59 | 388 | 1.3000000 s | No improvement |
 
 The Laetum audit exposed a real search gap after PR #119: replacing Expel Grineer with Creeping Bullseye improved modeled TTK from 1.8965517 s to 1.8867925 s. A locked-slot optimizer replay confirmed the exact one-mod build and score. The gap remained because the four-pass refinement reached a better Gunslinger replacement on its last pass, leaving no pass to test the next critical replacement from that new incumbent. Critical replacement-slot alternatives now receive priority within the existing per-pass candidate cap, and the bounded pass count is five. The full-pool optimizer now returns the 1.8867925 s result; all 292 legal one-mod neighbors tie or lose.
 
-The five neighborhoods are a limited local-optimality check under the planner's own model and custom target. They do not establish global optimality, quality for coordinated multi-mod changes, or agreement with live gameplay. The extra refinement pass may add work to Expected TTK search; broad latency plus cold/mobile browser measurements remain open.
+The Kuva Nukor and Nataruk cases were rerun from a clean checkout of current GitHub `main` at `4ae7ea26331a45bbb69bea57fce9742d69589f74`. Both use the same 100,000 Health / 3,000 Armor Grineer target, Realistic state, Catalyst, eight main slots, and up to three Forma; Arcane and Exilus optimization are disabled. Kuva Nukor had 107 catalog candidates / 65 eligible mods and 359 legal one-mod neighbors. Nataruk had 101 / 59 and 388 neighbors. Neither result had a better one-mod neighbor. Across the seven listed cases, this remains a model-local one-mod check, not global optimality, coordinated-change quality, or gameplay validation.
+
+The seven neighborhoods are a limited local-optimality check under the planner's own model and custom target. They do not establish global optimality, quality for coordinated multi-mod changes, or agreement with live gameplay. The extra refinement pass may add work to Expected TTK search; broad latency plus cold/mobile browser measurements remain open.
 
 After the fifth-pass change, `npx tsx scripts/benchmarkBuildOptimizer.ts --runs=1 --verify-arcane-selection` completed all 44 configured cases with legal builds and passed the returned-build Arcane checks. The single-call observations ranged from 1,607.7 ms to 6,763.7 ms on Windows x64 / Node 22.16.0. Since every case ran once, these are not p95 or repeatability results, and the Node harness does not measure the browser Worker, cold startup, or mobile hardware.
+
+## Five-run Kuva Kohm Expected TTK benchmark on current main (2026-11-17)
+
+Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --weapon="Kuva Kohm" --attack="Fully Spooled" --goal=timeToKill --runs=5 --realistic --no-exilus --no-arcane`. This was run from the clean current-main checkout above on Windows x64 / Node 22.16.0 with 104 mod candidates and 15 Arcane candidates (Arcane optimization disabled). All five runs evaluated 157 finite candidates and returned the same legal two-Forma, 74/80 build: Galvanized Savvy R10, Primed Charged Shell R10, Contagious Spread R5, Blaze R3, Frail Momentum R5, Primed Ravage R10, Galvanized Hell R10, and Shotgun Barrage R5. Modeled TTK was 0.6352061 s and encounter DPS 39,357.30 on every run. Median optimizer time was 3,839.96 ms; the reported p95 / maximum-of-five was 5,659.42 ms. This is desktop Node-core latency, not browser Worker, cold-start, or mobile performance.
 
 ## Full-catalog exact one-mod Expected TTK neighborhood (2026-11-16)
 
