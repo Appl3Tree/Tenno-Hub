@@ -2309,12 +2309,12 @@ export function calculateBuild(
     const tauStacks = expectedStacksByType.tau ?? 0;
 
     const coldSlow = coldStacks >= 10 ? 1 : scaleForStacks(Math.min(coldStacks, 9), 0.5, 0.05, 0.9);
-    // Wiki: +0.1 on first proc, +0.05 per subsequent proc, max +0.45 at 9 stacks (before freeze).
+    // Wiki: +0.1 on first proc, +0.05 per subsequent proc, max +0.50 at 9 stacks (before freeze).
     // At 10 stacks the enemy freezes and the bonus jumps to +1.0 flat.
     const coldCritDamageBonus =
         coldStacks >= 10
             ? 1.0
-            : scaleForStacks(Math.min(coldStacks, 9), 0.1, 0.05, 0.45);
+            : scaleForStacks(Math.min(coldStacks, 9), 0.1, 0.05, 0.5);
     const viralHealthDamageBonus = scaleForStacks(viralStacks, 1.0, 0.25, 3.25);
     const heatArmorStrip = Math.min(0.5, 0.5 * Math.min(1, heatStacks));
     const corrosiveArmorStrip = scaleForStacks(corrosiveStacks, 0.26, 0.06, 0.8);

@@ -1,7 +1,7 @@
 /**
  * Versioned facts used by the Damage 3.0 calculator and optimizer.
  *
- * The Fire Rate, Trigger Type, Cannonade Mods, Tau Damage, Status Chance, Galvanized Aptitude, Galvanized Savvy, and Galvanized Shot pages were checked on 2026-11-16. The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Tennokai, Sentient Surge, Ocucor, Proton Jet, and Proton Snap pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
+ * The Cold Damage page was checked on 2026-11-17. The Fire Rate, Trigger Type, Cannonade Mods, Tau Damage, Status Chance, Galvanized Aptitude, Galvanized Savvy, and Galvanized Shot pages were checked on 2026-11-16. The Condition Overload, Galvanized status-count, Status Effect, Lifted, Knockdown, stance, Tennokai, Sentient Surge, Ocucor, Proton Jet, and Proton Snap pages were checked on 2026-11-15. The Impact, Puncture, melee Slam Damage, Korumm, Galvanized Steel, and Heavy Attack pages were checked on 2026-11-14. The official patch
  * index, Melee Combo page, Amanata Pressure page, and Hotfix 44.1.4 were checked on
  * 2026-11-13; broader mechanics pages and formulas were reviewed on 2026-11-10–11.
  * Damage quantization follows the
@@ -10,7 +10,7 @@
  */
 export const DAMAGE_RULESET = Object.freeze({
     id: "damage-3.0",
-    lastVerified: "2026-11-16",
+    lastVerified: "2026-11-17",
     gameUpdate: "Update 36.0 onward; checked through Update 44.1.4.1",
     sources: Object.freeze({
         damage: "https://wiki.warframe.com/w/Damage/Calculation",
