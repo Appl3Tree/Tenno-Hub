@@ -1,5 +1,11 @@
 # Build Planner Optimizer Benchmark
 
+## Set-mod coverage audit (2026-11-17)
+
+The checked-in WFCD `external/warframe-items/raw/Mods.json` snapshot has 73 records with `modSet` across 19 distinct set-bonus paths. Static source tracing finds the paths imported into the general catalog but no shared-set effect consumer in weapon-stat math, finite Expected TTK, or optimizer scoring. The selected mod entries retain their individual stats, so set bonuses are currently omitted from the modeled build score.
+
+The source audit surfaced a loadout-scope requirement: the current planner selects one weapon's mods and has no count for distinct set mods equipped elsewhere. The [Set Mods Wiki page](https://wiki.warframe.com/w/Set_Mod) documents set-count scaling and cross-equipment behavior; the [Critical Multiplier page](https://wiki.warframe.com/w/Critical_Multiplier) documents Vigilante's Primary critical-tier effect. The current branch preserves source set paths and shows a persistent active-build disclosure, but does not apply a set bonus. The focused catalog test passes (18/18), as do focused ESLint, production build, and CRLF-aware diff check; the full suite and integrated-browser inspection were not run. This is a catalog/data coverage finding, not optimizer-quality or gameplay evidence.
+
 ## Seeded 12-weapon full-catalog Expected TTK corpus and tempo-tradeoff correction (2026-11-17)
 
 Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261117`. The repeatable corpus combines eight previously audited anchors with one Mulberry32-uniform candidate from each predeclared underrepresented stratum. The selected seeded cases were Tenet Envoy / Rocket Explosion, Corvas Prime / Charged Shot, Helstrum / Explosion, and Gram Prime / Heavy Slam Attack. The fixed anchors are Braton Prime / Normal Attack, Cedo / Normal Attack, Laetum / Normal Attack, Soma Prime / Fully Spooled, Broken War / Normal Attack, Kuva Nukor / Normal Attack, Nataruk / Perfect Shot, and Torid / Grenade Impact. Candidate strata are: explosive primary (Kuva Ogris, Acceltra Prime, Tenet Envoy); Archgun (Corvas Prime, Mausolon); companion weapon (Verglas Prime, Helstrum); and heavy melee (Gram Prime, Arca Titron). The seed and selected case list are emitted by `--dry-run`.
