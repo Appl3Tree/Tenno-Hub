@@ -1983,6 +1983,26 @@ describe("build optimizer scoring", () => {
         }
     });
 
+    it("discloses and excludes Coda Bassocyst Alt-Fire's delayed multi-target mite model", () => {
+        const coda = getWeaponCatalog().find((entry) => entry.name === "Coda Bassocyst");
+        expect(coda).toBeTruthy();
+        const altFireIndex = coda!.attacks.findIndex((attack) => attack.name === "Alt-Fire");
+        expect(altFireIndex).toBeGreaterThanOrEqual(0);
+
+        const altFire = coda!.attacks[altFireIndex]!;
+        const selectedAltFire = withSelectedAttack(coda!, altFireIndex);
+        const normalAttack = coda!.attacks.find((attack) => attack.name === "Normal Attack")!;
+
+        expect(altFire.modelLimitation?.sourceUrl).toBe("https://wiki.warframe.com/w/Coda_Bassocyst");
+        expect(altFire.modelLimitation?.reason).toContain("up to six enemies");
+        expect(altFire.modelLimitation?.reason).toContain("each second for 10 seconds");
+        expect(selectedAltFire.selectedAttackModelLimitation).toEqual(altFire.modelLimitation);
+        expect(normalAttack.modelLimitation).toBeUndefined();
+
+        expect(() => optimizeBuild(selectedAltFire, [], "burst", 8)).toThrow(/Optimization is unavailable for Alt-Fire/);
+        expect(() => optimizeBuild(selectedAltFire, [], "timeToKill", 8)).toThrow(/Optimization is unavailable for Alt-Fire/);
+    });
+
     it("models Wiki-backed Auto-Spool pellet, status, rate, and fresh-magazine ramps", () => {
         const catalog = getWeaponCatalog();
         const cases = [

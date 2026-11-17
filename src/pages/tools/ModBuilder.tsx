@@ -4856,6 +4856,14 @@ export default function ModBuilder() {
             );
             return;
         }
+        const selectedAttackModelLimitation = weapon.attacks[selectedAttackIdx]?.modelLimitation;
+        if (selectedAttackModelLimitation) {
+            setOptimizerNotice(
+                `Auto Optimize is unavailable for ${weapon.attacks[selectedAttackIdx]?.name ?? weapon.name}: ` +
+                `${selectedAttackModelLimitation.reason} Wiki: ${selectedAttackModelLimitation.sourceUrl}`,
+            );
+            return;
+        }
         if (goal === "meleeDps" && (!meleeDpsGoalAvailable || !meleeDpsInputs)) {
             setOptimizerNotice("Select a melee stance with a Wiki Neutral-combo reference to optimize Wiki Stance DPS.");
             return;
@@ -5596,6 +5604,17 @@ export default function ModBuilder() {
                                                     Finite timing and Expected TTK are unavailable because this attack's full per-shot spool behavior is not modeled. Steady-state stats still use the fully spooled Arsenal rate. {" "}
                                                     <a
                                                         href={weapon?.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation?.sourceUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="underline underline-offset-2"
+                                                    >Wiki source</a>
+                                                </p>
+                                            )}
+                                            {weapon?.attacks[selectedAttackIdx]?.modelLimitation && (
+                                                <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
+                                                    This attack uses a delayed multi-target effect that the calculator does not model. The source-row numbers below are not a valid damage or TTK estimate, and Auto Optimize is unavailable for this mode. {" "}
+                                                    <a
+                                                        href={weapon.attacks[selectedAttackIdx].modelLimitation.sourceUrl}
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         className="underline underline-offset-2"

@@ -90,6 +90,13 @@ export interface WeaponAutoSpoolTimingLimitation {
     reason: string;
 }
 
+export interface WeaponAttackModelLimitation {
+    /** Current Wiki page documenting the attack behavior that is not represented. */
+    sourceUrl: string;
+    /** Why this attack cannot be treated as a standard single-target damage row. */
+    reason: string;
+}
+
 export interface WeaponDamage {
     total: number;
     impact: number;
@@ -142,6 +149,8 @@ export interface WeaponAttack {
     autoSpoolShotSequence?: WeaponAutoSpoolShotSequenceRule;
     /** Explicit finite-timing boundary for Wiki-confirmed Auto-Spool rows without a complete supported cadence. */
     autoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
+    /** Source-backed reason the attack's damage and score cannot be represented by the standard attack-row model. */
+    modelLimitation?: WeaponAttackModelLimitation;
     /** Forced status effects per projectile/hit, independent of status chance and damage weights. */
     forcedProcs?: WeaponForcedProcs;
     /** Guaranteed non-damage status types that count as unique Galvanized/CO states. */
@@ -257,6 +266,8 @@ export interface WeaponEntry {
     selectedAttackAutoSpoolShotSequence?: WeaponAutoSpoolShotSequenceRule;
     /** Why finite attack timing is unavailable for this selected Auto-Spool row. */
     selectedAttackAutoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
+    /** Source-backed reason the selected attack cannot be represented by the standard damage model. */
+    selectedAttackModelLimitation?: WeaponAttackModelLimitation;
 }
 
 export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
@@ -1520,6 +1531,24 @@ const VERIFIED_ATTACK_FORCED_PROC_DISTRIBUTION_OVERRIDES: Readonly<Record<
     }),
 });
 
+/** Current Wiki-confirmed weapon modes whose event structure is outside the single-target damage model. */
+const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponAttackModelLimitation>>
+>> = Object.freeze({
+    // Alt-Fire launches a mite that can latch onto multiple enemies and apply
+    // Impact/Magnetic damage and statuses over ten seconds. The Mercy-finisher
+    // branch and delayed multi-target tick history cannot be represented by the
+    // standard attack-row calculator or optimizer.
+    // Verified 2026-11-17: https://wiki.warframe.com/w/Coda_Bassocyst
+    "/Lotus/Weapons/Infested/InfestedLich/LongGuns/1999InfShotgun/1999InfShotgunWeapon": Object.freeze({
+        "alt-fire": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Bassocyst",
+            reason: "Alt-Fire launches a mite that can latch onto up to six enemies and applies Impact/Magnetic damage and status effects each second for 10 seconds; the Mercy-finisher branch and delayed multi-target tick history are not represented by the calculator.",
+        }),
+    }),
+});
+
 /** Current Wiki-verified base multishot for attack rows whose fire modes differ. */
 const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
     // The upstream snapshot exposes the fully-spooled pellet count as the
@@ -1783,6 +1812,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
                 const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
                 const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
+                const modelLimitation = VERIFIED_ATTACK_MODEL_LIMITATIONS[uniqueName]?.[attackName];
                 const sourceShotType = String(a.shot_type ?? "").trim().toLowerCase();
                 const verifiedAreaClassification = VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
                 // On ordinary melee and Arch-Melee entries, "Normal Attack"
@@ -1814,6 +1844,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     chargeAmmoPerSecond: ammoChargeRule?.ammoPerSecond,
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
                     damageRamp,
+                    ...(modelLimitation ? { modelLimitation } : {}),
                     chargeTime:    typeof a.charge_time === "number" ? a.charge_time : undefined,
                     forcedProcs: VERIFIED_ATTACK_FORCED_PROC_OVERRIDES[uniqueName]?.[attackName]
                         ?? parseForcedProcs(a.forcedProcs),
