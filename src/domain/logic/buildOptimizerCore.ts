@@ -2321,7 +2321,7 @@ const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 40;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
-const ENCOUNTER_RELOAD_TEMPO_ALTERNATIVE_LIMIT = 8;
+const ENCOUNTER_SLOT_ALTERNATIVE_LIMIT = 8;
 const ENCOUNTER_REFINE_PASSES = 4;
 const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 12;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
@@ -2978,32 +2978,52 @@ function refineBuildByExpectedEncounter(
                 break;
             }
         }
-        // Conditional fire rate can move magazine boundaries and reload cadence,
-        // so its best finite-encounter replacement may differ from the same
-        // candidate's sustained-DPS proxy leader. Keep slot-specific alternatives
-        // for selected on-reload candidates in the exact-scoring budget.
+        // The proxy-best replacement slot can miss a better finite-TTK swap when
+        // another outgoing mod changes element composition or damage thresholds.
+        // Keep one alternate replacement for selected candidates in these families.
         const shortlistedReplacementSignatures = new Set(shortlist.map((proposal) => {
             const candidate = proposal.candidates[0];
             return candidate
                 ? `${candidate.mod.uniqueName}@${candidate.rank}|${proposal.replacedModUniqueName ?? "<add>"}`
                 : "";
         }));
-        let reloadTempoAlternatives = 0;
-        for (const proposal of sortedProposals) {
-            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
-                reloadTempoAlternatives >= ENCOUNTER_RELOAD_TEMPO_ALTERNATIVE_LIMIT) break;
+        const shortlistedCandidates = new Map<string, Candidate>();
+        for (const proposal of shortlist) {
             const candidate = proposal.candidates[0];
-            if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes("reload-fire-rate")) continue;
-            const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
-            if (!singleCandidateKeys.has(candidateKey) || !proposal.replacedModUniqueName) continue;
-            const replacementSignature = `${candidateKey}|${proposal.replacedModUniqueName}`;
-            if (shortlistedReplacementSignatures.has(replacementSignature)) continue;
-            shortlistedReplacementSignatures.add(replacementSignature);
-            shortlist.push(proposal);
-            reloadTempoAlternatives++;
+            if (!candidate) continue;
+            shortlistedCandidates.set(`${candidate.mod.uniqueName}@${candidate.rank}`, candidate);
+        }
+        const slotAlternativeFamilies = [
+            "reload-fire-rate", "base-damage",
+            "elemental-heat-status", "elemental-toxin-status", "elemental-cold-status", "elemental-electricity-status",
+            "elemental-heat", "elemental-toxin", "elemental-cold", "elemental-electricity", "elemental",
+            "fire-rate", "weapon-tempo", "multishot", "status", "critical", "faction-damage",
+        ];
+        const candidatesWithSlotAlternative = new Set<string>();
+        let slotAlternatives = 0;
+        for (const family of slotAlternativeFamilies) {
+            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
+            for (const [candidateKey, candidate] of shortlistedCandidates) {
+                if (candidatesWithSlotAlternative.has(candidateKey) ||
+                    !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
+                const alternate = sortedProposals.find((proposal) => {
+                    const proposalCandidate = proposal.candidates[0];
+                    if (!proposalCandidate || !proposal.replacedModUniqueName ||
+                        `${proposalCandidate.mod.uniqueName}@${proposalCandidate.rank}` !== candidateKey) return false;
+                    return !shortlistedReplacementSignatures.has(`${candidateKey}|${proposal.replacedModUniqueName}`);
+                });
+                if (!alternate) continue;
+                shortlistedReplacementSignatures.add(`${candidateKey}|${alternate.replacedModUniqueName}`);
+                candidatesWithSlotAlternative.add(candidateKey);
+                shortlist.push(alternate);
+                slotAlternatives++;
+                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                    slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
+            }
         }
         // Second choices from broad effect families use only the remaining budget
-        // after conditional reload-tempo alternatives have been reserved.
+        // after slot-specific alternatives have been reserved.
         for (const family of singleCandidateFamilies) {
             if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
             let addedForFamily = 0;
