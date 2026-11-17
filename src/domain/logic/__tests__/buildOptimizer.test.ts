@@ -1252,6 +1252,35 @@ describe("build optimizer scoring", () => {
         })).toBeGreaterThan(cleanInitialScore);
     });
 
+    it("does not score Cold critical damage on source-marked AoE attacks", () => {
+        const coldWeapon = makeWeapon({
+            damage: {
+                ...makeWeapon().damage,
+                total: 100,
+                impact: 0,
+                puncture: 0,
+                slash: 0,
+                cold: 100,
+                toxin: 0,
+            },
+            critChance: 0.5,
+            statusChance: 1.5,
+            fireRate: 1,
+            selectedAttackIsAreaDamage: false,
+        });
+        const areaWeapon = { ...coldWeapon, selectedAttackIsAreaDamage: true };
+        const score = (weapon: WeaponEntry) => debugScoreBuild(weapon, [], "burst", "", null, null);
+        const coldCritScoreDelta = (weapon: WeaponEntry) => {
+            const withCrit = { ...weapon, critChance: 0.5 };
+            const withoutCrit = { ...weapon, critChance: 0 };
+            return (score(withCrit) - score({ ...withCrit, statusChance: 0 })) -
+                (score(withoutCrit) - score({ ...withoutCrit, statusChance: 0 }));
+        };
+
+        expect(coldCritScoreDelta(coldWeapon)).toBeGreaterThan(0);
+        expect(coldCritScoreDelta(areaWeapon)).toBeCloseTo(0, 12);
+    });
+
     it("only gives Enduring Affliction optimizer value when Lifted is explicitly active", () => {
         const weapon = makeWeapon({ category: "Melee", weaponType: "Sword", modCompat: "Melee" });
         const enduringAffliction = getModsForWeapon(weapon).find((candidate) => candidate.name === "Enduring Affliction");
