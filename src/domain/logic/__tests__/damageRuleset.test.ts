@@ -22,9 +22,10 @@ import {
 } from "../damageRuleset";
 
 describe("Damage 3.0 shared rules", () => {
-    it("records the current Impact source and review date", () => {
-        expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-16");
+    it("records current Impact and Cold sources and the review date", () => {
+        expect(DAMAGE_RULESET.lastVerified).toBe("2026-11-17");
         expect(DAMAGE_RULESET.sources.impact).toBe("https://wiki.warframe.com/w/Damage/Impact_Damage");
+        expect(DAMAGE_RULESET.sources.cold).toBe("https://wiki.warframe.com/w/Damage/Cold_Damage");
         expect(DAMAGE_RULESET.sources.shatteringImpact).toBe("https://wiki.warframe.com/w/Shattering_Impact");
         expect(DAMAGE_RULESET.sources.seismicWave).toBe("https://wiki.warframe.com/w/Seismic_Wave");
         expect(DAMAGE_RULESET.sources.rangeAdvantage).toBe("https://wiki.warframe.com/w/Range_Advantage");
