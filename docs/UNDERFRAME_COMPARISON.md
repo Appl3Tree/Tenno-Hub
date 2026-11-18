@@ -1,6 +1,6 @@
 # Tenno-Hub and Underframe comparison
 
-Research checkpoint: 2026-11-17. This comparison records verifiable product and architecture differences; it does not claim general numerical superiority from one paired fixture.
+Research checkpoint: 2026-11-18. This comparison records verifiable product and architecture differences; it does not claim general numerical superiority from one paired fixture.
 
 ## Evidence and limits
 
@@ -32,6 +32,25 @@ The saved eight-mod list remained Amalgam Serration R10, Bane of Corpus R5, Bane
 The run reached `Step 4: Refining Top 3 Candidates (18 samples)` / `Refining 1 builds...`, then returned to idle. The visible mod list did not change; no final score or result panel appeared. This establishes the observed UI state only; it does not reveal an Auto Build winner or prove convergence.
 
 A fresh Tenno-Hub replay with `npx tsx scripts/comparePlannerBuilds.ts --saved-underframe --primary-bulwark --reoptimize --goal=timeToKill --analyze-underframe-swaps` reproduced the shared-model results above: the captured list was legal at 57/60 with three Forma and scored 4.070981 s Expected TTK / 20,589.14 DPS; Tenno-Hub returned a legal 59/60, three-Forma list at 1.428414 s / 58,679.05 DPS. Of 69 cross-list one-to-four-mod substitutions, 50 were legal and none beat the Tenno-Hub baseline. This is Tenno-Hub's common finite evaluator, not a comparison to Underframe's luck-averaged native objective. This bounded replay is tracked as D3-OPT-UNDERFRAME-BRATON-REPLAY-001 in PR [#156](https://github.com/Appl3Tree/Tenno-Hub/pull/156).
+
+## Current production Braton Prime comparison (2026-11-18)
+
+The integrated browser loaded the current production Build Planner from the cache-busted URL `?probe=20261118-0728&version=0cd9e12`. Tenno-Hub optimized Braton Prime / Normal Attack for Expected TTK against Grineer custom current pools of 83,818 Health, 2,700 Armor, zero Shields and Overguard. Headshot share, external statuses, external buffs, and nearby enemies were zero; conditional state was Realistic; Catalyst was enabled; and the optimizer was capped at three Forma. Underframe's Primary Bulwark 500/500 was mapped to 1,500 Warframe Armor. No Exilus or Arcane was selected. Tenno-Hub returned Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, Vile Acceleration R5, Primed Bane of Grineer R10, Galvanized Chamber R10, Galvanized Aptitude R10, and Vital Sense R5. The rendered build filled 8/8 slots at 60/60 capacity with three Forma. “Why This Build” showed a finite 1.70 s Expected TTK across 32 attacks at 49,214.7 modeled damage/s (82,077 direct plus 1,741 status damage).
+
+The Underframe `/Braton-Prime-benchmark-Copy` page showed the same raw pools, Grineer faction, Bulwark cap, and zero Shields/Overguard. It retained the existing saved list of Amalgam Serration R10, Bane of Corpus R5, Bane of Grineer R5, Bane of Infested R5, Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, and Vital Sense R5. The page showed level 145; Tenno-Hub used entered current pools without level scaling. Underframe Auto Build used its default-derived 28-core / GPU-off / five-second / three-sample configuration, refinement size 200, Luck Averaged and Elemental Candidates enabled, Cost Control enabled, and a three-Forma maximum. It reached top-three refinement and returned to idle with the visible list unchanged and no result panel.
+
+Underframe's standard `Calculate DPS` on that unchanged saved list displayed 1,628 raw + 277 DoT average damage per shot, 18,354 Average DPS, and 4.57 s TTK. That capacity-valid list has Bane mods for Corpus, Grineer, and Infested; distinct faction mods can coexist, but only Bane of Grineer matches the current target. The 4.57 s result is an observation of the pre-existing list, not a newly returned Auto Build candidate.
+
+| UI outcome | Score shown | Qualification |
+| --- | ---: | --- |
+| Tenno-Hub Auto Optimize, Expected TTK | 1.70 s; 49,214.7 modeled damage/s | Capacity-valid 8-slot build; 3 Forma |
+| Underframe saved copy, standard Calculate DPS after Auto Build returned idle | 4.57 s TTK; 18,354 Average DPS | Unchanged capacity-valid list; only one Bane matches Grineer; no optimizer winner |
+
+This is a bounded product smoke comparison, not objective or simulator parity. Underframe's Auto Build setting had Luck Averaged on, but it exposed no new candidate or score; its standard Calculate DPS result above is a different output. No general optimizer or live-game accuracy claim follows.
+
+## Stale cached production chunk observation (2026-11-18)
+
+The existing Tenno-Hub tab at `?version=4aa30b8` and a new unversioned tab failed when the Build Planner route requested the absent old lazy chunk `BuildPlanner-sNBsZINI.js`; a direct request for that hashed asset returned 404. A cache-busted current page with `version=0cd9e12` loaded the current `index-DQ2jk2Yx.js` and `BuildPlanner-BvACPbBQ.js` and rendered the planner. This is a stale page/asset mismatch reproduced in this browser session, not a failure in the current bundle or evidence of broad user impact. The caching root cause and a reload/recovery solution remain open as D3-UX-STALE-CHUNK-001.
 
 ## Matched Torid / linked Poison Cloud fixture (2026-11-17)
 
