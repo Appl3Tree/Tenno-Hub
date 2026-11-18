@@ -1,6 +1,6 @@
 # Build Planner Optimizer Benchmark
 
-## D3-OPT-UNDERFRAME-GRAM-SLOT-FAMILY-001 — Gram Prime family-dependent Expected TTK replacements (2026-11-18; locally validated, release pending)
+## D3-OPT-UNDERFRAME-GRAM-SLOT-FAMILY-001 — Gram Prime family-dependent Expected TTK replacements (2026-11-18; released)
 
 A Gram Prime / Normal Attack neighborhood audit exposed a full-pool shortlist miss under Grineer, 100,000 Health / 3,000 Armor, Initial state, eight slots, Catalyst, and at most three Forma. Rending Crane R3 is included as an extra capacity slot; the finite encounter scorer does not model the Underframe Lashing Tempest hit sequence.
 
@@ -12,7 +12,7 @@ The integrated Underframe replay used Gram Prime / Normal Attack, Rending Crane 
 
 Validation on the isolated source snapshot passes: optimizer test file 147/147; full serial suite 809/809 across 53 files; TypeScript and production build; source validation; prerequisite audit (162 entries, no unresolved references or cycles); mod-effect audit (694 weapons / 600 eligible records / 491 parsed / 109 without parsed effects / 71 review candidates / 18 partially parsed / 53 fully unparsed / zero weapon pools without parsed damage); focused ESLint; and `git diff --check`. Vite retains its existing large-chunk warning.
 
-This is one bounded model-local neighborhood, not global/joint optimality, Underframe parity, gameplay accuracy, or an evaluation of Underframe's illegal build. Tenno-Hub does not model the Underframe Lashing Tempest sequence for this comparison, and no fresh Tenno-Hub browser QA was performed. Reopen if a legal exact one-mod neighbor improves the returned build, the capacity/Forma limits fail, a targeted regression fails, or repeated timing evidence shows an unacceptable search cost. PR and merge references will be added after publication.
+This is one bounded model-local neighborhood, not global/joint optimality, Underframe parity, gameplay accuracy, or an evaluation of Underframe's illegal build. Tenno-Hub does not model the Underframe Lashing Tempest sequence for this comparison, and no fresh Tenno-Hub browser QA was performed. Reopen if a legal exact one-mod neighbor improves the returned build, the capacity/Forma limits fail, a targeted regression fails, or repeated timing evidence shows an unacceptable search cost. Implementation source commit `8999844e82fcf0bed322d0445520e5d7f195531f` was squash-merged by PR [#157](https://github.com/Appl3Tree/Tenno-Hub/pull/157) as `232123be1cecc80c86e8999c54b77fa3c46c3939`; Pages deployment [run #237](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44257208533) succeeded.
 
 ## D3-ATTACK-MODEL-TORID-CLOUD-001 — bounded single-target impact and Poison Cloud sequence (2026-11-17; released)
 
