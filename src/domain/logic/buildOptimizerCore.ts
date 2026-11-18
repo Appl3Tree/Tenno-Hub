@@ -2353,6 +2353,7 @@ function fillEmptySlots(
 }
 
 const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 40;
+const ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT = 8;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
@@ -3119,6 +3120,43 @@ function refineBuildByExpectedEncounter(
                 if (shortlistedProposals.has(proposal)) continue;
                 shortlist.push(proposal);
             }
+        }
+        // Keep the established 40-proposal shortlist intact, then append a bounded
+        // supplement across incoming effect families. Finite-TTK value can depend on
+        // which stat family leaves, including utility/status families that the proxy
+        // does not rank as direct damage alternatives.
+        let familySlotExtras = 0;
+        for (const candidateKey of shortlistedCandidates.keys()) {
+            const representedOutgoingFamilies = new Set<string>();
+            for (const proposal of shortlist) {
+                const proposalCandidate = proposal.candidates[0];
+                if (!proposalCandidate ||
+                    `${proposalCandidate.mod.uniqueName}@${proposalCandidate.rank}` !== candidateKey ||
+                    !proposal.replacedModUniqueName) continue;
+                const outgoing = existing.find((entry) => entry.mod.uniqueName === proposal.replacedModUniqueName);
+                if (!outgoing) continue;
+                for (const family of expectedEncounterCandidateFamilies({ mod: outgoing.mod, rank: outgoing.rank })) {
+                    representedOutgoingFamilies.add(family);
+                }
+            }
+            for (const proposal of sortedProposals) {
+                if (familySlotExtras >= ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT) break;
+                const proposalCandidate = proposal.candidates[0];
+                if (!proposalCandidate || !proposal.replacedModUniqueName ||
+                    `${proposalCandidate.mod.uniqueName}@${proposalCandidate.rank}` !== candidateKey) continue;
+                const replacementSignature = `${candidateKey}|${proposal.replacedModUniqueName}`;
+                if (shortlistedReplacementSignatures.has(replacementSignature)) continue;
+                const outgoing = existing.find((entry) => entry.mod.uniqueName === proposal.replacedModUniqueName);
+                if (!outgoing) continue;
+                const newOutgoingFamilies = expectedEncounterCandidateFamilies({ mod: outgoing.mod, rank: outgoing.rank })
+                    .filter((family) => !representedOutgoingFamilies.has(family));
+                if (!newOutgoingFamilies.length) continue;
+                shortlistedReplacementSignatures.add(replacementSignature);
+                shortlist.push(proposal);
+                for (const family of newOutgoingFamilies) representedOutgoingFamilies.add(family);
+                familySlotExtras++;
+            }
+            if (familySlotExtras >= ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT) break;
         }
         if (!shortlist.length) break;
 
@@ -4596,3 +4634,4 @@ export function explainBuild(
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
+
