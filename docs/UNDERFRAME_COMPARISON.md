@@ -137,4 +137,23 @@ The reproducible shared-model runner is `scripts/compareCedoUnderframeMatched.ts
 
 To cross-score the optimizer's returned list, I duplicated `/Codex-Matched-Corpus-Cedo` as `/Codex-Matched-Corpus-Cedo-Copy`, preserving the original capture. On the duplicate I equipped Frail Momentum R5, Galvanized Hell R10, Primed Chilling Grasp R10, Toxic Barrage R3, Scattering Inferno R3, Blaze R3, Shotgun Barrage R5, and Galvanized Savvy R10. This used the same Cedo / Shotgun / Normal Attack, Grineer 100,000 Health / 3,000 Armor, five-second setting, and Luck Averaged readout. The displayed result was 3,119 raw + 3 DoT average damage per shot, 34,507 average DPS, and `? ttk`, compared with 38,091 average DPS / 2.74 s for Underframe's captured Auto Build list (9.4% higher for the captured list). The readout uses eight seeded runs according to the public source audit.
 
-Auto Polarize made the duplicate capacity-valid at 3/60, but it used four Forma; Tenno-Hub reported this mod list at 59/60 with two Forma and Underframe Auto Build was configured for at most three. This is therefore a same-readout cross-score, not an equal-investment comparison. Resolve the polarity/capacity difference under D3-OPT-UNDERFRAME-CEDO-FORMA-001. Tenno-Hub's own finite Expected TTK model still scores its returned list at 2.6110 s versus 5.3176 s for the captured list, so the one fixture exposes an objective tradeoff (Underframe default mean avgDps vs Tenno-Hub Expected TTK), not parity or general build-quality proof. The original saved Underframe build remains unchanged.
+Auto Polarize made the duplicate capacity-valid but displayed four Forma. A source-backed manual plan below fits these exact mods and ranks at 59/60 with two Forma, within the three-Forma setting. This resolves capacity feasibility by calculation; the integrated-browser copy remains at its reset state because no manual placement was verified. The Underframe five-second Luck Averaged readout scored 34,507 avgDps for the Tenno-Hub list versus 38,091 for the captured list, while Tenno-Hub's own Expected TTK model scores 2.6110 s versus 5.3176 s. This is one cross-score under different objectives, not optimizer-objective parity or simulator/gameplay proof. The original saved Underframe build remains unchanged.
+
+
+### Cedo slot-by-slot Forma feasibility (2026-11-18)
+
+The four-Forma Auto Polarize outcome does not establish that the mod/rank list exceeds the three-Forma budget. Underframe's public [capacity.js](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/src/shared/capacity.js) confirms base drain equals base drain plus mod rank and matching polarity halves positive drain rounded up. The duplicate's reset layout displayed native Madurai slots 3 and 8. Placing Vazarin in displayed slots 1 and 7, leaving the other slot polarities unchanged, preserves the mod order and yields 59/60 at two added Forma:
+
+| Slot | Mod and rank | Raw drain | Slot polarity | Effective drain |
+| ---: | --- | ---: | --- | ---: |
+| 1 | Primed Chilling Grasp R10 | 16 | Vazarin, added | 8 |
+| 2 | Toxic Barrage R3 | 7 | None | 7 |
+| 3 | Galvanized Hell R10 | 16 | Native Madurai | 8 |
+| 4 | Blaze R3 | 9 | None | 9 |
+| 5 | Shotgun Barrage R5 | 9 | None | 9 |
+| 6 | Scattering Inferno R3 | 7 | None | 7 |
+| 7 | Galvanized Savvy R10 | 12 | Vazarin, added | 6 |
+| 8 | Frail Momentum R5 | 9 | Native Madurai | 5 |
+| **Total** |  | **85** | **2 added Forma** | **59 / 60** |
+
+The reset duplicate calculates to 73/60; the two new matching polarities save 14 capacity. A Node arithmetic check against checked-in catalog data confirmed each raw drain, both totals, and the two added polarities. The integrated-browser copy was left at 0 Forma / -13/60 after the UI interaction stalled at a confirmation prompt, so this remains a source-backed feasible plan, not a rendered Underframe placement. The original saved capture was not changed. Reopen if the UI rejects the arrangement or its observed slot order/polarities differ.
