@@ -23,6 +23,7 @@ import type {
     WeaponAutoSpoolShotSequenceRule,
     WeaponDamageRampRule,
     WeaponUniqueStatusType,
+    WeaponAttackLingeringDamageRule,
 } from "../catalog/weaponCatalog";
 import {
     getHeavyAttackRetainedComboPoints,
@@ -31,7 +32,7 @@ import {
 import { advanceDamageRampMultiplier, getInitialDamageRampMultiplier } from "./weaponDamageRamp";
 import { getAutoSpoolShotSequenceState } from "./weaponAutoSpool";
 import { avgHitDamageMultiplier } from "./damageCalc";
-import type { HitLocationDamageProfile } from "./damageCalc";
+import type { AttachedAttackTickProfile, HitLocationDamageProfile } from "./damageCalc";
 import type { TimedConditionalDamageStack } from "./damageCalc";
 import type { NonCriticalHitDamageProc } from "../catalog/modCatalog";
 import {
@@ -344,6 +345,11 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
         heatDotDamagePerProcPerTickWhenExternallyInherited?: number;
         heatDotAccumulatorDamagePerTickWhenExternallyInherited?: number;
     };
+    /** Source-backed direct-damage ticks attached to each selected attack projectile. */
+    attachedAttackDamageSequence?: {
+        rule: WeaponAttackLingeringDamageRule;
+        profile: AttachedAttackTickProfile;
+    };
     /** Expected ordinary status applications per attack when dynamic proc weights are unavailable. */
     expectedStatusApplicationsPerAttackByType?: Partial<Record<StatusDamageType, number>>;
     /** Quantized final damage weights used to recalculate proc weighting as pools change. */
@@ -410,12 +416,14 @@ export interface ExpectedWeaponEncounterResult {
 interface ScheduledStatusTick {
     time: number;
     sequence: number;
-    type: StatusDamageType | "coldFreezeEnd" | "nightwatchNapalm";
+    type: StatusDamageType | "coldFreezeEnd" | "nightwatchNapalm" | "attachedAttackDamage";
     damage: number;
     /** Heat stacks share one refreshable tick stream; resolve its damage when the tick lands. */
     dynamicHeat?: boolean;
     /** Expected overlapping blaze count for this Nightwatch Napalm tick. */
     napalmProjectiles?: number;
+    /** Profile for a delayed direct-damage tick attached to an earlier attack. */
+    attachedAttackDamageProfile?: AttachedAttackTickProfile;
 }
 
 interface HeatStatusApplicationOverride {
@@ -848,12 +856,12 @@ export function simulateExpectedWeaponEncounter(
         statusStackQueues.delete("blast");
     };
 
-    const projectStatusSequence = (currentProjectileCount: number, includeProjectilePresence = false) => {
+    const projectStatusSequence = (currentProjectileCount: number, includeProjectilePresence = false, statusInput: ExpectedWeaponEncounterInput = input) => {
         const ordinaryApplications: Partial<Record<StatusDamageType, number>> = {};
         const ordinaryPresenceProbabilities: Partial<Record<StatusDamageType, number>> = {};
         const perProjectilePresence: Array<Partial<Record<StatusDamageType, number>>> = [];
         const hasCatalogStatusInputs =
-            input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
+            statusInput.statusProcWeightsByType !== undefined && statusInput.statusRollsPerAttack !== undefined;
         if (!hasCatalogStatusInputs || currentProjectileCount <= 0) {
             return { ordinaryApplications, ordinaryPresenceProbabilities, perProjectilePresence };
         }
@@ -865,9 +873,9 @@ export function simulateExpectedWeaponEncounter(
         if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
         const totalWeight = STATUS_DAMAGE_TYPES.reduce((sum, type) => {
             if (immuneTypes.has(type)) return sum;
-            return sum + finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+            return sum + finiteNonNegative(statusInput.statusProcWeightsByType?.[type] ?? 0);
         }, 0);
-        const rolls = finiteNonNegative(input.statusRollsPerAttack ?? 0);
+        const rolls = finiteNonNegative(statusInput.statusRollsPerAttack ?? 0);
         if (totalWeight <= 0 || rolls <= 0) {
             return { ordinaryApplications, ordinaryPresenceProbabilities, perProjectilePresence };
         }
@@ -875,18 +883,18 @@ export function simulateExpectedWeaponEncounter(
         const statusChancePerProjectile = rolls / currentProjectileCount;
         const wholeProjectiles = Math.floor(currentProjectileCount);
         const fractionalProjectile = currentProjectileCount - wholeProjectiles;
-        const baseProjectileCount = Math.max(1, finiteNonNegative(input.expectedProjectiles ?? 1));
-        const forcedProjectileRatio = input.autoSpoolShotSequenceRule
+        const baseProjectileCount = Math.max(1, finiteNonNegative(statusInput.expectedProjectiles ?? 1));
+        const forcedProjectileRatio = statusInput.autoSpoolShotSequenceRule
             ? Math.max(0, currentProjectileCount / baseProjectileCount)
             : 1;
         const forcedApplicationsPerProjectile = Object.fromEntries(
             STATUS_DAMAGE_TYPES.map((type) => [
                 type,
-                finiteNonNegative(input.forcedStatusApplicationsPerAttackByType?.[type] ?? 0) *
+                finiteNonNegative(statusInput.forcedStatusApplicationsPerAttackByType?.[type] ?? 0) *
                     forcedProjectileRatio / currentProjectileCount,
             ]),
         ) as Record<StatusDamageType, number>;
-        const tauTargetCap = input.statusStackCaps?.tau;
+        const tauTargetCap = statusInput.statusStackCaps?.tau;
         const tauStackCap = Number.isFinite(tauTargetCap)
             ? Math.max(0, Math.min(STATUS_EFFECT_RULES.tau.maxStacks ?? 10, tauTargetCap ?? 0))
             : STATUS_EFFECT_RULES.tau.maxStacks ?? 10;
@@ -895,7 +903,7 @@ export function simulateExpectedWeaponEncounter(
             !immuneTypes.has("tau") &&
             expectedTauStacks < Math.min(10, tauStackCap) &&
             statusChancePerProjectile > 0 &&
-            (finiteNonNegative(input.statusProcWeightsByType?.tau ?? 0) > 0 ||
+            (finiteNonNegative(statusInput.statusProcWeightsByType?.tau ?? 0) > 0 ||
                 forcedApplicationsPerProjectile.tau > 0);
 
         if (!tauCanIncreaseBetweenProjectiles) {
@@ -906,9 +914,9 @@ export function simulateExpectedWeaponEncounter(
             for (const type of STATUS_DAMAGE_TYPES) {
                 if (immuneTypes.has(type)) continue;
                 if (includeProjectilePresence && type === "tau") continue;
-                const targetCap = input.statusStackCaps?.[type];
+                const targetCap = statusInput.statusStackCaps?.[type];
                 if (Number.isFinite(targetCap) && (targetCap ?? 0) <= 0) continue;
-                const weight = finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+                const weight = finiteNonNegative(statusInput.statusProcWeightsByType?.[type] ?? 0);
                 if (weight <= 0) continue;
 
                 const typeProbability = weight / totalWeight;
@@ -955,9 +963,9 @@ export function simulateExpectedWeaponEncounter(
             for (const type of STATUS_DAMAGE_TYPES) {
                 if (immuneTypes.has(type)) continue;
                 if (includeProjectilePresence && type === "tau") continue;
-                const targetCap = input.statusStackCaps?.[type];
+                const targetCap = statusInput.statusStackCaps?.[type];
                 if (Number.isFinite(targetCap) && (targetCap ?? 0) <= 0) continue;
-                const weight = finiteNonNegative(input.statusProcWeightsByType?.[type] ?? 0);
+                const weight = finiteNonNegative(statusInput.statusProcWeightsByType?.[type] ?? 0);
                 if (weight <= 0) continue;
 
                 const typeProbability = weight / totalWeight;
@@ -987,7 +995,7 @@ export function simulateExpectedWeaponEncounter(
             // Tau procs from this projectile only affect the next projectile.
             // Fractional multishot is the final slot, so it has no later hit.
             if (projectileIndex < wholeProjectiles && !immuneTypes.has("tau")) {
-                const tauWeight = finiteNonNegative(input.statusProcWeightsByType?.tau ?? 0);
+                const tauWeight = finiteNonNegative(statusInput.statusProcWeightsByType?.tau ?? 0);
                 const tauOrdinaryApplications = statusChancePerProjectile * tauWeight / totalWeight;
                 expectedTauStacks = Math.min(
                     tauStackCap,
@@ -998,29 +1006,29 @@ export function simulateExpectedWeaponEncounter(
         return { ordinaryApplications, ordinaryPresenceProbabilities, perProjectilePresence };
     };
 
-    const expectedStatusApplicationsForCurrentPools = (currentProjectileCount: number) => {
-        const projection = projectStatusSequence(currentProjectileCount);
+    const expectedStatusApplicationsForCurrentPools = (currentProjectileCount: number, statusInput: ExpectedWeaponEncounterInput = input) => {
+        const projection = projectStatusSequence(currentProjectileCount, false, statusInput);
         const ordinaryApplications = { ...projection.ordinaryApplications };
         const forcedApplications: Partial<Record<StatusDamageType, number>> = {};
         const applications: Partial<Record<StatusDamageType, number>> = {};
         const presenceProbabilities: Partial<Record<StatusDamageType, number>> = {};
-        const canReweight = input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
+        const canReweight = statusInput.statusProcWeightsByType !== undefined && statusInput.statusRollsPerAttack !== undefined;
         const immuneTypes = new Set(statusImmuneTypes);
         if (remainingPools.overguard <= 0 && remainingPools.shields <= 0) immuneTypes.add("magnetic");
         if (!canReweight) {
             const tauVulnerability = ordinaryStatusChanceMultiplier();
-            for (const [rawType, rawCount] of Object.entries(input.expectedStatusApplicationsPerAttackByType ?? {}) as Array<[StatusDamageType, number]>) {
+            for (const [rawType, rawCount] of Object.entries(statusInput.expectedStatusApplicationsPerAttackByType ?? {}) as Array<[StatusDamageType, number]>) {
                 if (immuneTypes.has(rawType)) continue;
                 const typeMultiplier = rawType === "tau" ? 1 : tauVulnerability;
                 ordinaryApplications[rawType] = finiteNonNegative(rawCount) * typeMultiplier;
             }
         }
 
-        const baseProjectileCount = Math.max(1, finiteNonNegative(input.expectedProjectiles ?? 1));
-        const projectileRatio = input.autoSpoolShotSequenceRule
+        const baseProjectileCount = Math.max(1, finiteNonNegative(statusInput.expectedProjectiles ?? 1));
+        const projectileRatio = statusInput.autoSpoolShotSequenceRule
             ? Math.max(0, currentProjectileCount / baseProjectileCount)
             : 1;
-        for (const [type, rawApplications] of Object.entries(input.forcedStatusApplicationsPerAttackByType ?? {}) as Array<[StatusDamageType, number]>) {
+        for (const [type, rawApplications] of Object.entries(statusInput.forcedStatusApplicationsPerAttackByType ?? {}) as Array<[StatusDamageType, number]>) {
             if (immuneTypes.has(type)) continue;
             const count = finiteNonNegative(rawApplications) * projectileRatio;
             if (count > 0) forcedApplications[type] = count;
@@ -1063,6 +1071,7 @@ export function simulateExpectedWeaponEncounter(
         statusDamageMultiplier = 1,
         gasCloudGroup?: GasCloudTickGroup,
         heatStatusOverride?: HeatStatusApplicationOverride,
+        statusInput: ExpectedWeaponEncounterInput = input,
     ) => {
         for (const [type, rawApplications] of Object.entries(applicationsByType) as Array<[StatusDamageType, number]>) {
             const applications = finiteNonNegative(rawApplications);
@@ -1077,7 +1086,7 @@ export function simulateExpectedWeaponEncounter(
             if (type === "magnetic" && remainingPools.overguard <= 0 && remainingPools.shields <= 0) continue;
 
             let cap = STATUS_EFFECT_RULES[type].maxStacks ?? Number.POSITIVE_INFINITY;
-            const targetCap = input.statusStackCaps?.[type];
+            const targetCap = statusInput.statusStackCaps?.[type];
             if (Number.isFinite(targetCap) && (targetCap ?? 0) >= 0) cap = Math.min(cap, targetCap ?? cap);
             if (type === "cold" && remainingPools.overguard > 0) cap = Math.min(cap, 4);
 
@@ -1123,13 +1132,13 @@ export function simulateExpectedWeaponEncounter(
                 };
                 statusStackQueues.set(type, queue);
             }
-            const hasDynamicStatusApplications = input.statusProcWeightsByType !== undefined && input.statusRollsPerAttack !== undefined;
-            const hasBlastHitDamage = input.blastStackHitDamagePerProc !== undefined;
-            if (type === "blast" && (input.expectedStatusApplicationsPerAttackByType?.blast !== undefined || hasDynamicStatusApplications || hasBlastHitDamage)) {
-                const legacyExpiryDamagePerStack = finiteNonNegative(input.blastDamagePerAttack ?? 0) *
+            const hasDynamicStatusApplications = statusInput.statusProcWeightsByType !== undefined && statusInput.statusRollsPerAttack !== undefined;
+            const hasBlastHitDamage = statusInput.blastStackHitDamagePerProc !== undefined;
+            if (type === "blast" && (statusInput.expectedStatusApplicationsPerAttackByType?.blast !== undefined || hasDynamicStatusApplications || hasBlastHitDamage)) {
+                const legacyExpiryDamagePerStack = finiteNonNegative(statusInput.blastDamagePerAttack ?? 0) *
                     attackDamageRampMultiplier * statusDamageMultiplier / applications;
                 const hitDamagePerStack = hasBlastHitDamage
-                    ? finiteNonNegative(input.blastStackHitDamagePerProc ?? 0) *
+                    ? finiteNonNegative(statusInput.blastStackHitDamagePerProc ?? 0) *
                         conditionOverloadDamageMultiplier * attackDamageRampMultiplier * statusDamageMultiplier
                     : legacyExpiryDamagePerStack > 0
                         ? legacyExpiryDamagePerStack / (STATUS_EFFECT_RULES.blast.stackExpiryDamageCoefficient ?? 0.3)
@@ -1298,22 +1307,22 @@ export function simulateExpectedWeaponEncounter(
             // shared damage stream and refreshes every active stack's timer.
             // Other DoTs keep their independent scheduled instances below.
             if (type === "heat") {
-                const perApplicationDamage = finiteNonNegative(input.dotDamagePerApplicationByType?.heat ?? 0);
+                const perApplicationDamage = finiteNonNegative(statusInput.dotDamagePerApplicationByType?.heat ?? 0);
                 const tickCount = countStatusDamageTicks("heat", applicationDuration);
                 const ordinarySeedTickDamage = finiteNonNegative(heatStatusOverride?.tickDamagePerProc ??
-                    input.heatDotTickDamagePerProc ?? (tickCount > 0 ? perApplicationDamage / tickCount : 0));
+                    statusInput.heatDotTickDamagePerProc ?? (tickCount > 0 ? perApplicationDamage / tickCount : 0));
                 const inheritedSeedTickDamage = finiteNonNegative(
                     heatStatusOverride?.tickDamagePerProcWhenExternallyInherited ??
-                    input.heatDotTickDamagePerProcWhenExternallyInherited ?? ordinarySeedTickDamage,
+                    statusInput.heatDotTickDamagePerProcWhenExternallyInherited ?? ordinarySeedTickDamage,
                 );
                 const seedTickDamage = ordinarySeedTickDamage * (1 - externalHeatInheritanceProbability) +
                     inheritedSeedTickDamage * externalHeatInheritanceProbability;
                 const ordinaryAccumulatorTickDamage = finiteNonNegative(
-                    heatStatusOverride?.accumulatorDamagePerTick ?? input.heatDotAccumulatorDamagePerTick ?? 0,
+                    heatStatusOverride?.accumulatorDamagePerTick ?? statusInput.heatDotAccumulatorDamagePerTick ?? 0,
                 );
                 const inheritedAccumulatorTickDamage = finiteNonNegative(
                     heatStatusOverride?.accumulatorDamagePerTickWhenExternallyInherited ??
-                    input.heatDotAccumulatorDamagePerTickWhenExternallyInherited ?? ordinaryAccumulatorTickDamage,
+                    statusInput.heatDotAccumulatorDamagePerTickWhenExternallyInherited ?? ordinaryAccumulatorTickDamage,
                 );
                 const accumulatorTickDamage = ordinaryAccumulatorTickDamage * (1 - externalHeatInheritanceProbability) +
                     inheritedAccumulatorTickDamage * externalHeatInheritanceProbability;
@@ -1596,6 +1605,28 @@ export function simulateExpectedWeaponEncounter(
         }
     };
 
+    const scheduleAttachedAttackDamageTicks = (attackTime: number) => {
+        const sequence = input.attachedAttackDamageSequence;
+        if (!sequence || !sequence.rule.stacks || !sequence.rule.attachedToDirectTarget) return;
+        const { firstTickDelaySeconds, tickIntervalSeconds, tickCount } = sequence.rule;
+        if (
+            !Number.isFinite(firstTickDelaySeconds) || firstTickDelaySeconds < 0 ||
+            !Number.isFinite(tickIntervalSeconds) || tickIntervalSeconds <= 0 ||
+            !Number.isFinite(tickCount) || tickCount <= 0
+        ) return;
+        for (let tickIndex = 0; tickIndex < tickCount; tickIndex++) {
+            const time = attackTime + firstTickDelaySeconds + tickIndex * tickIntervalSeconds;
+            if (time > maxDurationSeconds + 1e-9) break;
+            heapPush(ticks, {
+                time,
+                sequence: nextTickSequence++,
+                type: "attachedAttackDamage",
+                damage: 0,
+                attachedAttackDamageProfile: sequence.profile,
+            });
+        }
+    };
+
     while ((!killed && attacks < maxSimulatedAttacks) || ticks.length > 0) {
         while (ticks[0] && cancelledTickSequences.delete(ticks[0].sequence)) heapPop(ticks);
         const attackTime = !killed && attacks < maxSimulatedAttacks
@@ -1813,6 +1844,7 @@ export function simulateExpectedWeaponEncounter(
             if (sumPools(appliedDirectDamage) > 0) activateTargetStatusDamageVulnerability();
             attacks++;
             attackIndex++;
+            scheduleAttachedAttackDamageTicks(attackTime);
             const attackStatusState = expectedStatusApplicationsForCurrentPools(attackExpectedProjectiles);
             const gasCloudGroup = scheduleAttackDots(
                 attackTime,
@@ -1931,6 +1963,125 @@ export function simulateExpectedWeaponEncounter(
                         accumulatorDamagePerTickWhenExternallyInherited:
                             napalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
                     },
+                );
+                killed = isEncounterTargetDefeated(initialHealth, remainingPools);
+                if (killed && primaryKilledAt === null) {
+                    primaryKilledAt = now;
+                    resolveBlastDeathRadial();
+                }
+                expireStatusStacks(now);
+                continue;
+            }
+            if (tick.type === "attachedAttackDamage") {
+                const profile = tick.attachedAttackDamageProfile;
+                if (!profile || killed) continue;
+                const statusModifiers = currentStatusModifiers(now);
+                const conditionOverloadMultiplier = profile.conditionOverloadApplies
+                    ? finiteNonNegative(statusModifiers.conditionOverloadDamageMultiplier ?? 1)
+                    : 1;
+                const directPerStatusMultiplier = profile.directDamagePerStatusBonus > 0 ||
+                    profile.intrinsicDamagePerStatusBonus > 0
+                    ? finiteNonNegative(statusModifiers.directDamagePerStatusMultiplier ?? 1)
+                    : 1;
+                const dynamicMultiplier = conditionOverloadMultiplier * directPerStatusMultiplier;
+                const damageByType = Object.fromEntries(DAMAGE_TYPES.map((type) => [
+                    type,
+                    finiteNonNegative(profile.damageByType[type] ?? 0) * dynamicMultiplier,
+                ])) as Partial<Record<DamageType, number>>;
+                const cloudInput: ExpectedWeaponEncounterInput = {
+                    ...input,
+                    damageByType: profile.damageByType,
+                    rawDamageByType: profile.rawDamageByType,
+                    baseDamageTotal: profile.baseDamageTotal,
+                    expectedHitDamageMultiplier: profile.expectedHitDamageMultiplier,
+                    critChance: profile.critChance,
+                    critMultiplier: profile.critMultiplier,
+                    critTierEnhancementChance: profile.critTierEnhancementChance,
+                    nonCriticalHitDamageProcs: profile.nonCriticalHitDamageProcs,
+                    hitLocation: profile.hitLocation,
+                    expectedProjectiles: profile.expectedProjectiles,
+                    expectedDamageMultiplier: profile.expectedDamageMultiplier,
+                    singleProjectileDamageBonus: 0,
+                    statusProcWeightsByType: profile.statusProcWeightsByType,
+                    statusRollsPerAttack: profile.statusRollsPerAttack,
+                    forcedStatusApplicationsPerAttackByType: profile.forcedStatusApplicationsPerAttackByType,
+                    dotDamagePerAttackByType: profile.dotDamagePerAttackByType,
+                    dotDamagePerApplicationByType: profile.dotDamagePerApplicationByType,
+                    dotSeedDamagePerApplicationByType: profile.dotSeedDamagePerApplicationByType,
+                    dotAccumulatorDamagePerApplicationByType: profile.dotAccumulatorDamagePerApplicationByType,
+                    heatDotTickDamagePerProc: profile.heatDotTickDamagePerProc,
+                    heatDotAccumulatorDamagePerTick: profile.heatDotAccumulatorDamagePerTick,
+                    heatDotTickDamagePerProcWhenExternallyInherited:
+                        profile.heatDotTickDamagePerProcWhenExternallyInherited,
+                    heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+                        profile.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
+                    blastStackHitDamagePerProc: profile.blastStackHitDamagePerProc,
+                    statusDurationMultiplier: profile.statusDurationMultiplier,
+                    directDamagePerStatusBonus: profile.directDamagePerStatusBonus,
+                    conditionOverloadDamagePerStatusBonus: profile.conditionOverloadDamagePerStatusBonus,
+                    intrinsicDamagePerStatusBonus: profile.intrinsicDamagePerStatusBonus,
+                    intrinsicDamagePerStatusMode: profile.intrinsicDamagePerStatusMode,
+                    totalDamageBonus: profile.totalDamageBonus,
+                    uniqueStatusProcsPerAttack: profile.uniqueStatusProcsPerAttack,
+                    autoSpoolShotSequenceRule: undefined,
+                };
+                const poolsBeforeCloudTick = { ...remainingPools };
+                const directResult = calculateDirectDamageToInitialPools({
+                    ...cloudInput,
+                    ...statusModifiers,
+                    damageByType,
+                    damageRampMultiplier: 1,
+                    expectedProjectiles: profile.expectedProjectiles,
+                    expectedDamageMultiplier: profile.expectedDamageMultiplier,
+                    expectedHitDamageMultiplier: profile.expectedHitDamageMultiplier,
+                    critChance: profile.critChance,
+                    critMultiplier: profile.critMultiplier,
+                    critTierEnhancementChance: profile.critTierEnhancementChance,
+                    nonCriticalHitDamageProcs: profile.nonCriticalHitDamageProcs,
+                    hitLocation: profile.hitLocation,
+                    singleProjectileDamageBonus: 0,
+                    health: remainingPools.health,
+                    shields: remainingPools.shields,
+                    overguard: remainingPools.overguard,
+                });
+                const gateActive = now < enemyShieldGateUntil - 1e-9;
+                const gateMode = input.enemyShieldGateHitMode ?? "body";
+                const gatedHealthDamageMultiplier = !gateActive || gateMode === "weakspot"
+                    ? 1
+                    : gateMode === "blockedArea"
+                        ? 0
+                        : ENEMY_SHIELD_GATE_BODY_DAMAGE_MULTIPLIER;
+                const appliedCloudDamage = {
+                    ...directResult.damageByPool,
+                    health: Math.min(
+                        remainingPools.health,
+                        directResult.uncappedDamageByPool.health * gatedHealthDamageMultiplier,
+                    ),
+                };
+                addPools(directDamageByPool, appliedCloudDamage);
+                subtractPools(remainingPools, appliedCloudDamage);
+                if (sumPools(appliedCloudDamage) > 0) activateTargetStatusDamageVulnerability();
+                if (poolsBeforeCloudTick.overguard > 0 && remainingPools.overguard <= Number.EPSILON) {
+                    scheduleMagneticBreakProc(now, "overguard", statusDamageMultiplierAtTickStart);
+                }
+                if (poolsBeforeCloudTick.shields > 0 && remainingPools.shields <= Number.EPSILON) {
+                    enemyShieldGateUntil = now + ENEMY_SHIELD_GATE_DURATION_SECONDS;
+                    scheduleMagneticBreakProc(now, "shields", statusDamageMultiplierAtTickStart);
+                }
+                const cloudStatusState = expectedStatusApplicationsForCurrentPools(
+                    profile.expectedProjectiles,
+                    cloudInput,
+                );
+                applyExpectedStatusApplications(
+                    now,
+                    cloudStatusState.applications,
+                    cloudStatusState.presenceProbabilities,
+                    1,
+                    conditionOverloadMultiplier,
+                    statusDamageMultiplierAtTickStart,
+                    undefined,
+                    undefined,
+                    cloudInput,
                 );
                 killed = isEncounterTargetDefeated(initialHealth, remainingPools);
                 if (killed && primaryKilledAt === null) {

@@ -111,11 +111,12 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
     const trigger = attack.trigger ?? weapon.trigger;
     const attackName = attack.name.trim().toLowerCase();
     const isGlaive = /\/glaives?\//i.test(weapon.uniqueName) || /\bglaive\b/i.test(weapon.weaponType);
-    const ignoresConditionOverload =
+    const ignoresConditionOverload = !attack.appliesToAttachedTarget && (
         /\bslam\b/.test(attackName) ||
         attack.isAreaDamage === true ||
         /\b(?:radial|explosion)\b/.test(attackName) ||
-        (isGlaive && /\b(?:charged|heavy)\s+throw\b/.test(attackName));
+        (isGlaive && /\b(?:charged|heavy)\s+throw\b/.test(attackName))
+    );
     const usesMeleeComboMultiplier =
         (weapon.category === "Melee" || weapon.category === "Arch-Melee") &&
         (/\bheavy\b/.test(attackName) || (isGlaive && /^charged throw\b/.test(attackName)));
@@ -161,5 +162,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackAutoSpoolShotSequence: attack.autoSpoolShotSequence,
         selectedAttackAutoSpoolTimingLimitation: attack.autoSpoolTimingLimitation,
         selectedAttackModelLimitation: attack.modelLimitation,
+        selectedAttackLingeringDamageRule: attack.lingeringDamageRule,
+        selectedAttackAppliesToAttachedTarget: attack.appliesToAttachedTarget,
     };
 }

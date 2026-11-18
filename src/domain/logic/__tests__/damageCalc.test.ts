@@ -2043,6 +2043,24 @@ describe("damage calculation status eligibility", () => {
         expect(area.punctureCritChanceBonus).toBe(0);
     });
 
+    it("keeps direct-hit per-status damage on Torid clouds attached to the struck target", () => {
+        const torid = getWeaponCatalog().find((entry) => entry.name === "Torid");
+        expect(torid).toBeDefined();
+        const impactIndex = torid!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+        expect(impactIndex).toBeGreaterThanOrEqual(0);
+        const impactWeapon = withSelectedAttack(torid!, impactIndex);
+        const perStatusEffect = { ...emptyEffect(), directDamagePerStatusBonus: 0.4 };
+
+        const baseline = calculateBuild(impactWeapon, []).modded.attachedAttackDamageSequence;
+        const modded = calculateBuild(impactWeapon, [perStatusEffect]).modded.attachedAttackDamageSequence;
+
+        expect(baseline?.rule.componentAttackName).toBe("Poison Cloud");
+        expect(modded?.profile.directDamagePerStatusBonus).toBeCloseTo(0.4, 10);
+        expect(modded?.profile.steadyStateDamageByTypePerTick?.toxin).toBeGreaterThan(
+            baseline?.profile.steadyStateDamageByTypePerTick?.toxin ?? 0,
+        );
+    });
+
     it("caps the displayed Impact Mercy threshold bonus at five expected stacks", () => {
         const stats = calculateBuild({
             ...makeWeapon({ impact: 100 }),
@@ -4345,4 +4363,3 @@ describe("Sacrificial two-piece melee set bonus", () => {
         );
     });
 });
-

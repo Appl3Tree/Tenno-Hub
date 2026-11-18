@@ -215,6 +215,7 @@ function simulateBuilderTargetEncounter(
                     stats.nightwatchNapalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
             },
         } : {}),
+        attachedAttackDamageSequence: stats.attachedAttackDamageSequence,
         targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
         initialHeatStatusPresenceProbability: conditionalState.externalHeatStatusPresenceProbability,
         dotDamagePerAttackByType: stats.dotDamagePerShotByType,
@@ -1601,6 +1602,10 @@ function buildMathBreakdown(
         `Nightwatch Napalm: ${fmt(stats.nightwatchNapalm.directDamagePerProjectilePerTick, 5)} direct Heat damage per overlapping blaze tick × 6 ticks per ${damageUnit}; the first tick is immediate. Each tick rolls the Wiki's fixed ${(stats.nightwatchNapalm.heatProcChancePerTick * 100).toFixed(0)}% Heat proc chance independently of weapon Status Chance. Heat status lasts ${fmt(stats.nightwatchNapalm.heatStatusDurationSeconds, 3)}s after duration modifiers.`,
         `Napalm DPS = ${fmt(stats.nightwatchNapalm.directDamagePerSecond, 5)} direct tick damage/s + ${fmt(stats.nightwatchNapalm.heatStatusDamagePerSecond, 5)} steady-state Heat status damage/s. Assumes a stationary single target receives every blaze tick; spatial exposure, other on-tick effects (including Toxic Lash and Xata's Whisper), and crowd coverage are not modeled. Data: https://wiki.warframe.com/w/Nightwatch_Napalm`,
     ] : [];
+    const attachedAttackDamageLines = stats.attachedAttackDamageSequence ? [
+        `${stats.attachedAttackDamageSequence.rule.componentAttackName} linked to each direct hit: ${fmt(stats.attachedAttackDamageSequence.rule.tickCount, 0)} ticks at ${fmt(stats.attachedAttackDamageSequence.rule.tickIntervalSeconds, 3)}s intervals, first at +${fmt(stats.attachedAttackDamageSequence.rule.firstTickDelaySeconds, 3)}s. The ticks attach to the struck target and stack across grenades.`,
+        `Finite Expected TTK scores this single target's impact-plus-cloud sequence; it does not score cloud coverage on other targets, projectiles that hit surfaces or nearby enemies, target movement, or multi-target overlap. Sources: ${stats.attachedAttackDamageSequence.rule.sourceUrl} · https://wiki.warframe.com/w/Damage_over_Time#Weapons`,
+    ] : [];
     const damageRampLines = weapon.selectedAttackDamageRamp ? [
         `Verified attack ramp: ${fmt(weapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 1)}% → 100% over ${fmt(weapon.selectedAttackDamageRamp.rampToFullSeconds, 3)}s; decay begins after ${fmt(weapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 3)}s idle and reaches minimum over ${fmt(weapon.selectedAttackDamageRamp.decayToMinimumSeconds, 3)}s.`,
         `Fresh-magazine average ramp multiplier = ${fmt(stats.freshMagazineDamageMultiplier, 6)}; steady repeating-cycle multiplier = ${fmt(stats.sustainedDamageMultiplier, 6)}. Ramp scales direct damage. Per-attack DoT/Blast seed scaling is a model assumption because the Wiki does not specify seed inheritance separately; status chance and proc weights stay unchanged.`,
@@ -2023,6 +2028,7 @@ function buildMathBreakdown(
                 `Steady-state DoT DPS estimate = expected status seed damage per second plus grouped-tick accumulator contribution = ${fmt(stats.dotDps, 5)}`,
                 ...dotTypeLines,
                 ...nightwatchNapalmLines,
+                ...attachedAttackDamageLines,
                 `Derived status effects = Viral health bonus ${fmt(stats.viralHealthDamageBonus * 100, 5)}%, Heat armor strip ${fmt(stats.heatArmorStrip * 100, 5)}%, Corrosive armor strip ${fmt(stats.corrosiveArmorStrip * 100, 5)}%, Magnetic shield bonus ${fmt(stats.magneticShieldDamageBonus * 100, 5)}%, Radiation ally damage bonus ${fmt(stats.radiationAllyDamageBonus * 100, 5)}%, Cold slow ${fmt(stats.coldSlow * 100, 5)}%, Cold crit bonus ${fmt(stats.coldCritDamageBonus, 5)}, Puncture enemy damage reduction ${fmt(stats.punctureEnemyDamageReduction * 100, 5)}%, Puncture crit chance bonus ${fmt(stats.punctureCritChanceBonus * 100, 5)}%, Impact mercy threshold bonus ${fmt(stats.impactMercyThresholdBonus * 100, 5)}%, Tau status vulnerability ${fmt(stats.tauStatusVulnerability * 100, 5)}%`,
             ],
         },
@@ -4686,17 +4692,18 @@ export default function ModBuilder() {
         };
     }, [activeMetrics, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
     const activeTargetAttackDamage = useMemo(() => {
-        if (!activeTargetAttackInput || !activeMetrics) return null;
+        if (!activeTargetAttackInput || !activeMetrics || activeCalcWeapon?.selectedAttackModelLimitation) return null;
         const stats = activeMetrics.modded;
         return calculateDirectDamageToInitialPools({
             ...activeTargetAttackInput,
             damageRampMultiplier: stats.firstAttackDamageMultiplier * stats.firstShotMagazineDamageMultiplier,
         });
-    }, [activeTargetAttackInput, activeMetrics]);
+    }, [activeTargetAttackInput, activeMetrics, activeCalcWeapon]);
     const activeTargetAttackSequence = useMemo(() => {
         if (
             !activeTargetAttackInput ||
             !activeMetrics ||
+            activeCalcWeapon?.selectedAttackModelLimitation ||
             activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation
         ) return null;
         const stats = activeMetrics.modded;
@@ -4735,7 +4742,11 @@ export default function ModBuilder() {
         });
     }, [activeTargetAttackInput, activeMetrics, activeCalcWeapon, targetProfileOverride]);
     const activeTargetEncounter = useMemo(() => {
-        if (!encounterTargetMetrics || activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation) return null;
+        if (
+            !encounterTargetMetrics ||
+            activeCalcWeapon?.selectedAttackModelLimitation ||
+            activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation
+        ) return null;
         const stats = encounterTargetMetrics.modded;
         return simulateExpectedWeaponEncounter({
             damageByType: stats.damageBreakdownBeforePerStatus,
@@ -4788,6 +4799,7 @@ export default function ModBuilder() {
                     stats.nightwatchNapalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
                 },
             } : {}),
+            attachedAttackDamageSequence: stats.attachedAttackDamageSequence,
             targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
             initialHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
             dotDamagePerAttackByType: stats.dotDamagePerShotByType,
@@ -5640,7 +5652,7 @@ export default function ModBuilder() {
                                             )}
                                             {weapon?.attacks[selectedAttackIdx]?.modelLimitation && (
                                                 <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
-                                                    This attack uses a delayed multi-target effect that the calculator does not model. The source-row numbers below are not a valid damage or TTK estimate, and Auto Optimize is unavailable for this mode. {" "}
+                                                    {weapon.attacks[selectedAttackIdx].modelLimitation.reason} Component/source-row statistics below are reference values only; damage, DPS, TTK, and Auto Optimize are unavailable for this mode. {" "}
                                                     <a
                                                         href={weapon.attacks[selectedAttackIdx].modelLimitation.sourceUrl}
                                                         target="_blank"
@@ -5656,7 +5668,9 @@ export default function ModBuilder() {
                                                 Options {showOptimizeOptions ? "▴" : "▾"}
                                             </button>
                                             <div className="flex items-stretch overflow-hidden rounded-xl border border-amber-600/60 bg-amber-950/30">
-                                                <button onClick={optimizing ? cancelOptimization : handleOptimize} disabled={!optimizing && !weapon}
+                                                <button
+                                                    onClick={optimizing ? cancelOptimization : handleOptimize}
+                                                    disabled={!optimizing && (!weapon || !!weapon.attacks[selectedAttackIdx]?.modelLimitation)}
                                                     className={[
                                                         "px-4 py-2 text-sm transition-colors font-semibold disabled:opacity-50",
                                                         optimizing ? "text-rose-300 hover:bg-rose-950/50" : "text-amber-300 hover:bg-amber-900/40",
@@ -6942,7 +6956,7 @@ export default function ModBuilder() {
                                                                         )}
                                                                         {activeTargetAttackSequence && (
                                                                             <div className="sm:col-span-2">
-                                                                                <span className="text-slate-500">Selected-state direct-hit sequence:</span>{" "}
+                                                                                <span className="text-slate-500">Selected-state direct-hit-only sequence:</span>{" "}
                                                                                 {activeTargetAttackSequence.attacksToKill === null
                                                                                     ? activeTargetAttackSequence.attackCountLimitReached
                                                                                         ? "not defeated within one full Incarnon magazine"
@@ -6954,7 +6968,7 @@ export default function ModBuilder() {
                                                                                 {activeMetrics?.modded.shatteringImpactBaseArmorPerHit
                                                                                     ? `· base Armor after Shattering Impact ${fmt(activeTargetAttackSequence.remainingArmorAfterBaseStrip, 0)} (before percentage strips) `
                                                                                     : ""}
-                                                                                (mean damage per attack, ordered pool depletion, static target defenses; applies the selected enemy Shield Gate mode after Shields break, but excludes status ticks and shield regeneration)
+                                                                                (mean damage per attack, ordered pool depletion, static target defenses; applies the selected enemy Shield Gate mode after Shields break, but excludes status ticks and shield regeneration{activeMetrics?.modded.attachedAttackDamageSequence ? " and the linked cloud sequence" : ""})
                                                                             </div>
                                                                         )}
                                                                         {activeTargetEncounter && (
@@ -6983,7 +6997,7 @@ export default function ModBuilder() {
                                                                         {activeTargetEncounter && (
                                                                             <div className="sm:col-span-2"><span className="text-slate-500">Expected status applications in encounter:</span> {activeEncounterStatusSummary}</div>
                                                                         )}
-                                                                        <div><span className="text-slate-500">Burst / sustained:</span> {fmt(activeMetrics.burstDPS)} / {fmt(activeMetrics.sustainedDPS)} DPS before target pools</div>
+                                                                        <div><span className="text-slate-500">{activeMetrics.modded.attachedAttackDamageSequence ? "Direct attack burst / sustained:" : "Burst / sustained:"}</span> {fmt(activeMetrics.burstDPS)} / {fmt(activeMetrics.sustainedDPS)} DPS before target pools</div>
                                                                         <div><span className="text-slate-500">DoT:</span> {fmt(activeMetrics.modded.dotDps)} DPS steady-state estimate</div>
                                                                         <div className="sm:col-span-2"><span className="text-slate-500">Proc mix after immunity:</span> {activeProcMixLabel}</div>
                                                                     </>
@@ -7928,4 +7942,3 @@ function InlineStatRow({ label, value, sub, tooltip, labelClassName }: {
         </div>
     );
 }
-

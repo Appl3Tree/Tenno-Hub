@@ -97,6 +97,22 @@ export interface WeaponAttackModelLimitation {
     reason: string;
 }
 
+export interface WeaponAttackLingeringDamageRule {
+    /** Attack row whose damage values describe the linked lingering component. */
+    componentAttackName: string;
+    /** First linked damage tick after the trigger event. */
+    firstTickDelaySeconds: number;
+    /** Time between linked damage ticks. */
+    tickIntervalSeconds: number;
+    /** Number of linked ticks produced by one projectile. */
+    tickCount: number;
+    /** Whether the linked component remains attached to the directly struck target. */
+    attachedToDirectTarget: boolean;
+    /** Whether independently created components stack their ticks. */
+    stacks: boolean;
+    sourceUrl: string;
+}
+
 export interface WeaponDamage {
     total: number;
     impact: number;
@@ -151,6 +167,10 @@ export interface WeaponAttack {
     autoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the attack's damage and score cannot be represented by the standard attack-row model. */
     modelLimitation?: WeaponAttackModelLimitation;
+    /** A separately catalogued damage component linked to each projectile from this attack. */
+    lingeringDamageRule?: WeaponAttackLingeringDamageRule;
+    /** This row damages the target directly struck by its attached projectile, while retaining AoE rules elsewhere. */
+    appliesToAttachedTarget?: boolean;
     /** Forced status effects per projectile/hit, independent of status chance and damage weights. */
     forcedProcs?: WeaponForcedProcs;
     /** Guaranteed non-damage status types that count as unique Galvanized/CO states. */
@@ -268,6 +288,10 @@ export interface WeaponEntry {
     selectedAttackAutoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the selected attack cannot be represented by the standard damage model. */
     selectedAttackModelLimitation?: WeaponAttackModelLimitation;
+    /** Linked damage component emitted by each selected attack projectile. */
+    selectedAttackLingeringDamageRule?: WeaponAttackLingeringDamageRule;
+    /** True when an AoE component also directly affects the attached projectile's target. */
+    selectedAttackAppliesToAttachedTarget?: boolean;
 }
 
 export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
@@ -1531,6 +1555,36 @@ const VERIFIED_ATTACK_FORCED_PROC_DISTRIBUTION_OVERRIDES: Readonly<Record<
     }),
 });
 
+/** Wiki-backed Torid cloud sequence. The first tick is explicitly bounded at +1s. */
+const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponAttackLingeringDamageRule>>
+>> = Object.freeze({
+    // One direct Torid hit attaches a ten-second cloud to the struck enemy.
+    // The Torid and Damage over Time Wiki pages specify ten ticks, one second
+    // apart, with a one-second delay: +1s through +10s. Multiple clouds stack.
+    // Area coverage and damage to other targets are deliberately not scored.
+    // Verified 2026-11-17: https://wiki.warframe.com/w/Torid
+    // https://wiki.warframe.com/w/Damage_over_Time#Weapons
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon": Object.freeze({
+        "grenade impact": Object.freeze({
+            componentAttackName: "Poison Cloud",
+            firstTickDelaySeconds: 1,
+            tickIntervalSeconds: 1,
+            tickCount: 10,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Torid",
+        }),
+    }),
+});
+
+const VERIFIED_ATTACK_ATTACHED_TARGET_OVERRIDES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    // The cloud attaches to the directly struck target; retain AoE classification
+    // for radius and status rules while modeling that target's damage separately.
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon": Object.freeze(["poison cloud"]),
+});
+
 /** Current Wiki-confirmed weapon modes whose event structure is outside the single-target damage model. */
 const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
@@ -1545,6 +1599,12 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
         "alt-fire": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Coda_Bassocyst",
             reason: "Alt-Fire launches a mite that can latch onto up to six enemies and applies Impact/Magnetic damage and status effects each second for 10 seconds; the Mercy-finisher branch and delayed multi-target tick history are not represented by the calculator.",
+        }),
+    }),
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon": Object.freeze({
+        "poison cloud": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Torid",
+            reason: "Poison Cloud is a component of each Torid Grenade Impact, not a separate firing mode. Select Grenade Impact to evaluate the bounded single-target impact-plus-cloud sequence.",
         }),
     }),
 });
@@ -1813,6 +1873,8 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
                 const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
                 const modelLimitation = VERIFIED_ATTACK_MODEL_LIMITATIONS[uniqueName]?.[attackName];
+                const lingeringDamageRule = VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
+                const appliesToAttachedTarget = VERIFIED_ATTACK_ATTACHED_TARGET_OVERRIDES[uniqueName]?.includes(attackName) ?? false;
                 const sourceShotType = String(a.shot_type ?? "").trim().toLowerCase();
                 const verifiedAreaClassification = VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
                 // On ordinary melee and Arch-Melee entries, "Normal Attack"
@@ -1845,6 +1907,8 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
                     damageRamp,
                     ...(modelLimitation ? { modelLimitation } : {}),
+                    ...(lingeringDamageRule ? { lingeringDamageRule } : {}),
+                    ...(appliesToAttachedTarget ? { appliesToAttachedTarget } : {}),
                     chargeTime:    typeof a.charge_time === "number" ? a.charge_time : undefined,
                     forcedProcs: VERIFIED_ATTACK_FORCED_PROC_OVERRIDES[uniqueName]?.[attackName]
                         ?? parseForcedProcs(a.forcedProcs),

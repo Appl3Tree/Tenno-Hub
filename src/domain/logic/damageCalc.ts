@@ -1,7 +1,7 @@
 // src/domain/logic/damageCalc.ts
 // Damage + status calculations for the mod builder / optimizer.
 
-import type { IntrinsicDamagePerStatusMode, WeaponEntry, WeaponForcedProcType } from "../catalog/weaponCatalog";
+import type { IntrinsicDamagePerStatusMode, WeaponAttackLingeringDamageRule, WeaponEntry, WeaponForcedProcType, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
 import {
     clampMeleeComboMultiplier,
     getHeavyAttackRetainedComboPoints,
@@ -9,6 +9,7 @@ import {
     getMeleeInnateInitialComboPoints,
     getInitialMeleeComboMultiplier,
     usesMeleeDamageModel,
+    withSelectedAttack,
 } from "../catalog/weaponRules";
 import type { ConditionalEffect, ModEffect, NonCriticalHitDamageProc, PrimaryDamageElement } from "../catalog/modCatalog";
 import {
@@ -145,6 +146,46 @@ function effectiveBurstFireRate(
     return includeBowReload && reloadTime > 0
         ? 1 / Math.max(0.05, reloadTime)
         : Math.max(0.05, weapon.fireRate * (1 + rateBonus));
+}
+
+export interface AttachedAttackTickProfile {
+    damageByType: Partial<Record<DamageType, number>>;
+    /** Expected per-tick direct damage by type, including steady-state crit and projectile count, for fast scoring. */
+    steadyStateDamageByTypePerTick?: Partial<Record<DamageType, number>>;
+    rawDamageByType: Partial<Record<DamageType, number>>;
+    baseDamageTotal: number;
+    expectedHitDamageMultiplier: number;
+    critChance: number;
+    critMultiplier: number;
+    critTierEnhancementChance: number;
+    nonCriticalHitDamageProcs?: NonCriticalHitDamageProc[];
+    hitLocation: HitLocationDamageProfile;
+    expectedProjectiles: number;
+    expectedDamageMultiplier: number;
+    statusProcWeightsByType: Partial<Record<StatusDamageType, number>>;
+    statusRollsPerAttack: number;
+    forcedStatusApplicationsPerAttackByType: Partial<Record<StatusDamageType, number>>;
+    dotDamagePerAttackByType: Partial<Record<StatusDamageType, number>>;
+    /** Full-lifetime status damage seeded by one linked component tick. */
+    steadyStateDotDamageByTypePerTick?: Partial<Record<StatusDamageType, number>>;
+    dotDamagePerApplicationByType: Partial<Record<StatusDamageType, number>>;
+    dotSeedDamagePerApplicationByType: Partial<Record<StatusDamageType, number>>;
+    dotAccumulatorDamagePerApplicationByType: Partial<Record<StatusDamageType, number>>;
+    heatDotTickDamagePerProc?: number;
+    heatDotAccumulatorDamagePerTick?: number;
+    heatDotTickDamagePerProcWhenExternallyInherited?: number;
+    heatDotAccumulatorDamagePerTickWhenExternallyInherited?: number;
+    blastStackHitDamagePerProc?: number;
+    blastStackHitDamagePerProcBeforeConditionOverload?: number;
+    blastExpectedExpiryDamagePerShot: number;
+    statusDurationMultiplier: number;
+    directDamagePerStatusBonus: number;
+    conditionOverloadDamagePerStatusBonus: number;
+    conditionOverloadApplies: boolean;
+    intrinsicDamagePerStatusBonus: number;
+    intrinsicDamagePerStatusMode: "additiveBase" | "multiplicativeBase";
+    totalDamageBonus: number;
+    uniqueStatusProcsPerAttack: readonly WeaponUniqueStatusType[];
 }
 
 export interface ModdedWeaponStats {
@@ -318,6 +359,11 @@ export interface ModdedWeaponStats {
         heatDotDamagePerProcPerTickWhenExternallyInherited: number;
         heatDotAccumulatorDamagePerTickWhenExternallyInherited: number;
         heatStatusDamagePerSecond: number;
+    };
+    /** Time-resolved linked damage from an attached attack component, if source-backed. */
+    attachedAttackDamageSequence?: {
+        rule: WeaponAttackLingeringDamageRule;
+        profile: AttachedAttackTickProfile;
     };
     viralHealthDamageBonus: number;
     heatArmorStrip: number;
@@ -1576,7 +1622,10 @@ export function calculateBuild(
     // The Wiki defines Galvanized Aptitude/Savvy/Shot as direct-hit bonuses.
     // Keep source-marked AoE attack rows from applying them in either the
     // steady score or the finite encounter inputs derived from these stats.
-    if (weapon.selectedAttackIsAreaDamage === true) directDamagePerStatusBonus = 0;
+    if (
+        weapon.selectedAttackIsAreaDamage === true &&
+        weapon.selectedAttackAppliesToAttachedTarget !== true
+    ) directDamagePerStatusBonus = 0;
     statusDamageBonus += conditionalStatusDamageBonus;
     const statusDamageMultiplier = 1 + statusDamageBonus;
 
@@ -2626,6 +2675,77 @@ export function calculateBuild(
         damageBreakdownBeforePerStatus,
     };
 
+    const linkedSequenceRule = weapon.selectedAttackLingeringDamageRule;
+    if (linkedSequenceRule) {
+        const componentIndex = weapon.attacks.findIndex((attack) =>
+            attack.name.trim().toLowerCase() === linkedSequenceRule.componentAttackName.trim().toLowerCase(),
+        );
+        const componentAttack = weapon.attacks[componentIndex];
+        if (componentAttack) {
+            const componentWeapon = withSelectedAttack(weapon, componentIndex);
+            const componentStats = calculateBuild(componentWeapon, mods, targetFaction, options).modded;
+            const dotDamagePerApplicationByType = Object.fromEntries(
+                Object.entries(componentStats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
+                    const type = rawType as StatusDamageType;
+                    const applications = componentStats.averageProcsPerShot *
+                        (componentStats.procChanceByType[type] ?? 0);
+                    return applications > 0 ? [[type, damagePerAttack / applications]] : [];
+                }),
+            ) as Partial<Record<StatusDamageType, number>>;
+            modded.attachedAttackDamageSequence = {
+                rule: linkedSequenceRule,
+                profile: {
+                    damageByType: componentStats.damageBreakdownBeforePerStatus,
+                    steadyStateDamageByTypePerTick: Object.fromEntries(DAMAGE_TYPES.map((type) => [
+                        type,
+                        componentStats.damageBreakdown[type] *
+                            componentStats.damageWeightedMultishot *
+                            componentStats.expectedHitDamageMultiplier,
+                    ])) as Partial<Record<DamageType, number>>,
+                    rawDamageByType: componentStats.rawDamageBreakdownBeforePerStatus,
+                    baseDamageTotal: componentStats.baseDamageTotal,
+                    expectedHitDamageMultiplier: componentStats.expectedHitDamageMultiplier,
+                    critChance: componentStats.critChance,
+                    critMultiplier: componentStats.critMultiplier,
+                    critTierEnhancementChance: componentStats.vigilanteCritTierEnhancementChance,
+                    nonCriticalHitDamageProcs: componentStats.nonCriticalHitDamageProcs,
+                    hitLocation: componentStats.hitLocation,
+                    expectedProjectiles: componentStats.multishot,
+                    expectedDamageMultiplier: componentStats.damageWeightedMultishot,
+                    statusProcWeightsByType: componentStats.damageBreakdownBeforePerStatus,
+                    statusRollsPerAttack: componentStats.multishot * componentStats.statusChance,
+                    forcedStatusApplicationsPerAttackByType:
+                        componentStats.unfilteredExtraProcsPerShot as Partial<Record<StatusDamageType, number>>,
+                    dotDamagePerAttackByType: componentStats.dotDamagePerShotByType,
+                    dotDamagePerApplicationByType,
+                    dotSeedDamagePerApplicationByType: componentStats.dotDamagePerApplicationSeedByType,
+                    dotAccumulatorDamagePerApplicationByType: componentStats.dotDamagePerApplicationAccumulatorByType,
+                    heatDotTickDamagePerProc: componentStats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
+                    heatDotAccumulatorDamagePerTick: componentStats.dotTickAccumulatorDamageByType.heat,
+                    heatDotTickDamagePerProcWhenExternallyInherited:
+                        componentStats.heatDotTickDamagePerProcWhenExternallyInherited,
+                    heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+                        componentStats.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
+                    blastStackHitDamagePerProc: componentStats.blastStackHitDamagePerProc,
+                    blastStackHitDamagePerProcBeforeConditionOverload:
+                        componentStats.blastStackHitDamagePerProcBeforeConditionOverload,
+                    blastExpectedExpiryDamagePerShot: componentStats.blastExpectedExpiryDamagePerShot,
+                    statusDurationMultiplier: componentStats.statusDurationMultiplier,
+                    directDamagePerStatusBonus: componentStats.directDamagePerStatusBonus,
+                    conditionOverloadDamagePerStatusBonus: componentStats.conditionOverloadApplies
+                        ? componentStats.conditionOverloadDamagePerStatusBonus
+                        : 0,
+                    conditionOverloadApplies: componentStats.conditionOverloadApplies,
+                    intrinsicDamagePerStatusBonus: componentStats.intrinsicDamagePerStatusBonus,
+                    intrinsicDamagePerStatusMode: componentStats.intrinsicDamagePerStatusMode,
+                    totalDamageBonus: componentStats.totalDamageBonus,
+                    uniqueStatusProcsPerAttack: componentWeapon.uniqueStatusProcs ?? [],
+                    steadyStateDotDamageByTypePerTick: componentStats.dotDamagePerShotByType,
+                },
+            };
+        }
+    }
+
     const burstDPS = averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier;
     const sustainedDPS = averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier;
 
@@ -2697,4 +2817,3 @@ export function estimateFiniteIndependentDotDps(
     );
     return (damagePerTick * expectedProcsPerShot * finiteTicks) / encounterDurationSeconds;
 }
-

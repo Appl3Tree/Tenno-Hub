@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon, sortBuilderModsForDisplay } from "../catalog/modCatalog";
 import { getWeaponCatalog } from "../catalog/weaponCatalog";
+import { withSelectedAttack } from "../catalog/weaponRules";
 import { effectiveDrain } from "../logic/capacityCalc";
 import ITEMS_RAW from "../../data/_generated/items-lean.auto.json";
 
@@ -15,6 +16,37 @@ const ITEMS = ITEMS_RAW as Record<string, {
 }>;
 
 describe("weapon catalog stance inference", () => {
+    it("links Torid Grenade Impact to its attached Poison Cloud tick stream", () => {
+        const torid = getWeaponCatalog().find((weapon) => weapon.name === "Torid");
+        expect(torid).toBeDefined();
+        const impactIndex = torid!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+        const cloudIndex = torid!.attacks.findIndex((attack) => attack.name === "Poison Cloud");
+        expect(impactIndex).toBeGreaterThanOrEqual(0);
+        expect(cloudIndex).toBeGreaterThanOrEqual(0);
+
+        const impact = torid!.attacks[impactIndex]!;
+        expect(impact.lingeringDamageRule).toMatchObject({
+            componentAttackName: "Poison Cloud",
+            firstTickDelaySeconds: 1,
+            tickIntervalSeconds: 1,
+            tickCount: 10,
+            attachedToDirectTarget: true,
+            stacks: true,
+        });
+        expect(impact.lingeringDamageRule?.sourceUrl).toBe("https://wiki.warframe.com/w/Torid");
+
+        const cloud = torid!.attacks[cloudIndex]!;
+        expect(cloud.isAreaDamage).toBe(true);
+        expect(cloud.appliesToAttachedTarget).toBe(true);
+        expect(cloud.modelLimitation?.reason).toContain("Select Grenade Impact");
+        expect(withSelectedAttack(torid!, impactIndex).selectedAttackLingeringDamageRule).toEqual(
+            impact.lingeringDamageRule,
+        );
+        expect(withSelectedAttack(torid!, cloudIndex).selectedAttackModelLimitation).toEqual(
+            cloud.modelLimitation,
+        );
+    });
+
     it("infers Tonbo as a Polearms weapon with available stance mods", () => {
         const tonbo = getWeaponCatalog().find(weapon =>
             weapon.uniqueName === "/Lotus/Weapons/Tenno/Melee/Polearms/FlowerPowerPolearm/FlowerPowerPolearmWep");
@@ -377,4 +409,3 @@ describe("weapon mod set membership", () => {
         expect(nira!.effectsByRank[5].statusChanceBonus).toBeCloseTo(0.6, 10);
     });
 });
-
