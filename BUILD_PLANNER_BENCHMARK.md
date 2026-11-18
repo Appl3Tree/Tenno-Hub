@@ -1,6 +1,6 @@
 # Build Planner Optimizer Benchmark
 
-## D3-MOD-SET-NIRA-SLAM-001 — Nira melee Slam Damage integration (2026-11-17; implementation validated, draft PR pending)
+## D3-MOD-SET-NIRA-SLAM-001 — Nira melee Slam Damage integration (2026-11-17; implementation validated, draft PR [#152](https://github.com/Appl3Tree/Tenno-Hub/pull/152) open)
 
 The current [Nira’s Set Wiki page](https://wiki.warframe.com/w/Nira%27s_Set) documents +150% Slam Damage per set piece and a three-piece maximum. The planner counts canonical Nira identities at every rank, combines selected melee pieces with a saved 0–2 distinct external Warframe-piece count, and caps the total at three. The bonus is active only on catalogued melee attacks marked as slam attacks. It adds to the Slam Damage category, including Seismic Wave, and reaches the calculator, status seeds, finite Expected TTK, and Auto Optimize.
 
