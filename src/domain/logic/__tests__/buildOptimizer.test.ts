@@ -542,6 +542,69 @@ describe("build optimizer scoring", () => {
         expect(ownedRankResult.encounterTimeToKillSeconds).toBe(ownedRankEncounter.timeToKillSeconds);
     });
 
+    it("keeps slot alternatives across outgoing effect families in melee Expected TTK refinement", { timeout: 30000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Gram Prime");
+        expect(weapon).toBeDefined();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const attack = weapon!.attacks[attackIndex];
+        expect(attack).toBeDefined();
+        const stance = getStancesForWeapon(weapon!).find((entry) => entry.name === "Rending Crane");
+        expect(stance).toBeDefined();
+        const target = { health: 100_000, shields: 0, overguard: 0, armor: 3_000 };
+        const result = optimizeBuild(
+            weapon!,
+            filterBuilderExpertVariants(getModsForWeapon(weapon!)),
+            "timeToKill",
+            weapon!.baseSlotCount,
+            {
+                targetFaction: "Grineer",
+                targetProfileOverride: target,
+                conditionalState: { mode: "initial" },
+                capacityConfig: {
+                    weaponRank: 30,
+                    hasCatalyst: true,
+                    masteryRank: 30,
+                    canOverLevel: weapon!.canOverLevel,
+                },
+                slotPolarities: weapon!.polarities,
+                defaultSlotPolarities: weapon!.polarities,
+                allowCatalyst: true,
+                allowForma: true,
+                maxFormaCount: 3,
+                optimizeArcane: false,
+                optimizeExilus: false,
+                buildForAttack: attack,
+                extraCapacitySlots: [{
+                    mod: stance!,
+                    rank: stance!.fusionLimit,
+                    polarity: weapon!.stancePolarity ?? stance!.polarity ?? "",
+                }],
+            },
+        );
+        const scored = debugEvaluateExpectedEncounter(
+            withSelectedAttack(weapon!, attackIndex),
+            result.slots.map((mod, index) => mod
+                ? mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+                : null),
+            "Grineer",
+            target,
+            { mode: "initial" },
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(countFormaLikeUi(
+            weapon!,
+            result.slotPolarities,
+            weapon!.stancePolarity ?? "",
+            result.exilusPolarity,
+        )).toBeLessThanOrEqual(3);
+        expect(result.slots.some((mod) => mod?.name === "True Steel")).toBe(true);
+        expect(result.slots.some((mod) => mod?.name === "Primed Pressure Point")).toBe(true);
+        expect(result.slots.some((mod) => mod?.name === "Lasting Sting")).toBe(false);
+        expect(result.slots.some((mod) => mod?.name === "Condition Overload")).toBe(false);
+        expect(scored.timeToKillSeconds).toBeCloseTo(6, 8);
+    });
     it("stops Expected TTK refinement when the build already kills on its first attack", () => {
         const result = optimizeBuild(makeWeapon({
             critChance: 0,
@@ -5835,3 +5898,4 @@ describe("Sacrificial set optimizer scoring", () => {
         expect(result.slots.map((mod) => mod?.name).sort()).toEqual(["Sacrificial Pressure", "Sacrificial Steel"]);
     });
 });
+
