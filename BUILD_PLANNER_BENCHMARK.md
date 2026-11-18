@@ -14,6 +14,12 @@ The Underframe Torid fixture is unmatched to this fixed attack/target/settings c
 
 Implementation commit `f241674723f35ddc0b9e5d61ba771a90d83b93e8`; PR [#151](https://github.com/Appl3Tree/Tenno-Hub/pull/151) is open as draft, not merged or deployed. Full suite passed 801/801 / 53 files before the final DoT-detail propagation refinement; the focused linked-cloud regressions and production build passed on the final source.
 
+
+## D3-OPT-SEED-CORPUS-POST-CLOUD-001 — post-integration seed 20261144 rerun (2026-11-17; completed)
+
+Command: `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261144`. The audit reran the eight fixed fixtures and four Mulberry32-seeded representatives under the recorded Grineer / 100,000 Health / 3,000 Armor / Realistic / eight-slot / Catalyst / MR30 / up-to-three-Forma configuration, scoring exact finite Expected TTK for every legal one-mod add/remove/replacement from Auto Optimize's baseline.
+
+All 12 requested fixtures were included with no exclusions. Across 3,876 exact legal neighbors, none improved a baseline. The linked-cloud Torid / Grenade Impact result is 4.7543859649s / 21,033.21 modeled DPS with 236 legal neighbors. The other 11 results exactly reproduce the prior seed's baselines. The prior 10s / 326-neighbor Torid row remains historical evidence for standalone-impact scoring and is not comparable to the linked-sequence model. This is bounded model-local evidence, not global optimality, a pair exhaustive search, or Underframe parity. No application code changed in this audit.
 ## D3-MOD-ONKILL-EXPLOSION-BOUNDARY-001 — unsupported on-kill area effects (2026-11-17; released)
 
 A local scan of the checked-in WFCD `external/warframe-items/raw/Mods.json` snapshot identified Entropy Detonation and Amalgam Furax Body Count as additional on-kill area-effect candidates. Runtime inspection showed their kill explosions/staggers are not parsed as damage effects, and the existing Auto Optimize unmodeled-effect gate excludes them. Amalgam Furax Body Count's supported secondary Fire Rate and combo-duration stats can still be shown to manual builds; Auto Optimize skips the whole mod rather than partially scoring its unsupported kill effect.
