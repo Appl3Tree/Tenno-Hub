@@ -38,6 +38,44 @@ const kohmakShotSequence: WeaponAutoSpoolShotSequenceRule = {
 };
 
 describe("target damage progress across defense pools", () => {
+    it("schedules linked damage after its first-tick delay and stacks overlapping fields", () => {
+        const makeInput = (maxAttacks: number, maxDurationSeconds: number, attackIntervalSeconds = 1) => ({
+            damageByType: {},
+            health: 2000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds,
+            linkedAttackSequence: {
+                tickIntervalSeconds: 1,
+                durationSeconds: 10,
+                firstTickDelaySeconds: 1,
+                sourceUrl: "https://wiki.warframe.com/w/Torid",
+                attackProfile: {
+                    damageByType: { toxin: 40 },
+                    expectedProjectiles: 1,
+                    expectedDamageMultiplier: 1,
+                    critChance: 0,
+                    critMultiplier: 1,
+                },
+            },
+            maxAttacks,
+            maxDurationSeconds,
+        });
+
+        const beforeFirstTick = simulateExpectedWeaponEncounter(makeInput(1, 0.999));
+        expect(beforeFirstTick.directDamageByPool.health).toBe(0);
+
+        const fullDuration = simulateExpectedWeaponEncounter(makeInput(1, 10));
+        expect(fullDuration.directDamageByPool.health).toBeCloseTo(400, 8);
+
+        const overlappingClouds = simulateExpectedWeaponEncounter(makeInput(2, 2));
+        // Hits at 0s and 1s create clouds whose 2s ticks overlap. The first
+        // cloud ticks at 1s and 2s; the second at 2s, for three 40-damage ticks.
+        expect(overlappingClouds.directDamageByPool.health).toBeCloseTo(120, 8);
+    });
+
     it("uses the Wiki Auto-Spool rate ramp for finite target timing", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { impact: 1 },

@@ -67,6 +67,11 @@ if (!weapon) throw new Error(`Weapon not found: ${weaponName}`);
 const attackIndex = attackName ? weapon.attacks.findIndex((attack) => attack.name === attackName) : 0;
 if (attackIndex < 0) throw new Error(`Attack not found: ${weaponName} / ${attackName}`);
 const attack = weapon.attacks[attackIndex] ?? null;
+if (attack?.modelLimitation) {
+    throw new Error(
+        `Cannot score ${weaponName} / ${attackName || attack.name}: ${attack.modelLimitation.reason} (${attack.modelLimitation.sourceUrl})`,
+    );
+}
 const scoringWeapon = attack ? withSelectedAttack(weapon, attackIndex) : weapon;
 const conditionalState: ConditionalState = { mode: stateMode };
 const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon));

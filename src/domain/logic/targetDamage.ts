@@ -379,9 +379,20 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     totalDamageBonus?: number;
     /** Weapon hit-triggered additive damage stacks, advanced at attack events in order. */
     timedConditionalDamageStacks?: readonly TimedConditionalDamageStack[];
+    /** Source-backed periodic damage emitted by each player attack event. */
+    linkedAttackSequence?: LinkedAttackEncounterSequence;
     /** Hard stops keep malformed profiles from running unbounded simulations. */
     maxDurationSeconds?: number;
     maxAttacks?: number;
+}
+
+export interface LinkedAttackEncounterSequence {
+    tickIntervalSeconds: number;
+    durationSeconds: number;
+    firstTickDelaySeconds: number;
+    sourceUrl: string;
+    /** Per-linked-hit weapon stats; target pools and defenses come from the parent encounter. */
+    attackProfile: Omit<Partial<ExpectedWeaponEncounterInput>, "linkedAttackSequence">;
 }
 
 export interface ExpectedWeaponEncounterResult {
@@ -410,12 +421,14 @@ export interface ExpectedWeaponEncounterResult {
 interface ScheduledStatusTick {
     time: number;
     sequence: number;
-    type: StatusDamageType | "coldFreezeEnd" | "nightwatchNapalm";
+    type: StatusDamageType | "coldFreezeEnd" | "nightwatchNapalm" | "linkedAttack";
     damage: number;
     /** Heat stacks share one refreshable tick stream; resolve its damage when the tick lands. */
     dynamicHeat?: boolean;
     /** Expected overlapping blaze count for this Nightwatch Napalm tick. */
     napalmProjectiles?: number;
+    /** Number of overlapping linked damage fields at this event time. */
+    linkedAttackCount?: number;
 }
 
 interface HeatStatusApplicationOverride {
@@ -1596,6 +1609,132 @@ export function simulateExpectedWeaponEncounter(
         }
     };
 
+    const scheduleLinkedAttackTicks = (attackTime: number, expectedProjectiles: number) => {
+        const sequence = input.linkedAttackSequence;
+        const projectiles = finiteNonNegative(expectedProjectiles);
+        if (!sequence || projectiles <= 0) return;
+        const interval = finiteNonNegative(sequence.tickIntervalSeconds);
+        const duration = finiteNonNegative(sequence.durationSeconds);
+        const firstTick = finiteNonNegative(sequence.firstTickDelaySeconds);
+        if (interval <= 0 || duration <= 0 || firstTick <= 0 || firstTick > duration) return;
+        const tickCount = Math.floor((duration - firstTick + 1e-9) / interval) + 1;
+        for (let tickIndex = 0; tickIndex < tickCount; tickIndex++) {
+            const time = attackTime + firstTick + tickIndex * interval;
+            if (time > maxDurationSeconds + 1e-9) break;
+            heapPush(ticks, {
+                time,
+                sequence: nextTickSequence++,
+                type: "linkedAttack",
+                damage: 0,
+                linkedAttackCount: projectiles,
+            });
+        }
+    };
+
+    const applyLinkedAttackTick = (tick: ScheduledStatusTick) => {
+        const parentInput = input;
+        const sequence = parentInput.linkedAttackSequence;
+        const linkedAttackCount = finiteNonNegative(tick.linkedAttackCount ?? 0);
+        if (!sequence || linkedAttackCount <= 0) return;
+        input = { ...parentInput, ...sequence.attackProfile };
+        try {
+            expireStatusStacks(now - 2e-9);
+            const statusDamageMultiplierAtAttackStart = activeStatusDamageMultiplier();
+            const timedDamageBonus = timedDamageStacks.reduce(
+                (sum, runtime) => sum + advanceTimedDamageStackRuntime(runtime, now) * runtime.rule.damageBonusPerStack,
+                0,
+            );
+            const baseDamageBracket = Math.max(0.0001, 1 + finiteSigned(input.totalDamageBonus ?? 0));
+            const attackDamageBracket = Math.max(0.0001, baseDamageBracket + timedDamageBonus);
+            const timedDamageBracketMultiplier = attackDamageBracket / baseDamageBracket;
+            const statusModifiers = currentStatusModifiers(now, timedDamageBonus);
+            const conditionOverloadDamageMultiplier = statusModifiers.conditionOverloadDamageMultiplier ?? 1;
+            const directDamagePerStatusMultiplier = statusModifiers.directDamagePerStatusMultiplier ?? 1;
+            const combinedDamageMultiplier = conditionOverloadDamageMultiplier * directDamagePerStatusMultiplier;
+            const canRequantizeDynamicPerStatusDamage =
+                input.rawDamageByType !== undefined && Number.isFinite(input.baseDamageTotal);
+            const dynamicQuantizationBase = finiteNonNegative(input.baseDamageTotal ?? 0) *
+                attackDamageBracket * combinedDamageMultiplier;
+            const damageByType = Object.fromEntries(DAMAGE_TYPES.map((type) => [
+                type,
+                canRequantizeDynamicPerStatusDamage
+                    ? quantizeDamageContribution(
+                        finiteSigned(input.rawDamageByType?.[type] ?? 0) *
+                            timedDamageBracketMultiplier * combinedDamageMultiplier,
+                        dynamicQuantizationBase,
+                    )
+                    : finiteNonNegative(input.damageByType[type] ?? 0) *
+                        timedDamageBracketMultiplier * combinedDamageMultiplier,
+            ])) as Partial<Record<DamageType, number>>;
+            const poolsBeforeHit = { ...remainingPools };
+            const result = calculateDirectDamageToInitialPools({
+                ...input,
+                ...statusModifiers,
+                damageByType,
+                expectedProjectiles: linkedAttackCount,
+                expectedDamageMultiplier: linkedAttackCount,
+                health: remainingPools.health,
+                shields: remainingPools.shields,
+                overguard: remainingPools.overguard,
+            });
+            const gateActive = now < enemyShieldGateUntil - 1e-9;
+            const gateMode = input.enemyShieldGateHitMode ?? "body";
+            const gatedHealthDamageMultiplier = !gateActive || gateMode === "weakspot"
+                ? 1
+                : gateMode === "blockedArea"
+                    ? 0
+                    : ENEMY_SHIELD_GATE_BODY_DAMAGE_MULTIPLIER;
+            const appliedDamage = {
+                ...result.damageByPool,
+                health: Math.min(
+                    remainingPools.health,
+                    result.uncappedDamageByPool.health * gatedHealthDamageMultiplier,
+                ),
+            };
+            addPools(directDamageByPool, appliedDamage);
+            subtractPools(remainingPools, appliedDamage);
+            if (poolsBeforeHit.overguard > 0 && remainingPools.overguard <= Number.EPSILON) {
+                scheduleMagneticBreakProc(now, "overguard", statusDamageMultiplierAtAttackStart);
+            }
+            if (poolsBeforeHit.shields > 0 && remainingPools.shields <= Number.EPSILON) {
+                enemyShieldGateUntil = now + ENEMY_SHIELD_GATE_DURATION_SECONDS;
+                scheduleMagneticBreakProc(now, "shields", statusDamageMultiplierAtAttackStart);
+            }
+            if (sumPools(appliedDamage) > 0) activateTargetStatusDamageVulnerability();
+
+            const attackStatusState = expectedStatusApplicationsForCurrentPools(linkedAttackCount);
+            const gasCloudGroup = scheduleAttackDots(
+                now,
+                attackStatusState.applications,
+                1,
+                conditionOverloadDamageMultiplier,
+                statusDamageMultiplierAtAttackStart,
+            );
+            applyExpectedStatusApplications(
+                now,
+                attackStatusState.applications,
+                attackStatusState.presenceProbabilities,
+                1,
+                conditionOverloadDamageMultiplier,
+                statusDamageMultiplierAtAttackStart,
+                gasCloudGroup,
+            );
+            for (const runtime of timedDamageStacks) recordTimedDamageStackTrigger(runtime, now);
+            for (const uniqueStatus of input.uniqueStatusProcsPerAttack ?? []) {
+                if (uniqueStatus === "lifted") activeUniqueStatusTypes.delete("knockdown");
+                if (uniqueStatus === "knockdown") activeUniqueStatusTypes.delete("lifted");
+                activeUniqueStatusTypes.add(uniqueStatus);
+            }
+            killed = isEncounterTargetDefeated(initialHealth, remainingPools);
+            if (killed && primaryKilledAt === null) {
+                primaryKilledAt = now;
+                resolveBlastDeathRadial();
+            }
+        } finally {
+            input = parentInput;
+        }
+    };
+
     while ((!killed && attacks < maxSimulatedAttacks) || ticks.length > 0) {
         while (ticks[0] && cancelledTickSequences.delete(ticks[0].sequence)) heapPop(ticks);
         const attackTime = !killed && attacks < maxSimulatedAttacks
@@ -1831,6 +1970,7 @@ export function simulateExpectedWeaponEncounter(
                 gasCloudGroup,
             );
             scheduleNightwatchNapalmTicks(attackTime, attackExpectedProjectiles);
+            scheduleLinkedAttackTicks(attackTime, attackExpectedProjectiles);
             for (const runtime of timedDamageStacks) {
                 recordTimedDamageStackTrigger(runtime, attackTime);
             }
@@ -1858,6 +1998,10 @@ export function simulateExpectedWeaponEncounter(
             if (tick.type === "coldFreezeEnd") {
                 finishColdFreeze(now);
                 expireStatusStacks(now);
+                continue;
+            }
+            if (tick.type === "linkedAttack") {
+                applyLinkedAttackTick(tick);
                 continue;
             }
             // Expire older stacks before resolving this event while retaining

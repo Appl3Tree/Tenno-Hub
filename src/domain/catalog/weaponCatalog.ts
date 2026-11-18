@@ -97,6 +97,26 @@ export interface WeaponAttackModelLimitation {
     reason: string;
 }
 
+export interface WeaponAttackModelNote {
+    /** Current Wiki page documenting the model assumption. */
+    sourceUrl: string;
+    /** Assumptions included and behavior that remains outside the score. */
+    reason: string;
+}
+
+export interface WeaponLinkedDamageSequence {
+    /** Attack row whose damage occurs repeatedly after the parent attack lands. */
+    attackName: string;
+    /** Source-backed lifetime of one linked damage field. */
+    durationSeconds: number;
+    /** Interval between linked damage events. */
+    tickIntervalSeconds: number;
+    /** Assumed delay from parent impact to the first linked damage event. */
+    firstTickDelaySeconds: number;
+    /** Current Wiki page documenting the linked damage. */
+    sourceUrl: string;
+}
+
 export interface WeaponDamage {
     total: number;
     impact: number;
@@ -151,6 +171,10 @@ export interface WeaponAttack {
     autoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the attack's damage and score cannot be represented by the standard attack-row model. */
     modelLimitation?: WeaponAttackModelLimitation;
+    /** Source-backed boundary that remains after a linked sequence is modeled. */
+    modelNote?: WeaponAttackModelNote;
+    /** Source-backed periodic damage linked to each landed attack event. */
+    linkedDamageSequence?: WeaponLinkedDamageSequence;
     /** Forced status effects per projectile/hit, independent of status chance and damage weights. */
     forcedProcs?: WeaponForcedProcs;
     /** Guaranteed non-damage status types that count as unique Galvanized/CO states. */
@@ -268,6 +292,10 @@ export interface WeaponEntry {
     selectedAttackAutoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the selected attack cannot be represented by the standard damage model. */
     selectedAttackModelLimitation?: WeaponAttackModelLimitation;
+    /** Source-backed assumptions that remain in the selected attack's score. */
+    selectedAttackModelNote?: WeaponAttackModelNote;
+    /** Source-backed periodic damage linked to the selected attack. */
+    selectedAttackLinkedDamageSequence?: WeaponLinkedDamageSequence;
 }
 
 export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
@@ -1536,6 +1564,15 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // Poison Cloud is not a standalone fire mode; Grenade Impact below owns
+    // and schedules its linked damage. Keep the source row unavailable alone.
+    // Verified 2026-11-17: https://wiki.warframe.com/w/Torid
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon": Object.freeze({
+        "poison cloud": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Torid",
+            reason: "Poison Cloud is created by Grenade Impact and is not a standalone player-fired attack. Its single-target damage is included with Grenade Impact; selecting this internal attack row alone is not a complete attack sequence, so Auto Optimize is unavailable.",
+        }),
+    }),
     // Alt-Fire launches a mite that can latch onto multiple enemies and apply
     // Impact/Magnetic damage and statuses over ten seconds. The Mercy-finisher
     // branch and delayed multi-target tick history cannot be represented by the
@@ -1545,6 +1582,42 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
         "alt-fire": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Coda_Bassocyst",
             reason: "Alt-Fire launches a mite that can latch onto up to six enemies and applies Impact/Magnetic damage and status effects each second for 10 seconds; the Mercy-finisher branch and delayed multi-target tick history are not represented by the calculator.",
+        }),
+    }),
+});
+
+const VERIFIED_ATTACK_MODEL_NOTES: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponAttackModelNote>>
+>> = Object.freeze({
+    // The modeled target is attached to each grenade's cloud for its full
+    // duration. First tick at one second follows the listed 1/s cloud rate.
+    // Radius coverage, motion, and the separately applied impact/explosion
+    // status rolls are not included in the single-target score.
+    // Verified 2026-11-17: https://wiki.warframe.com/w/Torid
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon": Object.freeze({
+        "grenade impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Torid",
+            reason: "Single-target scoring assumes the struck enemy stays attached to each Poison Cloud for 10 seconds, with 40 base Toxin damage every 1 second, the first tick 1 second after impact, and overlapping clouds adding together. The 3 m area against other enemies, target movement, projectile travel, and the Wiki's separate initial-hit/explosion status applications are not modeled.",
+        }),
+    }),
+});
+
+const VERIFIED_ATTACK_LINKED_DAMAGE_SEQUENCES: Readonly<Record<
+    string,
+    Readonly<Record<string, WeaponLinkedDamageSequence>>
+>> = Object.freeze({
+    // Torid clouds persist for 10 seconds and list 1 damage event per second.
+    // The first event is assumed one second after impact because the source
+    // says clouds do not deal damage immediately. Multiple clouds stack.
+    // https://wiki.warframe.com/w/Torid
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon": Object.freeze({
+        "grenade impact": Object.freeze({
+            attackName: "Poison Cloud",
+            durationSeconds: 10,
+            tickIntervalSeconds: 1,
+            firstTickDelaySeconds: 1,
+            sourceUrl: "https://wiki.warframe.com/w/Torid",
         }),
     }),
 });
@@ -1813,6 +1886,8 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
                 const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
                 const modelLimitation = VERIFIED_ATTACK_MODEL_LIMITATIONS[uniqueName]?.[attackName];
+                const modelNote = VERIFIED_ATTACK_MODEL_NOTES[uniqueName]?.[attackName];
+                const linkedDamageSequence = VERIFIED_ATTACK_LINKED_DAMAGE_SEQUENCES[uniqueName]?.[attackName];
                 const sourceShotType = String(a.shot_type ?? "").trim().toLowerCase();
                 const verifiedAreaClassification = VERIFIED_ATTACK_AREA_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
                 // On ordinary melee and Arch-Melee entries, "Normal Attack"
@@ -1845,6 +1920,8 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
                     damageRamp,
                     ...(modelLimitation ? { modelLimitation } : {}),
+                    ...(modelNote ? { modelNote } : {}),
+                    ...(linkedDamageSequence ? { linkedDamageSequence } : {}),
                     chargeTime:    typeof a.charge_time === "number" ? a.charge_time : undefined,
                     forcedProcs: VERIFIED_ATTACK_FORCED_PROC_OVERRIDES[uniqueName]?.[attackName]
                         ?? parseForcedProcs(a.forcedProcs),

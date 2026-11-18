@@ -78,17 +78,29 @@ const seededCases: Fixture[] = SEEDED_STRATA.map(({ candidates }) => ({
     ...candidates[Math.floor(random() * candidates.length)],
     selection: "seeded",
 }));
-const fixtures = [...FIXED_CASES, ...seededCases];
+const requestedFixtures = [...FIXED_CASES, ...seededCases];
 const weaponCatalog = getWeaponCatalog();
 const weaponNames = new Set<string>();
-for (const fixture of fixtures) {
+const fixtures: Fixture[] = [];
+const excludedFixtures: Array<Fixture & { reason: string; sourceUrl: string }> = [];
+for (const fixture of requestedFixtures) {
     if (weaponNames.has(fixture.weapon)) throw new Error(`Duplicate corpus weapon: ${fixture.weapon}`);
     weaponNames.add(fixture.weapon);
     const weapon = weaponCatalog.find((entry) => entry.name === fixture.weapon);
     if (!weapon) throw new Error(`Weapon not found in catalog: ${fixture.weapon}`);
-    if (!weapon.attacks.some((attack) => attack.name === fixture.attack)) {
+    const attack = weapon.attacks.find((entry) => entry.name === fixture.attack);
+    if (!attack) {
         throw new Error(`Attack not found in catalog: ${fixture.weapon} / ${fixture.attack}`);
     }
+    if (attack.modelLimitation) {
+        excludedFixtures.push({
+            ...fixture,
+            reason: attack.modelLimitation.reason,
+            sourceUrl: attack.modelLimitation.sourceUrl,
+        });
+        continue;
+    }
+    fixtures.push(fixture);
 }
 
 const assumptions = {
@@ -108,7 +120,9 @@ const corpus = {
     seed,
     randomGenerator: "Mulberry32; one uniform candidate selected per listed stratum, in listed order",
     assumptions,
+    requestedFixtureCount: requestedFixtures.length,
     fixtures: fixtures.map(({ category, weapon, attack, selection }) => ({ category, weapon, attack, selection })),
+    excludedFixtures,
 };
 
 if (process.argv.includes("--dry-run")) {

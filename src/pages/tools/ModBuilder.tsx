@@ -5638,6 +5638,17 @@ export default function ModBuilder() {
                                                     >Wiki source</a>
                                                 </p>
                                             )}
+                                            {weapon?.attacks[selectedAttackIdx]?.modelNote && (
+                                                <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
+                                                    {weapon.attacks[selectedAttackIdx].modelNote.reason} {" "}
+                                                    <a
+                                                        href={weapon.attacks[selectedAttackIdx].modelNote.sourceUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="underline underline-offset-2"
+                                                    >Wiki source</a>
+                                                </p>
+                                            )}
                                             <button
                                                 onClick={() => setShowOptimizeOptions(v => !v)}
                                                 className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"

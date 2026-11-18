@@ -87,7 +87,9 @@ function runCorpus(): void {
         seed: number;
         randomGenerator: string;
         assumptions: Record<string, unknown>;
+        requestedFixtureCount: number;
         fixtures: Fixture[];
+        excludedFixtures: Array<Fixture & { reason: string; sourceUrl: string }>;
     };
 
     const results = [];
@@ -134,7 +136,9 @@ function runCorpus(): void {
             score: "exact finite Expected TTK",
         },
         fixtureCount: corpus.fixtures.length,
+        requestedFixtureCount: corpus.requestedFixtureCount,
         fixtures: corpus.fixtures,
+        excludedFixtures: corpus.excludedFixtures,
         results,
     }, null, 2));
 }
@@ -161,6 +165,11 @@ function runFixture(): void {
     const attackIndex = weapon.attacks.findIndex((attack) => attack.name === attackName);
     if (attackIndex < 0) throw new Error(`Attack not found: ${weaponName} / ${attackName}`);
     const attack = weapon.attacks[attackIndex] ?? null;
+    if (attack?.modelLimitation) {
+        throw new Error(
+            `Cannot score ${weaponName} / ${attackName}: ${attack.modelLimitation.reason} (${attack.modelLimitation.sourceUrl})`,
+        );
+    }
     const scoringWeapon = withSelectedAttack(weapon, attackIndex);
     const conditionalState: ConditionalState = { mode: stateMode };
     const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon));

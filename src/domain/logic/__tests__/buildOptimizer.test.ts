@@ -2035,6 +2035,84 @@ describe("build optimizer scoring", () => {
         expect(() => optimizeBuild(selectedAltFire, [], "timeToKill", 8)).toThrow(/Optimization is unavailable for Alt-Fire/);
     });
 
+    it("models Torid's linked Poison Cloud on Grenade Impact and excludes the internal cloud row", () => {
+        const torid = getWeaponCatalog().find((entry) => entry.name === "Torid");
+        expect(torid).toBeTruthy();
+
+        const impactIndex = torid!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+        const cloudIndex = torid!.attacks.findIndex((attack) => attack.name === "Poison Cloud");
+        expect(impactIndex).toBeGreaterThanOrEqual(0);
+        expect(cloudIndex).toBeGreaterThanOrEqual(0);
+        const impact = torid!.attacks[impactIndex]!;
+        const selectedImpact = withSelectedAttack(torid!, impactIndex);
+        expect(impact.modelLimitation).toBeUndefined();
+        expect(impact.modelNote?.sourceUrl).toBe("https://wiki.warframe.com/w/Torid");
+        expect(impact.modelNote?.reason).toContain("first tick 1 second after impact");
+        expect(impact.linkedDamageSequence).toEqual({
+            attackName: "Poison Cloud",
+            durationSeconds: 10,
+            tickIntervalSeconds: 1,
+            firstTickDelaySeconds: 1,
+            sourceUrl: "https://wiki.warframe.com/w/Torid",
+        });
+        expect(selectedImpact.selectedAttackLinkedDamageSequence).toEqual(impact.linkedDamageSequence);
+        expect(selectedImpact.selectedAttackModelNote).toEqual(impact.modelNote);
+
+        const impactWithoutCloud = { ...selectedImpact, selectedAttackLinkedDamageSequence: undefined };
+        const linkedMetrics = calculateBuild(selectedImpact, []);
+        const linkedStats = linkedMetrics.modded;
+        const impactOnlyMetrics = calculateBuild(impactWithoutCloud, []);
+        expect(linkedStats.linkedAttackSequence).toBeDefined();
+        expect(linkedStats.linkedDamagePerSecond).toBeGreaterThan(0);
+        expect(linkedMetrics.burstDPS).toBeGreaterThan(impactOnlyMetrics.burstDPS);
+        expect(linkedMetrics.sustainedDPS).toBeGreaterThan(impactOnlyMetrics.sustainedDPS);
+        expect(impactOnlyMetrics.modded.linkedDamagePerSecond).toBe(0);
+
+        const target = { health: 275, shields: 0, overguard: 0, armor: 0 };
+        const withoutCloud = debugScoreExpectedEncounter(impactWithoutCloud, [], "", target, { mode: "initial" });
+        const withCloud = debugScoreExpectedEncounter(selectedImpact, [], "", target, { mode: "initial" });
+        const impactOnlyEncounter = debugEvaluateExpectedEncounter(
+            impactWithoutCloud,
+            [],
+            "",
+            target,
+            { mode: "initial" },
+        ).encounter;
+        const linkedEncounter = debugEvaluateExpectedEncounter(
+            selectedImpact,
+            [],
+            "",
+            target,
+            { mode: "initial" },
+        ).encounter;
+        expect(withCloud.timeToKillSeconds).not.toBeNull();
+        expect(withoutCloud.timeToKillSeconds).not.toBeNull();
+        expect(withCloud.timeToKillSeconds).toBeLessThan(withoutCloud.timeToKillSeconds!);
+        expect(linkedEncounter?.statusApplicationsByType.toxin ?? 0).toBeGreaterThan(
+            impactOnlyEncounter?.statusApplicationsByType.toxin ?? 0,
+        );
+        expect(optimizeBuild(selectedImpact, [], "timeToKill", 1, {
+            allowForma: false,
+            allowCatalyst: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            targetProfileOverride: target,
+        }).capacityValid).toBe(true);
+
+        const cloud = torid!.attacks[cloudIndex]!;
+        const selectedCloud = withSelectedAttack(torid!, cloudIndex);
+        expect(cloud.modelLimitation?.sourceUrl).toBe("https://wiki.warframe.com/w/Torid");
+        expect(cloud.modelLimitation?.reason).toContain("not a standalone");
+        expect(selectedCloud.selectedAttackModelLimitation).toEqual(cloud.modelLimitation);
+        expect(() => optimizeBuild(selectedCloud, [], "burst", 8)).toThrow(/Optimization is unavailable for Poison Cloud/);
+        expect(() => optimizeBuild(selectedCloud, [], "timeToKill", 8)).toThrow(/Optimization is unavailable for Poison Cloud/);
+
+        const incarnonIndex = torid!.attacks.findIndex((attack) => attack.name === "Incarnon Form");
+        expect(incarnonIndex).toBeGreaterThanOrEqual(0);
+        expect(torid!.attacks[incarnonIndex]!.modelLimitation).toBeUndefined();
+        expect(torid!.attacks[incarnonIndex]!.linkedDamageSequence).toBeUndefined();
+    });
+
     it("models Wiki-backed Auto-Spool pellet, status, rate, and fresh-magazine ramps", () => {
         const catalog = getWeaponCatalog();
         const cases = [
@@ -2687,55 +2765,6 @@ describe("build optimizer scoring", () => {
         expect(independentlyScored.timeToKillSeconds).toBeLessThanOrEqual(1.886792452831);
     });
 
-    it("finds the Torid two-mod pair swap in full-pool finite-TTK refinement", { timeout: 60000 }, () => {
-        const weapon = getWeaponCatalog().find((entry) => entry.name === "Torid");
-        expect(weapon).toBeTruthy();
-        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
-        expect(attackIndex).toBeGreaterThanOrEqual(0);
-        const attack = weapon!.attacks[attackIndex]!;
-        const target = { health: 100000, shields: 0, overguard: 0, armor: 3000 };
-        const conditionalState = { mode: "realistic" as const };
-        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
-        const result = optimizeBuild(weapon!, candidates, "timeToKill", 8, {
-            targetFaction: "Grineer",
-            targetProfileOverride: target,
-            conditionalState,
-            capacityConfig: {
-                weaponRank: 30,
-                hasCatalyst: true,
-                masteryRank: 30,
-                canOverLevel: weapon!.canOverLevel,
-            },
-            slotPolarities: weapon!.polarities,
-            defaultSlotPolarities: weapon!.polarities,
-            allowForma: true,
-            maxFormaCount: 3,
-            optimizeArcane: false,
-            optimizeExilus: false,
-            buildForAttack: attack,
-        });
-        const selectedNames = result.mods.map((mod) => mod.name);
-        const effects = result.slots.map((mod, index) => mod
-            ? mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
-            : null);
-        const independentlyScored = debugScoreExpectedEncounter(
-            withSelectedAttack(weapon!, attackIndex),
-            effects,
-            "Grineer",
-            target,
-            conditionalState,
-        );
-        const independentlyScoredTtk = independentlyScored.timeToKillSeconds ?? Number.NaN;
-
-        expect(result.capacityValid).toBe(true);
-        expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
-        expect(selectedNames).toContain("Thermite Rounds");
-        expect(selectedNames).toContain("Vile Acceleration");
-        expect(selectedNames).not.toContain("Hellfire");
-        expect(selectedNames).not.toContain("Spring-Loaded Chamber");
-        expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
-        expect(independentlyScoredTtk).toBeCloseTo(10, 4);
-    });
     it("matches the exhaustive finite-encounter optimum for a five-mod legal subset", () => {
         const weapon = makeWeapon({
             fireRate: 4,

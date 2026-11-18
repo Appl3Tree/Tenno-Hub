@@ -154,6 +154,19 @@ function evaluate(
 
 const catalogWeapon = getWeaponCatalog().find((entry) => entry.name.toLowerCase() === WEAPON_NAME.toLowerCase());
 if (!catalogWeapon) throw new Error(`Weapon missing from catalog: ${WEAPON_NAME}`);
+const attackModelLimitation = catalogWeapon.attacks[0]?.modelLimitation;
+const linkedDamageSequence = catalogWeapon.attacks[0]?.linkedDamageSequence;
+if (attackModelLimitation || linkedDamageSequence) {
+    console.log(JSON.stringify({
+        status: "not-comparable",
+        weapon: WEAPON_NAME,
+        attack: catalogWeapon.attacks[0]?.name,
+        reason: attackModelLimitation?.reason ?? "This replay has no matched Underframe fixture for the linked single-target Poison Cloud sequence and settings.",
+        sourceUrl: attackModelLimitation?.sourceUrl ?? linkedDamageSequence?.sourceUrl,
+        note: "The current Tenno-Hub model includes linked Poison Cloud events; the saved Underframe build does not match this replay's Torid attack, target, and settings, so no parity score is produced.",
+    }, null, 2));
+    process.exit(0);
+}
 const weapon = withSelectedAttack(catalogWeapon, 0);
 const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon));
 const optimizerResult = optimizeBuild(weapon, candidates, GOAL, weapon.baseSlotCount, {

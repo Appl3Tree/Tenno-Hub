@@ -980,6 +980,14 @@ function scoreEffectsCore(
         if (cadenceDirectDamageRate > 0) {
             killCadenceScore += cadenceDirectDamageRate * getPoolProgress(type, false, true);
         }
+        const linkedAttackRate = (modded.linkedAttackDamagePerSecondByType[type] ?? 0) * dotDutyCycle;
+        if (linkedAttackRate > 0) {
+            const linkedScore = linkedAttackRate * getPoolProgress(type, false, true);
+            score += linkedScore;
+            primaryScore += linkedScore;
+            killCadenceScore += (modded.linkedAttackDamagePerSecondByType[type] ?? 0) *
+                sustainedDutyCycle * getPoolProgress(type, false, true);
+        }
         const dotDamageRate = (modded.dotDpsByType[type as StatusDamageType] ?? 0) * dotDutyCycle * damageRampMultiplier;
         if (dotDamageRate > 0) {
             const primaryDotScore = dotDamageRate * getPoolProgress(type, type === "slash", false);
@@ -996,6 +1004,15 @@ function scoreEffectsCore(
             sustainedDutyCycle * killCadenceDamageRampMultiplier;
         if (cadenceDotDamageRate > 0) {
             killCadenceScore += cadenceDotDamageRate * getPoolProgress(type, type === "slash", false);
+        }
+        const linkedStatusDotRate =
+            (modded.linkedStatusDotDamagePerSecondByType[type] ?? 0) * dotDutyCycle;
+        if (linkedStatusDotRate > 0) {
+            const linkedDotScore = linkedStatusDotRate * getPoolProgress(type, type === "slash", false);
+            score += linkedDotScore;
+            primaryScore += linkedDotScore;
+            killCadenceScore += (modded.linkedStatusDotDamagePerSecondByType[type] ?? 0) *
+                sustainedDutyCycle * getPoolProgress(type, type === "slash", false);
         }
     }
 
@@ -2558,6 +2575,7 @@ function expectedEncounterScoreForEffectsAtKillRate(
         reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
         ...getEncounterBurstTiming(weapon, stats.fireRate),
         statusDurationMultiplier: stats.statusDurationMultiplier,
+        ...(stats.linkedAttackSequence ? { linkedAttackSequence: stats.linkedAttackSequence } : {}),
         ...(stats.nightwatchNapalm ? {
             nightwatchNapalm: {
                 directDamagePerProjectilePerTick: stats.nightwatchNapalm.directDamagePerProjectilePerTick,

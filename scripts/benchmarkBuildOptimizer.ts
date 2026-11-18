@@ -331,6 +331,14 @@ for (const [caseIndex, benchmarkCase] of cases.entries()) {
         throw new Error(`Attack ${benchmarkCase.attackName} was not found on ${benchmarkCase.weaponName}`);
     }
     const selectedAttack = weapon.attacks[selectedAttackIdx] ?? null;
+    if (selectedAttack?.modelLimitation) {
+        report.push({
+            ...benchmarkCase,
+            status: "unsupported attack model",
+            modelLimitation: selectedAttack.modelLimitation,
+        });
+        continue;
+    }
     const buildForAttack = weapon.attacks.length > 1 ? selectedAttack : null;
     const stanceMod = benchmarkCase.stanceName
         ? getStancesForWeapon(weapon).find((mod) => mod.name === benchmarkCase.stanceName) ?? null

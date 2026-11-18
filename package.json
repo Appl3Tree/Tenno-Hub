@@ -60,7 +60,7 @@
     "audit:incarnon-path-search": "Compare bounded Incarnon-path refinement with exhaustive Laetum and Torid finite-TTK sweeps on fixed candidate pools.",
     "audit:mod-effect-coverage": "Report potentially relevant unmatched catalog stat lines for manual parser-coverage review.",
     "benchmark:planner-comparison": "Re-score the captured Braton Prime Tenno-Hub and Underframe builds with identical target pools and the same finite expected encounter model.",
-    "benchmark:torid-comparison": "Compare the saved Underframe Torid QA build with Tenno-Hub's Scaling optimizer on the captured Corpus target."
+    "benchmark:torid-comparison": "Report when the saved Torid Underframe fixture does not match the linked Poison Cloud attack model and settings."
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",

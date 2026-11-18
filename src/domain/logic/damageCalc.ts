@@ -1,7 +1,12 @@
 // src/domain/logic/damageCalc.ts
 // Damage + status calculations for the mod builder / optimizer.
 
-import type { IntrinsicDamagePerStatusMode, WeaponEntry, WeaponForcedProcType } from "../catalog/weaponCatalog";
+import type {
+    IntrinsicDamagePerStatusMode,
+    WeaponEntry,
+    WeaponForcedProcType,
+    WeaponLinkedDamageSequence,
+} from "../catalog/weaponCatalog";
 import {
     clampMeleeComboMultiplier,
     getHeavyAttackRetainedComboPoints,
@@ -9,6 +14,7 @@ import {
     getMeleeInnateInitialComboPoints,
     getInitialMeleeComboMultiplier,
     usesMeleeDamageModel,
+    withSelectedAttack,
 } from "../catalog/weaponRules";
 import type { ConditionalEffect, ModEffect, NonCriticalHitDamageProc, PrimaryDamageElement } from "../catalog/modCatalog";
 import {
@@ -38,6 +44,7 @@ import {
     unionUniqueStatusTypes,
     type ExternalStatusType,
 } from "./uniqueStatusRules";
+import type { LinkedAttackEncounterSequence } from "./targetDamage";
 
 type DamageKey = DamageType;
 
@@ -315,6 +322,14 @@ export interface ModdedWeaponStats {
         heatDotAccumulatorDamagePerTickWhenExternallyInherited: number;
         heatStatusDamagePerSecond: number;
     };
+    /** Linked damage attached to each shot, with a single-target encounter profile. */
+    linkedAttackSequence?: LinkedAttackEncounterSequence;
+    /** Direct damage rate from linked weapon events, by damage type. */
+    linkedAttackDamagePerSecondByType: Partial<Record<DamageKey, number>>;
+    /** Status DoT rate seeded by linked weapon events, by damage type. */
+    linkedStatusDotDamagePerSecondByType: Partial<Record<DamageKey, number>>;
+    /** Combined single-target steady-state damage rate from linked weapon events. */
+    linkedDamagePerSecond: number;
     viralHealthDamageBonus: number;
     heatArmorStrip: number;
     corrosiveArmorStrip: number;
@@ -428,6 +443,8 @@ export interface DamageCalculationOptions {
     hitLocation?: HitLocationDamageProfile;
     /** Target class used by effects whose trigger explicitly requires an Eximus. */
     isEximusTarget?: boolean;
+    /** Linked single-target effects can receive bonuses restricted to their attached target. */
+    assumeAttachedTargetForDirectStatusBonus?: boolean;
 }
 
 /** Hit-location inputs supplied from Wiki-backed faction or named-enemy data. */
@@ -1556,9 +1573,11 @@ export function calculateBuild(
     ammoEfficiencyBonus = Math.min(0.75, ammoEfficiencyBonus + conditionalAmmoEfficiencyBonus);
     directDamagePerStatusBonus += conditionalDirectDamagePerStatusBonus;
     // The Wiki defines Galvanized Aptitude/Savvy/Shot as direct-hit bonuses.
-    // Keep source-marked AoE attack rows from applying them in either the
-    // steady score or the finite encounter inputs derived from these stats.
-    if (weapon.selectedAttackIsAreaDamage === true) directDamagePerStatusBonus = 0;
+    // Keep ordinary AoE rows from applying them, while Torid's modeled cloud
+    // receives the attached-target exception documented by its source.
+    if (weapon.selectedAttackIsAreaDamage === true && !options.assumeAttachedTargetForDirectStatusBonus) {
+        directDamagePerStatusBonus = 0;
+    }
     statusDamageBonus += conditionalStatusDamageBonus;
     const statusDamageMultiplier = 1 + statusDamageBonus;
 
@@ -2483,6 +2502,94 @@ export function calculateBuild(
         })()
         : undefined;
 
+    let linkedAttackSequence: LinkedAttackEncounterSequence | undefined;
+    const linkedAttackDamagePerSecondByType: Partial<Record<DamageKey, number>> = {};
+    const linkedStatusDotDamagePerSecondByType: Partial<Record<DamageKey, number>> = {};
+    let linkedDamagePerSecond = 0;
+    const linkedDamageDefinition: WeaponLinkedDamageSequence | undefined =
+        weapon.selectedAttackLinkedDamageSequence;
+    const linkedAttackIndex = linkedDamageDefinition
+        ? weapon.attacks.findIndex((attack) => attack.name === linkedDamageDefinition.attackName)
+        : -1;
+    const linkedAttack = linkedAttackIndex >= 0 ? weapon.attacks[linkedAttackIndex] : null;
+    if (linkedDamageDefinition && linkedAttack) {
+        const linkedWeapon = withSelectedAttack(weapon, linkedAttackIndex);
+        const linkedMetrics = calculateBuild(
+            linkedWeapon,
+            mods,
+            targetFaction,
+            {
+                ...options,
+                includeDoTTickDetails: options.includeDoTTickDetails,
+                assumeAttachedTargetForDirectStatusBonus: true,
+            },
+        );
+        const linkedStats = linkedMetrics.modded;
+        const cloudsGeneratedPerSecond = fireRate * moddedMultishot;
+        const averageActiveClouds = cloudsGeneratedPerSecond * linkedDamageDefinition.durationSeconds;
+        const cloudTickRate = Math.max(0, linkedStats.fireRate);
+        for (const type of DAMAGE_KEYS) {
+            const directDamageRate = Math.max(0, linkedStats.damageBreakdown[type] ?? 0) *
+                linkedStats.expectedHitDamageMultiplier * averageActiveClouds * cloudTickRate;
+            const statusDotRate = Math.max(0, linkedStats.dotDpsByType[type] ?? 0) /
+                Math.max(1, linkedStats.multishot) * averageActiveClouds;
+            if (directDamageRate > 0) linkedAttackDamagePerSecondByType[type] = directDamageRate;
+            if (statusDotRate > 0) linkedStatusDotDamagePerSecondByType[type] = statusDotRate;
+            linkedDamagePerSecond += (directDamageRate + statusDotRate) * magazineDutyCycle;
+        }
+        const dotApplicationsByType = Object.fromEntries(
+            Object.entries(linkedStats.dotDamagePerShotByType).flatMap(([rawType, damagePerShot]) => {
+                const type = rawType as DamageKey;
+                const applications = linkedStats.averageProcsPerShot * (linkedStats.procChanceByType[type] ?? 0);
+                return applications > 0 ? [[type, damagePerShot / applications]] : [];
+            }),
+        ) as Partial<Record<DamageKey, number>>;
+        linkedAttackSequence = {
+            tickIntervalSeconds: linkedDamageDefinition.tickIntervalSeconds,
+            durationSeconds: linkedDamageDefinition.durationSeconds,
+            firstTickDelaySeconds: linkedDamageDefinition.firstTickDelaySeconds,
+            sourceUrl: linkedDamageDefinition.sourceUrl,
+            attackProfile: {
+                damageByType: linkedStats.damageBreakdownBeforePerStatus,
+                rawDamageByType: linkedStats.rawDamageBreakdownBeforePerStatus,
+                baseDamageTotal: linkedStats.baseDamageTotal,
+                critChance: linkedStats.critChance,
+                critMultiplier: linkedStats.critMultiplier,
+                critTierEnhancementChance: linkedStats.vigilanteCritTierEnhancementChance,
+                nonCriticalHitDamageProcs: linkedStats.nonCriticalHitDamageProcs,
+                hitLocation: linkedStats.hitLocation,
+                expectedProjectiles: 1,
+                expectedDamageMultiplier: 1,
+                statusProcWeightsByType: linkedStats.damageBreakdownBeforePerStatus,
+                statusRollsPerAttack: linkedStats.statusChance,
+                forcedStatusApplicationsPerAttackByType: linkedStats.unfilteredExtraProcsPerShot,
+                dotDamagePerAttackByType: linkedStats.dotDamagePerShotByType,
+                dotDamagePerApplicationByType: dotApplicationsByType,
+                heatDotTickDamagePerProc: linkedStats.dotTickDamagePerProcBeforeConditionOverloadByType.heat,
+                heatDotAccumulatorDamagePerTick: linkedStats.dotTickAccumulatorDamageByType.heat,
+                heatDotTickDamagePerProcWhenExternallyInherited:
+                    linkedStats.heatDotTickDamagePerProcWhenExternallyInherited,
+                heatDotAccumulatorDamagePerTickWhenExternallyInherited:
+                    linkedStats.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
+                dotSeedDamagePerApplicationByType: linkedStats.dotDamagePerApplicationSeedByType,
+                dotAccumulatorDamagePerApplicationByType: linkedStats.dotDamagePerApplicationAccumulatorByType,
+                statusDurationMultiplier: linkedStats.statusDurationMultiplier,
+                targetStatusDamageVulnerabilityBonus: linkedStats.targetStatusDamageVulnerabilityBonus,
+                blastStackHitDamagePerProc: linkedStats.blastStackHitDamagePerProcBeforeConditionOverload,
+                magneticBreakElectricSourceMultiplier: linkedStats.magneticBreakElectricSourceMultiplier,
+                directDamagePerStatusBonus: linkedStats.directDamagePerStatusBonus,
+                conditionOverloadDamagePerStatusBonus: linkedStats.conditionOverloadApplies
+                    ? linkedStats.conditionOverloadDamagePerStatusBonus
+                    : 0,
+                intrinsicDamagePerStatusBonus: linkedStats.intrinsicDamagePerStatusBonus,
+                intrinsicDamagePerStatusMode: linkedStats.intrinsicDamagePerStatusMode,
+                totalDamageBonus: linkedStats.totalDamageBonus,
+                timedConditionalDamageStacks: linkedStats.timedConditionalDamageStacks,
+                uniqueStatusProcsPerAttack: linkedWeapon.uniqueStatusProcs,
+            },
+        };
+    }
+
     const modded: ModdedWeaponStats = {
         rawDamageBreakdown: directRawBreakdown,
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
@@ -2573,6 +2680,10 @@ export function calculateBuild(
         dotDamagePerApplicationSeedByType,
         dotDamagePerApplicationAccumulatorByType,
         nightwatchNapalm,
+        linkedAttackSequence,
+        linkedAttackDamagePerSecondByType,
+        linkedStatusDotDamagePerSecondByType,
+        linkedDamagePerSecond,
         viralHealthDamageBonus,
         heatArmorStrip,
         corrosiveArmorStrip,
@@ -2606,8 +2717,13 @@ export function calculateBuild(
         damageBreakdownBeforePerStatus,
     };
 
-    const burstDPS = averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier;
-    const sustainedDPS = averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier;
+    const linkedDirectDps = Object.values(linkedAttackDamagePerSecondByType)
+        .reduce((sum, value) => sum + Math.max(0, value ?? 0), 0);
+    const burstLinkedRateMultiplier = fireRate > 0 ? burstFireRate / fireRate : 0;
+    const burstDPS = averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier +
+        linkedDirectDps * burstLinkedRateMultiplier * magazineAverageDamageMultiplier;
+    const sustainedDPS = averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier +
+        linkedDirectDps * magazineDutyCycle;
 
     return { modded, burstDPS, sustainedDPS };
 }
