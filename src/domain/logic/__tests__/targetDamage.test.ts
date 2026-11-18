@@ -6,10 +6,12 @@ import {
     simulateExpectedWeaponEncounter,
 } from "../targetDamage";
 import type {
+    WeaponAttackLingeringDamageRule,
     WeaponAutoSpoolCadenceRule,
     WeaponAutoSpoolShotSequenceRule,
     WeaponDamageRampRule,
 } from "../../catalog/weaponCatalog";
+import type { AttachedAttackTickProfile } from "../damageCalc";
 
 const phantasmaRamp: WeaponDamageRampRule = {
     minimumDamageMultiplier: 0.15,
@@ -36,8 +38,127 @@ const kohmakShotSequence: WeaponAutoSpoolShotSequenceRule = {
     minimumAmmoCostPerShot: 1,
     sourceUrl: "https://wiki.warframe.com/w/Kohmak",
 };
+const toridCloudRule: WeaponAttackLingeringDamageRule = {
+    componentAttackName: "Poison Cloud",
+    firstTickDelaySeconds: 1,
+    tickIntervalSeconds: 1,
+    tickCount: 10,
+    attachedToDirectTarget: true,
+    stacks: true,
+    sourceUrl: "https://wiki.warframe.com/w/Torid",
+};
+
+function makeToridCloudProfile(projectiles = 1): AttachedAttackTickProfile {
+    return {
+        damageByType: { toxin: 40 },
+        rawDamageByType: { toxin: 40 },
+        baseDamageTotal: 40,
+        expectedHitDamageMultiplier: 1,
+        critChance: 0,
+        critMultiplier: 1,
+        critTierEnhancementChance: 0,
+        hitLocation: { canHeadshot: false },
+        expectedProjectiles: projectiles,
+        expectedDamageMultiplier: projectiles,
+        statusProcWeightsByType: { toxin: 1 },
+        statusRollsPerAttack: 0,
+        forcedStatusApplicationsPerAttackByType: {},
+        dotDamagePerAttackByType: {},
+        dotDamagePerApplicationByType: {},
+        dotSeedDamagePerApplicationByType: {},
+        dotAccumulatorDamagePerApplicationByType: {},
+        blastExpectedExpiryDamagePerShot: 0,
+        statusDurationMultiplier: 1,
+        directDamagePerStatusBonus: 0,
+        conditionOverloadDamagePerStatusBonus: 0,
+        conditionOverloadApplies: false,
+        intrinsicDamagePerStatusBonus: 0,
+        intrinsicDamagePerStatusMode: "additiveBase",
+        totalDamageBonus: 0,
+        uniqueStatusProcsPerAttack: [],
+    };
+}
 
 describe("target damage progress across defense pools", () => {
+    it("resolves Torid direct impact followed by ten attached cloud ticks, including multishot", () => {
+        const singleProjectile = simulateExpectedWeaponEncounter({
+            damageByType: { toxin: 100 },
+            health: 500,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0,
+            critMultiplier: 1,
+            expectedProjectiles: 1,
+            expectedDamageMultiplier: 1,
+            attackIntervalSeconds: 1 / 1.5,
+            shotsPerMagazine: 1,
+            attackCountLimit: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 12,
+            attachedAttackDamageSequence: {
+                rule: toridCloudRule,
+                profile: makeToridCloudProfile(),
+            },
+        });
+
+        expect(singleProjectile.timeToKillSeconds).toBe(10);
+        expect(singleProjectile.directDamageByPool.health).toBe(500);
+
+        const multishot = simulateExpectedWeaponEncounter({
+            damageByType: { toxin: 100 },
+            health: 900,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0,
+            critMultiplier: 1,
+            expectedProjectiles: 1,
+            expectedDamageMultiplier: 1,
+            attackIntervalSeconds: 1 / 1.5,
+            shotsPerMagazine: 1,
+            attackCountLimit: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 12,
+            attachedAttackDamageSequence: {
+                rule: toridCloudRule,
+                profile: makeToridCloudProfile(2),
+            },
+        });
+        expect(multishot.timeToKillSeconds).toBe(10);
+        expect(multishot.directDamageByPool.health).toBe(900);
+    });
+
+    it("adds overlapping attached cloud sequences from multiple Torid grenades", () => {
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { toxin: 100 },
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            critChance: 0,
+            critMultiplier: 1,
+            expectedProjectiles: 1,
+            expectedDamageMultiplier: 1,
+            attackIntervalSeconds: 5,
+            shotsPerMagazine: 2,
+            attackCountLimit: 2,
+            maxAttacks: 2,
+            maxDurationSeconds: 20,
+            attachedAttackDamageSequence: {
+                rule: toridCloudRule,
+                profile: makeToridCloudProfile(),
+            },
+        });
+
+        expect(result.attacks).toBe(2);
+        expect(result.timeToKillSeconds).toBe(15);
+        expect(result.directDamageByPool.health).toBe(1_000);
+    });
+
     it("uses the Wiki Auto-Spool rate ramp for finite target timing", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { impact: 1 },

@@ -1018,6 +1018,48 @@ function scoreEffectsCore(
         }
     }
 
+    const attachedSequence = modded.attachedAttackDamageSequence;
+    if (attachedSequence?.rule.attachedToDirectTarget) {
+        const profile = attachedSequence.profile;
+        const nonNegative = (value: number | undefined) =>
+            Number.isFinite(value) ? Math.max(0, value ?? 0) : 0;
+        const linkedTickCount = nonNegative(attachedSequence.rule.tickCount);
+        // This fast objective uses a steady-state single-target stream: each
+        // selected attack creates a linked sequence whose ticks can stack.
+        // The finite Expected TTK path retains the actual tick timestamps.
+        const linkedDamageRateScale = linkedTickCount * modded.fireRate * dotDutyCycle * damageRampMultiplier;
+        const linkedCadenceRateScale = linkedTickCount * modded.fireRate * sustainedDutyCycle *
+            killCadenceDamageRampMultiplier;
+        for (const type of DAMAGE_TYPES) {
+            const linkedDamageRate = nonNegative(profile.steadyStateDamageByTypePerTick?.[type]) *
+                linkedDamageRateScale;
+            if (linkedDamageRate > 0) {
+                const directScore = linkedDamageRate * getPoolProgress(type, false, true);
+                score += directScore;
+                primaryScore += directScore;
+            }
+            const linkedCadenceDamageRate =
+                nonNegative(profile.steadyStateDamageByTypePerTick?.[type]) * linkedCadenceRateScale;
+            if (linkedCadenceDamageRate > 0) {
+                killCadenceScore += linkedCadenceDamageRate * getPoolProgress(type, false, true);
+            }
+            const linkedDotRate = nonNegative(
+                profile.steadyStateDotDamageByTypePerTick?.[type as StatusDamageType],
+            ) * linkedTickCount * modded.fireRate * dotDutyCycle * damageRampMultiplier;
+            if (linkedDotRate > 0 && !statusImmuneTypes.has(type as StatusDamageType)) {
+                const dotScore = linkedDotRate * getPoolProgress(type, type === "slash", false);
+                score += dotScore;
+                primaryScore += dotScore;
+                const linkedCadenceDotRate = nonNegative(
+                    profile.steadyStateDotDamageByTypePerTick?.[type as StatusDamageType],
+                ) * linkedTickCount * modded.fireRate * sustainedDutyCycle * killCadenceDamageRampMultiplier;
+                if (linkedCadenceDotRate > 0) {
+                    killCadenceScore += linkedCadenceDotRate * getPoolProgress(type, type === "slash", false);
+                }
+            }
+        }
+    }
+
     // For one target, reaching cap pays the same individual stack damage as
     // natural expiry. The 3×H cap blast affects nearby enemies and is excluded
     // from this single-target objective score.
@@ -2571,6 +2613,7 @@ function expectedEncounterScoreForEffectsAtKillRate(
                     stats.nightwatchNapalm.heatDotAccumulatorDamagePerTickWhenExternallyInherited,
             },
         } : {}),
+        attachedAttackDamageSequence: stats.attachedAttackDamageSequence,
         targetStatusDamageVulnerabilityBonus: stats.targetStatusDamageVulnerabilityBonus,
         initialHeatStatusPresenceProbability: conditionalState?.externalHeatStatusPresenceProbability,
         dotDamagePerAttackByType: stats.dotDamagePerShotByType,

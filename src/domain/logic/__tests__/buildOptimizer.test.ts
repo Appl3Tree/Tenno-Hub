@@ -2687,7 +2687,7 @@ describe("build optimizer scoring", () => {
         expect(independentlyScored.timeToKillSeconds).toBeLessThanOrEqual(1.886792452831);
     });
 
-    it("finds the Torid two-mod pair swap in full-pool finite-TTK refinement", { timeout: 60000 }, () => {
+    it("optimizes Torid against the fixed Grineer target with its attached cloud stream", { timeout: 60000 }, () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Torid");
         expect(weapon).toBeTruthy();
         const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
@@ -2729,13 +2729,47 @@ describe("build optimizer scoring", () => {
 
         expect(result.capacityValid).toBe(true);
         expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
-        expect(selectedNames).toContain("Thermite Rounds");
+        expect(selectedNames).toContain("Galvanized Aptitude");
         expect(selectedNames).toContain("Vile Acceleration");
-        expect(selectedNames).not.toContain("Hellfire");
-        expect(selectedNames).not.toContain("Spring-Loaded Chamber");
         expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
-        expect(independentlyScoredTtk).toBeCloseTo(10, 4);
+        expect(independentlyScoredTtk).toBeLessThan(5);
     });
+
+    it("includes Torid's attached cloud in fast scoring and finite Expected TTK", () => {
+        const torid = getWeaponCatalog().find((entry) => entry.name === "Torid");
+        expect(torid).toBeDefined();
+        const impactIndex = torid!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+        expect(impactIndex).toBeGreaterThanOrEqual(0);
+        const impactWeapon = withSelectedAttack(torid!, impactIndex);
+        const directOnlyWeapon = {
+            ...impactWeapon,
+            selectedAttackLingeringDamageRule: undefined,
+        };
+        const target = { health: 900, shields: 0, overguard: 0, armor: 0 };
+
+        const withCloudTtk = debugScoreExpectedEncounter(
+            impactWeapon,
+            [],
+            "Grineer",
+            target,
+            { mode: "initial" },
+        ).timeToKillSeconds;
+        const directOnlyTtk = debugScoreExpectedEncounter(
+            directOnlyWeapon,
+            [],
+            "Grineer",
+            target,
+            { mode: "initial" },
+        ).timeToKillSeconds;
+        const withCloudFastScore = debugScoreBuild(impactWeapon, [], "scaling", "Grineer");
+        const directOnlyFastScore = debugScoreBuild(directOnlyWeapon, [], "scaling", "Grineer");
+
+        expect(withCloudTtk).not.toBeNull();
+        expect(directOnlyTtk).not.toBeNull();
+        expect(withCloudTtk).toBeLessThan(directOnlyTtk!);
+        expect(withCloudFastScore).toBeGreaterThan(directOnlyFastScore);
+    });
+
     it("matches the exhaustive finite-encounter optimum for a five-mod legal subset", () => {
         const weapon = makeWeapon({
             fireRate: 4,
@@ -5801,4 +5835,3 @@ describe("Sacrificial set optimizer scoring", () => {
         expect(result.slots.map((mod) => mod?.name).sort()).toEqual(["Sacrificial Pressure", "Sacrificial Steel"]);
     });
 });
-
