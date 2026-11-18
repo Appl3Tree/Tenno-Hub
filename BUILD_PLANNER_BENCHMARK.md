@@ -30,6 +30,29 @@ None of the 3,859 exact legal one-mod neighbors improved its optimizer baseline.
 
 This is bounded model-local evidence from one faction, target pool, and conditional state. The pair sweep is sampled rather than exhaustive. It does not prove global optimality, gameplay accuracy, or Underframe parity, and does not cover Arcane/Exilus optimization. The new seeded selections broaden the corpus to explosive, Archgun, companion, and heavy-melee attacks.
 
+
+## D3-OPT-UNDERFRAME-AUTOBUILD-CORPUS-001 -- Braton Prime and Gram Prime captures (2026-11-18; bounded comparison)
+
+Two new Underframe builds were created in the integrated browser: [Codex Matched Corpus Braton Prime](https://www.underframe.site/Codex-Matched-Corpus-Braton-Prime) and [Codex Matched Corpus Gram Prime](https://www.underframe.site/Codex-Matched-Corpus-Gram-Prime). Both use Normal Attack, a single Grineer target at 100,000 Health / 3,000 Armor / zero Shields / zero Overguard, headshots off, zero external combo, no external statuses or buffs, Catalyst installed, Exilus and Arcanes off, and a five-second standard simulation. The Braton common-model pair uses Realistic state; the Gram pair uses Initial state, matching the prior Gram audit. Read scores only within their row.
+
+Underframe Auto Build used Copy of Default: 28 CPU cores, GPU off, five-second Auto Build simulation, Sample Size Multiplier 3, final refinement on with sample size 200, Luck Averaged on, Elemental Candidates and Cost Control on, and maximum three Forma. Raw-damage/status goals and blacklist options were off. In both cases the list returned by Auto Build was over capacity before any polarity changes: Braton at -21/60 with zero Forma and Gram at -29/60 with zero Forma. I then clicked Auto Polarize manually. The Braton page showed 0/60 capacity with three Forma; the Gram page showed 3/60 with three Forma. Thus these are usable captured lists after a separate legality step, not proof that Auto Build itself returned a legal polarity plan.
+
+The captured Braton list was Malignant Force R3, High Voltage R3, Rime Rounds R3, Galvanized Chamber R10, Vile Acceleration R5, Galvanized Aptitude R10, Vital Sense R5, and Primed Bane of Grineer R10. The captured Gram list was Rending Crane, Volcanic Edge R3, Galvanized Steel R10, Primed Smite Grineer R10, Primed Pressure Point R10, Berserker Fury R5, Galvanized Elementalist R10, Molten Impact R5, and Condition Overload R5. The standard Calculate DPS button was run after Auto Polarize; its results are separate from the Luck Averaged Auto Build objective.
+
+| Underframe capture | Standard Calculate DPS, 5-second simulation | Underframe UI capacity after manual Auto Polarize |
+| --- | ---: | ---: |
+| Braton Prime | 3,413 raw + 159 DoT average damage/shot; 66,667 DPS; 1.50 s TTK | 0/60; 3 Forma |
+| Gram Prime | 15,880 raw + 9,120 DoT average damage/shot; 49,816 DPS; 2.01 s TTK | 3/60; 3 Forma |
+
+The reproducible runners scripts/compareUnderframeBratonAutoBuild.ts and scripts/compareUnderframeGramAutoBuild.ts score each fixed capture and a current Tenno-Hub Expected TTK build with Tenno-Hub's finite evaluator. The common target pools are the same. Rending Crane is counted for Gram capacity only; Tenno-Hub does not simulate the Underframe Lashing Tempest (Forward) melee hit sequence.
+
+| Weapon / state | Underframe captured list, scored by Tenno-Hub | Tenno-Hub optimizer | Captured list capacity in common planner | Optimizer capacity | Exact refinement candidates |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Braton Prime / Realistic | 2.197561 s / 45,505.0 DPS / 41 attacks | 2.119475 s / 47,181.5 DPS / 51 attacks | 60/60; 3 Forma | 59/60; 3 Forma | 301 |
+| Gram Prime / Initial | 11.000 s / 9,090.91 DPS / 9 attacks | 6.000 s / 16,666.67 DPS / 8 attacks | 57/60; 3 Forma | 56/60; 1 Forma | 277 |
+
+The Gram common-model timing is not an objective-parity result: the captured Underframe build uses a stance hit sequence which Tenno-Hub's Normal Attack encounter does not represent. The native Underframe values above also come from its standard Calculate DPS simulator, not a reported Auto Build candidate score. These two weapon classes establish repeatable UI captures and bounded shared-model scoring only; they do not establish optimizer parity, general quality, or live-game accuracy. Repeat runs, more weapon categories, matched Arcane/conditional cases, and browser/mobile performance remain open.
+
 ## D3-OPT-UNDERFRAME-BRATON-LIVE-001 — current production Braton Prime replay (2026-11-18; bounded browser comparison)
 
 The integrated in-app browser opened the cache-busted production Build Planner at `https://appl3tree.github.io/Tenno-Hub/?probe=20261118-0728&version=0cd9e12`. It loaded the current hashed Build Planner bundle, selected Braton Prime / Normal Attack, and optimized for Expected TTK. Inputs were Grineer damage modifiers with custom current pools of 83,818 Health, 0 Shields, 0 Overguard, and 2,700 Armor; Realistic conditional state; zero assumed headshot share; no external status stacks, buffs, or nearby enemies; a Catalyst; weapon rank 30; and a maximum of three Forma. Primary Bulwark was enabled at the Underframe page's 500/500 cap and mapped to 1,500 Warframe Armor in Tenno-Hub. There was no Exilus or Arcane selected. Tenno-Hub displayed a capacity-valid eight-slot build at 60/60 capacity and three Forma.
