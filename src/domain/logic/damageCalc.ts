@@ -211,6 +211,10 @@ export interface ModdedWeaponStats {
     gladiatorSetModCount: number;
     /** Count of selected Sacrificial pieces, capped at the two-piece set size. */
     sacrificialSetModCount: number;
+    /** Count of selected and external Nira pieces, capped at the three-piece set size. */
+    niraSetModCount: number;
+    /** Additive Nira Slam Damage bonus active for the selected melee slam attack. */
+    niraSetSlamDamageBonus: number;
     /** Relative melee crit chance per combo tier above 1x contributed by Gladiator. */
     gladiatorCritChancePerComboTier: number;
     /** Chance to upgrade a landed crit by one tier; only active for Primary weapons. */
@@ -460,6 +464,8 @@ export interface ConditionalState {
     externalVigilanteSetModCount?: number;
     /** Additional distinct Gladiator set mods equipped on the Warframe (0–3); exclude duplicate identities. */
     externalGladiatorSetModCount?: number;
+    /** Additional distinct Nira set mods equipped on the Warframe (0–2); exclude duplicates of selected identities. */
+    externalNiraSetModCount?: number;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -1083,6 +1089,7 @@ export function calculateBuild(
     let critChanceBonus = 0;
     let vigilanteSetModCount = 0;
     let gladiatorSetModCount = 0;
+    let niraSetModCount = 0;
     let comboCritChanceBonus = 0;
     let finalCritChanceBonus = 0;
     let critMultBonus = 0;
@@ -1182,6 +1189,7 @@ export function calculateBuild(
         critChanceBonus += e.critChanceBonus ?? 0;
         vigilanteSetModCount += e.vigilanteSetModCount ?? 0;
         gladiatorSetModCount += e.gladiatorSetModCount ?? 0;
+        niraSetModCount += e.niraSetModCount ?? 0;
         if (weapon.selectedAttackUsesHeavyAttackCritChance === true) {
             critChanceBonus += e.heavyAttackCritChanceBonus ?? 0;
         }
@@ -1282,6 +1290,16 @@ export function calculateBuild(
         ? totalGladiatorSetModCount * 0.1
         : 0;
     comboCritChanceBonus += gladiatorCritChancePerComboTier;
+    const externalNiraSetModCount = Number.isFinite(conditionalState.externalNiraSetModCount)
+        ? Math.max(0, Math.min(2, Math.floor(conditionalState.externalNiraSetModCount ?? 0)))
+        : 0;
+    const totalNiraSetModCount = weapon.category === "Melee"
+        ? Math.min(3, niraSetModCount + externalNiraSetModCount)
+        : 0;
+    const niraSetSlamDamageBonus = weapon.category === "Melee" && weapon.selectedAttackUsesSlamDamageBonus === true
+        ? totalNiraSetModCount * 1.5
+        : 0;
+    slamAttackDamageBonus += niraSetSlamDamageBonus;
     const selectedAreaDamageStatusChanceBonus = weapon.selectedAttackIsAreaDamage === true
         ? areaDamageStatusChanceBonus
         : 0;
@@ -2513,6 +2531,8 @@ export function calculateBuild(
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
         sacrificialSetModCount,
+        niraSetModCount: totalNiraSetModCount,
+        niraSetSlamDamageBonus,
         gladiatorCritChancePerComboTier,
         vigilanteCritTierEnhancementChance,
         statusChanceFromCritChanceBonus,
@@ -2677,3 +2697,4 @@ export function estimateFiniteIndependentDotDps(
     );
     return (damagePerTick * expectedProcsPerShot * finiteTicks) / encounterDurationSeconds;
 }
+

@@ -150,7 +150,7 @@ export function emptyEffect(): ModEffect {
         heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
         blastBonus: 0, gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
         voidBonus: 0, tauBonus: 0, trueBonus: 0,
-        critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
+        critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0, finalCritMultiplierBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
@@ -178,3 +178,4 @@ export function emptyEffect(): ModEffect {
         factionDamageBonus: 0, targetFaction: "",
     };
 }
+

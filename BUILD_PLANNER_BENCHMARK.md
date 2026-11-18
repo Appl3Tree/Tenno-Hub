@@ -1,5 +1,14 @@
 # Build Planner Optimizer Benchmark
 
+## D3-MOD-SET-NIRA-SLAM-001 — Nira melee Slam Damage integration (2026-11-17; implementation validated, draft PR [#152](https://github.com/Appl3Tree/Tenno-Hub/pull/152) open)
+
+The current [Nira’s Set Wiki page](https://wiki.warframe.com/w/Nira%27s_Set) documents +150% Slam Damage per set piece and a three-piece maximum. The planner counts canonical Nira identities at every rank, combines selected melee pieces with a saved 0–2 distinct external Warframe-piece count, and caps the total at three. The bonus is active only on catalogued melee attacks marked as slam attacks. It adds to the Slam Damage category, including Seismic Wave, and reaches the calculator, status seeds, finite Expected TTK, and Auto Optimize.
+
+A catalog regression covers Nira’s Contempt on compatible Whips; math regressions cover the cap, additivity, status-seed scaling, and non-slam/non-melee boundaries. The optimizer regression exercises Nira’s Contempt through candidate selection and finite scoring. Progress Pack coverage checks that the external count survives save/restore. No standalone benchmark was run, and no quality or performance gain is claimed.
+
+Before the final UI gate correction, validation passed: 803 tests / 53 files; app/node TypeScript checks; production build; source validation; prerequisite audit (162 entries with no unresolved references/cycles); and mod-effect coverage audit (694 weapons / 600 eligible mods / 491 parsed / 109 without parsed effects / 71 review candidates / 18 partial / 53 fully unparsed / zero weapon pools without parsed damage). After the correction, app TypeScript and focused ESLint pass. Vite reports its existing large-chunk warning.
+
+This remains bounded mechanic and integration coverage. A 572px integrated-browser smoke check verifies the control and the active/inactive trace boundary, but not full browser workflow usability or physical mobile behavior. This does not establish Underframe parity, broad optimizer quality, cold/mobile performance, or live-game accuracy. Slam geometry/falloff and uncatalogued attacks remain outside the modeled result.
 ## D3-MOD-ONKILL-EXPLOSION-BOUNDARY-001 — unsupported on-kill area effects (2026-11-17; released)
 
 A local scan of the checked-in WFCD `external/warframe-items/raw/Mods.json` snapshot identified Entropy Detonation and Amalgam Furax Body Count as additional on-kill area-effect candidates. Runtime inspection showed their kill explosions/staggers are not parsed as damage effects, and the existing Auto Optimize unmodeled-effect gate excludes them. Amalgam Furax Body Count's supported secondary Fire Rate and combo-duration stats can still be shown to manual builds; Auto Optimize skips the whole mod rather than partially scoring its unsupported kill effect.

@@ -894,6 +894,54 @@ describe("damage calculation status eligibility", () => {
         checkThreefoldDamage(stanceSlam);
     });
 
+    it("adds Nira set Slam Damage to Seismic Wave and only scales selected melee slams", () => {
+        const gramPrime = getWeaponCatalog().find((candidate) => candidate.name === "Gram Prime");
+        expect(gramPrime).toBeDefined();
+        const seismicWave = getModsForWeapon(gramPrime!).find((mod) => mod.name === "Seismic Wave");
+        expect(seismicWave).toBeDefined();
+        const slamIndex = gramPrime!.attacks.findIndex((attack) => attack.name === "Slam Attack");
+        const normalIndex = gramPrime!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(slamIndex).toBeGreaterThanOrEqual(0);
+        expect(normalIndex).toBeGreaterThanOrEqual(0);
+        const slam = withSelectedAttack(gramPrime!, slamIndex);
+        const normal = withSelectedAttack(gramPrime!, normalIndex);
+        const niraPiece = { ...emptyEffect(), niraSetModCount: 1 };
+        const seismicPiece = seismicWave!.effectsByRank[seismicWave!.fusionLimit];
+        const baseline = calculateBuild(slam, []).modded;
+        const niraOnly = calculateBuild(slam, [niraPiece], "", {
+            conditionalState: { mode: "realistic", externalNiraSetModCount: 2 },
+        }).modded;
+        const withSeismic = calculateBuild(slam, [niraPiece, seismicPiece], "", {
+            conditionalState: { mode: "realistic", externalNiraSetModCount: 2 },
+        }).modded;
+        expect(niraOnly.niraSetModCount).toBe(3);
+        expect(niraOnly.niraSetSlamDamageBonus).toBeCloseTo(4.5, 10);
+        expect(niraOnly.slamAttackDamageMultiplier).toBeCloseTo(5.5, 10);
+        expect(withSeismic.slamAttackDamageMultiplier).toBeCloseTo(7.5, 10);
+        expect(withSeismic.baseDamageTotal).toBeCloseTo(baseline.baseDamageTotal * 7.5, 8);
+        for (const type of Object.keys(baseline.dotDamagePerApplicationSeedByType) as Array<keyof typeof baseline.dotDamagePerApplicationSeedByType>) {
+            expect(withSeismic.dotDamagePerApplicationSeedByType[type]).toBeCloseTo(
+                (baseline.dotDamagePerApplicationSeedByType[type] ?? 0) * 7.5,
+                7,
+            );
+        }
+
+        const normalBaseline = calculateBuild(normal, []).modded;
+        const normalWithNira = calculateBuild(normal, [niraPiece], "", {
+            conditionalState: { mode: "realistic", externalNiraSetModCount: 2 },
+        }).modded;
+        expect(normalWithNira.niraSetSlamDamageBonus).toBe(0);
+        expect(normalWithNira.slamAttackDamageMultiplier).toBe(1);
+        expect(normalWithNira.damageBreakdown).toEqual(normalBaseline.damageBreakdown);
+
+        const ranged = { ...slam, category: "Primary" as const };
+        const rangedWithNira = calculateBuild(ranged, [niraPiece], "", {
+            conditionalState: { mode: "realistic", externalNiraSetModCount: 2 },
+        }).modded;
+        expect(rangedWithNira.niraSetSlamDamageBonus).toBe(0);
+        expect(rangedWithNira.slamAttackDamageMultiplier).toBe(1);
+    });
+
     it("models Prototype Shock Coils as an independent Status Chance-scaled Electricity roll", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Efv-8 Mars");
         expect(weapon).toBeDefined();
@@ -4297,3 +4345,4 @@ describe("Sacrificial two-piece melee set bonus", () => {
         );
     });
 });
+

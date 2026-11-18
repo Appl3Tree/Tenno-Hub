@@ -1874,6 +1874,9 @@ function buildMathBreakdown(
                 ...(stats.sacrificialSetModCount > 0
                     ? [`Sacrificial set = ${stats.sacrificialSetModCount}/2 selected mods${stats.sacrificialSetModCount === 2 && weapon.category === "Melee" ? "; each mod's listed Melee Damage, Critical Chance, and Sentient Damage bonus is increased by 25%" : "; both mods must be equipped on this melee weapon to activate the set bonus"}.`]
                     : []),
+                ...(stats.niraSetModCount > 0
+                    ? ["Nira's Set = " + stats.niraSetModCount + "/3 distinct pieces" + (stats.niraSetSlamDamageBonus > 0 ? "; +" + fmt(stats.niraSetSlamDamageBonus * 100, 0) + "% Slam Damage, additive with Seismic Wave, on this melee slam attack" : "; bonus inactive because the selected attack is not a melee slam") + "."]
+                    : []),
                 ...(weapon.selectedAttackBaseStatusChancePerCriticalChance !== undefined
                     ? [`Wiseman's Regard = +${fmt(stats.statusChanceFromCritChanceBonus * 100, 3)} percentage points base Status Chance (${fmt(weapon.selectedAttackBaseStatusChancePerCriticalChance * 100, 3)}% of current ${fmt(stats.critChance * 100, 3)}% Critical Chance, capped at ${fmt((weapon.selectedAttackBaseStatusChancePerCriticalChanceCap ?? 0) * 100, 3)}%).`]
                     : []),
@@ -3567,6 +3570,7 @@ export default function ModBuilder() {
     const [externalStatusTypeCount, setExternalStatusTypeCount] = useState(0);
     const [externalVigilanteSetModCount, setExternalVigilanteSetModCount] = useState(0);
     const [externalGladiatorSetModCount, setExternalGladiatorSetModCount] = useState(0);
+    const [externalNiraSetModCount, setExternalNiraSetModCount] = useState(0);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
     const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
@@ -3592,6 +3596,7 @@ export default function ModBuilder() {
         externalStatusTypeCount,
         externalVigilanteSetModCount,
         externalGladiatorSetModCount,
+        externalNiraSetModCount,
         externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         externalHeatElementalDamageBonus: parseExternalHeatBonusPercentInput(externalHeatElementalDamageBonusPercentInput) / 100,
@@ -3600,7 +3605,7 @@ export default function ModBuilder() {
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3814,6 +3819,7 @@ export default function ModBuilder() {
             externalStatusTypeCount,
             externalVigilanteSetModCount,
             externalGladiatorSetModCount,
+            externalNiraSetModCount,
             externalStatusTypes,
             targetStartsWithHeat,
             externalHeatElementalDamageBonusPercent: parseExternalHeatBonusPercentInput(
@@ -3866,6 +3872,7 @@ export default function ModBuilder() {
         externalStatusTypeCount,
         externalVigilanteSetModCount,
         externalGladiatorSetModCount,
+        externalNiraSetModCount,
         externalStatusTypes,
         targetStartsWithHeat,
         externalHeatElementalDamageBonusPercentInput,
@@ -5404,6 +5411,7 @@ export default function ModBuilder() {
         setExternalStatusTypeCount(0);
         setExternalVigilanteSetModCount(0);
         setExternalGladiatorSetModCount(0);
+        setExternalNiraSetModCount(0);
         setExternalStatusTypes([]);
         setExternalStatusTypesOpen(false);
         setTargetStartsWithHeat(false);
@@ -5430,6 +5438,9 @@ export default function ModBuilder() {
                 : 0);
             setExternalGladiatorSetModCount(Number.isFinite(plannerConfig.externalGladiatorSetModCount)
                 ? Math.max(0, Math.min(3, Math.floor(plannerConfig.externalGladiatorSetModCount ?? 0)))
+                : 0);
+            setExternalNiraSetModCount(Number.isFinite(plannerConfig.externalNiraSetModCount)
+                ? Math.max(0, Math.min(2, Math.floor(plannerConfig.externalNiraSetModCount ?? 0)))
                 : 0);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
             setExternalStatusTypes(restoredExternalStatusTypes);
@@ -5703,7 +5714,7 @@ export default function ModBuilder() {
                                     )}
                                     {weapon && (
                                         <p role="note" className="mt-2 text-right text-[10px] leading-relaxed text-amber-300">
-                                            Vigilante, Gladiator, and the two-piece Sacrificial bonuses are modeled; Sacrificial activates when both mods are selected on the active melee weapon. Other shared set bonuses remain excluded from damage, TTK, and Auto Optimize. Enter distinct Vigilante or Gladiator pieces equipped on other gear in Optimization options; supported individual stats on selected mods still apply.
+                                            Vigilante, Gladiator, Sacrificial, and Nira's Slam Damage set bonuses are modeled where triggered. Sacrificial requires both selected melee mods; Nira applies only to melee slam attacks and adds to Seismic Wave. Other shared set bonuses remain excluded from damage, TTK, and Auto Optimize. Enter distinct Vigilante, Gladiator, or Nira pieces equipped on your Warframe in Optimization options; supported individual stats on selected mods still apply.
                                         </p>
                                     )}
                                     {showOptimizeOptions && (
@@ -5764,6 +5775,25 @@ export default function ModBuilder() {
                                                             <a href="https://wiki.warframe.com/w/Set_Mod" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki: Set Mods</a>
                                                             <a href="https://wiki.warframe.com/w/Critical_Chance" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Critical Chance</a>
                                                         </div>
+                                                    </div>
+                                                )}
+                                                {activeCalcWeapon?.category === 'Melee' && activeCalcWeapon.selectedAttackUsesSlamDamageBonus === true && (
+                                                    <div className='basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2'>
+                                                        <label className='flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300'>
+                                                            <span>Additional distinct Nira set pieces on your Warframe</span>
+                                                            <input
+                                                                aria-label='Additional Nira set mods on your Warframe'
+                                                                type='number'
+                                                                min={0}
+                                                                max={2}
+                                                                step={1}
+                                                                value={externalNiraSetModCount}
+                                                                onChange={(event) => setExternalNiraSetModCount(Math.max(0, Math.min(2, Math.floor(Number(event.target.value) || 0))))}
+                                                                className='w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500'
+                                                            />
+                                                        </label>
+                                                        <p className='mt-1 text-[10px] leading-relaxed text-slate-500'>Each distinct Nira set piece adds 150% Slam Damage, up to three total pieces. It stacks additively with Seismic Wave and only affects melee slam attacks. Nira's Contempt is counted automatically when equipped on a compatible whip; count Nira's Anguish and Hatred worn on your Warframe.</p>
+                                                        <a href='https://wiki.warframe.com/w/Nira%27s_Set' target='_blank' rel='noreferrer' className='mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2'>WARFRAME Wiki: Nira's Set</a>
                                                     </div>
                                                 )}
                                                 {sentientSurgeRefillPerKill > 0 && (
@@ -7898,3 +7928,4 @@ function InlineStatRow({ label, value, sub, tooltip, labelClassName }: {
         </div>
     );
 }
+

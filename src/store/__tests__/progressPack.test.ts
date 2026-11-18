@@ -29,6 +29,7 @@ describe("progress pack inventory serialization", () => {
                     targetStartsWithHeat: true,
                     externalVigilanteSetModCount: 3,
                     externalGladiatorSetModCount: 2,
+                    externalNiraSetModCount: 2,
                     externalHeatElementalDamageBonusPercent: 90,
                     externalHeatFactionDamageBonusPercent: 55,
                     target: {
@@ -62,6 +63,7 @@ describe("progress pack inventory serialization", () => {
             targetStartsWithHeat: true,
             externalVigilanteSetModCount: 3,
             externalGladiatorSetModCount: 2,
+            externalNiraSetModCount: 2,
             externalHeatElementalDamageBonusPercent: 90,
             externalHeatFactionDamageBonusPercent: 55,
         });
@@ -336,3 +338,4 @@ describe("progress pack inventory serialization", () => {
         }]);
     });
 });
+
