@@ -23,6 +23,16 @@ The same saved list was then scored with Tenno-Hub's current-main common finite 
 
 The bounded 1–4-mod replacement neighborhood between the two captured lists checked 69 combinations (50 legal); none beat the Tenno-Hub baseline under Tenno-Hub's evaluator. Underframe's native luck-averaged button does not report a finite TTK, and the native standard result and the shared expected encounter use different simulators. The close but non-identical results are evidence for this one fixture only, not model validation or general optimizer superiority. A broader same-build corpus across weapons/objectives and independent gameplay validation remain open.
 
+### Braton Auto Build replay on a saved copy (2026-11-17)
+
+The integrated browser opened the existing `/Braton-Prime-benchmark-Copy` page, leaving the original Braton and Torid saved pages untouched. The visible target was a level-145 Grineer Heavy Gunner with 83,818 Health / 2,700 Armor, no Shields or Overguard; Primary Bulwark was 500/500, and the build showed three Forma with 3/60 capacity remaining. The displayed level differs from the earlier level-100 capture, while the raw target pools match.
+
+The saved eight-mod list remained Amalgam Serration R10, Bane of Corpus R5, Bane of Grineer R5, Bane of Infested R5, Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, and Vital Sense R5. Auto Build used the `Copy of Default` config, 28 CPU cores, GPU acceleration off, a five-second simulation, Sample Size Multiplier 3, Final Refinement on with refinement sample size 200, Luck Averaged on, Elemental Candidates and Cost Control on, maximum three Forma, raw-damage and status-damage build goals off, and blacklist options off.
+
+The run reached `Step 4: Refining Top 3 Candidates (18 samples)` / `Refining 1 builds...`, then returned to idle. The visible mod list did not change; no final score or result panel appeared. This establishes the observed UI state only; it does not reveal an Auto Build winner or prove convergence.
+
+A fresh Tenno-Hub replay with `npx tsx scripts/comparePlannerBuilds.ts --saved-underframe --primary-bulwark --reoptimize --goal=timeToKill --analyze-underframe-swaps` reproduced the shared-model results above: the captured list was legal at 57/60 with three Forma and scored 4.070981 s Expected TTK / 20,589.14 DPS; Tenno-Hub returned a legal 59/60, three-Forma list at 1.428414 s / 58,679.05 DPS. Of 69 cross-list one-to-four-mod substitutions, 50 were legal and none beat the Tenno-Hub baseline. This is Tenno-Hub's common finite evaluator, not a comparison to Underframe's luck-averaged native objective. This bounded replay is tracked as D3-OPT-UNDERFRAME-BRATON-REPLAY-001 in PR [#156](https://github.com/Appl3Tree/Tenno-Hub/pull/156).
+
 ## Matched Torid / linked Poison Cloud fixture (2026-11-17)
 
 The integrated in-app browser opened a saved Torid build with Malignant Force R3, Vile Acceleration R5, Hammer Shot R3, Primed Bane of Corpus R10, Rifle Aptitude R5, Rifle Elementalist R5, Continuous Misery R3, and Speed Trigger R5. The page showed 3 Forma and 2/60 capacity remaining. For the comparison, its target was changed to Grineer / 100,000 Health / 3,000 Armor, with 0 Shields and Overguard. Primary Bulwark remained at 500/500 (the page’s +500% weapon-damage cap); no external statuses or buffs were active.
