@@ -48,9 +48,9 @@ Underframe's standard `Calculate DPS` on that unchanged saved list displayed 1,6
 
 This is a bounded product smoke comparison, not objective or simulator parity. Underframe's Auto Build setting had Luck Averaged on, but it exposed no new candidate or score; its standard Calculate DPS result above is a different output. No general optimizer or live-game accuracy claim follows.
 
-## Stale cached production chunk observation (2026-11-18)
+## Stale cached production chunk observation and recovery (2026-11-18)
 
-The existing Tenno-Hub tab at `?version=4aa30b8` and a new unversioned tab failed when the Build Planner route requested the absent old lazy chunk `BuildPlanner-sNBsZINI.js`; a direct request for that hashed asset returned 404. A cache-busted current page with `version=0cd9e12` loaded the current `index-DQ2jk2Yx.js` and `BuildPlanner-BvACPbBQ.js` and rendered the planner. This is a stale page/asset mismatch reproduced in this browser session, not a failure in the current bundle or evidence of broad user impact. The caching root cause and a reload/recovery solution remain open as D3-UX-STALE-CHUNK-001.
+The existing Tenno-Hub tab at `?version=4aa30b8` and a new unversioned tab failed when the Build Planner route requested the absent old lazy chunk `BuildPlanner-sNBsZINI.js`; a direct request returned 404. This reproduced a stale page/asset mismatch in one browser session. PR [#160](https://github.com/Appl3Tree/Tenno-Hub/pull/160) adds a guarded `vite:preloadError` reload before React mounts: it retries once per build ID in session storage, then lets another failure reach the existing error boundary. The focused regressions pass 3/3, and the production Vite build, app/node TypeScript checks, focused ESLint, and diff check pass. After merge, a fresh cache-busted production page at `version=c643cda` rendered the Build Planner. Cache headers and old-chunk retention were not changed, prevalence was not measured, and this does not recover already-open tabs still running the prior JavaScript bundle.
 
 ## Matched Torid / linked Poison Cloud fixture (2026-11-17)
 
