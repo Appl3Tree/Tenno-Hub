@@ -5664,6 +5664,53 @@ describe("Vigilante set optimizer scoring", () => {
     });
 });
 
+describe("Nira set optimizer scoring", () => {
+    it("scores external pieces for slam Burst and finite TTK, and selects the set mod", () => {
+        const whip = getWeaponCatalog().find((candidate) =>
+            candidate.category === "Melee" &&
+            candidate.attacks.some((attack) => attack.name === "Slam Attack") &&
+            getModsForWeapon(candidate).some((mod) => mod.name === "Nira's Contempt"),
+        );
+        expect(whip).toBeDefined();
+        const slamIndex = whip!.attacks.findIndex((attack) => attack.name === "Slam Attack");
+        const weapon = withSelectedAttack(whip!, slamIndex);
+        const nira = getModsForWeapon(weapon).find((mod) => mod.name === "Nira's Contempt");
+        expect(nira).toBeDefined();
+        const setPiece = { ...emptyEffect(), niraSetModCount: 1 };
+        const state = { mode: "realistic" as const };
+        const externalState = { ...state, externalNiraSetModCount: 2 };
+        const baseBurst = debugScoreBuild(weapon, [], "burst", "", null, null, state);
+        const selectedBurst = debugScoreBuild(weapon, [setPiece], "burst", "", null, null, state);
+        const externalBurst = debugScoreBuild(weapon, [], "burst", "", null, null, externalState);
+        expect(selectedBurst).toBeGreaterThan(baseBurst);
+        expect(externalBurst).toBeGreaterThan(baseBurst);
+
+        const target = { health: 100_000, shields: 0, overguard: 0, armor: 0 };
+        const baseFinite = debugScoreExpectedEncounter(weapon, [], "", target, state);
+        const externalFinite = debugScoreExpectedEncounter(weapon, [], "", target, externalState);
+        expect(baseFinite.timeToKillSeconds).not.toBeNull();
+        expect(externalFinite.timeToKillSeconds).not.toBeNull();
+        expect(externalFinite.timeToKillSeconds).toBeLessThan(baseFinite.timeToKillSeconds!);
+
+        const setOnlyEffects = nira!.effectsByRank.map(() => ({ ...emptyEffect(), niraSetModCount: 1 }));
+        const setOnlyMod: ModEntry = {
+            ...nira!,
+            effect: setOnlyEffects[nira!.fusionLimit],
+            effectsByRank: setOnlyEffects,
+            hasDamageEffect: true,
+        };
+        const optimized = optimizeBuild(weapon, [setOnlyMod], "burst", 1, {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            allowCatalyst: true,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        });
+        expect(optimized.slots[0]?.name).toBe("Nira's Contempt");
+    });
+});
+
 describe("Gladiator set optimizer scoring", () => {
     it("scores combo-scaled melee Critical Chance in fast and finite damage objectives", () => {
         const weapon = makeWeapon({ category: "Melee", weaponType: "Sword", modCompat: "Melee", critChance: 0.5, critMultiplier: 2 });
@@ -5754,3 +5801,4 @@ describe("Sacrificial set optimizer scoring", () => {
         expect(result.slots.map((mod) => mod?.name).sort()).toEqual(["Sacrificial Pressure", "Sacrificial Steel"]);
     });
 });
+

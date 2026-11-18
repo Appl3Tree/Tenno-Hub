@@ -154,6 +154,8 @@ export interface ModEffect {
     vigilanteSetModCount: number;
     /** Number of distinct Gladiator set members selected on this weapon. */
     gladiatorSetModCount: number;
+    /** Number of distinct Nira set members selected on this weapon. */
+    niraSetModCount: number;
     /** Count of selected Sacrificial set mods, independent of rank. */
     sacrificialSetModCount: number;
     /** Canonical identity used to distinguish the two members of the Sacrificial set. */
@@ -265,6 +267,7 @@ const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
 const VIGILANTE_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod";
 const GLADIATOR_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Gladiator/GladiatorSetMod";
 const SACRIFICIAL_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Sacrifice/SacrificeSetMod";
+const NIRA_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Nira/NiraSetMod";
 export const SPRING_LOADED_BROADHEAD_PATH = "/Lotus/Upgrades/Mods/PvPMods/Rifle/DaikyuMoreDamageOverDistanceMod";
 const MENTOR_LEGACY_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/TennokaiBaseMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
@@ -1406,6 +1409,10 @@ function buildCaches(): ModCaches {
                 effect.sacrificialSetModId = path;
             });
         }
+        if (item.modSet === NIRA_SET_BONUS_PATH) {
+            // Nira's set bonus is piece-count based and does not depend on mod rank.
+            effectsByRank.forEach((effect) => { effect.niraSetModCount = 1; });
+        }
         if (locksFireRate) {
             // Cannonade's lock applies at every rank and ignores both positive
             // and negative Fire Rate changes while equipped.
@@ -1982,10 +1989,12 @@ export function getModsForWeapon(weapon: WeaponEntry): ModEntry[] {
     const baseMods = beastCompatKeys.length > 0
         ? beastCompatKeys.flatMap((key) => byWeaponName.get(key) ?? [])
         : getModsForCompat(weapon.modCompat);
+    // WFCD classifies Nira's Contempt under Whips; WHIPS_STANCE is the real compatibility gate.
+    const niraWhipMods = weapon.tags?.includes("WHIPS_STANCE") ? byWeaponName.get("Whips") ?? [] : [];
 
     // Apply trigger restriction
     const seen = new Set<string>();
-    const filtered = baseMods.filter(m =>
+    const filtered = [...baseMods, ...niraWhipMods].filter(m =>
         (!seen.has(m.uniqueName) ? (seen.add(m.uniqueName), true) : false) &&
         m.isPveEligible !== false &&
         weaponMatchesItemCompatibility(weapon, m.itemCompatibilityPath) &&
@@ -2085,3 +2094,4 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     }
     return normalizeTrainingVariantGroups(out.sort((a, b) => a.name.localeCompare(b.name)));
 }
+

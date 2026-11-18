@@ -363,4 +363,18 @@ describe("weapon mod set membership", () => {
         expect(mods.find((mod) => mod.name === "Serration")?.setBonusPath).toBeUndefined();
         expect(mods.find((mod) => mod.name === "Serration")?.effect.vigilanteSetModCount).toBe(0);
     });
+
+    it("marks Nira set membership on the compatible whip mod at every rank", () => {
+        const whip = getWeaponCatalog().find((weapon) =>
+            weapon.category === "Melee" && getModsForWeapon(weapon).some((mod) => mod.name === "Nira's Contempt"),
+        );
+        expect(whip).toBeDefined();
+        const nira = getModsForWeapon(whip!).find((mod) => mod.name === "Nira's Contempt");
+        expect(nira).toBeDefined();
+        expect(nira!.setBonusPath).toBe("/Lotus/Upgrades/Mods/Sets/Nira/NiraSetMod");
+        expect(nira!.effectsByRank.every((effect) => effect.niraSetModCount === 1)).toBe(true);
+        expect(nira!.effectsByRank[5].damageBonus).toBeCloseTo(0.9, 10);
+        expect(nira!.effectsByRank[5].statusChanceBonus).toBeCloseTo(0.6, 10);
+    });
 });
+
