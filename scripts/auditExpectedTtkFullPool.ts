@@ -1,5 +1,7 @@
 import { filterBuilderExpertVariants, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEntry } from "../src/domain/catalog/modCatalog";
 import { getWeaponCatalog, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
+import { getArcanesForWeapon } from "../src/domain/catalog/arcaneCatalog";
+import { getArcaneEffectAtRank } from "../src/domain/logic/arcaneEffects";
 import { countPolarityChanges, fitsWithinCapacity } from "../src/domain/logic/capacityCalc";
 import {
     assignModsToSlots,
@@ -69,6 +71,16 @@ if (attackIndex < 0) throw new Error(`Attack not found: ${weaponName} / ${attack
 const attack = weapon.attacks[attackIndex] ?? null;
 const scoringWeapon = attack ? withSelectedAttack(weapon, attackIndex) : weapon;
 const conditionalState: ConditionalState = { mode: stateMode };
+const arcaneName = option("arcane", "").trim();
+const hasWarframeArmor = process.argv.some((argument) => argument.startsWith("--warframe-armor="));
+const warframeArmor = numericOption("warframe-armor", 0);
+const arcane = arcaneName
+    ? getArcanesForWeapon(weapon).find((entry) => entry.name.toLowerCase() === arcaneName.toLowerCase()) ?? null
+    : null;
+if (arcaneName && !arcane) throw new Error("Arcane not found for weapon: " + arcaneName);
+if (arcane?.armorScaledWeaponDamage && !hasWarframeArmor) {
+    throw new Error("--warframe-armor is required for an armor-scaled Arcane");
+}
 const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon));
 const familyHasStandard = new Set<string>();
 for (const mod of candidates) {
@@ -104,11 +116,17 @@ const optimizerOptions = {
     allowForma: true,
     maxFormaCount: formaLimit,
     optimizeExilus: false,
-    optimizeArcane: false,
+    optimizeArcane: !!arcane,
+    arcaneCandidates: arcane ? [arcane] : [],
+    warframeArmor: arcane ? warframeArmor : undefined,
 };
 
 const optimized = optimizeBuild(weapon, candidates, "timeToKill", slotCount, optimizerOptions);
 if (!optimized.capacityValid) throw new Error("Optimizer returned an illegal baseline build");
+const arcaneEffect = optimized.arcane
+    ? getArcaneEffectAtRank(optimized.arcane, optimized.arcaneRank, warframeArmor, false)
+    : null;
+if (optimized.arcane && !arcaneEffect) throw new Error("Could not resolve the optimized Arcane effect");
 
 const scoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => debugScoreExpectedEncounter(
     scoringWeapon,
@@ -118,6 +136,7 @@ const scoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => debugScoreExp
     faction,
     target,
     conditionalState,
+    arcaneEffect,
 );
 const proxyScoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => debugScoreBuild(
     scoringWeapon,
@@ -126,7 +145,7 @@ const proxyScoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => debugSco
         : null),
     "scaling",
     faction,
-    undefined,
+    arcaneEffect,
     target,
     conditionalState,
 );
@@ -242,6 +261,7 @@ console.log(JSON.stringify({
     state: stateMode,
     slotCount,
     formaLimit,
+    arcane: optimized.arcane ? { name: optimized.arcane.name, rank: optimized.arcaneRank, warframeArmor } : null,
     candidatePool: candidates.length,
     eligibleFullPoolCandidates: eligibleCandidates.length,
     optimizerBuild: formatBuild(optimized.slots, optimized.slotRanks),

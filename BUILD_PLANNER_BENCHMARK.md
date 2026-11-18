@@ -14,6 +14,35 @@ Validation in the isolated snapshot: Torid-specific catalog, damage, target enco
 
 Reopen if an authoritative source contradicts the tick timing/attachment/stacking mechanics, a regression changes the directly struck-target sequence, or browser review reveals that the component boundary is unclear. This bounded mechanic is released. The previous impact-only pair audit is not comparable to the linked-cloud score; rerun the bounded neighborhood if stronger optimizer-quality evidence is needed.
 
+## D3-OPT-TORID-POST-CLOUD-001 — post-release neighborhood and Underframe checks (2026-11-17; bounded audit complete)
+
+After the linked Poison Cloud model shipped, the seeded 12-case Expected TTK corpus was rerun with `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261144`. All cases use Grineer, 100,000 Health / 3,000 Armor, Realistic state, eight main slots, Catalyst, MR30, up to three Forma, no Arcane or Exilus optimization, and exact finite Expected TTK for every legal one-mod add/remove/replacement from the optimizer baseline.
+
+| Weapon / attack | Exact legal neighbors | Optimizer / best neighbor TTK |
+|---|---:|---:|
+| Braton Prime / Normal Attack | 234 | 2.1194748 s |
+| Cedo / Normal Attack | 412 | 2.6109661 s |
+| Laetum / Normal Attack | 292 | 1.8867925 s |
+| Soma Prime / Fully Spooled | 420 | 1.7191106 s |
+| Broken War / Normal Attack | 365 | 8.0000000 s |
+| Kuva Nukor / Normal Attack | 359 | 1.4400000 s |
+| Nataruk / Perfect Shot | 396 | 1.3000000 s |
+| Torid / Grenade Impact | 238 | 4.7230576 s |
+| Kuva Ogris / Rocket Explosion | 450 | 2.0000000 s |
+| Mausolon / Charged Shot Explosion | 163 | 1.0526316 s |
+| Verglas Prime / Normal Attack | 250 | 2.8070175 s |
+| Arca Titron / Heavy Slam Attack | 299 | 1.5591503 s |
+
+The 3,878 legal neighbors tied or lost; no one-mod improvement was found. The earlier same-seed table records Torid under the impact-only model and must not be compared with this linked-cloud result.
+
+The exact audit runner also accepts `--arcane=<name> --warframe-armor=<value>` to hold a selected weapon Arcane while scoring the neighborhood. For Torid / Grenade Impact with Primary Bulwark R5 (+500%, using 1,500 Warframe Armor), it selected a capacity-legal eight-mod build with three Forma at 2.4561404 s Expected TTK. Exact scoring found no improvement among 236 legal one-mod add/remove/replacement neighbors with that Arcane fixed. This is a one-build local check, not a joint mod/Arcane neighborhood or global optimum. Reproduce with:
+
+```sh
+npx tsx scripts/auditExpectedTtkFullPool.ts --weapon=Torid --attack="Grenade Impact" --state=realistic --arcane="Primary Bulwark" --warframe-armor=1500
+```
+
+A single captured Underframe fixture is documented in [docs/UNDERFRAME_COMPARISON.md](docs/UNDERFRAME_COMPARISON.md). Its native 5-second custom combined-mode readout and Tenno-Hub's linked-sequence finite evaluator differ, so the observed values are not a direct parity test. This is bounded model-local neighborhood evidence plus one controlled UI fixture, not global quality, gameplay accuracy, or broad Underframe comparison.
+
 ## D3-MOD-SET-NIRA-SLAM-001 — Nira melee Slam Damage integration (2026-11-17; merged)
 
 The current [Nira’s Set Wiki page](https://wiki.warframe.com/w/Nira%27s_Set) documents +150% Slam Damage per set piece and a three-piece maximum. The planner counts canonical Nira identities at every rank, combines selected melee pieces with a saved 0–2 distinct external Warframe-piece count, and caps the total at three. The bonus is active only on catalogued melee attacks marked as slam attacks. It adds to the Slam Damage category, including Seismic Wave, and reaches the calculator, status seeds, finite Expected TTK, and Auto Optimize.
