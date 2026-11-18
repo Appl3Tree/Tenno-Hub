@@ -1,5 +1,26 @@
 # Build Planner Optimizer Benchmark
 
+## D3-OPT-UNDERFRAME-BRATON-LIVE-001 — current production Braton Prime replay (2026-11-18; bounded browser comparison)
+
+The integrated in-app browser opened the cache-busted production Build Planner at `https://appl3tree.github.io/Tenno-Hub/?probe=20261118-0728&version=0cd9e12`. It loaded the current hashed Build Planner bundle, selected Braton Prime / Normal Attack, and optimized for Expected TTK. Inputs were Grineer damage modifiers with custom current pools of 83,818 Health, 0 Shields, 0 Overguard, and 2,700 Armor; Realistic conditional state; zero assumed headshot share; no external status stacks, buffs, or nearby enemies; a Catalyst; weapon rank 30; and a maximum of three Forma. Primary Bulwark was enabled at the Underframe page's 500/500 cap and mapped to 1,500 Warframe Armor in Tenno-Hub. There was no Exilus or Arcane selected. Tenno-Hub displayed a capacity-valid eight-slot build at 60/60 capacity and three Forma.
+
+The returned mods/ranks were Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, Vile Acceleration R5, Primed Bane of Grineer R10, Galvanized Chamber R10, Galvanized Aptitude R10, and Vital Sense R5. The “Why This Build” panel confirmed Expected TTK, the custom current-level Grineer pool, Realistic state, and a finite expected encounter of 1.70 s across 32 attacks at 49,214.7 modeled damage/s (82,077 direct plus 1,741 status damage).
+
+The integrated browser then opened Underframe's existing `/Braton-Prime-benchmark-Copy` build. It showed the same raw target pools and faction, 500/500 Primary Bulwark, zero Shields/Overguard, no external statuses/buffs, headshots disabled, three Forma, and the saved eight-mod list Amalgam Serration R10, Bane of Corpus R5, Bane of Grineer R5, Bane of Infested R5, Malignant Force R3, Rime Rounds R3, Thermite Rounds R3, and Vital Sense R5. The target level label was 145; Tenno-Hub used custom current pools without level scaling. Underframe's Auto Build configuration was `Copy of Default`: 28 CPU cores, GPU off, five-second simulation, Sample Size Multiplier 3, Final Refinement on with sample size 200, Luck Averaged on, Elemental Candidates and Cost Control on, and a three-Forma maximum. It reached Step 4 refinement and returned to idle with the visible mod list unchanged and no result panel. Thus this replay yielded no verified Underframe Auto Build winner.
+
+Underframe's standard `Calculate DPS` button was then run on that unchanged saved list. It showed 1,628 raw + 277 DoT average damage per shot, 18,354 Average DPS, and 4.57 s TTK. The saved list contains Bane mods for Corpus, Grineer, and Infested; those distinct mods can coexist, and the current build is capacity-valid (3 capacity remaining with three Forma). For this Grineer target, only Bane of Grineer matches. The displayed score is recorded as UI behavior on the unchanged saved list, not as a new Auto Build candidate.
+
+| Rendered outcome | Model/objective | Displayed result | Build status |
+| --- | --- | ---: | --- |
+| Tenno-Hub Auto Optimize | Finite expected encounter / Expected TTK | 1.70 s; 49,214.7 modeled damage/s | 8/8 slots; 60/60 capacity; 3 Forma |
+| Underframe saved copy after Auto Build returned idle | Standard Calculate DPS on the unchanged saved list | 4.57 s TTK; 18,354 Average DPS | Pre-existing capacity-valid list; only one Bane matches Grineer; no optimizer winner |
+
+This is not an objective-matched optimizer comparison: Underframe's Auto Build config had Luck Averaged enabled, but the run exposed no candidate or score, while the 4.57 s number came from its standard Calculate DPS button on the old saved list. The simulators also differ. No Underframe winner, general parity, or gameplay-accuracy claim is made. This is a production UI workflow and model-output smoke result for one custom single-target scenario.
+
+### Stale production lazy-chunk observation (2026-11-18)
+
+An existing tab at `?version=4aa30b8` and a newly opened unversioned tab both failed to load the Build Planner route and referenced the old hashed chunk `BuildPlanner-sNBsZINI.js`; a direct request for that asset returned 404. A cache-busted current production URL with `version=0cd9e12` loaded the current `index-DQ2jk2Yx.js` and `BuildPlanner-BvACPbBQ.js` bundles and rendered successfully. This reproduces a stale HTML/client-to-removed-chunk mismatch inside the browser session. The current bundle worked, and the observation does not establish prevalence across users. Cache headers/deployment retention and a graceful stale-import reload path have not been diagnosed. Track as the open D3-UX-STALE-CHUNK-001 follow-up; do not describe it as a current-bundle Build Planner failure.
+
 ## D3-OPT-UNDERFRAME-GRAM-SLOT-FAMILY-001 — Gram Prime family-dependent Expected TTK replacements (2026-11-18; released)
 
 A Gram Prime / Normal Attack neighborhood audit exposed a full-pool shortlist miss under Grineer, 100,000 Health / 3,000 Armor, Initial state, eight slots, Catalyst, and at most three Forma. Rending Crane R3 is included as an extra capacity slot; the finite encounter scorer does not model the Underframe Lashing Tempest hit sequence.
