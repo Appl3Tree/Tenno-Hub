@@ -1,5 +1,35 @@
 # Build Planner Optimizer Benchmark
 
+## D3-OPT-SEED-CORPUS-003 — third seeded 12-case Expected TTK audit (2026-11-18; bounded)
+
+Reproduce with:
+
+- `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261145`
+- `npx tsx scripts/auditExpectedTtkPairSample.ts --seed=20261145 --samples=1024`
+
+Both runs use Grineer, 100,000 Health, 0 Shields, 0 Overguard, 3,000 Armor, Realistic state, eight main slots, Catalyst, MR30, and up to three Forma. Arcane and Exilus optimization are disabled. The first script exactly scores every legal one-mod add/remove/replacement from the optimizer result. The second samples 1,024 legal maximum-rank two-out/two-in replacements per fixture, without replacement after legality checks.
+
+Seeded selections were Tenet Envoy / Rocket Explosion, Corvas Prime / Charged Shot, Verglas Prime / Normal Attack, and Arca Titron / Heavy Slam Attack, alongside the same eight fixed anchors used by the prior seeded corpus.
+
+| Fixture | Selection | Exact legal one-mod neighbors | Optimizer Expected TTK |
+| --- | --- | ---: | ---: |
+| Braton Prime / Normal Attack | Fixed | 234 | 2.119475 s |
+| Cedo / Normal Attack | Fixed | 412 | 2.610966 s |
+| Laetum / Normal Attack | Fixed | 292 | 1.886792 s |
+| Soma Prime / Fully Spooled | Fixed | 420 | 1.719111 s |
+| Broken War / Normal Attack | Fixed | 365 | 8.000000 s |
+| Kuva Nukor / Normal Attack | Fixed | 359 | 1.440000 s |
+| Nataruk / Perfect Shot | Fixed | 396 | 1.300000 s |
+| Torid / Grenade Impact | Fixed | 238 | 4.723058 s |
+| Tenet Envoy / Rocket Explosion | Seeded | 419 | 2.536462 s |
+| Corvas Prime / Charged Shot | Seeded | 175 | 1.538462 s |
+| Verglas Prime / Normal Attack | Seeded | 250 | 2.807018 s |
+| Arca Titron / Heavy Slam Attack | Seeded | 299 | 1.559150 s |
+
+None of the 3,859 exact legal one-mod neighbors improved its optimizer baseline. The pair audit scored 12,288 legal sampled replacements after inspecting 25,088 raw tuples; none beat its optimizer baseline. The one-mod script's fixture `elapsedMs` values sum to about 114.2 seconds for this serial audit; this is neighborhood-audit time, not user-facing optimizer latency.
+
+This is bounded model-local evidence from one faction, target pool, and conditional state. The pair sweep is sampled rather than exhaustive. It does not prove global optimality, gameplay accuracy, or Underframe parity, and does not cover Arcane/Exilus optimization. The new seeded selections broaden the corpus to explosive, Archgun, companion, and heavy-melee attacks.
+
 ## D3-OPT-UNDERFRAME-BRATON-LIVE-001 — current production Braton Prime replay (2026-11-18; bounded browser comparison)
 
 The integrated in-app browser opened the cache-busted production Build Planner at `https://appl3tree.github.io/Tenno-Hub/?probe=20261118-0728&version=0cd9e12`. It loaded the current hashed Build Planner bundle, selected Braton Prime / Normal Attack, and optimized for Expected TTK. Inputs were Grineer damage modifiers with custom current pools of 83,818 Health, 0 Shields, 0 Overguard, and 2,700 Armor; Realistic conditional state; zero assumed headshot share; no external status stacks, buffs, or nearby enemies; a Catalyst; weapon rank 30; and a maximum of three Forma. Primary Bulwark was enabled at the Underframe page's 500/500 cap and mapped to 1,500 Warframe Armor in Tenno-Hub. There was no Exilus or Arcane selected. Tenno-Hub displayed a capacity-valid eight-slot build at 60/60 capacity and three Forma.
