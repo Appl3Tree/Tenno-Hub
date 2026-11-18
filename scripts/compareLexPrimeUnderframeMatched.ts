@@ -150,6 +150,7 @@ console.log(JSON.stringify({
         faction: FACTION,
         target: TARGET,
         objective: "Expected TTK",
+        underframeAutoBuildObjective: "Luck Averaged was enabled, but the Underframe internal Auto Build ranking function was not independently confirmed to be finite Expected TTK. The paired builds are rescored with the same Tenno-Hub Expected TTK model; this does not establish native search-objective parity.",
         constraints: "Eight normal slots, Catalyst, max-rank mods, up to three Forma, Exilus off, Arcanes off, no external buffs/statuses, no headshots, Realistic state.",
         modelBoundary: "Both captured Underframe and Tenno-Hub builds are scored by Tenno-Hub's same single-target finite Expected TTK model. The Expected TTK optimizer's fast screening proxy is reported separately and is not the final comparison score. Underframe's native calculator is a separate model; similar DPS/TTK values do not establish parity.",
     },
