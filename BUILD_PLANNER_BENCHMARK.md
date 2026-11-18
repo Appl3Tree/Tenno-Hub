@@ -1,5 +1,19 @@
 # Build Planner Optimizer Benchmark
 
+## D3-ATTACK-TORID-CLOUD-001 — bounded linked Poison Cloud sequence (2026-11-17; PR #151 draft)
+
+The current [Torid Wiki page](https://wiki.warframe.com/w/Torid) describes the Grenade Impact as 100 Toxin and its attached Poison Cloud as 40 Toxin damage once per second for 10 seconds; multiple clouds stack. It says the cloud does not damage immediately. The implementation starts the first tick at +1s, explicitly inferred from “no immediate damage” and the 1/s interval. It schedules 10 ticks per impact against the struck target.
+
+This updates Torid's complete selected-attack model beyond the prior Grenade Impact-only scoring. The old D3-OPT-TORID-PAIR-001 10.0s TTK and its 17,665 swap audit remain valid for that earlier standalone-impact model, but must not be treated as whole-weapon evidence or compared directly to the linked-sequence results below. The standalone Poison Cloud row remains unavailable. Calculator DPS, fast optimizer scores, and finite Expected TTK include linked direct/status damage and additive overlapping clouds.
+
+**Bounded audit.** Fixture: Torid / Grenade Impact / Grineer / 100,000 Health / 3,000 Armor / Realistic state / eight slots / Catalyst / up to three Forma. The full-catalog optimizer returned a legal 3-Forma build at 4.7543859649s Expected TTK (21,033.2103 modeled encounter DPS). Exact evaluation of 236 legal one-mod add/remove/replacement neighbors found no improvement. The seeded two-mod sample command was `npx tsx scripts/auditExpectedTtkPairSample.ts --worker --weapon=Torid --attack="Grenade Impact" --samples=1024 --seed=20261144`; it selected 1,024 legal moves after inspecting 3,174 tuples from a 54,684-tuple raw universe (5.804% coverage). No sampled move beat the optimizer result; best sampled TTK was 5.37218045s. This is a bounded one-mod audit plus a seeded pair sample, not global or exhaustive pair optimality.
+
+**Latency probe.** Command: `npx tsx scripts/benchmarkBuildOptimizer.ts --weapon=Torid --goal=timeToKill --runs=3 --no-arcane --no-exilus`. The Corpus / Grenade Impact case returned the same legal 3-Forma build and score in all three runs, 0.7843137255s modeled TTK, 157 finite candidates, 6.720s median and 7.335s p95 optimizer time (Windows x64, Node v22.16.0, 28 logical CPUs). This is one machine's three-run desktop observation, not cold/mobile/Worker population-tail evidence.
+
+The Underframe Torid fixture is unmatched to this fixed attack/target/settings combination; `npm run benchmark:torid-comparison` returns `not-comparable`. No parity score is included. Other limits: the +1s first tick is inferred, area coverage against other enemies, target movement, projectile travel and the separately applied impact/explosion status events remain unmodeled. Live-game and rendered-browser validation are not claimed; Computer Use stopped with Escape before capture.
+
+Implementation commit `f241674723f35ddc0b9e5d61ba771a90d83b93e8`; PR [#151](https://github.com/Appl3Tree/Tenno-Hub/pull/151) is open as draft, not merged or deployed. Full suite passed 801/801 / 53 files before the final DoT-detail propagation refinement; the focused linked-cloud regressions and production build passed on the final source.
+
 ## D3-MOD-ONKILL-EXPLOSION-BOUNDARY-001 — unsupported on-kill area effects (2026-11-17; released)
 
 A local scan of the checked-in WFCD `external/warframe-items/raw/Mods.json` snapshot identified Entropy Detonation and Amalgam Furax Body Count as additional on-kill area-effect candidates. Runtime inspection showed their kill explosions/staggers are not parsed as damage effects, and the existing Auto Optimize unmodeled-effect gate excludes them. Amalgam Furax Body Count's supported secondary Fire Rate and combo-duration stats can still be shown to manual builds; Auto Optimize skips the whole mod rather than partially scoring its unsupported kill effect.

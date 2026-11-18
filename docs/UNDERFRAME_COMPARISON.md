@@ -42,3 +42,10 @@ The bounded 1–4-mod replacement neighborhood between the two captured lists ch
 3. The public Desktop source documents worker isolation and reproducible seeded simulations. Its private core prevents independent audit of the final damage engine, so an observed numerical match would be evidence for that scenario rather than proof that either model is generally correct.
 4. The next useful optimizer comparison is a reproducible paired corpus: same weapon variant and attack, mod/Arcane ranks, Forma/Catalyst, Incarnon choices, target defenses, external buffs, and conditional state. Compare build legality, objective value, per-run latency, and the actual selected setup. Record cases where assumptions cannot be aligned.
 5. One click-tested, same-build Braton Prime comparison is recorded above. A broader paired corpus remains outstanding: match several weapon categories, objectives, arcs/conditional settings, target profiles, and repeat counts before making general quality claims.
+
+
+## Torid linked Poison Cloud comparison boundary (2026-11-17)
+
+The new Tenno-Hub Torid Grenade Impact model includes an attached single-target Poison Cloud sequence (10 seconds at 40 Toxin damage once per second; first tick at +1s is inferred). The saved Underframe Torid capture is not equivalent to the fixed comparison case: it uses a custom attack/Poison Cloud child and different Bulwark/Arcane settings. The current comparator exits as `not-comparable`; no numerical parity result is reported. Do not compare the older 10.0s standalone Grenade Impact audit to this linked-sequence model.
+
+The linked model has not been visually verified in the integrated browser because Computer Use stopped with Escape; live-game mechanics and broader matched Torid/Underframe testing remain open. See D3-ATTACK-TORID-CLOUD-001 in `BUILD_PLANNER_WORK_STATUS.md` and the Torid section in `BUILD_PLANNER_BENCHMARK.md`.
