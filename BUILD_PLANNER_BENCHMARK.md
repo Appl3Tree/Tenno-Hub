@@ -2139,4 +2139,23 @@ The integrated in-app browser duplicated `/Codex-Matched-Corpus-Cedo` as `/Codex
 
 After Auto Polarize the duplicate was capacity-valid at 3/60, but displayed four Forma, exceeding the original Auto Build setting of three Forma and Tenno-Hub's reported two-Forma plan. On Underframe's five-second Luck Averaged DPS readout, the duplicate showed 3,119 raw + 3 DoT average damage per shot, 34,507 average DPS, and `? ttk`. The captured Underframe list's same readout was 38,091 average DPS / 2.74 s. The Tenno-Hub list was therefore 3,584 DPS (9.4%) lower on this readout. The source audit documents that the separate Underframe readout scores eight seeded runs; this does not change the fact that Tenno-Hub selected its list under finite Expected TTK.
 
-This is a same-readout rescore of two mod lists, but not an equal-investment comparison because the Underframe duplicate needed four Forma; confirm whether its polarity layout can be reduced to the three-Forma cap under D3-OPT-UNDERFRAME-CEDO-FORMA-001. In Tenno-Hub's own finite Expected TTK model, the same returned list scores 2.6110 s versus 5.3176 s for the captured list. This records one objective tradeoff and neither establishes optimizer-objective parity nor simulator/gameplay accuracy. The original Underframe capture was not edited. The screenshot was visible during integrated-browser inspection but was not saved as a file artifact.
+This is a same-readout rescore. The original four-Forma Auto Polarize result did not find the best polarity layout: the bounded source-backed plan below fits the same mod/rank list at two Forma and 59/60, within the three-Forma setting. Until that plan is applied and captured in the UI, describe capacity as computed feasible and placement as unverified. In Tenno-Hub's own finite Expected TTK model, the same returned list scores 2.6110 s versus 5.3176 s for the captured list. This records one objective tradeoff and neither establishes optimizer-objective parity nor simulator/gameplay accuracy. The original Underframe capture was not edited. The screenshot was visible during integrated-browser inspection but was not saved as a file artifact.
+
+
+## D3-OPT-UNDERFRAME-CEDO-FORMA-001 — source-backed capacity feasibility (2026-11-18; bounded)
+
+The exact Tenno-Hub Cedo mod/rank list fits Underframe's 60-capacity limit with two added Forma, below the original three-Forma cap. Underframe's public [capacity.js](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/src/shared/capacity.js) confirms base drain is base drain plus rank and a matching polarity halves positive drain rounded up. On the duplicate's displayed slot order, slots 3 and 8 already have Madurai. Adding Vazarin in slots 1 and 7 yields:
+
+| Displayed slot | Mod | Raw drain | Planned slot polarity | Effective drain |
+| ---: | --- | ---: | --- | ---: |
+| 1 | Primed Chilling Grasp R10 | 16 | Vazarin (new Forma) | 8 |
+| 2 | Toxic Barrage R3 | 7 | Unpolarized | 7 |
+| 3 | Galvanized Hell R10 | 16 | Madurai (native) | 8 |
+| 4 | Blaze R3 | 9 | Unpolarized | 9 |
+| 5 | Shotgun Barrage R5 | 9 | Unpolarized | 9 |
+| 6 | Scattering Inferno R3 | 7 | Unpolarized | 7 |
+| 7 | Galvanized Savvy R10 | 12 | Vazarin (new Forma) | 6 |
+| 8 | Frail Momentum R5 | 9 | Madurai (native) | 5 |
+| **Total** |  | **85** | **2 new Forma** | **59 / 60** |
+
+At reset, the same slot order with only the two native Madurai slots drains 73/60; the plan saves 8+6=14 capacity. A Node check against the checked-in catalog metadata reproduced the raw drains, 73/60 reset total, 59/60 planned total, and two changes. This establishes a feasible capacity/polarity arrangement under the public rule; it does not establish that the arrangement was applied in Underframe's UI. The duplicate remains at 0 Forma / -13/60 after the integrated-browser interaction stalled on a confirmation prompt. The original captured Underframe build remains untouched. Reopen the capacity conclusion only if a fresh UI rejects this placement, the displayed slot order/polarities differ, or the catalog inputs change.
