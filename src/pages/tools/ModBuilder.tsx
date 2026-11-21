@@ -1877,6 +1877,27 @@ function buildMathBreakdown(
                         ? fmt(conditionalState.targetDistanceMeters ?? 0, 2) + "m"
                         : "unset")]
                     : []),
+                ...(stats.attackDamageFalloff ? [
+                    stats.attackDamageFalloff.distanceMeters === null
+                        ? `Attack falloff distance is unset; the score assumes full damage (×${fmt(stats.attackDamageFalloff.damageMultiplier, 4)}).`
+                        : `Attack falloff at ${fmt(stats.attackDamageFalloff.distanceMeters, 2)}m = ×${fmt(stats.attackDamageFalloff.damageMultiplier, 5)}${stats.attackDamageFalloff.startDistanceMeters !== null && stats.attackDamageFalloff.endDistanceMeters !== null
+                            ? ` across ${fmt(stats.attackDamageFalloff.startDistanceMeters, 2)}–${fmt(stats.attackDamageFalloff.endDistanceMeters, 2)}m after ×${fmt(stats.attackDamageFalloff.falloffDistanceMultiplier, 4)} falloff-range scaling`
+                            : " (no direct falloff profile listed)"}.`,
+                    ...(stats.attackDamageFalloff.maximumRangeMeters !== null
+                        ? [`Wiki-listed maximum range = ${fmt(stats.attackDamageFalloff.maximumRangeMeters, 2)}m; this calculator does not turn farther attacks into misses.${stats.attackDamageFalloff.exceedsListedMaximumRange ? " The entered distance exceeds that listed range." : ""}`]
+                        : []),
+                    ...(stats.attackDamageFalloff.sourceUrl ? [`Falloff source = ${stats.attackDamageFalloff.sourceUrl}`] : []),
+                    ...(stats.attackDamageFalloff.maximumRangeSourceUrl ? [`Range source = ${stats.attackDamageFalloff.maximumRangeSourceUrl}`] : []),
+                    ...(stats.conditionOverloadApplies || stats.directDamagePerStatusBonus > 0
+                        ? ["Wiki reports that Condition Overload/Galvanized additive damage can ignore falloff in some damage-bracket combinations; this score applies falloff uniformly."]
+                        : []),
+                ] : []),
+                ...(stats.attachedAttackDamageSequence?.profile.attackDamageFalloff ? [
+                    `Linked ${stats.attachedAttackDamageSequence.rule.componentAttackName} uses ${fmt(stats.attachedAttackDamageSequence.profile.attackDamageFalloff.distanceMeters ?? 0, 2)}m blast-center offset for its attached-target event (×${fmt(stats.attachedAttackDamageSequence.profile.attackDamageFalloff.damageMultiplier, 4)} falloff).`,
+                    ...(stats.attachedAttackDamageSequence.profile.attackDamageFalloff.sourceUrl
+                        ? [`Linked component falloff source = ${stats.attachedAttackDamageSequence.profile.attackDamageFalloff.sourceUrl}`]
+                        : []),
+                ] : []),
                 ...customTargetLines,
             ],
         },
@@ -3607,6 +3628,15 @@ export default function ModBuilder() {
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
     const [targetDistanceMeters, setTargetDistanceMeters] = useState<number | undefined>(undefined);
+    const [attackFalloffDistanceMeters, setAttackFalloffDistanceMeters] = useState<number | undefined>(undefined);
+    const selectedFalloffAttack = weapon?.attacks[selectedAttackIdx];
+    const linkedFalloffAttack = selectedFalloffAttack?.lingeringDamageRule
+        ? weapon?.attacks.find((attack) => attack.name.trim().toLowerCase() ===
+            selectedFalloffAttack.lingeringDamageRule?.componentAttackName.trim().toLowerCase())
+        : undefined;
+    const falloffRelevantAttacks = [selectedFalloffAttack, linkedFalloffAttack].filter((attack) =>
+        Boolean(attack?.damageFalloff || attack?.maximumRangeMeters !== undefined),
+    );
     const supportsKineticKiller = Boolean(getIncarnonRecordForWeapon(weapon)?.tiers.some((tier) =>
         tier.options.some((option) => option.id === "tier-4-kinetic-killer"),
     ));
@@ -3632,7 +3662,8 @@ export default function ModBuilder() {
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters]);
+        attackFalloffDistanceMeters,
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -3859,6 +3890,7 @@ export default function ModBuilder() {
             meleeComboMultiplier,
             phantasmaChargeAmmo,
             targetDistanceMeters,
+            attackFalloffDistanceMeters,
             warframeArmor,
             warframeMaxEnergy,
             warframeEnergyPercent,
@@ -3909,6 +3941,7 @@ export default function ModBuilder() {
         meleeComboMultiplier,
         phantasmaChargeAmmo,
         targetDistanceMeters,
+        attackFalloffDistanceMeters,
         warframeArmor,
         warframeMaxEnergy,
         warframeEnergyPercent,
@@ -3995,6 +4028,7 @@ export default function ModBuilder() {
         setSelectedAttackIdx(0);
         setPhantasmaChargeAmmo(2);
         setTargetDistanceMeters(undefined);
+        setAttackFalloffDistanceMeters(undefined);
         setIncarnonPickerTier(null);
         setShowMathWindow(false);
         if (opts?.resetConfig) {
@@ -5505,6 +5539,9 @@ export default function ModBuilder() {
             setTargetDistanceMeters(Number.isFinite(plannerConfig.targetDistanceMeters)
                 ? Math.max(0, plannerConfig.targetDistanceMeters ?? 0)
                 : undefined);
+            setAttackFalloffDistanceMeters(Number.isFinite(plannerConfig.attackFalloffDistanceMeters)
+                ? Math.max(0, plannerConfig.attackFalloffDistanceMeters ?? 0)
+                : undefined);
             const attackIndexByName = plannerConfig.attackName
                 ? weapon.attacks.findIndex((attack) => attack.name === plannerConfig.attackName)
                 : -1;
@@ -6034,6 +6071,56 @@ export default function ModBuilder() {
                                                                 WARFRAME Wiki: Range Advantage
                                                             </a>
                                                         )}
+                                                    </div>
+                                                )}
+                                                {falloffRelevantAttacks.length > 0 && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 px-2 py-2">
+                                                        <label htmlFor="planner-attack-falloff-distance" className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2 text-[10px] text-slate-300">
+                                                            <span>Attack falloff distance (m)</span>
+                                                            <input
+                                                                id="planner-attack-falloff-distance"
+                                                                aria-label="Attack falloff distance in meters"
+                                                                type="number"
+                                                                min={0}
+                                                                step={0.1}
+                                                                value={attackFalloffDistanceMeters ?? ""}
+                                                                onChange={(event) => {
+                                                                    const value = event.currentTarget.value;
+                                                                    const next = value === "" ? Number.NaN : Number(value);
+                                                                    setAttackFalloffDistanceMeters(Number.isFinite(next) && next >= 0 ? next : undefined);
+                                                                }}
+                                                                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                            />
+                                                            <span className="text-slate-500">meters</span>
+                                                        </label>
+                                                        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                                                            Direct falloff measures player-to-target distance; area falloff measures from the blast center to the target. A linked component attached to the struck enemy uses 0m. Leave blank to preview full damage. Wiki-listed maximum ranges are shown in the math trace but are not enforced as shot-miss caps yet.
+                                                        </p>
+                                                        {falloffRelevantAttacks.map((attack) => attack && (
+                                                            <p key={attack.name} className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                                                                <span className="text-slate-300">{attack.name}:</span>{" "}
+                                                                {attack.damageFalloff
+                                                                    ? `100% damage through ${attack.damageFalloff.startDistanceMeters}m, then linear falloff to ${Math.round(attack.damageFalloff.minimumDamageMultiplier * 100)}% at ${attack.damageFalloff.endDistanceMeters}m.`
+                                                                    : "No direct-damage falloff value is listed for this attack."}
+                                                                {attack.maximumRangeMeters !== undefined
+                                                                    ? ` Wiki lists ${attack.maximumRangeMeters}m maximum range; the calculator does not reject hits beyond it.`
+                                                                    : ""}
+                                                            </p>
+                                                        ))}
+                                                        {falloffRelevantAttacks.some((attack) => attack?.damageFalloff) &&
+                                                            (activeMetrics?.modded.conditionOverloadApplies || (activeMetrics?.modded.directDamagePerStatusBonus ?? 0) > 0) && (
+                                                                <p className="mt-1 text-[10px] leading-relaxed text-amber-300">
+                                                                    Wiki notes that Condition Overload or Galvanized additive damage can ignore falloff in some damage-bracket combinations; this score applies falloff uniformly.
+                                                                </p>
+                                                            )}
+                                                        {falloffRelevantAttacks.flatMap((attack) => attack?.damageFalloff?.sourceUrl
+                                                            ? [attack.damageFalloff.sourceUrl]
+                                                            : attack?.maximumRangeSourceUrl ? [attack.maximumRangeSourceUrl] : [],
+                                                        ).filter((sourceUrl, index, sources) => sources.indexOf(sourceUrl) === index).map((sourceUrl) => (
+                                                            <a key={sourceUrl} href={sourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">
+                                                                WARFRAME Wiki: Attack range and falloff
+                                                            </a>
+                                                        ))}
                                                     </div>
                                                 )}
                                                 {supportsKineticKiller && incarnonRecord && (

@@ -1,7 +1,7 @@
 // src/domain/logic/damageCalc.ts
 // Damage + status calculations for the mod builder / optimizer.
 
-import type { IntrinsicDamagePerStatusMode, WeaponAttackLingeringDamageRule, WeaponEntry, WeaponForcedProcType, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
+import type { IntrinsicDamagePerStatusMode, WeaponAttackDamageFalloff, WeaponAttackLingeringDamageRule, WeaponEntry, WeaponForcedProcType, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
 import {
     clampMeleeComboMultiplier,
     getHeavyAttackRetainedComboPoints,
@@ -150,6 +150,8 @@ function effectiveBurstFireRate(
 
 export interface AttachedAttackTickProfile {
     damageByType: Partial<Record<DamageType, number>>;
+    /** Attack-specific range/falloff assumptions used for this linked component. */
+    attackDamageFalloff?: AttackDamageFalloffResult | null;
     /** Expected per-tick direct damage by type, including steady-state crit and projectile count, for fast scoring. */
     steadyStateDamageByTypePerTick?: Partial<Record<DamageType, number>>;
     rawDamageByType: Partial<Record<DamageType, number>>;
@@ -196,6 +198,8 @@ export interface ModdedWeaponStats {
     physicalDamageConversion: ModEffect["physicalDamageConversion"] | null;
     /** Primary elemental damage conversion selected by a Beast Claw mod, when present. */
     elementalDamageConversion: ModEffect["elementalDamageConversion"] | null;
+    /** Source-listed selected-attack falloff and range metadata used by this score. */
+    attackDamageFalloff: AttackDamageFalloffResult | null;
     /** Unmodded, charge- and active-combo-adjusted base damage used as the Damage 3.0 quantization scale. */
     baseDamageTotal: number;
     arsenalDamage: number;
@@ -522,11 +526,87 @@ export interface ConditionalState {
     phantasmaChargeAmmo?: number;
     /** Assumed target distance for source effects with an explicit range condition. */
     targetDistanceMeters?: number;
+    /** Explicit target distance used only by the selected attack's damage-falloff profile. */
+    attackFalloffDistanceMeters?: number;
     /** Assume the player is sliding at impact; selected weapon perks may use this static contact-state condition. */
     playerSlidingAtImpact?: boolean;
 }
 
 export const DEFAULT_CONDITIONAL_STATE: Readonly<ConditionalState> = Object.freeze({ mode: "realistic" });
+
+export interface AttackDamageFalloffResult {
+    /** Null means no attack-falloff distance was entered; the preview assumes full damage. */
+    distanceMeters: number | null;
+    /** Fraction of pre-falloff damage retained at this target distance. */
+    damageMultiplier: number;
+    startDistanceMeters: number | null;
+    endDistanceMeters: number | null;
+    minimumDamageMultiplier: number | null;
+    /** Multiplier applied to both falloff endpoints from compatible range/speed/radius effects. */
+    falloffDistanceMultiplier: number;
+    /** Wiki-listed maximum range. It is disclosed but not yet enforced as a no-hit cap. */
+    maximumRangeMeters: number | null;
+    exceedsListedMaximumRange: boolean;
+    sourceUrl: string | null;
+    maximumRangeSourceUrl: string | null;
+}
+
+function calculateAttackDamageFalloff(
+    weapon: WeaponEntry,
+    mods: readonly (ModEffect | null)[],
+    distanceInput: number | undefined,
+): AttackDamageFalloffResult | null {
+    const profile = weapon.selectedAttackDamageFalloff;
+    const maximumRangeMeters = Number.isFinite(weapon.selectedAttackMaximumRangeMeters)
+        ? Math.max(0, weapon.selectedAttackMaximumRangeMeters ?? 0)
+        : null;
+    if (!profile && maximumRangeMeters === null) return null;
+
+    const distanceMeters = Number.isFinite(distanceInput)
+        ? Math.max(0, distanceInput ?? 0)
+        : null;
+    const rangeBonus = mods.reduce((sum, effect) => sum + (effect?.rangeBonus ?? 0), 0);
+    const projectileSpeedBonus = mods.reduce((sum, effect) => sum + (effect?.projectileSpeedBonus ?? 0), 0);
+    const blastRadiusBonus = mods.reduce((sum, effect) => sum + (effect?.blastRadiusBonus ?? 0), 0);
+    const hasScale = (scale: WeaponAttackDamageFalloff["scaleBy"][number]) =>
+        profile?.scaleBy.includes(scale) === true;
+    // Range, Projectile Speed, and Blast Radius are independent game stats.
+    // Their falloff extensions are multiplied when a profile responds to more
+    // than one of them; the Wiki does not document a combined-stat formula.
+    const falloffDistanceMultiplier = profile
+        ? Math.max(0, 1 + (hasScale("weaponRange") ? rangeBonus : 0)) *
+            Math.max(0, 1 + (hasScale("projectileSpeed") ? projectileSpeedBonus : 0)) *
+            Math.max(0, 1 + (hasScale("blastRadius") ? blastRadiusBonus : 0))
+        : 1;
+    const startDistanceMeters = profile ? profile.startDistanceMeters * falloffDistanceMultiplier : null;
+    const endDistanceMeters = profile ? profile.endDistanceMeters * falloffDistanceMultiplier : null;
+    let damageMultiplier = 1;
+    if (profile && distanceMeters !== null) {
+        if (distanceMeters <= (startDistanceMeters ?? 0)) {
+            damageMultiplier = 1;
+        } else if ((endDistanceMeters ?? 0) <= (startDistanceMeters ?? 0) || distanceMeters >= (endDistanceMeters ?? 0)) {
+            damageMultiplier = profile.minimumDamageMultiplier;
+        } else {
+            const progress = (distanceMeters - (startDistanceMeters ?? 0)) /
+                ((endDistanceMeters ?? 0) - (startDistanceMeters ?? 0));
+            damageMultiplier = 1 - progress * (1 - profile.minimumDamageMultiplier);
+        }
+    }
+
+    return {
+        distanceMeters,
+        damageMultiplier,
+        startDistanceMeters,
+        endDistanceMeters,
+        minimumDamageMultiplier: profile?.minimumDamageMultiplier ?? null,
+        falloffDistanceMultiplier,
+        maximumRangeMeters,
+        exceedsListedMaximumRange: maximumRangeMeters !== null && distanceMeters !== null &&
+            distanceMeters > maximumRangeMeters,
+        sourceUrl: profile?.sourceUrl ?? null,
+        maximumRangeSourceUrl: weapon.selectedAttackMaximumRangeSourceUrl ?? null,
+    };
+}
 
 function emptyBreakdown(): Record<DamageKey, number> {
     return {
@@ -1102,6 +1182,12 @@ export function calculateBuild(
         ? options.statusImmuneTypes
         : new Set(options.statusImmuneTypes ?? []);
     const conditionalState = options.conditionalState ?? DEFAULT_CONDITIONAL_STATE;
+    const attackDamageFalloff = calculateAttackDamageFalloff(
+        weapon,
+        mods,
+        conditionalState.attackFalloffDistanceMeters,
+    );
+    const attackDamageFalloffMultiplier = attackDamageFalloff?.damageMultiplier ?? 1;
     const killStackContext = Number.isFinite(options.expectedKillRatePerSecond)
         ? { expectedKillRatePerSecond: Math.max(0, options.expectedKillRatePerSecond ?? 0) }
         : undefined;
@@ -1775,6 +1861,14 @@ export function calculateBuild(
         // quantization scale without changing status weights.
         for (const key of DAMAGE_KEYS) rawBreakdown[key] *= meleeAttackComboDamageMultiplier;
         totalBase *= meleeAttackComboDamageMultiplier;
+    }
+
+    if (attackDamageFalloffMultiplier !== 1) {
+        // Apply the attack's distance multiplier to direct damage and the seeds
+        // derived from the hit. This bounded model does not yet reproduce the
+        // Wiki-listed Condition Overload/Galvanized falloff exception.
+        for (const key of DAMAGE_KEYS) rawBreakdown[key] *= attackDamageFalloffMultiplier;
+        totalBase *= attackDamageFalloffMultiplier;
     }
 
     const moddedMultishot = weapon.multishot * (1 + multishotBonus);
@@ -2566,6 +2660,7 @@ export function calculateBuild(
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
         physicalDamageConversion: physicalDamageConversion ?? null,
         elementalDamageConversion: elementalDamageConversion ?? null,
+        attackDamageFalloff,
         baseDamageTotal: baseDamageTotal * slamAttackDamageMultiplier * meleeAttackComboDamageMultiplier,
         arsenalDamage,
         singleProjectileDamageBonus: springLoadedBroadheadDamageBonus,
@@ -2694,7 +2789,13 @@ export function calculateBuild(
         const componentAttack = weapon.attacks[componentIndex];
         if (componentAttack) {
             const componentWeapon = withSelectedAttack(weapon, componentIndex);
-            const componentStats = calculateBuild(componentWeapon, mods, targetFaction, options).modded;
+            const componentOptions = linkedSequenceRule.attachedToDirectTarget
+                ? {
+                    ...options,
+                    conditionalState: { ...conditionalState, attackFalloffDistanceMeters: 0 },
+                }
+                : options;
+            const componentStats = calculateBuild(componentWeapon, mods, targetFaction, componentOptions).modded;
             const dotDamagePerApplicationByType = Object.fromEntries(
                 Object.entries(componentStats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
                     const type = rawType as StatusDamageType;
@@ -2707,6 +2808,7 @@ export function calculateBuild(
                 rule: linkedSequenceRule,
                 profile: {
                     damageByType: componentStats.damageBreakdownBeforePerStatus,
+                    attackDamageFalloff: componentStats.attackDamageFalloff,
                     steadyStateDamageByTypePerTick: Object.fromEntries(DAMAGE_TYPES.map((type) => [
                         type,
                         componentStats.damageBreakdown[type] *
