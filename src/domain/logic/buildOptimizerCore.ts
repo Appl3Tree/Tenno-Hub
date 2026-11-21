@@ -2687,6 +2687,7 @@ function expectedEncounterScoreForEffectsAtKillRate(
         expectedProjectiles: stats.multishot,
         expectedDamageMultiplier: stats.damageWeightedMultishot,
         singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
+        initialAttackDelaySeconds: stats.initialAttackDelaySeconds,
         attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
         ...(fixedWindowSeconds !== undefined ? {
             maxDurationSeconds: fixedWindowSeconds,
@@ -5173,7 +5174,10 @@ export function explainBuild(
     const fixedWindowSummary = goal === "windowDps" && explanationOptions.fixedWindowObjective
         ? ` Applied ${explanationOptions.fixedWindowObjective.damage.toFixed(1)} damage during [0, ${explanationOptions.fixedWindowObjective.windowSeconds.toFixed(1)}s), or ${explanationOptions.fixedWindowObjective.damagePerSecond.toFixed(1)} damage/s${explanationOptions.fixedWindowObjective.timeToKillSeconds === null ? " without defeating the target" : ` with a target defeat at ${explanationOptions.fixedWindowObjective.timeToKillSeconds.toFixed(2)}s`}. Overkill and events at the window endpoint are excluded. Reload, kill, and other event-triggered mod buffs start inactive; their trigger history is not simulated.`
         : "";
-    const summary    = `${goalLabel(goal)} ${targetLabel}${targetDetail}. ${scoreLabel}: ${fullScore.toFixed(1)}${baseScore > 0 ? ` (${totalMultiplier.toFixed(1)}x unmodded; ${totalGain >= 0 ? "+" : ""}${totalGain.toFixed(1)}%)` : ""}.${encounterSummary}${fixedWindowSummary}`;
+    const initialChargeSummary = (goal === "timeToKill" || goal === "windowDps") && selectedStats.initialAttackDelaySeconds > 0
+        ? ` The finite sequence assumes this charged attack starts uncharged and includes ${selectedStats.initialAttackDelaySeconds.toFixed(2)}s before its first hit.`
+        : "";
+    const summary    = `${goalLabel(goal)} ${targetLabel}${targetDetail}. ${scoreLabel}: ${fullScore.toFixed(1)}${baseScore > 0 ? ` (${totalMultiplier.toFixed(1)}x unmodded; ${totalGain >= 0 ? "+" : ""}${totalGain.toFixed(1)}%)` : ""}.${encounterSummary}${fixedWindowSummary}${initialChargeSummary}`;
     const encounterSearchNote = !explanationOptions.objectiveEncounter || explanationOptions.objectiveEncounter.candidatesEvaluated <= 1
         ? " Locked slots kept the returned build fixed, so no replacement search was run."
         : explanationOptions.objectiveEncounter.refined

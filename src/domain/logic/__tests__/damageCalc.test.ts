@@ -854,6 +854,8 @@ describe("source-backed Arch-Gun charge-rate mechanics", () => {
             const modded = calculateBuild(selected, [shellRushEffect]).modded;
             expect(selected.trigger).toBe("Charge");
             expect(selected.chargeTime).toBe(0.5);
+            expect(baseline.initialAttackDelaySeconds).toBeCloseTo(0.5, 8);
+            expect(modded.initialAttackDelaySeconds).toBeCloseTo(0.5 / 1.5, 8);
             expect(baseline.fireRate).toBeCloseTo(1 / (0.5 + 1 / selected.fireRate), 8);
             expect(modded.fireRate).toBeCloseTo(1 / (0.5 / 1.5 + 1 / selected.fireRate), 8);
         }
@@ -887,6 +889,8 @@ describe("source-backed Arch-Gun charge-rate mechanics", () => {
                 const selected = withSelectedAttack(weapon, weapon.attacks.findIndex((attack) => attack.name === name));
                 expect(selected.trigger).toBe("Charge");
                 expect(selected.chargeTime).toBe(0.8);
+                expect(calculateBuild(selected, []).modded.initialAttackDelaySeconds).toBeCloseTo(0.8, 8);
+                expect(calculateBuild(selected, [shellRushEffect]).modded.initialAttackDelaySeconds).toBeCloseTo(0.8 / 1.5, 8);
                 expect(calculateBuild(selected, [shellRushEffect]).modded.fireRate).toBeCloseTo(
                     1 / (0.8 / 1.5 + 1 / selected.fireRate),
                     8,
@@ -4121,17 +4125,20 @@ describe("bow fire-rate and reload cadence", () => {
         expect(quick.modded.reloadTime).toBeCloseTo(0.6, 12);
         expect(quick.modded.fireRate).toBeCloseTo(1 / 0.6, 8);
         expect(quick.modded.burstFireRate).toBeCloseTo(1 / 0.6, 8);
+        expect(quick.modded.initialAttackDelaySeconds).toBe(0);
         expect(quick.modded.magazineDutyCycle).toBe(1);
         expect(quick.burstDPS).toBeCloseTo(quick.modded.averageShotDamage / 0.6, 8);
         expect(quick.sustainedDPS).toBeCloseTo(quick.burstDPS, 8);
 
         expect(charged.modded.fireRate).toBeCloseTo(1 / (1 + 0.6), 8);
         expect(charged.modded.burstFireRate).toBeCloseTo(1, 8);
+        expect(charged.modded.initialAttackDelaySeconds).toBeCloseTo(1, 8);
         expect(charged.burstDPS).toBeCloseTo(charged.modded.averageShotDamage, 8);
         expect(charged.sustainedDPS).toBeCloseTo(charged.modded.averageShotDamage / 1.6, 8);
 
         expect(perfect.modded.fireRate).toBeCloseTo(1 / (0.7 + 0.6), 8);
         expect(perfect.modded.burstFireRate).toBeCloseTo(1 / 0.7, 8);
+        expect(perfect.modded.initialAttackDelaySeconds).toBeCloseTo(0.7, 8);
         expect(perfect.burstDPS).toBeCloseTo(perfect.modded.averageShotDamage / 0.7, 8);
         expect(perfect.sustainedDPS).toBeCloseTo(perfect.modded.averageShotDamage / 1.3, 8);
     });
@@ -4144,10 +4151,12 @@ describe("bow fire-rate and reload cadence", () => {
         expect(fasterCharge.reloadTime).toBeCloseTo(0.6, 12);
         expect(fasterCharge.fireRate).toBeCloseTo(1 / (0.7 / 1.5 + 0.6), 8);
         expect(fasterCharge.burstFireRate).toBeCloseTo(1 / (0.7 / 1.5), 8);
+        expect(fasterCharge.initialAttackDelaySeconds).toBeCloseTo(0.7 / 1.5, 8);
 
         expect(fasterReload.reloadTime).toBeCloseTo(0.3, 12);
         expect(fasterReload.fireRate).toBeCloseTo(1 / (0.7 + 0.3), 8);
         expect(fasterReload.burstFireRate).toBeCloseTo(1 / 0.7, 8);
+        expect(fasterReload.initialAttackDelaySeconds).toBeCloseTo(0.7, 8);
     });
 
     it("preserves the generic charged-weapon fire-rate rule outside the bow family", () => {
@@ -4161,6 +4170,7 @@ describe("bow fire-rate and reload cadence", () => {
 
         expect(result.modded.fireRate).toBeCloseTo(1 / (1 + 1 / 2), 12);
         expect(result.modded.burstFireRate).toBeCloseTo(result.modded.fireRate, 12);
+        expect(result.modded.initialAttackDelaySeconds).toBe(1);
     });
 });
 
