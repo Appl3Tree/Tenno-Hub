@@ -2467,3 +2467,30 @@ Three repeated full-pool runs returned identical lists and scores for the two co
 Validation passes: full serial suite 831/831 across 54 files (optimizer file 156/156); app TypeScript/production build; node TypeScript; source validation; prerequisite audit (162 entries, no unresolved references or cycles); mod-effect audit (695 weapons / 600 eligible / 492 parsed / 108 without effects / 70 review / 18 partial / 52 unparsed / zero empty pools); focused ESLint; and CRLF-aware diff check. The production build retains its existing Vite large-chunk warning. This change touches optimizer scoring and audit scripts only; no UI layout changed. The deployment and limited published-page smoke check are recorded above. PR/release is complete; no optimizer interaction was run in the browser.
 
 These are bounded Tenno-Hub model-local one-mod results, not exhaustive multi-mod search, Underframe objective parity, global optimality, Companion AI/range validation, spatial coverage, or gameplay accuracy. Melee stance/combo sequence, Incarnon activation histories, status randomness, and Underframe's private sampling engine remain model boundaries. Continue with other seeds/targets and compare captured Underframe outputs under the same fixed-window objective before claiming broad optimizer quality.
+
+### Seeded two-mod pair sample
+
+Reproduce the seeded legal two-out/two-in sample with:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261145 --samples=1024
+```
+
+The runner uses the same eight fixed anchors and four seed-selected fixtures as the fixed-window corpus for seed `20261145`. It samples 1,024 legal max-rank two-mod replacements per fixture without replacement from outgoing-pair × eligible full-catalog incoming-pair tuples. Each accepted build must pass compatibility, modeled-effect, duplicate-identity, capacity, and three-Forma checks before exact deterministic single-target scoring over `[0,5s)`. The target remains Grineer / 2,000,000 Health / 3,000 Armor, Realistic, eight slots, Catalyst, and up to three Forma; the Mausolon Archwing fixture carries its 250m distance.
+
+| Fixture | Baseline | Best sampled score | Best sampled move | Raw tuples examined | Sampled improvements |
+| --- | ---: | ---: | --- | ---: | ---: |
+| Braton Prime / Normal Attack | 30,707.94 DPS | 25,640.24 DPS | Primed Bane of Grineer + Magnetic Capacity → Hammer Shot + Wildfire | 2,893 | 0 |
+| Cedo / Normal Attack | 29,769.16 DPS | 27,335.31 DPS | Vigilante Armaments + Shotgun Barrage → Amalgam Shotgun Barrage + Blaze | 1,676 | 0 |
+| Laetum / Normal Attack | 56,869.97 DPS | 42,780.74 DPS | Creeping Bullseye + Primed Target Cracker → Magnetic Might + Primed Pistol Gambit | 2,186 | 0 |
+| Soma Prime / Fully Spooled | 45,602.16 DPS | 38,881.12 DPS | Wildfire + Vile Acceleration → Hellfire + Speed Trigger | 1,546 | 0 |
+| Broken War / Normal Attack | 5,071.25 DPS | 3,740.59 DPS | Carnis Mandible + Primed Fury → Gladiator Might + Gladiator Vice | 1,604 | 0 |
+| Kuva Nukor / Normal Attack | 61,237.29 DPS | 46,274.58 DPS | Lethal Torrent + Barrel Diffusion → Anemic Agility + Galvanized Diffusion | 1,455 | 0 |
+| Nataruk / Perfect Shot | 110,066.83 DPS | 76,265.37 DPS | Vital Sense + Hellfire → Hunter Munitions + Rifle Elementalist | 1,590 | 0 |
+| Torid / Grenade Impact | 10,876.37 DPS | 9,643.73 DPS | Hellfire + Vigilante Armaments → Bane of Grineer + Thermite Rounds | 1,728 | 0 |
+| Tenet Envoy / Rocket Explosion | 41,392.47 DPS | 38,870.89 DPS | Hellfire + Heavy Caliber → Amalgam Serration + Thermite Rounds | 1,450 | 0 |
+| Corvas Prime / Charged Shot | 134,573.95 DPS | 114,288.23 DPS | Automatic Trigger + Parallax Scope → Critical Focus + Magnetized Cycle | 2,041 | 0 |
+| Verglas Prime / Normal Attack | 30,095.76 DPS | 24,807.10 DPS | Thermite Rounds + Primed Bane of Grineer → Vile Acceleration + Wildfire | 2,169 | 0 |
+| Arca Titron / Heavy Slam Attack | 56,005.31 DPS | 42,888.45 DPS | True Steel + Organ Shatter → Amalgam Organ Shatter + Melee Elementalist | 1,449 | 0 |
+
+Across the twelve fixtures, the run accepted 12,288 legal sampled pairs after examining 21,787 raw tuples; no sampled move improved its optimizer baseline. Rejected tuples include unsupported effects, incompatible or duplicate mods, and builds that fail capacity/Forma constraints. This is a seeded sample, not an exhaustive pair neighborhood. It covers one target faction, target profile, state, and objective, and does not validate Underframe's native Auto Build objective, alternate target conditions, live-game damage, or global optimizer quality. The reproducible worker and corpus runner are in `scripts/auditFixedWindowDpsPairSample.ts`.
