@@ -2,6 +2,12 @@
 
 PR [#185](https://github.com/Appl3Tree/Tenno-Hub/pull/185) merged these local changes as `d90c0aedcee3d0c8fd50da9ad041bb0f83963986` on 2026-11-21. The GitHub connector returned no combined checks or PR-triggered workflow runs for that merge commit; Pages deployment and production availability are not independently verified. The current-branch IAB preview timed out, while port 80 served an older build, so rendered QA for this scoring-only change remains unverified.
 
+## D3-OPT-JOINT-ARCANE-SEEDED-ORACLE-001 — seeded joint mod/Arcane sample (2026-11-21; local validation complete)
+
+`src/domain/logic/__tests__/buildOptimizer.test.ts` now adds seed `20261121` to the joint Expected TTK oracle. Eight fixtures span Primary, Secondary, Shotgun, and Melee weapons against Grineer, Corpus, and Infested target pools, with initial, realistic, and fully stacked states; target Health/Shields/Armor; Warframe Armor; and current Energy vary by case. Each case deterministically selects a supported attack profile and draws four max-rank mods from that weapon's full compatible catalog. The oracle exhaustively scores every legal ordered subset of up to two slots with every modeled rank of every compatible Arcane. The optimizer must match the exact finite-encounter TTK and return a capacity-legal build.
+
+The focused seeded test passes all eight cases (one test, 113.15s test time). The serial full suite passes 832/832 across 54 files in 350.74s (299.42s test time). Production TypeScript/Vite build, focused ESLint, and `git diff --check` pass. The four-mod/two-slot exhaustive mod pool is deliberately bounded: it does not establish full-catalog mod optimality, larger joint searches, Forma optimization, stochastic proc-history parity, Underframe parity, or gameplay accuracy. Do not mark full-catalog and joint Arcane verification complete from this sample.
+
 ## D3-MECH-HEAT-PRESENCE-PROBABILITY-001 — fractional Heat group presence (2026-11-21; PR #185 merged, deployment unverified)
 
 The current [Heat Damage Wiki page](https://wiki.warframe.com/w/Damage/Heat_Damage) describes Heat armor reduction as a staged, target-level effect: 15%, 30%, 40%, then 50% at half-second intervals, with one shared ramp rather than a ramp per proc. The [Damage Calculation page](https://wiki.warframe.com/w/Damage/Calculation) describes a shared +1 Heat tick accumulator. Both effects depend on whether the target has an active Heat group; additional proc count does not multiply the accumulator or the strip.
