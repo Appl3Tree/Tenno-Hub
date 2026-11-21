@@ -4745,6 +4745,8 @@ export interface BuildReasoning {
     goal: OptimizeGoal;
     targetFaction: string;
     steps: BuildReasoningStep[];
+    /** Calculated weapon-stat context that explains the selected build's main synergies. */
+    buildHighlights: string[];
     arcaneStep?: {
         name: string;
         rank?: number;
@@ -4793,42 +4795,162 @@ function goalLabel(goal: OptimizeGoal): string {
     }
 }
 
+function formatExplanationNumber(value: number, digits = 1): string {
+    return Number.isFinite(value) ? String(Number(value.toFixed(digits))) : "0";
+}
+
+function formatExplanationPercent(value: number): string {
+    return `${formatExplanationNumber(value * 100)}%`;
+}
+
+function joinExplanationList(values: readonly string[]): string {
+    if (values.length < 2) return values[0] ?? "";
+    if (values.length === 2) return `${values[0]} and ${values[1]}`;
+    return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
+}
+
 function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     const value = (key: keyof ModEffect) => Number(effect[key] ?? 0);
     const parts: string[] = [];
-    if (value("slideAttackCritChanceBonus") > 0) {
-        parts.push("+" + (value("slideAttackCritChanceBonus") * 100).toFixed(0) + "% slide-attack cc");
+    const signedPercent = (bonus: number, description: string) =>
+        `${bonus < 0 ? "−" : "+"}${formatExplanationPercent(Math.abs(bonus))} ${description}`;
+    const addPercent = (key: keyof ModEffect, description: string) => {
+        const bonus = value(key);
+        if (bonus !== 0) parts.push(signedPercent(bonus, description));
+    };
+
+    addPercent("damageBonus", "base weapon damage");
+    addPercent("heavyAttackDamageBonus", "base damage on Heavy Attacks");
+    addPercent("slamAttackDamageBonus", "Slam Damage on eligible melee slams");
+    addPercent("critChanceBonus", "of base Critical Chance");
+    addPercent("heavyAttackCritChanceBonus", "of base Critical Chance on Heavy Attacks");
+    addPercent("slideAttackCritChanceBonus", "of base Critical Chance on slide attacks");
+    addPercent("comboCritChanceBonus", "of base Critical Chance per combo tier above 1×");
+    addPercent("finalCritChanceBonus", "percentage points of Critical Chance");
+    addPercent("weakPointCritChanceBonus", "Critical Chance on weak-point hits");
+    addPercent("critMultBonus", "Critical Damage");
+    if (value("finalCritMultiplierBonus") !== 0) {
+        parts.push(`${value("finalCritMultiplierBonus") < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(value("finalCritMultiplierBonus")))}× Critical Damage`);
     }
-    if (value("heavyAttackCritChanceBonus") > 0) {
-        parts.push("+" + (value("heavyAttackCritChanceBonus") * 100).toFixed(0) + "% heavy-attack cc");
+    addPercent("statusChanceBonus", "Status Chance");
+    addPercent("areaDamageStatusChanceBonus", "Status Chance on area attacks");
+    addPercent("comboStatusChanceBonus", "Status Chance per combo tier above 1×");
+    addPercent("finalStatusChanceBonus", "percentage points of Status Chance");
+    addPercent("multishotBonus", "Multishot");
+    addPercent("multishotDamageBonus", "damage on extra projectiles");
+    addPercent("fireRateBonus", "Fire Rate");
+    addPercent("attackSpeedBonus", "Melee Attack Speed");
+    addPercent("magazineBonus", "magazine capacity");
+    addPercent("reloadSpeedBonus", "reload speed");
+    addPercent("statusDurationBonus", "Status Duration");
+    addPercent("statusDamageBonus", "Status Damage");
+    addPercent("targetStatusDamageVulnerabilityBonus", "target Status Damage vulnerability after the required Heat hit");
+    addPercent("headshotMultiplierBonus", "headshot damage");
+    addPercent("bodyshotDamageBonus", "bodyshot damage");
+    addPercent("weakPointDamageBonus", "weak-point damage");
+    if (value("springLoadedBroadheadDamageBonus") !== 0) {
+        parts.push(`${signedPercent(value("springLoadedBroadheadDamageBonus"), "damage to one hit")}${value("springLoadedBroadheadMinDistanceMeters") > 0 ? ` when the target is beyond ${formatExplanationNumber(value("springLoadedBroadheadMinDistanceMeters"))}m` : " under its listed distance condition"}`);
     }
-    if (value("damageBonus") > 0) parts.push(`+${(value("damageBonus") * 100).toFixed(0)}% dmg`);
-    if (value("critChanceBonus") > 0) parts.push(`+${(value("critChanceBonus") * 100).toFixed(0)}% cc`);
-    if (value("critMultBonus") > 0) parts.push(`+${(value("critMultBonus") * 100).toFixed(0)}% cd`);
-    if (value("statusChanceBonus") > 0) parts.push(`+${(value("statusChanceBonus") * 100).toFixed(0)}% sc`);
-    if (value("multishotBonus") > 0) parts.push(`+${(value("multishotBonus") * 100).toFixed(0)}% ms`);
-    if (value("fireRateBonus") > 0) parts.push(`+${(value("fireRateBonus") * 100).toFixed(0)}% fr`);
-    if (value("statusDamageBonus") > 0) parts.push(`+${(value("statusDamageBonus") * 100).toFixed(0)}% status damage`);
-    if (value("targetStatusDamageVulnerabilityBonus") > 0) {
-        parts.push(`+${(value("targetStatusDamageVulnerabilityBonus") * 100).toFixed(0)}% target Status Damage after Hate hits Heat`);
-    }
+    addPercent("ammoEfficiencyBonus", "ammo efficiency");
+    addPercent("directDamagePerStatusBonus", "weapon damage per distinct active status type on the target");
+    addPercent("conditionOverloadDamagePerStatusBonus", "Melee Damage per distinct active status type on the target");
+    addPercent("heavyAttackEfficiencyBonus", "Heavy Attack Efficiency");
+    addPercent("heavyAttackWindUpBonus", "Heavy Attack wind-up speed");
+    addPercent("lifeStealBonus", "health restored from damage dealt");
+
+    const damageTypes: Array<[keyof ModEffect, string]> = [
+        ["impactBonus", "Impact"], ["punctureBonus", "Puncture"], ["slashBonus", "Slash"],
+        ["heatBonus", "Heat"], ["coldBonus", "Cold"], ["electricityBonus", "Electricity"],
+        ["toxinBonus", "Toxin"], ["blastBonus", "Blast"], ["gasBonus", "Gas"],
+        ["magneticBonus", "Magnetic"], ["viralBonus", "Viral"], ["corrosiveBonus", "Corrosive"],
+        ["radiationBonus", "Radiation"], ["voidBonus", "Void"], ["tauBonus", "Tau"], ["trueBonus", "True"],
+    ];
+    for (const [key, type] of damageTypes) addPercent(key, `${type} damage`);
+
     for (const [type, chance] of Object.entries(effect.independentStatusProcChanceByType ?? {})) {
         if (typeof chance === "number" && chance > 0) {
-            parts.push(`+${(chance * 100).toFixed(0)}% base independent ${type} proc (scales with Status Chance)`);
+            parts.push(`${formatExplanationPercent(chance)} base chance to add a ${type} Status Effect per hit (scales with Status Chance)`);
         }
     }
-    if (value("statusDurationBonus") > 0) parts.push(`+${(value("statusDurationBonus") * 100).toFixed(0)}% status duration`);
     if (value("shatteringImpactBaseArmorPerHit") > 0) {
-        parts.push(`-${value("shatteringImpactBaseArmorPerHit").toFixed(0)} base armor per Impact melee hit`);
+        parts.push(`removes ${formatExplanationNumber(value("shatteringImpactBaseArmorPerHit"), 0)} base Armor per qualifying melee hit`);
     }
-    if (value("punchThrough") > 0) parts.push(`+${value("punchThrough").toFixed(1)} punch-through`);
-    const elementalBonus = [
-        "heatBonus", "coldBonus", "electricityBonus", "toxinBonus", "magneticBonus", "radiationBonus",
-        "gasBonus", "viralBonus", "corrosiveBonus", "blastBonus", "voidBonus", "tauBonus", "trueBonus",
-    ].reduce((sum, key) => sum + value(key as keyof ModEffect), 0);
-    if (elementalBonus > 0) parts.push(`+${(elementalBonus * 100).toFixed(0)}% elem`);
+    if (value("punchThrough") !== 0) {
+        parts.push(`${value("punchThrough") < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(value("punchThrough")))} Punch-Through`);
+    }
+    if (value("projectileSpeedBonus") !== 0) parts.push(signedPercent(value("projectileSpeedBonus"), "Projectile Speed"));
+    if (value("accuracyBonus") !== 0) parts.push(signedPercent(value("accuracyBonus"), "Accuracy"));
+    if (value("blastRadiusBonus") !== 0) parts.push(signedPercent(value("blastRadiusBonus"), "blast radius"));
+    if (value("beamRangeBonus") !== 0) parts.push(signedPercent(value("beamRangeBonus"), "beam range"));
+    if (value("rangeBonus") !== 0) parts.push(signedPercent(value("rangeBonus"), "weapon range"));
+    if (value("comboDurationBonus") !== 0) parts.push(signedPercent(value("comboDurationBonus"), "Melee Combo Duration"));
+    if (value("initialComboBonus") !== 0) parts.push(`+${formatExplanationNumber(value("initialComboBonus"), 0)} starting Melee Combo points`);
+    if (value("comboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("comboCountChanceBonus"))} chance to gain an extra Melee Combo point`);
+    if (value("firstShotMagazineDamageBonus") !== 0) {
+        parts.push(signedPercent(value("firstShotMagazineDamageBonus"), "damage on the first shot after reloading"));
+    }
+    if (value("lastShotMagazineDamageBonus") !== 0) {
+        parts.push(signedPercent(value("lastShotMagazineDamageBonus"), "damage on the final ammo-consuming shot in an eligible magazine"));
+    }
+    if (value("sentientSurgeMagazineRefillPerKill") > 0) {
+        parts.push(`${formatExplanationPercent(value("sentientSurgeMagazineRefillPerKill"))} of the magazine refilled from reserves per qualifying kill (not scored)`);
+    }
+    if (value("forcedImpactProcsPerMeleeHit") > 0) {
+        parts.push(`${formatExplanationNumber(value("forcedImpactProcsPerMeleeHit"), 0)} guaranteed Impact applications per eligible melee hit`);
+    }
+    if (effect.knockdownOnMeleeHit) parts.push("knocks down susceptible targets; the damage score does not credit this utility");
+    if (effect.physicalDamageConversion) {
+        parts.push(`converts base physical damage to ${effect.physicalDamageConversion[0].toUpperCase()}${effect.physicalDamageConversion.slice(1)}`);
+    }
+    if (effect.elementalDamageConversion) {
+        parts.push(`converts primary claw elemental damage to ${effect.elementalDamageConversion[0].toUpperCase()}${effect.elementalDamageConversion.slice(1)}`);
+    }
+    if (effect.fireRateLocked) parts.push("locks ranged Fire Rate at the weapon's unmodified value");
+    if (value("nightwatchNapalmEffect") > 0) parts.push("enables Nightwatch Napalm on eligible Ogris Rocket Explosions");
+    if (value("vigilanteSetModCount") > 0) parts.push("counts as one Vigilante set piece");
+    if (value("gladiatorSetModCount") > 0) parts.push("counts as one Gladiator set piece");
+    if (value("niraSetModCount") > 0) parts.push("counts as one Nira's set piece");
+    if (value("sacrificialSetModCount") > 0) parts.push("counts as one Sacrificial set piece");
+    if (value("nextMagazineStatusChancePerShot") > 0) {
+        parts.push(`${formatExplanationPercent(value("nextMagazineStatusChancePerShot"))} Status Chance added per shot in the next magazine`);
+    }
+    if (value("nextMagazineMultishotPerShot") > 0) {
+        parts.push(`${formatExplanationPercent(value("nextMagazineMultishotPerShot"))} Multishot added per shot in the next magazine`);
+    }
+    if (value("nextMagazineMaxStacks") > 0) {
+        parts.push(`stacks up to ${formatExplanationNumber(value("nextMagazineMaxStacks"), 0)} shots into the next magazine`);
+    }
+    if (value("impactStatusAppliesMagneticChance") > 0) {
+        parts.push(`${formatExplanationPercent(value("impactStatusAppliesMagneticChance"))} chance for an Impact Status Effect to also apply Magnetic`);
+    }
+    if (value("impactStatusAppliesSlashChance") > 0) {
+        parts.push(`${formatExplanationPercent(value("impactStatusAppliesSlashChance"))} chance for an Impact Status Effect to also apply Slash`);
+    }
+    if (value("impactStatusExtraProcLowFireRateThreshold") > 0 && value("impactStatusExtraProcLowFireRateMultiplier") > 0) {
+        parts.push(`Impact-to-Status conversion is multiplied by ${formatExplanationNumber(value("impactStatusExtraProcLowFireRateMultiplier"))} below ${formatExplanationNumber(value("impactStatusExtraProcLowFireRateThreshold"))} Fire Rate`);
+    }
+    if (value("perHitCritChanceBonus") > 0) {
+        parts.push(`${formatExplanationPercent(value("perHitCritChanceBonus"))} Critical Chance added on each later hit in the magazine; the calculated build stat averages this ramp across expected magazine hits`);
+    }
+    if (value("critAppliesSlashChance") > 0) {
+        parts.push(`${formatExplanationPercent(value("critAppliesSlashChance"))} chance for a Critical Hit to apply Slash`);
+    }
+    if (value("aoeElementalStatusSpreadChance") > 0) {
+        parts.push(`${formatExplanationPercent(value("aoeElementalStatusSpreadChance"))} chance for an Electricity Status Effect to spread the attack's elemental Status Effects within ${formatExplanationNumber(value("aoeElementalStatusSpreadRadius"))}m; nearby-target coverage depends on the encounter settings`);
+    }
+    if (effect.nonCriticalHitDamageProcs?.length) {
+        for (const proc of effect.nonCriticalHitDamageProcs) {
+            parts.push(`${formatExplanationPercent(proc.chance)} chance for a non-critical hit to trigger a separate ${formatExplanationNumber(1 + proc.damageBonus)}× damage hit`);
+        }
+    }
+    if (effect.meleeComboTriggeredProcDistributions?.length) {
+        for (const distribution of effect.meleeComboTriggeredProcDistributions) {
+            const statusTypes = distribution.types?.map((type) => type[0].toUpperCase() + type.slice(1));
+            parts.push(`${formatExplanationNumber(distribution.count, 0)} ${distribution.mode === "uniform" ? "evenly weighted" : "damage-weighted"} Status Effect roll${distribution.count === 1 ? "" : "s"} on eligible Heavy Attacks${distribution.minimumComboMultiplier > 1 ? ` at ${formatExplanationNumber(distribution.minimumComboMultiplier)}× combo or higher` : ""}${statusTypes?.length ? ` (${joinExplanationList(statusTypes)})` : ""}`);
+        }
+    }
     if (value("factionDamageBonus") > 0) {
-        parts.push(`×${(1 + value("factionDamageBonus")).toFixed(2)} ${effect.targetFaction ?? "faction"}`);
+        parts.push(`×${formatExplanationNumber(1 + value("factionDamageBonus"), 2)} damage against ${effect.targetFaction ?? "the selected faction"}`);
     }
     return parts;
 }
@@ -4905,6 +5027,57 @@ export function explainBuild(
         Array(slotCount).fill(null),
         Array(slotCount).fill(undefined),
     );
+    const targetAssumptions = getTargetProfileAssumptions(targetFaction, targetProfileOverride);
+    const statsConditionalState = goal === "meleeDps" ? { mode: "initial" as const } : conditionalState;
+    const statsOptions = {
+        statusImmuneTypes: targetAssumptions.statusImmuneTypes,
+        statusStackCaps: targetAssumptions.statusStackCaps,
+        hitLocation: {
+            headshotRate: targetAssumptions.headshotHitRate,
+            headshotMultiplier: targetAssumptions.headshotMultiplier,
+            criticalHeadshotMultiplier: targetAssumptions.criticalHeadshotMultiplier,
+        } satisfies HitLocationDamageProfile,
+        isEximusTarget: targetAssumptions.isEximusTarget,
+        conditionalState: statsConditionalState,
+        includeDoTTickDetails: false,
+    };
+    const fixedEffects = explanationOptions.baseEffects ?? [];
+    const baselineStats = calculateBuild(scoringWeapon, fixedEffects, targetFaction, statsOptions).modded;
+    const selectedEffects = [
+        ...fixedEffects,
+        ...chosenMods.map((mod, index) => mod.effectsByRank[fullRanks[index] ?? mod.fusionLimit] ?? mod.effect),
+        ...(explanationOptions.arcaneEffect ? [normalizeArcaneEffect(explanationOptions.arcaneEffect)] : []),
+    ];
+    const selectedStats = calculateBuild(scoringWeapon, selectedEffects, targetFaction, statsOptions).modded;
+    const changed = (before: number, after: number) => Math.abs(before - after) > 1e-9;
+    const buildHighlights: string[] = [];
+    if (changed(baselineStats.critChance, selectedStats.critChance) ||
+        changed(baselineStats.critMultiplier, selectedStats.critMultiplier)) {
+        buildHighlights.push(`Critical stats for this attack: Critical Chance ${formatExplanationPercent(selectedStats.critChance)} (configured baseline ${formatExplanationPercent(baselineStats.critChance)}); Critical Damage ${formatExplanationNumber(selectedStats.critMultiplier)}× (configured baseline ${formatExplanationNumber(baselineStats.critMultiplier)}×).`);
+    }
+    if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
+        buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);
+    }
+    if (changed(baselineStats.multishot, selectedStats.multishot)) {
+        buildHighlights.push(`Expected projectiles per trigger: ${formatExplanationNumber(selectedStats.multishot, 2)} (configured baseline ${formatExplanationNumber(baselineStats.multishot, 2)}).`);
+    }
+    if (changed(baselineStats.fireRate, selectedStats.fireRate)) {
+        const rateLabel = scoringWeapon.category === "Melee" || scoringWeapon.category === "Arch-Melee" ? "Melee attacks per second" : "Fire Rate";
+        buildHighlights.push(`${rateLabel}: ${formatExplanationNumber(selectedStats.fireRate, 2)} (configured baseline ${formatExplanationNumber(baselineStats.fireRate, 2)}).`);
+    }
+    if (changed(baselineStats.directDamagePerStatusBonus, selectedStats.directDamagePerStatusBonus)) {
+        buildHighlights.push(`Direct weapon damage gains ${formatExplanationPercent(selectedStats.directDamagePerStatusBonus)} per distinct active Status Effect type on the target; the realized bonus depends on which statuses are active.`);
+    }
+    if (changed(baselineStats.conditionOverloadDamagePerStatusBonus, selectedStats.conditionOverloadDamagePerStatusBonus)) {
+        buildHighlights.push(`Melee Damage gains ${formatExplanationPercent(selectedStats.conditionOverloadDamagePerStatusBonus)} per distinct active Status Effect type on the target; this does not assume every status type is present.`);
+    }
+    if (changed(baselineStats.factionDamageBonus, selectedStats.factionDamageBonus)) {
+        buildHighlights.push(`Damage bonus against ${targetFaction || "the selected faction"}: ${formatExplanationPercent(selectedStats.factionDamageBonus)} (configured baseline ${formatExplanationPercent(baselineStats.factionDamageBonus)}).`);
+    }
+    if (changed(baselineStats.dotDps, selectedStats.dotDps)) {
+        buildHighlights.push(`Modeled steady-state Status Effect damage: ${formatExplanationNumber(selectedStats.dotDps, 1)} damage/s (configured baseline ${formatExplanationNumber(baselineStats.dotDps, 1)} damage/s). This is the planner's expected DoT estimate, not a random combat result.`);
+    }
+
     const steps: BuildReasoningStep[] = chosenMods.map((mod, index) => {
         const withoutSlots = [...fullSlots];
         const withoutRanks = [...fullRanks];
@@ -4919,15 +5092,16 @@ export function explainBuild(
         for (const conditional of e.conditionalEffects ?? []) {
             parts.push(summarizeConditionalEffect(conditional));
         }
+        const unmodeledLines = getUnmodeledDamageEffectLines(mod, rank);
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
-        const effectSummary = parts.length > 0 ? parts.join(", ") : "Effect details not summarized in this explanation";
-        const contribution = delta >= 0
-            ? `Keeping it adds ${pctGain >= 0 ? "+" : ""}${pctGain.toFixed(1)}% to ${goalLabel(goal)} versus the same build without it.`
-            : `Keeping it lowers ${goalLabel(goal)} by ${Math.abs(pctGain).toFixed(1)}% versus the same build without it.`;
+        const effectSummary = parts.length > 0
+            ? `Provides ${joinExplanationList(parts)}.`
+            : "No direct effect is summarized here; its value may come from an interaction or utility outside this damage summary.";
+        const scoreComparison = `With this mod, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithout.toFixed(1)} (${delta >= 0 ? `a ${pctGain.toFixed(1)}% increase` : `a ${Math.abs(pctGain).toFixed(1)}% decrease`} relative to the build without this mod).`;
 
         return {
             modName: mod.name, rank, maxRank: mod.fusionLimit,
-            why: `${effectSummary}${rankNote}. ${contribution}`,
+            why: `${effectSummary}${rankNote} ${scoreComparison}${unmodeledLines.length > 0 ? ` Not scored: ${unmodeledLines.join(" ")}` : ""}`,
             statBefore: scoreWithout, statAfter: fullScore, delta, pctGain,
         };
     });
@@ -4937,9 +5111,15 @@ export function explainBuild(
             const scoreWithoutArcane = scoreSlotsForExplanation(fullSlots, fullRanks, null);
             const delta = fullScore - scoreWithoutArcane;
             const pctGain = scoreWithoutArcane > 0 ? (delta / scoreWithoutArcane) * 100 : 0;
-            const contribution = delta >= 0
-                ? `Keeping it adds ${pctGain >= 0 ? "+" : ""}${pctGain.toFixed(1)}% to ${goalLabel(goal)} versus the same build without it.`
-                : `Keeping it lowers ${goalLabel(goal)} by ${Math.abs(pctGain).toFixed(1)}% versus the same build without it.`;
+            const contribution = `With this Arcane, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithoutArcane.toFixed(1)} (${delta >= 0 ? `a ${pctGain.toFixed(1)}% increase` : `a ${Math.abs(pctGain).toFixed(1)}% decrease`} relative to the build without this Arcane).`;
+            const arcaneEffect = normalizeArcaneEffect(explanationOptions.arcaneEffect);
+            const arcaneParts = summarizeEffectStats(arcaneEffect);
+            for (const conditional of arcaneEffect.conditionalEffects ?? []) {
+                arcaneParts.push(summarizeConditionalEffect(conditional));
+            }
+            const arcaneSummary = arcaneParts.length > 0
+                ? `Provides ${joinExplanationList(arcaneParts)}. `
+                : "Its modeled stat details are not listed here. ";
             return {
                 name: explanationOptions.arcaneName ?? "Selected arcane",
                 rank: explanationOptions.arcaneRank,
@@ -4947,7 +5127,7 @@ export function explainBuild(
                 statAfter: fullScore,
                 delta,
                 pctGain,
-                why: `${explanationOptions.arcaneRank === undefined ? "" : `Rank ${explanationOptions.arcaneRank}. `}${contribution}`,
+                why: `${explanationOptions.arcaneRank === undefined ? "" : `Rank ${explanationOptions.arcaneRank}. `}${arcaneSummary}${contribution}`,
             };
         })()
         : undefined;
@@ -4958,9 +5138,15 @@ export function explainBuild(
         .filter((step) => step.delta > 0)
         .sort((left, right) => right.delta - left.delta)
         .slice(0, 3);
+    const scoreImprovingRemovals = [...steps]
+        .filter((step) => step.delta < 0)
+        .sort((left, right) => left.delta - right.delta)
+        .slice(0, 3);
     const winningEdge = strongestContributions.length > 0
-        ? `Largest leave-one-out gains: ${strongestContributions.map((step) => `${step.modName} (+${step.pctGain.toFixed(1)}%)`).join(", ")}. These margins overlap and are not additive.`
-        : "No selected mod has a positive leave-one-out gain in this score and target model.";
+        ? `The largest score gains from keeping a mod in the full build, compared with removing it, are ${strongestContributions.map((step) => `${step.modName} (${step.pctGain >= 0 ? "+" : ""}${step.pctGain.toFixed(1)}%)`).join(", ")}. These individual comparisons overlap, so they do not add up to the total build gain.`
+        : scoreImprovingRemovals.length > 0
+            ? `Removing ${scoreImprovingRemovals.map((step) => step.modName).join(", ")} improves the score in this target and model; review these selected mods.`
+            : "Removing any one selected mod does not improve the score in this target and model.";
     const targetLabel = goal === "meleeDps"
         ? `using the selected Wiki Neutral-combo estimate${targetFaction ? ` and ${targetFaction} faction mod` : ""}`
         : targetFaction ? `vs ${targetFaction}` : "against the balanced target estimate";
@@ -5000,6 +5186,7 @@ export function explainBuild(
         arcaneStep,
         summary,
         winningEdge,
+        buildHighlights,
         comparisonNote: goal === "meleeDps"
             ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
             : goal === "timeToKill"

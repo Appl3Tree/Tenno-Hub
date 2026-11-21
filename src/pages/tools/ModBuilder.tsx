@@ -7145,6 +7145,16 @@ export default function ModBuilder() {
                                                                     <p className="text-[10px] text-slate-400">{displayedReasoning.winningEdge}</p>
                                                                     <p className="text-[10px] text-slate-500">{displayedReasoning.comparisonNote}</p>
                                                                 </div>
+                                                                {displayedReasoning.buildHighlights.length > 0 && (
+                                                                    <div className="rounded-lg border border-slate-800/60 bg-slate-900/30 px-3 py-2.5">
+                                                                        <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">Calculated build details</div>
+                                                                        <ul className="space-y-1 text-[10px] text-slate-300">
+                                                                            {displayedReasoning.buildHighlights.map((highlight, index) => (
+                                                                                <li key={index}>{highlight}</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                )}
                                                                 {displayedReasoning.arcaneStep && (
                                                                     <div className="rounded-lg bg-violet-950/20 border border-violet-900/40 px-3 py-2">
                                                                         <div className="flex items-center justify-between gap-2">
