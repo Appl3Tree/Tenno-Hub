@@ -2554,3 +2554,31 @@ Each run sampled 12,288 legal pairs. The Corpus sample examined 23,921 raw tuple
 | Gram Prime / Heavy Slam Attack | 314,186.60 / 303,510.73 | 357,665.42 / 291,696.79 | 0 |
 
 Across the seed-20261145 Grineer / 3,000-Armor sample, the two seed-20261146 Grineer armor points, and these seed-20261147 Corpus and Infested profiles, the current bounded corpus covers 61,440 legal sampled pairs across 60 fixture-runs from 113,133 raw tuples. No sample improved an optimizer baseline. The three factions and shield/armor variations broaden model-local coverage; the custom pools do not validate named-enemy values, spatial AoE, native Underframe behavior, or live gameplay. The script rejects noncanonical faction names and zero/invalid target Health; node TypeScript, focused ESLint, valid worker smoke, and invalid-input guards pass.
+
+### Exact one-mod neighborhoods for Corpus and Infested
+
+The full-pool runner now accepts the same `--faction`, `--health`, `--shields`, `--overguard`, and `--armor` target overrides. Reproduce the exact legal one-mod add/remove/replacement neighborhoods for the seed-`20261147` fixtures with:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsCorpus.ts --seed=20261147 --runs=1 --faction=Corpus --health=10000000 --shields=10000000 --overguard=0 --armor=0
+npx tsx scripts/auditFixedWindowDpsCorpus.ts --seed=20261147 --runs=1 --faction=Infested --health=10000000 --shields=0 --overguard=0 --armor=0
+```
+
+Each baseline is Auto Optimize's legal eight-slot / Catalyst / up-to-three-Forma `windowDps` build. The audit scores every eligible legal max-rank add, remove, or replacement around that baseline. It uses the same synthetic shielded Corpus and unarmored Infested pools as the pair sample; the faction's other built-in status assumptions remain active, but the custom pools are not named enemies. All baseline and best-neighbor scores remain below the 10,000,000 Health limit.
+
+| Fixture | Corpus baseline | Corpus exact neighbors | Best Corpus neighbor | Infested baseline | Infested exact neighbors | Best Infested neighbor |
+| --- | ---: | ---: | --- | ---: | ---: | --- |
+| Braton Prime / Normal Attack | 108,051.20 DPS | 225 | 104,585.58 (Heavy Caliber → Primed Bane of Corpus) | 103,517.96 DPS | 321 | 103,517.96 (Heavy Caliber → Serration; ties baseline) |
+| Cedo / Normal Attack | 195,350.14 DPS | 359 | 195,174.78 (Frail Momentum → Accelerated Blast) | 237,551.09 DPS | 348 | 237,551.09 (Shotgun Barrage → Amalgam Shotgun Barrage; ties baseline) |
+| Laetum / Normal Attack | 200,058.55 DPS | 286 | 198,620.24 (Primed Expel Corpus → Hornet Strike) | 251,876.89 DPS | 286 | 227,563.96 (Primed Expel Infested → Hornet Strike) |
+| Soma Prime / Fully Spooled | 212,539.67 DPS | 328 | 209,472.26 (Heavy Caliber → Vigilante Armaments) | 228,805.32 DPS | 328 | 225,504.57 (Serration → Vigilante Armaments) |
+| Broken War / Normal Attack | 25,330.13 DPS | 336 | 25,134.57 (Gladiator Might → Magnetic Rush) | 37,234.42 DPS | 377 | 37,075.21 (Volcanic Edge → Molten Impact) |
+| Kuva Nukor / Normal Attack | 289,469.89 DPS | 422 | 282,474.97 (Primed Pistol Gambit → Magnum Force) | 280,164.65 DPS | 436 | 269,907.92 (Barrel Diffusion → Amalgam Barrel Diffusion) |
+| Nataruk / Perfect Shot | 528,743.42 DPS | 382 | 516,447.06 (Serration → Amalgam Serration) | 550,902.18 DPS | 382 | 538,090.51 (Serration → Amalgam Serration) |
+| Torid / Grenade Impact | 42,760.04 DPS | 233 | 41,148.90 (Heavy Caliber → Primed Bane of Corpus) | 43,340.42 DPS | 231 | 42,558.23 (Radiated Reload → Rime Rounds) |
+| Tenet Envoy / Rocket Explosion | 295,892.42 DPS | 413 | 288,762.48 (Serration → Amalgam Serration) | 295,892.42 DPS | 413 | 288,762.48 (Serration → Amalgam Serration) |
+| Mausolon (Archwing) / Auto | 759,555.59 DPS | 139 | 658,430.53 (Parallax Scope → Containment Breach) | 945,066.68 DPS | 139 | 901,454.64 (Parallax Scope → Magnetized Cycle) |
+| Verglas Prime / Normal Attack | 128,193.49 DPS | 278 | 126,627.96 (Critical Delay → Point Strike) | 134,982.95 DPS | 264 | 131,590.65 (Heavy Caliber → Split Chamber) |
+| Gram Prime / Heavy Slam Attack | 314,186.60 DPS | 346 | 305,781.04 (Organ Shatter → Amalgam Organ Shatter) | 357,665.42 DPS | 346 | 348,096.63 (Organ Shatter → Amalgam Organ Shatter) |
+
+Across the two target profiles, the exact audit scored 7,618 legal one-mod neighbors: 3,747 for Corpus and 3,871 for Infested. No neighbor improved its optimizer baseline. Together with the existing seed-20261144 / 20261145 Grineer one-mod corpora, the exact corpus now covers 15,772 legal neighbors across 48 fixture-runs with no improvements. This is still local evidence under selected target overrides; it is not global optimizer quality, Underframe parity, or gameplay validation. `auditFixedWindowDpsCorpus.ts` now validates canonical faction names and positive Health before invoking the full-pool worker.
