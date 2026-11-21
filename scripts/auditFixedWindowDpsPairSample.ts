@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { filterBuilderExpertVariants, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEntry } from "../src/domain/catalog/modCatalog";
 import { getWeaponCatalog, getWeaponDisplayName, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
 import {
+    CANONICAL_FACTIONS,
     assignModsToSlots,
     debugEvaluateFixedWindowDps,
     FIXED_WINDOW_DPS_SECONDS,
@@ -48,6 +49,30 @@ function integerOption(name: string, fallback: number, maximum: number): number 
     return value;
 }
 
+function nonNegativeIntegerOption(name: string, fallback: number): number {
+    const value = Number(option(name, String(fallback)));
+    if (!Number.isSafeInteger(value) || value < 0) {
+        throw new Error(`--${name} must be a non-negative safe integer`);
+    }
+    return value;
+}
+
+function positiveIntegerOption(name: string, fallback: number): number {
+    const value = Number(option(name, String(fallback)));
+    if (!Number.isSafeInteger(value) || value <= 0) {
+        throw new Error(`--${name} must be a positive safe integer`);
+    }
+    return value;
+}
+
+function targetFactionOption(): string {
+    const faction = option("faction", "Grineer").trim();
+    if (!CANONICAL_FACTIONS.some((candidate) => candidate.toLowerCase() === faction.toLowerCase())) {
+        throw new Error(`--faction must be one of: ${CANONICAL_FACTIONS.join(", ")}`);
+    }
+    return faction;
+}
+
 function mulberry32(seed: number): () => number {
     let state = seed >>> 0;
     return () => {
@@ -84,6 +109,13 @@ function runCorpus(): void {
     const seed = integerOption("seed", 20261145, 0xffffffff);
     const sampleCount = integerOption("samples", 1024, 100000);
     if (sampleCount < 1) throw new Error("--samples must be at least 1");
+    const targetFaction = targetFactionOption();
+    const target = {
+        health: positiveIntegerOption("health", 2_000_000),
+        shields: nonNegativeIntegerOption("shields", 0),
+        overguard: nonNegativeIntegerOption("overguard", 0),
+        armor: nonNegativeIntegerOption("armor", 3_000),
+    };
     const corpusRunner = resolve("scripts/auditFixedWindowDpsCorpus.ts");
     const listed = spawnSync(process.execPath, [
         "--import", "tsx/esm", corpusRunner, `--seed=${seed}`, "--dry-run",
@@ -105,6 +137,11 @@ function runCorpus(): void {
             `--attack=${fixture.attack}`,
             `--samples=${sampleCount}`,
             `--seed=${fixtureSeed}`,
+            `--faction=${targetFaction}`,
+            `--health=${target.health}`,
+            `--shields=${target.shields}`,
+            `--overguard=${target.overguard}`,
+            `--armor=${target.armor}`,
             ...(fixture.attackDistanceMeters === undefined || fixture.attackDistanceMeters === null
                 ? []
                 : [`--attack-distance=${fixture.attackDistanceMeters}`]),
@@ -135,6 +172,7 @@ function runCorpus(): void {
         },
         fixtureCount: corpus.fixtures.length,
         fixtures: corpus.fixtures,
+        targetProfile: { faction: targetFaction, ...target },
         totalRawProposalsExamined: results.reduce((total, result) => total + result.rawProposalsExamined, 0),
         totalSampledLegalPairs: results.reduce((total, result) => total + result.sampledLegalPairs, 0),
         totalImprovementsFound: results.reduce((total, result) => total + result.improvementsFound, 0),
@@ -156,13 +194,13 @@ function runFixture(): void {
         throw new Error("--attack-distance must be a non-negative finite number");
     }
 
-    const faction = "Grineer";
+    const faction = targetFactionOption();
     const target = {
         description: "Seeded fixed-window legal two-mod replacement sample",
-        health: 2_000_000,
-        shields: 0,
-        overguard: 0,
-        armor: 3_000,
+        health: positiveIntegerOption("health", 2_000_000),
+        shields: nonNegativeIntegerOption("shields", 0),
+        overguard: nonNegativeIntegerOption("overguard", 0),
+        armor: nonNegativeIntegerOption("armor", 3_000),
         toxinBypassesShields: true,
     };
     const slotCount = 8;
