@@ -1,0 +1,14 @@
+{
+  "weaponName": "Cedo",
+  "attackName": "Normal Attack",
+  "underframeMods": [
+    { "name": "Primed Charged Shell", "rank": 10 },
+    { "name": "Toxic Barrage", "rank": 3 },
+    { "name": "Galvanized Hell", "rank": 10 },
+    { "name": "Primed Point Blank", "rank": 10 },
+    { "name": "Amalgam Shotgun Barrage", "rank": 5 },
+    { "name": "Accelerated Blast", "rank": 3 },
+    { "name": "Galvanized Savvy", "rank": 10 },
+    { "name": "Frail Momentum", "rank": 5 }
+  ]
+}

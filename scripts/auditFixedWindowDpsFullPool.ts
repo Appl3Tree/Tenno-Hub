@@ -226,7 +226,8 @@ const optimizerBaselineEntries = firstRun.result.slots.flatMap((mod, index) => m
     : []);
 const baselineEntries = capturedBaselineRequests
     ? capturedBaselineRequests.map(({ name, rank }) => {
-        const mod = candidatePool.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
+        const variants = candidatePool.filter((entry) => entry.name.toLowerCase() === name.toLowerCase());
+        const mod = variants.find((entry) => !isFlawedVariant(entry.path)) ?? variants[0];
         if (!mod) throw new Error(`Captured baseline mod missing from compatible candidate pool: ${name}`);
         if (!Number.isInteger(rank) || rank < 0 || rank > mod.fusionLimit) {
             throw new Error(`Captured baseline rank is invalid for ${name}: ${rank}/${mod.fusionLimit}`);
