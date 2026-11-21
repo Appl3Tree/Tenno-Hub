@@ -387,6 +387,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     timedConditionalDamageStacks?: readonly TimedConditionalDamageStack[];
     /** Hard stops keep malformed profiles from running unbounded simulations. */
     maxDurationSeconds?: number;
+    /** Stop before any event at or after this time; used for half-open fixed windows. */
+    stopAtSeconds?: number;
     maxAttacks?: number;
 }
 
@@ -671,6 +673,9 @@ export function simulateExpectedWeaponEncounter(
     const maxDurationSeconds = Number.isFinite(input.maxDurationSeconds)
         ? Math.max(0, input.maxDurationSeconds ?? 0)
         : 600;
+    const stopAtSeconds = Number.isFinite(input.stopAtSeconds)
+        ? Math.min(maxDurationSeconds, Math.max(0, input.stopAtSeconds ?? 0))
+        : null;
     const maxAttacks = Number.isFinite(input.maxAttacks)
         ? Math.max(0, Math.floor(input.maxAttacks ?? 0))
         : 20_000;
@@ -1634,6 +1639,11 @@ export function simulateExpectedWeaponEncounter(
             : Number.POSITIVE_INFINITY;
         const nextTick = ticks[0];
         const nextTickTime = nextTick?.time ?? Number.POSITIVE_INFINITY;
+        const nextEventTime = Math.min(attackTime, nextTickTime);
+        if (stopAtSeconds !== null && nextEventTime >= stopAtSeconds - 1e-9) {
+            now = stopAtSeconds;
+            break;
+        }
         const attackComesFirst = attackTime <= nextTickTime + 1e-9;
         if (attackComesFirst) {
             if (!Number.isFinite(attackTime) || attackTime > maxDurationSeconds + 1e-9 || attackInterval <= 0) break;
@@ -2191,7 +2201,9 @@ export function simulateExpectedWeaponEncounter(
         Number.isFinite(input.attackCountLimit) &&
         attacks >= maxSimulatedAttacks &&
         attackCountLimit < maxAttacks;
-    const evaluatedDurationSeconds = primaryKilledAt ?? (attackCountLimitReached ? now : maxDurationSeconds);
+    const evaluatedDurationSeconds = stopAtSeconds !== null
+        ? stopAtSeconds
+        : primaryKilledAt ?? (attackCountLimitReached ? now : maxDurationSeconds);
     const rateDuration = evaluatedDurationSeconds > 0
         ? evaluatedDurationSeconds
         : attacks > 0 ? attackInterval : 0;

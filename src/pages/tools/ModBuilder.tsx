@@ -33,7 +33,7 @@ import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
-import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
+import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, FIXED_WINDOW_DPS_SECONDS, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
 import { normalizeElectricGasNeighborCounts, STATUS_DAMAGE_TYPES, type StatusDamageType } from "../../domain/logic/damageRuleset";
 import { EXIMUS_BASE_OVERGUARD, applyEximusHealthBaseAdjustment, applyEximusShieldBaseAdjustment, applySteelPathStatMultiplier, enemyStatLevelMultiplier, getSteelPathEnemyLevel, scaleEnemyOverguard, scaleEnemyStat, type EnemyScalingFaction } from "../../domain/logic/enemyScaling";
 import { calculateDirectDamageToInitialPools, simulateDirectAttackSequence, simulateExpectedWeaponEncounter, type DirectTargetDamageInput } from "../../domain/logic/targetDamage";
@@ -372,6 +372,11 @@ const GOAL_OPTIONS: { key: OptimizeGoal; label: string; desc: string }[] = [
         key: "timeToKill",
         label: "Expected TTK",
         desc: "Ranks legal builds by finite expected time to kill; kills within 600 seconds rank first, and if both reach the simulation cap, expected damage per second breaks the tie.",
+    },
+    {
+        key: "windowDps",
+        label: "5s Avg DPS",
+        desc: "Ranks a single target by applied damage in the first five seconds divided by five. Overkill, damage after defeat, and events exactly at 5s are excluded; outcomes use deterministic mean-field estimates, not Underframe's seeded sample mean.",
     },
     {
         key: "meleeDps",
@@ -4877,9 +4882,9 @@ export default function ModBuilder() {
         if (!weapon) return;
         if (onlyOwned && ownedSet.size === 0) return;
         const selectedAttackAutoSpoolLimitation = weapon.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation;
-        if (goal === "timeToKill" && selectedAttackAutoSpoolLimitation) {
+        if ((goal === "timeToKill" || goal === "windowDps") && selectedAttackAutoSpoolLimitation) {
             setOptimizerNotice(
-                `Expected TTK is unavailable for ${weapon.attacks[selectedAttackIdx]?.name ?? weapon.name}: ` +
+                `${goal === "timeToKill" ? "Expected TTK" : "5s Avg DPS"} is unavailable for ${weapon.attacks[selectedAttackIdx]?.name ?? weapon.name}: ` +
                 `${selectedAttackAutoSpoolLimitation.reason} Wiki: ${selectedAttackAutoSpoolLimitation.sourceUrl}`,
             );
             return;
@@ -5340,6 +5345,16 @@ export default function ModBuilder() {
                             candidatesEvaluated: appliedResult.encounterCandidatesEvaluated ?? 0,
                         }
                         : undefined,
+                    fixedWindowObjective: goal === "windowDps" && appliedResult.windowDpsScore !== undefined
+                        ? {
+                            damage: appliedResult.windowDpsDamage ?? appliedResult.windowDpsScore * FIXED_WINDOW_DPS_SECONDS,
+                            damagePerSecond: appliedResult.windowDpsScore,
+                            windowSeconds: FIXED_WINDOW_DPS_SECONDS,
+                            timeToKillSeconds: appliedResult.encounterTimeToKillSeconds ?? null,
+                            refined: appliedResult.encounterRefined ?? false,
+                            candidatesEvaluated: appliedResult.encounterCandidatesEvaluated ?? 0,
+                        }
+                        : undefined,
                 },
             ));
             setReasoningContextAtOptimization(currentReasoningContextKey);
@@ -5434,7 +5449,7 @@ export default function ModBuilder() {
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
         setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
         if (plannerConfig) {
-            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill" || plannerConfig.goal === "meleeDps") setGoal(plannerConfig.goal);
+            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill" || plannerConfig.goal === "windowDps" || plannerConfig.goal === "meleeDps") setGoal(plannerConfig.goal);
             const conditionalModes: ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
             if (plannerConfig.conditionalMode && conditionalModes.includes(plannerConfig.conditionalMode)) {
                 setConditionalMode(plannerConfig.conditionalMode);
@@ -5639,9 +5654,9 @@ export default function ModBuilder() {
                                                     />
                                                 ))}
                                             </div>
-                                            {goal === "timeToKill" && weapon?.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation && (
+                                            {(goal === "timeToKill" || goal === "windowDps") && weapon?.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation && (
                                                 <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
-                                                    Finite timing and Expected TTK are unavailable because this attack's full per-shot spool behavior is not modeled. Steady-state stats still use the fully spooled Arsenal rate. {" "}
+                                                    Finite timing, Expected TTK, and 5s Avg DPS are unavailable because this attack's full per-shot spool behavior is not modeled. Steady-state stats still use the fully spooled Arsenal rate. {" "}
                                                     <a
                                                         href={weapon?.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation?.sourceUrl}
                                                         target="_blank"

@@ -7,6 +7,7 @@ import type { MeleeAverageDpsParameters } from "./damageCalc";
 import {
     debugScoreBuild,
     debugScoreExpectedEncounter,
+    debugEvaluateFixedWindowDps,
     optimizeBuildCore,
     rankExpectedEncounter,
     type OptimizeGoal,
@@ -92,6 +93,20 @@ export function scoreOptimizerResultForConfiguration(input: OptimizerConfigurati
             arcaneEffect,
         );
         return rankExpectedEncounter(expectedEncounter.timeToKillSeconds, expectedEncounter.damagePerSecond);
+    }
+
+    if (input.goal === "windowDps") {
+        if (input.useFiniteEncounterResult !== false && input.result.windowDpsScore !== undefined) {
+            return input.result.windowDpsScore;
+        }
+        return debugEvaluateFixedWindowDps(
+            scoringWeapon,
+            effects,
+            input.targetFaction,
+            target,
+            input.conditionalState,
+            arcaneEffect,
+        ).damagePerSecond;
     }
 
     return debugScoreBuild(

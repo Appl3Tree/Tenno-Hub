@@ -8,7 +8,7 @@ import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } fro
 import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
-import { assignModsToSlots, debugEvaluateExpectedEncounter, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
+import { assignModsToSlots, debugEvaluateExpectedEncounter, debugEvaluateFixedWindowDps, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
 import { calculateBuild, type ConditionalState } from "../damageCalc";
 import { gasCloudOuterAnnulusCoverage, quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
@@ -235,6 +235,145 @@ describe("Wiki stance DPS objective", () => {
 
         expect(directOnlyBuild.mods.map((mod) => mod?.uniqueName)).toContain("damage");
         expect(slashHeavyBuild.mods.map((mod) => mod?.uniqueName)).toContain("duration");
+    });
+});
+
+describe("fixed-window DPS objective", () => {
+    it("divides applied single-target damage by five seconds and clips overkill", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100, impact: 100, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 0,
+            fireRate: 1,
+            magazineSize: 40,
+            reloadTime: 1,
+        });
+        const target = { health: 350, shields: 0, overguard: 0, armor: 0 };
+        const evaluation = debugEvaluateFixedWindowDps(weapon, [], "", target, { mode: "initial" });
+
+        expect(evaluation.windowSeconds).toBe(5);
+        expect(evaluation.damageInWindow).toBe(350);
+        expect(evaluation.damagePerSecond).toBe(70);
+        expect(evaluation.timeToKillSeconds).toBe(3);
+
+        const result = optimizeBuild(weapon, [], "windowDps", 0, {
+            targetProfileOverride: target,
+            conditionalState: { mode: "initial" },
+        });
+        expect(normalizeOptimizeGoal("windowDps")).toBe("windowDps");
+        expect(result.windowDpsDamage).toBe(350);
+        expect(result.windowDpsScore).toBe(70);
+        expect(scoreOptimizerResultForConfiguration({
+            weapon,
+            result,
+            goal: "windowDps",
+            targetFaction: "",
+            selectedAttackIdx: 0,
+            targetProfileOverride: target,
+            conditionalState: { mode: "initial" },
+        })).toBe(70);
+
+        const explanation = explainBuild(
+            weapon,
+            [],
+            [],
+            "windowDps",
+            "",
+            null,
+            { mode: "initial" },
+            target,
+            {
+                fixedWindowObjective: {
+                    damage: 350,
+                    damagePerSecond: 70,
+                    windowSeconds: 5,
+                    timeToKillSeconds: 3,
+                    refined: false,
+                    candidatesEvaluated: 1,
+                },
+            },
+        );
+        expect(explanation.summary).toContain("350.0 damage during [0, 5.0s)");
+        expect(explanation.summary).toContain("Overkill and events at the window endpoint are excluded.");
+    });
+
+    it("selects Arcanes by the exact fixed-window score", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100, impact: 100, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 0,
+            fireRate: 1,
+            magazineSize: 40,
+            reloadTime: 1,
+        });
+        const makeArcane = (name: string, effect: Partial<ModEffect>): ArcaneEntry => ({
+            uniqueName: `/Test/Arcane/${name}`,
+            name,
+            rarity: "Common",
+            weaponType: "Primary",
+            maxRank: 0,
+            statsByRank: [""],
+            statsLabel: "",
+            baseBonus: "",
+            procBonus: "",
+            permanentEffectByRank: [effect],
+            optimizerEffectByRank: [effect],
+        });
+        const target = { health: 10_000, shields: 0, overguard: 0, armor: 0 };
+        const damageArcane = makeArcane("Window Damage", { damageBonus: 0.5 });
+        const fireRateArcane = makeArcane("Window Fire Rate", { fireRateBonus: 5 });
+        const result = optimizeBuild(weapon, [], "windowDps", 0, {
+            targetProfileOverride: target,
+            conditionalState: { mode: "initial" },
+            optimizeArcane: true,
+            arcaneCandidates: [damageArcane, fireRateArcane],
+        });
+
+        expect(result.arcane?.name).toBe("Window Fire Rate");
+        expect(result.windowDpsScore).toBeCloseTo(600, 8);
+    });
+
+    it("excludes configured neighboring targets from its score", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100, impact: 0, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 100, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 1,
+            fireRate: 1,
+            magazineSize: 8,
+            reloadTime: 1,
+        });
+        const target = { health: 100_000, shields: 0, overguard: 0, armor: 0 };
+        const singleTarget = debugEvaluateFixedWindowDps(weapon, [], "", target, { mode: "initial" });
+        const configuredNeighbors = debugEvaluateFixedWindowDps(
+            weapon,
+            [],
+            "",
+            { ...target, nearbyEnemyCount: 3, nearbyBlastEnemyCount: 3, nearbyGasOuterEnemyCount: 2 },
+            { mode: "initial" },
+        );
+
+        expect(configuredNeighbors.damageInWindow).toBe(singleTarget.damageInWindow);
+        expect(configuredNeighbors.damagePerSecond).toBe(singleTarget.damagePerSecond);
+        expect(configuredNeighbors.encounter?.blastCollateralEnemyCount).toBe(0);
+        expect(configuredNeighbors.encounter?.electricGasCollateralEnemyCount).toBe(0);
     });
 });
 
