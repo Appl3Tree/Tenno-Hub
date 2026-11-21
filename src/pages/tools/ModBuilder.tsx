@@ -1226,6 +1226,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         acc.multishotBonus += effect.multishotBonus ?? 0;
         acc.multishotDamageBonus += effect.multishotDamageBonus ?? 0;
         acc.fireRateBonus += effect.fireRateBonus ?? 0;
+        acc.chargeRateBonus += effect.chargeRateBonus ?? 0;
         acc.attackSpeedBonus += effect.attackSpeedBonus ?? 0;
         acc.magazineBonus += effect.magazineBonus ?? 0;
         acc.reloadSpeedBonus += effect.reloadSpeedBonus ?? 0;
@@ -1265,6 +1266,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         multishotBonus: 0,
         multishotDamageBonus: 0,
         fireRateBonus: 0,
+        chargeRateBonus: 0,
         attackSpeedBonus: 0,
         magazineBonus: 0,
         reloadSpeedBonus: 0,
@@ -1561,6 +1563,7 @@ function buildMathBreakdown(
     const moddedBaseDamageForQuantization = moddedBaseDamage * selectedAttackDamageMultiplier;
     const quantScale = (moddedBaseDamageForQuantization / 32) * (stats.directDamagePerStatusMultiplier || 1);
     const fireRateBonus = usesMeleeDamageModel(weapon.category) ? totals.attackSpeedBonus : totals.fireRateBonus;
+    const chargeRateBonus = usesMeleeDamageModel(weapon.category) ? 0 : totals.chargeRateBonus;
     const attackDamageEquivalent = stats.damageWeightedMultishot + stats.singleProjectileDamageBonus;
     const quantizedShotDamage = stats.totalDamage * attackDamageEquivalent;
     const avgHitMultiplier = quantizedShotDamage > 0 ? stats.averageShotDamage / quantizedShotDamage : 1;
@@ -1784,7 +1787,8 @@ function buildMathBreakdown(
         "The optimizer uses a fast expected pool-progress score, not the finite encounter. Blast cap and on-death radial collateral use Poisson stack-arrival estimates, with the primary target's modeled kill time kept separate from collateral. Neighbor status histories, pool depletion, gates, boss attenuation, and random outcomes are not simulated in its score.",
     ] : [];
     const fireRateExplanation = (() => {
-        if (stats.fireRateLocked) {
+        if (stats.fireRateLocked && !/^(?:semi|semi[- ]?auto)$/i.test(weapon.trigger.trim())
+            && !(weapon.trigger === "Charge" && weapon.chargeTime)) {
             const fireRateModLockNote = "An equipped Cannonade mod locks Fire Rate to the weapon's unmodified value; positive and negative Fire Rate modifiers are ignored. Wiki: https://wiki.warframe.com/w/Cannonade_Mods";
             if (/^(?:semi|semi[- ]?auto)$/i.test(weapon.trigger.trim())) {
                 return [
@@ -1816,10 +1820,18 @@ function buildMathBreakdown(
             ];
         }
         if (weapon.trigger === "Charge" && weapon.chargeTime) {
+            const applicableFireRateBonus = stats.fireRateLocked ? 0 : fireRateBonus;
+            const totalChargeRateBonus = applicableFireRateBonus + chargeRateBonus;
+            const moddedChargeTime = weapon.chargeTime / Math.max(0.1, 1 + totalChargeRateBonus);
+            const moddedPostChargeFireRate = Math.max(0.05, weapon.fireRate * (1 + applicableFireRateBonus));
             return [
-                `Modded charge time = ${fmt(weapon.chargeTime, 5)} ÷ (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(weapon.chargeTime / Math.max(0.0001, 1 + fireRateBonus), 5)}`,
-                `Effective fire rate (Charge) = 1 ÷ (modded charge time + 1 ÷ modded fire rate) = ${fmt(stats.fireRate, 5)}`,
+                `Modded charge time = ${fmt(weapon.chargeTime, 5)}s ÷ (1 + Fire Rate ${fmt(applicableFireRateBonus * 100, 3)}% + Charge Rate ${fmt(chargeRateBonus * 100, 3)}%) = ${fmt(moddedChargeTime, 5)}s. The bonuses add for charge time; Charge Rate does not speed the post-charge firing interval. Wiki: https://wiki.warframe.com/w/Fire_Rate and https://wiki.warframe.com/w/Shell_Rush`,
+                `Effective fire rate (Charge) = 1 ÷ (modded charge time ${fmt(moddedChargeTime, 5)}s + 1 ÷ modded fire rate ${fmt(moddedPostChargeFireRate, 5)}/s) = ${fmt(stats.fireRate, 5)}/s. Only source-linked rows are combined as components of the same attack; matching charge times alone do not imply a link.`,
+                "Finite encounters assume the selected charged mode is ready at t=0; initial charge/preload time is not simulated. Mausolon's separate five-kill alt-fire gate and repeat-charge history remain outside the model.",
             ];
+        }
+        if (chargeRateBonus !== 0) {
+            return [`Charge Rate has no effect on the selected attack because it has no sourced charge time. Wiki: https://wiki.warframe.com/w/Shell_Rush`];
         }
         if (weapon.selectedAttackAutoSpoolCadence) {
             const cadence = weapon.selectedAttackAutoSpoolCadence;

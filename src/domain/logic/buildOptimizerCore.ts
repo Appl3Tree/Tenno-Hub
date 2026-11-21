@@ -2578,7 +2578,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     ));
     const families: string[] = [];
     if (effects.some((entry) =>
-        (Number(entry.fireRateBonus ?? 0) > 0 || Number(entry.attackSpeedBonus ?? 0) > 0) &&
+        (Number(entry.fireRateBonus ?? 0) > 0 || Number(entry.chargeRateBonus ?? 0) > 0 || Number(entry.attackSpeedBonus ?? 0) > 0) &&
         Number(entry.damageBonus ?? 0) < 0,
     )) families.push("tempo-damage-tradeoff");
     const hasConditionalReloadFireRate = (effect.conditionalEffects ?? []).some((conditional) =>
@@ -2612,7 +2612,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
         families.push("critical");
     }
-    if (has("fireRateBonus", "attackSpeedBonus")) families.push("fire-rate");
+    if (has("fireRateBonus", "chargeRateBonus", "attackSpeedBonus")) families.push("fire-rate");
     if (has("damageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs")) families.push("base-damage");
     if (has("factionDamageBonus")) families.push("faction-damage");
     if (has(
@@ -4839,6 +4839,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     addPercent("multishotBonus", "Multishot");
     addPercent("multishotDamageBonus", "damage on extra projectiles");
     addPercent("fireRateBonus", "Fire Rate");
+    addPercent("chargeRateBonus", "Charge Rate on eligible charged attacks");
     addPercent("attackSpeedBonus", "Melee Attack Speed");
     addPercent("magazineBonus", "magazine capacity");
     addPercent("reloadSpeedBonus", "reload speed");
