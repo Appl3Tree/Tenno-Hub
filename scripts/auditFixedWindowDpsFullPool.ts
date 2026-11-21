@@ -5,9 +5,13 @@ import {
     filterBuilderExpertVariants,
     getModsForWeapon,
     getUnmodeledDamageEffectLines,
+    type ModEffect,
     type ModEntry,
 } from "../src/domain/catalog/modCatalog";
 import { getWeaponCatalog, getWeaponDisplayName, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
+import { getArcanesForWeapon, type ArcaneEntry } from "../src/domain/catalog/arcaneCatalog";
+import { getArcaneEffectAtRank } from "../src/domain/logic/arcaneEffects";
+import { getUnmodeledScoringEffectLines } from "../src/domain/catalog/modEffectUtils";
 import {
     countPolarityChanges,
     effectiveDrain,
@@ -91,6 +95,14 @@ if (capturedBaseline?.weaponName && capturedBaseline.weaponName.toLowerCase() !=
 if (capturedBaseline?.attackName && capturedBaseline.attackName.toLowerCase() !== attackName.toLowerCase()) {
     throw new Error(`Captured baseline attack ${capturedBaseline.attackName} does not match ${attackName}`);
 }
+const jointArcane = option("joint-arcane", "false").toLowerCase() === "true";
+if (jointArcane && capturedBaseline) {
+    throw new Error("--joint-arcane=true audits the optimizer baseline; omit --baseline-file");
+}
+const hasWarframeArmor = process.argv.some((argument) => argument.startsWith("--warframe-armor="));
+const warframeArmor = numericOption("warframe-armor", 0);
+const warframeMaxEnergy = numericOption("warframe-max-energy", 1_000);
+const warframeEnergyPercent = Math.min(100, numericOption("warframe-energy-percent", 100));
 
 const catalog = getWeaponCatalog();
 const normalizedWeaponName = weaponName.trim().toLowerCase();
@@ -104,6 +116,28 @@ const attack = weapon.attacks[attackIndex];
 if (!attack) throw new Error(`Selected attack missing: ${weaponName} / ${attackName}`);
 
 const candidatePool = filterBuilderExpertVariants(getModsForWeapon(weapon));
+const arcaneCandidates = jointArcane ? getArcanesForWeapon(catalogWeapon) : [];
+if (jointArcane && arcaneCandidates.length === 0) {
+    throw new Error(`No compatible Arcanes exist for ${getWeaponDisplayName(catalogWeapon)}`);
+}
+if (arcaneCandidates.some((candidate) => candidate.armorScaledWeaponDamage) && !hasWarframeArmor) {
+    throw new Error("--warframe-armor is required when compatible Arcanes scale with Warframe Armor");
+}
+const arcaneRankOptions = jointArcane
+    ? arcaneCandidates.flatMap((arcane) =>
+        Array.from({ length: arcane.maxRank + 1 }, (_, rank) => ({
+            arcane,
+            rank,
+            effect: getArcaneEffectAtRank(arcane, rank, warframeArmor, true, {
+                warframeMaxEnergy,
+                warframeEnergyPercent,
+            }),
+        })).filter((entry): entry is typeof entry & { effect: NonNullable<typeof entry.effect> } =>
+            !!entry.effect && Object.keys(entry.effect).length > 0 &&
+            getUnmodeledScoringEffectLines(entry.effect).length === 0,
+        ),
+    )
+    : [];
 const standardFamilies = new Set<string>();
 for (const mod of candidatePool) {
     if (
@@ -142,8 +176,11 @@ const optimizerOptions = {
     allowCatalyst: true,
     allowForma: true,
     maxFormaCount: formaLimit,
-    optimizeArcane: false,
-    arcaneCandidates: [],
+    optimizeArcane: jointArcane,
+    arcaneCandidates,
+    warframeArmor: jointArcane ? warframeArmor : undefined,
+    warframeMaxEnergy: jointArcane ? warframeMaxEnergy : undefined,
+    warframeEnergyPercent: jointArcane ? warframeEnergyPercent : undefined,
     optimizeExilus: false,
 };
 
@@ -222,15 +259,43 @@ const baselineLegal = fitsWithinCapacity(
     baselinePlacement.slotMods,
     baselinePlacement.slotRanks,
 ) && baselineFormaCount <= formaLimit && baselineModsUnique && baselineNoIncompatibilityConflict;
-const baselineScore = debugEvaluateFixedWindowDps(
-    weapon,
-    baselinePlacement.slotMods.map((mod, index) => mod
-        ? mod.effectsByRank[baselinePlacement.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
-        : null),
-    targetFaction,
-    target,
-    conditionalState,
-);
+type FixedWindowScore = ReturnType<typeof debugEvaluateFixedWindowDps>;
+type ArcaneScore = {
+    score: FixedWindowScore;
+    arcane: ArcaneEntry | null;
+    rank: number;
+    effect: Partial<ModEffect> | null;
+};
+let exactArcaneScoreCount = 0;
+function scoreBuild(mods: (ModEntry | null)[], ranks: number[]): ArcaneScore {
+    const effects = mods.map((mod, index) => mod
+        ? mod.effectsByRank[ranks[index] ?? mod.fusionLimit] ?? mod.effect
+        : null);
+    let best: ArcaneScore = {
+        score: debugEvaluateFixedWindowDps(weapon, effects, targetFaction, target, conditionalState, null),
+        arcane: null,
+        rank: 0,
+        effect: null,
+    };
+    if (jointArcane) exactArcaneScoreCount++;
+    for (const option of arcaneRankOptions) {
+        const score = debugEvaluateFixedWindowDps(
+            weapon,
+            effects,
+            targetFaction,
+            target,
+            conditionalState,
+            option.effect,
+        );
+        if (jointArcane) exactArcaneScoreCount++;
+        if (score.damagePerSecond > best.score.damagePerSecond + 1e-8) {
+            best = { score, arcane: option.arcane, rank: option.rank, effect: option.effect };
+        }
+    }
+    return best;
+}
+const baselineEvaluation = scoreBuild(baselinePlacement.slotMods, baselinePlacement.slotRanks);
+const baselineScore = baselineEvaluation.score;
 if (!capturedBaseline && Math.abs(baselineScore.damagePerSecond - firstRun.score.damagePerSecond) > 1e-6) {
     throw new Error("Independent fixed-window scorer did not reproduce the optimizer's reported score");
 }
@@ -241,6 +306,7 @@ const neighbors: Array<{
     damagePerSecond: number;
     damageInWindow: number;
     timeToKillSeconds: number | null;
+    arcane: { name: string; rank: number } | null;
     change: { kind: "add" | "remove" | "replace"; outgoing?: string; incoming?: string };
 }> = [];
 let consideredLegalNeighbors = 0;
@@ -266,21 +332,15 @@ function consider(
     if (seen.has(signature)) return;
     seen.add(signature);
 
-    const score = debugEvaluateFixedWindowDps(
-        weapon,
-        placement.slotMods.map((mod, index) => mod
-            ? mod.effectsByRank[placement.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
-            : null),
-        targetFaction,
-        target,
-        conditionalState,
-    );
+    const evaluation = scoreBuild(placement.slotMods, placement.slotRanks);
+    const score = evaluation.score;
     consideredLegalNeighbors++;
     neighbors.push({
         mods: formatBuild(placement.slotMods, placement.slotRanks),
         damagePerSecond: score.damagePerSecond,
         damageInWindow: score.damageInWindow,
         timeToKillSeconds: score.timeToKillSeconds,
+        arcane: evaluation.arcane ? { name: evaluation.arcane.name, rank: evaluation.rank } : null,
         change,
     });
 }
@@ -317,6 +377,9 @@ console.log(JSON.stringify({
         objective: `deterministic applied single-target damage divided by ${FIXED_WINDOW_DPS_SECONDS}s`,
         scoringWindow: `[0, ${FIXED_WINDOW_DPS_SECONDS}s)`,
         oneModNeighborhood: "One max-rank mod addition, removal, or replacement; only legal unique-mod/incompatibility and capacity assignments within the configured Forma limit are scored.",
+        arcanePolicy: jointArcane
+            ? "Each baseline and legal one-mod neighbor is exactly re-scored with no Arcane and every modeled rank of every compatible Arcane; the best score is retained."
+            : "Arcanes are disabled unless --joint-arcane=true is supplied.",
         modelBoundary: "Tenno-Hub's deterministic target encounter; it is not Underframe's private simulator or live-game validation. When attack distance is omitted the profile assumes full damage. A listed maximum range is reported but not enforced as a no-hit cap. Companion precepts, targeting, and multi-target behavior are outside this weapon-only score.",
         optimizerRuns: requestedRuns,
     },
@@ -333,9 +396,15 @@ console.log(JSON.stringify({
         slots: slotCount,
         catalyst: true,
         formaLimit,
+        jointArcane,
+        warframeArmor: jointArcane ? warframeArmor : undefined,
+        warframeMaxEnergy: jointArcane ? warframeMaxEnergy : undefined,
+        warframeEnergyPercent: jointArcane ? warframeEnergyPercent : undefined,
     },
     candidatePool: candidatePool.length,
     eligibleFullPoolCandidates: eligibleCandidates.length,
+    compatibleArcanes: jointArcane ? arcaneCandidates.length : 0,
+    modeledArcaneRanks: arcaneRankOptions.length,
     baseline: {
         source: baselineFile ?? "tennoHubOptimizer",
         requestedMods: capturedBaselineRequests ?? null,
@@ -347,6 +416,9 @@ console.log(JSON.stringify({
             formaCount: baselineFormaCount,
         },
         score: baselineScore,
+        arcane: baselineEvaluation.arcane
+            ? { name: baselineEvaluation.arcane.name, rank: baselineEvaluation.rank }
+            : null,
         runs: runs.map(({ durationMs, score }) => ({ durationMs: Number(durationMs.toFixed(1)), score })),
         deterministic: true,
         refined: firstRun.score.refined,
@@ -360,10 +432,12 @@ console.log(JSON.stringify({
     } : null,
     exactLegalOneModNeighbors: consideredLegalNeighbors,
     exactScoresComputed: neighbors.length,
+    exactArcaneScoresComputed: exactArcaneScoreCount,
     bestOneModNeighbor: bestNeighbor ? {
         damagePerSecond: bestNeighbor.damagePerSecond,
         damageInWindow: bestNeighbor.damageInWindow,
         timeToKillSeconds: bestNeighbor.timeToKillSeconds,
+        arcane: bestNeighbor.arcane,
         change: bestNeighbor.change,
     } : null,
     improvesBaseline: improvement,
@@ -371,6 +445,7 @@ console.log(JSON.stringify({
         damagePerSecond: neighbor.damagePerSecond,
         damageInWindow: neighbor.damageInWindow,
         timeToKillSeconds: neighbor.timeToKillSeconds,
+        arcane: neighbor.arcane,
         change: neighbor.change,
     })),
 }, null, 2));
