@@ -2,6 +2,7 @@ import { filterBuilderExpertVariants, getModsForWeapon, getUnmodeledDamageEffect
 import { getWeaponCatalog, getWeaponDisplayName, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
 import { getArcanesForWeapon } from "../src/domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../src/domain/logic/arcaneEffects";
+import { getUnmodeledScoringEffectLines } from "../src/domain/catalog/modEffectUtils";
 import { countPolarityChanges, fitsWithinCapacity } from "../src/domain/logic/capacityCalc";
 import {
     assignModsToSlots,
@@ -74,14 +75,23 @@ const attack = weapon.attacks[attackIndex] ?? null;
 const scoringWeapon = attack ? withSelectedAttack(weapon, attackIndex) : weapon;
 const conditionalState: ConditionalState = { mode: stateMode };
 const arcaneName = option("arcane", "").trim();
+const jointArcane = option("joint-arcane", "false").toLowerCase() === "true";
+if (jointArcane && arcaneName) throw new Error("Use --joint-arcane=true or --arcane=<name>, not both");
 const hasWarframeArmor = process.argv.some((argument) => argument.startsWith("--warframe-armor="));
 const warframeArmor = numericOption("warframe-armor", 0);
+const warframeMaxEnergy = numericOption("warframe-max-energy", 1_000);
+const warframeEnergyPercent = Math.min(100, numericOption("warframe-energy-percent", 100));
+const energyContext = jointArcane ? { warframeMaxEnergy, warframeEnergyPercent } : undefined;
 const arcane = arcaneName
     ? getArcanesForWeapon(weapon).find((entry) => entry.name.toLowerCase() === arcaneName.toLowerCase()) ?? null
     : null;
 if (arcaneName && !arcane) throw new Error("Arcane not found for weapon: " + arcaneName);
-if (arcane?.armorScaledWeaponDamage && !hasWarframeArmor) {
-    throw new Error("--warframe-armor is required for an armor-scaled Arcane");
+const arcaneCandidates = jointArcane ? getArcanesForWeapon(weapon) : arcane ? [arcane] : [];
+if (jointArcane && arcaneCandidates.length === 0) {
+    throw new Error(`No compatible Arcanes exist for ${getWeaponDisplayName(weapon)}`);
+}
+if (arcaneCandidates.some((candidate) => candidate.armorScaledWeaponDamage) && !hasWarframeArmor) {
+    throw new Error("--warframe-armor is required when eligible Arcanes scale with Warframe Armor");
 }
 const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon));
 const familyHasStandard = new Set<string>();
@@ -118,29 +128,62 @@ const optimizerOptions = {
     allowForma: true,
     maxFormaCount: formaLimit,
     optimizeExilus: false,
-    optimizeArcane: !!arcane,
-    arcaneCandidates: arcane ? [arcane] : [],
-    warframeArmor: arcane ? warframeArmor : undefined,
+    optimizeArcane: jointArcane || !!arcane,
+    arcaneCandidates,
+    warframeArmor: arcaneCandidates.length > 0 ? warframeArmor : undefined,
+    ...(energyContext ?? {}),
 };
 
+const optimizerStartedAt = performance.now();
 const optimized = optimizeBuild(weapon, candidates, "timeToKill", slotCount, optimizerOptions);
+const optimizerElapsedMs = performance.now() - optimizerStartedAt;
 if (!optimized.capacityValid) throw new Error("Optimizer returned an illegal baseline build");
-const arcaneEffect = optimized.arcane
-    ? getArcaneEffectAtRank(optimized.arcane, optimized.arcaneRank, warframeArmor, false)
+const optimizerArcaneEffect = optimized.arcane
+    ? getArcaneEffectAtRank(optimized.arcane, optimized.arcaneRank, warframeArmor, jointArcane, energyContext)
     : null;
-if (optimized.arcane && !arcaneEffect) throw new Error("Could not resolve the optimized Arcane effect");
+if (optimized.arcane && !optimizerArcaneEffect) throw new Error("Could not resolve the optimized Arcane effect");
 
-const scoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => debugScoreExpectedEncounter(
-    scoringWeapon,
-    mods.map((mod, index) => mod
+const arcaneRankOptions = jointArcane
+    ? arcaneCandidates.flatMap((candidate) =>
+        Array.from({ length: candidate.maxRank + 1 }, (_, rank) => ({
+            arcane: candidate,
+            rank,
+            effect: getArcaneEffectAtRank(candidate, rank, warframeArmor, true, energyContext),
+        })).filter((option): option is typeof option & { effect: NonNullable<typeof option.effect> } =>
+            !!option.effect && Object.keys(option.effect).length > 0 &&
+            getUnmodeledScoringEffectLines(option.effect).length === 0,
+        ),
+    )
+    : [];
+let exactArcaneScoreCount = 0;
+const scoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => {
+    const effects = mods.map((mod, index) => mod
         ? mod.effectsByRank[ranks[index] ?? mod.fusionLimit] ?? mod.effect
-        : null),
-    faction,
-    target,
-    conditionalState,
-    arcaneEffect,
-);
-const proxyScoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => debugScoreBuild(
+        : null);
+    if (!jointArcane) {
+        return {
+            score: debugScoreExpectedEncounter(scoringWeapon, effects, faction, target, conditionalState, optimizerArcaneEffect),
+            arcane: optimized.arcane,
+            rank: optimized.arcaneRank,
+            effect: optimizerArcaneEffect,
+        };
+    }
+
+    let best = {
+        score: debugScoreExpectedEncounter(scoringWeapon, effects, faction, target, conditionalState, null),
+        arcane: null as typeof optimized.arcane,
+        rank: 0,
+        effect: null as typeof optimizerArcaneEffect,
+    };
+    exactArcaneScoreCount++;
+    for (const option of arcaneRankOptions) {
+        const score = debugScoreExpectedEncounter(scoringWeapon, effects, faction, target, conditionalState, option.effect);
+        exactArcaneScoreCount++;
+        if (better(score, best.score)) best = { score, arcane: option.arcane, rank: option.rank, effect: option.effect };
+    }
+    return best;
+};
+const proxyScoreBuild = (mods: (ModEntry | null)[], ranks: number[], arcaneEffect: typeof optimizerArcaneEffect) => debugScoreBuild(
     scoringWeapon,
     mods.map((mod, index) => mod
         ? mod.effectsByRank[ranks[index] ?? mod.fusionLimit] ?? mod.effect
@@ -152,12 +195,15 @@ const proxyScoreBuild = (mods: (ModEntry | null)[], ranks: number[]) => debugSco
     conditionalState,
 );
 
-const baseline = scoreBuild(optimized.slots, optimized.slotRanks);
+const baselineEvaluation = scoreBuild(optimized.slots, optimized.slotRanks);
+const baseline = baselineEvaluation.score;
 let best = {
     mods: optimized.slots,
     ranks: optimized.slotRanks,
     polarities: optimized.slotPolarities,
     score: baseline,
+    arcane: baselineEvaluation.arcane,
+    arcaneRank: baselineEvaluation.rank,
     change: null as null | { kind: "add" | "remove" | "replace"; slot: number; name?: string },
 };
 let legalNeighborhoodCount = 0;
@@ -166,6 +212,7 @@ const seen = new Set<string>();
 const neighborAudit: Array<{
     mods: Array<{ name: string; rank: number }>;
     score: { timeToKillSeconds: number | null; damagePerSecond: number };
+    arcane: { name: string; rank: number } | null;
     proxyScore: number;
     change: { kind: "add" | "remove" | "replace"; slot: number; name?: string };
 }> = [];
@@ -197,12 +244,14 @@ const consider = (
     seen.add(signature);
 
     legalNeighborhoodCount++;
-    const score = scoreBuild(placement.slotMods, placement.slotRanks);
-    const proxyScore = proxyScoreBuild(placement.slotMods, placement.slotRanks);
+    const evaluation = scoreBuild(placement.slotMods, placement.slotRanks);
+    const score = evaluation.score;
+    const proxyScore = proxyScoreBuild(placement.slotMods, placement.slotRanks, evaluation.effect);
     exactScoreCount++;
     neighborAudit.push({
         mods: formatBuild(placement.slotMods, placement.slotRanks),
         score,
+        arcane: evaluation.arcane ? { name: evaluation.arcane.name, rank: evaluation.rank } : null,
         proxyScore,
         change,
     });
@@ -212,6 +261,8 @@ const consider = (
             ranks: placement.slotRanks,
             polarities: placement.resultPolarities,
             score,
+            arcane: evaluation.arcane,
+            arcaneRank: evaluation.rank,
             change,
         };
     }
@@ -263,15 +314,26 @@ console.log(JSON.stringify({
     state: stateMode,
     slotCount,
     formaLimit,
-    arcane: optimized.arcane ? { name: optimized.arcane.name, rank: optimized.arcaneRank, warframeArmor } : null,
+    jointArcane,
+    arcane: baselineEvaluation.arcane
+        ? { name: baselineEvaluation.arcane.name, rank: baselineEvaluation.rank, warframeArmor }
+        : null,
+    arcaneCandidates: jointArcane ? arcaneCandidates.length : arcane ? 1 : 0,
+    modeledArcaneRanks: jointArcane ? arcaneRankOptions.length : 0,
+    warframeArmor: jointArcane ? warframeArmor : undefined,
+    warframeMaxEnergy: jointArcane ? warframeMaxEnergy : undefined,
+    warframeEnergyPercent: jointArcane ? warframeEnergyPercent : undefined,
     candidatePool: candidates.length,
     eligibleFullPoolCandidates: eligibleCandidates.length,
     optimizerBuild: formatBuild(optimized.slots, optimized.slotRanks),
     optimizer: scoreSummary(baseline),
     optimizerFormaUsed: baselineForma,
+    optimizerElapsedMs: Number(optimizerElapsedMs.toFixed(1)),
     exactLegalOneModNeighbors: legalNeighborhoodCount,
     exactScoresComputed: exactScoreCount,
+    exactArcaneScoresComputed: exactArcaneScoreCount,
     bestOneModNeighbor: formatBuild(best.mods, best.ranks),
+    bestNeighborArcane: best.arcane ? { name: best.arcane.name, rank: best.arcaneRank } : null,
     bestNeighbor: scoreSummary(best.score),
     bestNeighborFormaUsed: bestForma,
     change: best.change,
@@ -279,18 +341,18 @@ console.log(JSON.stringify({
     topExactNeighbors: [...neighborAudit]
         .sort((left, right) => better(left.score, right.score) ? -1 : better(right.score, left.score) ? 1 : 0)
         .slice(0, 10)
-        .map(({ mods, score, proxyScore, change }) => ({ mods, score: scoreSummary(score), proxyScore, change })),
+        .map(({ mods, score, arcane, proxyScore, change }) => ({ mods, score: scoreSummary(score), arcane, proxyScore, change })),
     topProxyNeighbors: [...neighborAudit]
         .sort((left, right) => right.proxyScore - left.proxyScore)
         .slice(0, 15)
-        .map(({ mods, score, proxyScore, change }) => ({ mods, score: scoreSummary(score), proxyScore, change })),
+        .map(({ mods, score, arcane, proxyScore, change }) => ({ mods, score: scoreSummary(score), arcane, proxyScore, change })),
     blazeProposals: neighborAudit
         .filter((entry) => entry.change.name === "Blaze")
         .sort((left, right) => right.proxyScore - left.proxyScore)
-        .map(({ mods, score, proxyScore, change }) => ({ mods, score: scoreSummary(score), proxyScore, change })),
+        .map(({ mods, score, arcane, proxyScore, change }) => ({ mods, score: scoreSummary(score), arcane, proxyScore, change })),
     springLoadedChamberProposals: neighborAudit
         .filter((entry) => entry.change.name === "Spring-Loaded Chamber")
         .sort((left, right) => right.proxyScore - left.proxyScore)
-        .map(({ score, proxyScore, change }) => ({ score: scoreSummary(score), proxyScore, change })),
+        .map(({ score, arcane, proxyScore, change }) => ({ score: scoreSummary(score), arcane, proxyScore, change })),
 }, null, 2));
 
