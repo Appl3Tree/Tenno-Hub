@@ -213,7 +213,9 @@ export function calculateDirectDamageToInitialPools(
 export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     /** Hit behavior during the short enemy Shield Gate. Defaults to an ordinary body hit. */
     enemyShieldGateHitMode?: "body" | "weakspot" | "blockedArea";
-    /** Effective time between attack events. The first attack occurs at t=0. */
+    /** Source-backed charge time before the first attack, assuming an uncharged start. */
+    initialAttackDelaySeconds?: number;
+    /** Effective time between repeated attack events. */
     attackIntervalSeconds: number;
     /** Number of attack events available before each reload-like interruption. */
     shotsPerMagazine?: number;
@@ -262,7 +264,7 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
 export interface DirectAttackSequenceResult {
     /** Mean-damage attack events required to deplete all target pools, or null if impossible. */
     attacksToKill: number | null;
-    /** Time from the first attack event to the killing event, or null if impossible. */
+    /** Time from encounter start, including any initial charge, to the killing event. */
     timeToKillSeconds: number | null;
     /** Actual pool damage applied over the sequence; excess damage never spills between pools. */
     damageByPool: Record<TargetDamagePool, number>;
@@ -278,7 +280,9 @@ export interface DirectAttackSequenceResult {
 }
 
 export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
-    /** Effective time between trigger pulls. The first attack occurs at t=0. */
+    /** Source-backed charge time before the first attack, assuming an uncharged start. */
+    initialAttackDelaySeconds?: number;
+    /** Effective time between repeated trigger pulls. */
     attackIntervalSeconds: number;
     /** Number of attacks before a reload-like interruption. */
     shotsPerMagazine?: number;
@@ -1473,6 +1477,7 @@ export function simulateExpectedWeaponEncounter(
     };
 
     const nextAttackTime = (index: number): number => attackEventTime(index, {
+        initialAttackDelaySeconds: input.initialAttackDelaySeconds,
         attackIntervalSeconds: attackInterval,
         shotsPerMagazine,
         reloadDurationSeconds: reloadDuration,
@@ -2293,6 +2298,7 @@ export function simulateDirectAttackSequence(
         let comboMultiplierAtKill: number | undefined;
         for (let index = 0; index < maxSimulatedAttacks; index++) {
             const attackTime = attackEventTime(index, {
+                initialAttackDelaySeconds: input.initialAttackDelaySeconds,
                 attackIntervalSeconds: attackInterval,
                 shotsPerMagazine,
                 reloadDurationSeconds: reloadDuration,
@@ -2521,6 +2527,7 @@ export function simulateDirectAttackSequence(
     if (!killed && remainingPools.health > 0) {
         if (initialPools.shields > 0 && input.enemyShieldGateHitMode !== "weakspot" && attacks > 0) {
             const lastAttackTime = attackEventTime(attacks - 1, {
+                initialAttackDelaySeconds: input.initialAttackDelaySeconds,
                 attackIntervalSeconds: attackInterval,
                 shotsPerMagazine,
                 reloadDurationSeconds: reloadDuration,
@@ -2536,6 +2543,7 @@ export function simulateDirectAttackSequence(
             while (remainingPools.health > 0) {
                 if (attackInterval <= 0) return sequenceResult(null);
                 const attackTime = attackEventTime(attacks, {
+                    initialAttackDelaySeconds: input.initialAttackDelaySeconds,
                     attackIntervalSeconds: attackInterval,
                     shotsPerMagazine,
                     reloadDurationSeconds: reloadDuration,
@@ -2571,9 +2579,10 @@ export function simulateDirectAttackSequence(
         if (attacksToKill !== null && !Number.isSafeInteger(attacksToKill)) attacksToKill = null;
         const timeToKillSeconds = attacksToKill === null
             ? null
-            : attacksToKill <= 1
+            : attacksToKill <= 0
                 ? 0
                 : attackEventTime(attacksToKill - 1, {
+                    initialAttackDelaySeconds: input.initialAttackDelaySeconds,
                     attackIntervalSeconds: attackInterval,
                     shotsPerMagazine,
                     reloadDurationSeconds: reloadDuration,
@@ -2662,6 +2671,7 @@ function allPoolsEmpty(pools: Record<TargetDamagePool, number>): boolean {
 }
 
 interface AttackEventTiming {
+    initialAttackDelaySeconds?: number;
     attackIntervalSeconds: number;
     shotsPerMagazine: number;
     reloadDurationSeconds: number;
@@ -2681,8 +2691,8 @@ function getAutoSpoolIntervalRatePrefixes(rule: WeaponAutoSpoolCadenceRule): rea
     const startingRateFraction = finiteNonNegative(rule.startingRateFraction);
     const rateIncreasePerShotFraction = finiteNonNegative(rule.rateIncreasePerShotFraction);
     const prefixes = [0];
-    // The simulator emits the first hit at t=0. An interval after k previous
-    // hits therefore uses the starting rate plus k Wiki-listed increments.
+    // An interval after k previous hits uses the starting rate plus k
+    // Wiki-listed increments. Any initial charge delay is added separately.
     for (let roundsFired = 1; roundsFired <= roundsToFullRate; roundsFired++) {
         const rateFraction = roundsFired >= roundsToFullRate
             ? 1
@@ -2705,9 +2715,10 @@ function sumAutoSpoolIntervals(
     return baseIntervalSeconds * (prefixes[rampIntervals] + fullRateIntervals);
 }
 
-/** Time from the first damage event to an indexed event, including burst gaps and reloads. */
+/** Time from encounter start to an indexed event, including initial charge, burst gaps, and reloads. */
 function attackEventTime(index: number, timing: AttackEventTiming): number {
-    if (index <= 0) return 0;
+    const initialAttackDelay = finiteNonNegative(timing.initialAttackDelaySeconds ?? 0);
+    if (index <= 0) return initialAttackDelay;
     const burstCount = Number.isFinite(timing.burstCount)
         ? Math.max(1, Math.floor(timing.burstCount ?? 1))
         : 1;
@@ -2729,10 +2740,10 @@ function attackEventTime(index: number, timing: AttackEventTiming): number {
                 timing.attackIntervalSeconds,
                 spoolRule,
             );
-            return magazineIndex * (magazineIntervalSeconds + timing.reloadDurationSeconds) +
+            return initialAttackDelay + magazineIndex * (magazineIntervalSeconds + timing.reloadDurationSeconds) +
                 currentMagazineIntervalSeconds;
         }
-        return index * timing.attackIntervalSeconds +
+        return initialAttackDelay + index * timing.attackIntervalSeconds +
             Math.floor(index / timing.shotsPerMagazine) * timing.reloadDurationSeconds;
     }
 
@@ -2750,7 +2761,7 @@ function attackEventTime(index: number, timing: AttackEventTiming): number {
     const triggerInMagazine = Math.floor(shotInMagazine / burstCount);
     const shotInBurst = shotInMagazine % burstCount;
     const burstCycleSeconds = 1 / burstCycleRate + (burstCount - 1) * burstDelay;
-    return magazineIndex * (triggersPerMagazine * burstCycleSeconds + timing.reloadDurationSeconds) +
+    return initialAttackDelay + magazineIndex * (triggersPerMagazine * burstCycleSeconds + timing.reloadDurationSeconds) +
         triggerInMagazine * burstCycleSeconds +
         shotInBurst * burstDelay;
 }

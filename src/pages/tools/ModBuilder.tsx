@@ -190,6 +190,7 @@ function simulateBuilderTargetEncounter(
         expectedProjectiles: stats.multishot,
         expectedDamageMultiplier: stats.damageWeightedMultishot,
         singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
+        initialAttackDelaySeconds: stats.initialAttackDelaySeconds,
         attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
         autoSpoolCadenceRule: weapon.selectedAttackAutoSpoolCadence,
         autoSpoolShotSequenceRule: weapon.selectedAttackAutoSpoolShotSequence,
@@ -1810,6 +1811,15 @@ function buildMathBreakdown(
                     ? `Fresh bow shot rate excludes post-shot reload = 1 ÷ modded charge time = ${fmt(stats.burstFireRate, 5)}/s`
                     : `Fresh uncharged bow shot rate uses reload delay = ${fmt(stats.burstFireRate, 5)}/s`,
                 "Bow repeating rate already includes post-shot reload, so magazine duty cycle stays at 1 and does not count that delay twice.",
+                ...(stats.initialAttackDelaySeconds > 0
+                    ? [`Finite encounters assume the bow starts uncharged; its first attack follows the ${fmt(stats.initialAttackDelaySeconds, 5)}s modded charge.`]
+                    : []),
+            ];
+        }
+        if (weapon.selectedAttackChargeAmmoPerSecond !== undefined && weapon.selectedAttackChargeAmmoPerSecond > 0) {
+            return [
+                `Effective ${rateLabel.toLowerCase()} = ${fmt(stats.fireRate, 5)}/s; the selected attack charges ${fmt(stats.ammoCostPerShot, 5)} ammo at ${fmt(weapon.selectedAttackChargeAmmoPerSecond, 5)} ammo/s.`,
+                `Finite encounters assume the selected attack starts uncharged; the first event follows its ${fmt(stats.initialAttackDelaySeconds, 5)}s charge. Special kill gates and per-use recharge history remain unmodeled.`,
             ];
         }
         if (/^(?:semi|semi[- ]?auto)$/i.test(weapon.trigger.trim())) {
@@ -1827,7 +1837,7 @@ function buildMathBreakdown(
             return [
                 `Modded charge time = ${fmt(weapon.chargeTime, 5)}s ÷ (1 + Fire Rate ${fmt(applicableFireRateBonus * 100, 3)}% + Charge Rate ${fmt(chargeRateBonus * 100, 3)}%) = ${fmt(moddedChargeTime, 5)}s. The bonuses add for charge time; Charge Rate does not speed the post-charge firing interval. Wiki: https://wiki.warframe.com/w/Fire_Rate and https://wiki.warframe.com/w/Shell_Rush`,
                 `Effective fire rate (Charge) = 1 ÷ (modded charge time ${fmt(moddedChargeTime, 5)}s + 1 ÷ modded fire rate ${fmt(moddedPostChargeFireRate, 5)}/s) = ${fmt(stats.fireRate, 5)}/s. Only source-linked rows are combined as components of the same attack; matching charge times alone do not imply a link.`,
-                "Finite encounters assume the selected charged mode is ready at t=0; initial charge/preload time is not simulated. Mausolon's separate five-kill alt-fire gate and repeat-charge history remain outside the model.",
+                `Finite encounters assume the selected attack starts uncharged; its first event follows the ${fmt(stats.initialAttackDelaySeconds, 5)}s modded charge. Mausolon's separate five-kill alt-fire gate and repeat-charge history remain outside the model.`,
             ];
         }
         if (chargeRateBonus !== 0) {
@@ -1851,7 +1861,12 @@ function buildMathBreakdown(
                 `Finite attack timing and Expected TTK are unavailable for this Auto-Spool attack: ${limitation.reason} Wiki: ${limitation.sourceUrl}`,
             ];
         }
-        return [`${rateLabel} = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(stats.fireRate, 5)}`];
+        return [
+            `${rateLabel} = ${fmt(weapon.fireRate, 5)} × (1 + ${fmt(fireRateBonus * 100, 3)}%) = ${fmt(stats.fireRate, 5)}`,
+            ...(stats.initialAttackDelaySeconds > 0
+                ? [`Finite encounters assume an uncharged start; the first event follows the ${fmt(stats.initialAttackDelaySeconds, 5)}s source-backed charge.`]
+                : []),
+        ];
     })();
     const sections: BuildMathSection[] = [
         {
@@ -4784,6 +4799,7 @@ export default function ModBuilder() {
         return simulateDirectAttackSequence({
             ...activeTargetAttackInput,
             enemyShieldGateHitMode: targetProfileOverride?.enemyShieldGateHitMode,
+            initialAttackDelaySeconds: stats.initialAttackDelaySeconds,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
             autoSpoolShotSequenceRule: activeCalcWeapon?.selectedAttackAutoSpoolShotSequence,
@@ -4847,6 +4863,7 @@ export default function ModBuilder() {
             expectedProjectiles: stats.multishot,
             expectedDamageMultiplier: stats.damageWeightedMultishot,
             singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
+            initialAttackDelaySeconds: stats.initialAttackDelaySeconds,
             attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
             autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
             autoSpoolShotSequenceRule: activeCalcWeapon?.selectedAttackAutoSpoolShotSequence,
@@ -7619,11 +7636,11 @@ export default function ModBuilder() {
                                             label: rateLabel,
                                             value: stats.fireRate.toFixed(3) + "/s",
                                             tooltip: stats.chargeTimeSeconds !== null
-                                                ? `Charge time = ${stats.ammoCostPerShot.toFixed(2)} ammo ÷ ${(weapon.selectedAttackChargeAmmoPerSecond ?? 0).toFixed(2)} ammo/s = ${stats.chargeTimeSeconds.toFixed(3)}s. Effective rate is capped by both this fixed charge time and the weapon's fire-rate cadence; fire-rate mods do not change the ammo charge rate.`
+                                                ? `Charge time = ${stats.ammoCostPerShot.toFixed(2)} ammo ÷ ${(weapon.selectedAttackChargeAmmoPerSecond ?? 0).toFixed(2)} ammo/s = ${stats.chargeTimeSeconds.toFixed(3)}s. Effective rate is capped by both this fixed charge time and the weapon's fire-rate cadence; fire-rate mods do not change the ammo charge rate. Finite encounters assume the attack starts uncharged, so its first event follows this charge.`
                                                 : weapon.weaponType.trim().toLowerCase() === "bow"
-                                                    ? "Bow repeating rate uses 1 ÷ (modded charge time + modded reload time); an uncharged shot uses zero charge time. Fire-rate mods speed the charge and reload-speed mods shorten the post-shot delay. Charged-shot Burst DPS excludes that post-shot reload."
+                                                    ? `Bow repeating rate uses 1 ÷ (modded charge time + modded reload time); an uncharged shot uses zero charge time. Fire-rate mods speed the charge and reload-speed mods shorten the post-shot delay. Charged-shot Burst DPS excludes that post-shot reload. Finite encounters assume an uncharged start and delay the first event by ${stats.initialAttackDelaySeconds.toFixed(3)}s.`
                                                     : atk?.chargeTime != null
-                                                    ? `Effective rate = 1 / (${atk.chargeTime.toFixed(2)}s charge + ${(1 / weapon.fireRate).toFixed(2)}s delay). Fire rate mods also speed up charge time.`
+                                                    ? `Effective rate = 1 / (${atk.chargeTime.toFixed(2)}s charge + ${(1 / weapon.fireRate).toFixed(2)}s delay). Fire rate mods also speed up charge time. Finite encounters assume an uncharged start and delay the first event by ${stats.initialAttackDelaySeconds.toFixed(3)}s.`
                                                 : usesHitTerminology(weapon.category) ? "Attacks per second." : "Shots per second.",
                                         },
                                         { label: "Magazine", value: displayMagazineValue(weapon, stats.magazineSize), tooltip: usesHitTerminology(weapon.category) ? "Melee weapons do not use magazines, so this stays at the weapon's effective default value." : "Rounds available before reloading." },

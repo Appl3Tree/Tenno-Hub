@@ -679,6 +679,36 @@ describe("target damage progress across defense pools", () => {
         expect(result.directDamageByPool.health).toBeCloseTo(1_100, 8);
     });
 
+    it("includes initial charge before the first event in both finite sequence paths", () => {
+        const input = {
+            damageByType: { impact: 100 },
+            health: 100,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            initialAttackDelaySeconds: 0.5,
+            attackIntervalSeconds: 1,
+            maxAttacks: 1,
+        };
+
+        const encounter = simulateExpectedWeaponEncounter(input);
+        const directSequence = simulateDirectAttackSequence(input);
+
+        expect(encounter.attacks).toBe(1);
+        expect(encounter.timeToKillSeconds).toBeCloseTo(0.5, 10);
+        expect(directSequence.attacksToKill).toBe(1);
+        expect(directSequence.timeToKillSeconds).toBeCloseTo(0.5, 10);
+
+        const excludedAtWindowEndpoint = simulateExpectedWeaponEncounter({
+            ...input,
+            stopAtSeconds: 0.5,
+            maxDurationSeconds: 0.5,
+        });
+        expect(excludedAtWindowEndpoint.attacks).toBe(0);
+        expect(excludedAtWindowEndpoint.damagePerSecond).toBe(0);
+    });
+
     it("ramps timed hit-triggered damage after qualifying attacks instead of granting it on the first hit", () => {
         const result = simulateExpectedWeaponEncounter({
             damageByType: { impact: 320 },

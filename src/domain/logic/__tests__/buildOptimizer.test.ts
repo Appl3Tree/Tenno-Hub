@@ -467,6 +467,63 @@ describe("fixed-window DPS objective", () => {
         expect(explanation.summary).toContain("Reload, kill, and other event-triggered mod buffs start inactive");
     });
 
+    it("includes an uncharged startup windup in finite optimizer scores and explains it", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100, impact: 100, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 0,
+            fireRate: 2,
+            magazineSize: 1,
+            reloadTime: 0,
+            trigger: "Charge",
+            chargeTime: 6,
+        });
+        const target = { health: 100, shields: 0, overguard: 0, armor: 0 };
+
+        const expectedTtk = debugEvaluateExpectedEncounter(weapon, [], "", target, { mode: "initial" });
+        const fixedWindow = debugEvaluateFixedWindowDps(weapon, [], "", target, { mode: "initial" });
+        const ttkResult = optimizeBuild(weapon, [], "timeToKill", 0, {
+            targetProfileOverride: target,
+            conditionalState: { mode: "initial" },
+        });
+        const windowResult = optimizeBuild(weapon, [], "windowDps", 0, {
+            targetProfileOverride: target,
+            conditionalState: { mode: "initial" },
+        });
+        const explanation = explainBuild(
+            weapon,
+            [],
+            [],
+            "windowDps",
+            "",
+            null,
+            { mode: "initial" },
+            target,
+            {
+                fixedWindowObjective: {
+                    damage: fixedWindow.damageInWindow,
+                    damagePerSecond: fixedWindow.damagePerSecond,
+                    windowSeconds: fixedWindow.windowSeconds,
+                    timeToKillSeconds: fixedWindow.timeToKillSeconds,
+                    refined: false,
+                    candidatesEvaluated: 1,
+                },
+            },
+        );
+
+        expect(expectedTtk.timeToKillSeconds).toBeCloseTo(6, 10);
+        expect(fixedWindow.damageInWindow).toBe(0);
+        expect(ttkResult.encounterTimeToKillSeconds).toBeCloseTo(6, 10);
+        expect(windowResult.windowDpsDamage).toBe(0);
+        expect(explanation.summary).toContain("starts uncharged and includes 6.00s before its first hit");
+    });
+
     it("starts reload-triggered buffs inactive in the finite DPS window", () => {
         const weapon = makeWeapon({
             damage: {

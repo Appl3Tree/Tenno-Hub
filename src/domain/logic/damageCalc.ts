@@ -299,6 +299,8 @@ export interface ModdedWeaponStats {
     ammoCostPerShot: number;
     /** Charge duration implied by selected ammo amount and fixed weapon charge rate. */
     chargeTimeSeconds: number | null;
+    /** Source-backed startup charge before the first finite attack, assuming an uncharged start. */
+    initialAttackDelaySeconds: number;
     reloadTime: number;
     /** Attack-timed multipliers for weapons whose damage ramps while firing. */
     firstAttackDamageMultiplier: number;
@@ -1934,6 +1936,10 @@ export function calculateBuild(
     const burstFireRate = effectiveBurstFireRate(weapon, rateBonus, reloadTime, includeBowReload, fireRate, chargeRateBonus);
     const bowIncludesReloadInFireRate = isBowWeapon(weapon) && includeBowReload;
     const ammoCostPerShot = chargeAmmoPerShot;
+    const initialAttackDelaySeconds = weapon.selectedAttackChargeAmmoPerSecond !== undefined &&
+        weapon.selectedAttackChargeAmmoPerSecond > 0
+        ? chargeAmmoPerShot / weapon.selectedAttackChargeAmmoPerSecond
+        : moddedChargeTimeSeconds(weapon, rateBonus, chargeRateBonus);
     const unroundedShotsPerMag = magazineSize / (ammoCostPerShot * (1 - ammoEfficiencyBonus));
     // Ammo-efficiency remainders accumulate, and the Wiki treats a remaining
     // fraction below one ammo as the next shot. Preserve the historical
@@ -2723,6 +2729,7 @@ export function calculateBuild(
         chargeTimeSeconds: weapon.selectedAttackChargeAmmoPerSecond
             ? ammoCostPerShot / weapon.selectedAttackChargeAmmoPerSecond
             : null,
+        initialAttackDelaySeconds,
         reloadTime,
         firstAttackDamageMultiplier: damageRampMultipliers.firstAttack,
         freshMagazineDamageMultiplier: damageRampMultipliers.freshMagazineAverage,
