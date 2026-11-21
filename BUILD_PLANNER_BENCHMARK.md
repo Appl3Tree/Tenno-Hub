@@ -282,6 +282,14 @@ The saved Underframe mod identities and ranks for Cedo, Lex Prime, Broken War, a
 
 Reproduce all four with `npx tsx scripts/compareUnderframeFixedWindowDps.ts --health=2000000 --armor=3000 --runs=3`; individual rows accept `--weapon="Cedo"`, `--weapon="Lex Prime"`, `--weapon="Broken War"`, or `--weapon="Mausolon (Atmosphere)"`. These large model-local score gaps mean the captured lists are not local optima under this Tenno-Hub objective. They do not mean the Underframe search lost the same objective: the native simulator is not observable, and Underframe's saved target/state and search configuration are not fully aligned to this scorer.
 
+#### Mausolon target-health ceiling probe (2026-11-21)
+
+Reproduce the Tenno-Hub side with `npx tsx scripts/compareUnderframeFixedWindowDps.ts --weapon="Mausolon (Atmosphere)" --health=100000 --armor=3000 --runs=1`. On Grineer / 100,000 Health / 3,000 Armor, the captured Underframe Auto list applies 42,732 damage during `[0,5s)`, or 8,546.4008 target-health-clipped DPS, with 67 attacks and no kill. The optimizer reaches 99,999.99999999999 applied damage (20,000 DPS, the maximum possible under this clipped objective) and reports a separate 1.440576s TTK diagnostic after 89 candidates; its result is legal at 60/60 with two Forma. The captured list is also legal at 58/60 with three Forma.
+
+Underframe's native Auto Build reports 21,760 `Best DPS` for this same nominal target and captured list. Since this exceeds the 20,000 DPS ceiling of Tenno-Hub's target-health-clipped objective, the displayed scores cannot be treated as the same metric. The public Underframe port notes describe mean `avgDps` over seeded five-second runs, but its private damage engine prevents verifying its target-death handling, denominator, or exact score semantics. This is evidence of an objective boundary, not proof of post-death damage or a Tenno-Hub win/loss. Keep the Underframe objective, profile-range behavior, condition mixture, and raw/status attribution gaps open.
+
+The public Underframe Featured Builds page for Larkspur was also inspected read-only. Its listed Larkspur Prime build has zero Forma and is over capacity at −15/60; the page provides no calculator. It cannot serve as a legal Auto Build comparison. Do not use Copy & Edit/Test or alter saved builds.
+
 Next, obtain in-range or game-observed evidence for each profile's effective 300m limit, then compare damage buckets and cadence under a known condition/proc state if Underframe exposes one. Preserve the standard-versus-Luck-Averaged distinction. Continue the independent captured-list one-mod neighborhood gap and representative `windowDps` corpus. Until the profile range, mechanics, and stochastic semantics are attributed, `windowDps` remains a deterministic applied-damage proxy inspired by Underframe's documented metric, not verified score parity.
 
 
