@@ -2757,7 +2757,7 @@ The Mausolon row uses Grineer / 2,000,000 Health / 3,000 Armor / Realistic / `[0
 ### Pair-sampler validation and capacity reporting
 
 
-## D3-MOD-ARCHGUN-CHARGE-RATE-001 — Shell Rush and linked charged Arch-Gun components (2026-11-21; local validation in progress)
+## D3-MOD-ARCHGUN-CHARGE-RATE-001 — Shell Rush and linked charged Arch-Gun components (2026-11-21; released in PR #216)
 
 ### Source-backed model
 
@@ -2769,4 +2769,4 @@ The Mausolon row uses Grineer / 2,000,000 Health / 3,000 Armor / Realistic / `[0
 
 ### Validation status
 
-Catalog regressions check Shell Rush's four parsed ranks, Larkspur's shared charge/component rows, Mausolon's two selectable profiles, and unchanged Auto rows. Damage-model regressions check charged and uncharged cadence plus linked component profiles; an optimizer regression checks Shell Rush selection on Corvas Charged Shot and explanation text. Focused tests pass 5/5; the serial full suite passes 841/841 tests across 54 files; production TypeScript/build, focused ESLint, and source validation pass. `audit:mod-effect-coverage` reduces flagged records from 70 to 69 (600 eligible mod records). CRLF-aware diff check passes. The current workspace preview on ports 4173/4174 timed out in Codex IAB, and `http://localhost/Tenno-Hub/` serves stale build `2bf6faea`; rendered QA for this change is unavailable and only Codex IAB may be used. Public release is pending.
+Catalog regressions check Shell Rush's four parsed ranks, Larkspur's shared charge/component rows, Mausolon's two selectable profiles, and unchanged Auto rows. Damage-model regressions check charged and uncharged cadence plus linked component profiles; an optimizer regression checks Shell Rush selection on Corvas Charged Shot and explanation text. Focused tests pass 5/5; the serial full suite passes 841/841 tests across 54 files; production TypeScript/build, focused ESLint, and source validation pass. `audit:mod-effect-coverage` reduces flagged records from 70 to 69 (600 eligible mod records). CRLF-aware diff check passes. PR [#216](https://github.com/Appl3Tree/Tenno-Hub/pull/216) squash-merged as `6fa764f9b9a1e235ab9c35dfb88c5e6cf89bd821`; Pages run [#296](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44946241370) succeeded. However, a fresh Codex IAB tab still loads `wfpt-build-id=7aca467`, the pre-merge bundle, so deployed-page visual verification of this release remains unconfirmed. The user's `http://localhost/Tenno-Hub/` continues to serve stale `2bf6faea`; only Codex IAB may be used for visual QA. Track the unexposed Larkspur Atmosphere profiles separately in `AGENTS.md`.
