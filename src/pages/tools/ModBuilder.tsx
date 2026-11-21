@@ -3637,6 +3637,13 @@ export default function ModBuilder() {
     const falloffRelevantAttacks = [selectedFalloffAttack, linkedFalloffAttack].filter((attack) =>
         Boolean(attack?.damageFalloff || attack?.maximumRangeMeters !== undefined),
     );
+    const mausolonRangeNote = weapon?.name === "Mausolon" && selectedFalloffAttack?.name === "Auto"
+        ? weapon.variantLabel === "Archwing"
+            ? "The Wiki lists 300 m range plus 1,400–2,800 m falloff for this profile. The hit limit is unverified; this calculator applies that falloff without treating 300 m as a miss cap."
+            : weapon.variantLabel === "Atmosphere"
+                ? "The Wiki lists 300 m range but no Atmosphere Auto falloff curve. The hit limit is unverified; range is informational and farther shots are not counted as misses."
+                : undefined
+        : undefined;
     const supportsKineticKiller = Boolean(getIncarnonRecordForWeapon(weapon)?.tiers.some((tier) =>
         tier.options.some((option) => option.id === "tier-4-kinetic-killer"),
     ));
@@ -6094,8 +6101,13 @@ export default function ModBuilder() {
                                                             <span className="text-slate-500">meters</span>
                                                         </label>
                                                         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                                                            Direct falloff measures player-to-target distance; area falloff measures from the blast center to the target. A linked component attached to the struck enemy uses 0m. Leave blank to preview full damage. Wiki-listed maximum ranges are shown in the math trace but are not enforced as shot-miss caps yet.
+                                                            Direct falloff measures player-to-target distance; area falloff measures from the blast center to the target. A linked component attached to the struck enemy uses 0m. Leave blank to preview full damage. Wiki-listed maximum ranges appear in the math trace, but out-of-range misses are not modeled; unverified limits remain informational.
                                                         </p>
+                                                        {mausolonRangeNote && (
+                                                            <p role="note" className="mt-1.5 text-[10px] leading-relaxed text-amber-300">
+                                                                {mausolonRangeNote}
+                                                            </p>
+                                                        )}
                                                         {falloffRelevantAttacks.map((attack) => attack && (
                                                             <p key={attack.name} className="mt-1 text-[10px] leading-relaxed text-slate-400">
                                                                 <span className="text-slate-300">{attack.name}:</span>{" "}
