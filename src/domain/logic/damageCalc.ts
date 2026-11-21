@@ -1429,7 +1429,9 @@ export function calculateBuild(
             1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus +
                 comboStatusChanceBonus * comboTiersForTrigger + eligibilityStatusChanceBonus
         ) + finalStatusChanceBonus + eligibilityFinalStatusChanceBonus;
-        const eligibilityMultishot = weapon.multishot * (1 + multishotBonus + eligibilityMultishotBonus);
+        const eligibilityMultishot = weapon.multishot * (1 + (weapon.selectedAttackMultishotLocked === true
+            ? 0
+            : multishotBonus + eligibilityMultishotBonus));
         const eligibilityBaseDamageMultiplier = Math.max(0, 1 + eligibilityDamageBonus);
         const eligibilityTotalBase = totalDamageOf(weapon.damage) * eligibilityBaseDamageMultiplier;
         const eligibilityElementEntries = [...orderedPrimaryElementBonuses, ...eligibilityConditionalElements]
@@ -1614,6 +1616,13 @@ export function calculateBuild(
     finalStatusChanceBonus += conditionalFinalStatusChanceBonus;
     multishotBonus += conditionalMultishotBonus;
     multishotDamageBonus += conditionalMultishotDamageBonus;
+    if (weapon.selectedAttackMultishotLocked === true) {
+        // Some weapon rows describe a radial component whose projectile count
+        // is fixed by the weapon. Do not let ordinary or conditional multishot
+        // change either that hit count or multishot-specific extra damage.
+        multishotBonus = 0;
+        multishotDamageBonus = 0;
+    }
     fireRateBonus += conditionalFireRateBonus;
     attackSpeedBonus += conditionalAttackSpeedBonus;
     reloadSpeedBonus += conditionalReloadSpeedBonus;
@@ -1637,7 +1646,9 @@ export function calculateBuild(
     if (nextMagazineMaxStacks > 0) {
         const nextMagStacks = Math.min(nextMagazineMaxStacks, baselineMagazineSize * projectedMultishot * HIT_RATE_ASSUMPTION);
         statusChanceBonus += nextMagazineStatusChancePerShot * nextMagStacks * 0.5;
-        multishotBonus += nextMagazineMultishotPerShot * nextMagStacks * 0.5;
+        if (weapon.selectedAttackMultishotLocked !== true) {
+            multishotBonus += nextMagazineMultishotPerShot * nextMagStacks * 0.5;
+        }
     }
 
     const baseDamageMultiplier = 1 + damageBonus;

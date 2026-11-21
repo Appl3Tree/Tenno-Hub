@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon, sortBuilderModsForDisplay } from "../catalog/modCatalog";
-import { getWeaponCatalog } from "../catalog/weaponCatalog";
+import { getWeaponCatalog, getWeaponDisplayName } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
 import { effectiveDrain } from "../logic/capacityCalc";
 import ITEMS_RAW from "../../data/_generated/items-lean.auto.json";
@@ -44,6 +44,56 @@ describe("weapon catalog stance inference", () => {
         );
         expect(withSelectedAttack(torid!, cloudIndex).selectedAttackModelLimitation).toEqual(
             cloud.modelLimitation,
+        );
+    });
+
+    it("keeps Mausolon's Archwing and Atmosphere damage profiles selectable and distinct", () => {
+        const mausolons = getWeaponCatalog().filter((weapon) => weapon.name === "Mausolon");
+        const archwing = mausolons.find((weapon) => weapon.variantLabel === "Archwing");
+        const atmosphere = mausolons.find((weapon) => weapon.variantLabel === "Atmosphere");
+        expect(archwing).toBeDefined();
+        expect(atmosphere).toBeDefined();
+        expect(getWeaponDisplayName(archwing!)).toBe("Mausolon (Archwing)");
+        expect(getWeaponDisplayName(atmosphere!)).toBe("Mausolon (Atmosphere)");
+        expect(atmosphere?.sourceUniqueName).toBe(archwing?.uniqueName);
+
+        const attack = (weapon: NonNullable<typeof archwing>, name: string) =>
+            weapon.attacks.find((candidate) => candidate.name === name);
+        expect(archwing!.damage).toMatchObject({ total: 120, impact: 24, puncture: 46, heat: 50 });
+        expect(attack(archwing!, "Auto")?.damage.total).toBe(120);
+        expect(attack(archwing!, "Auto Radial Attack")?.damage.total).toBe(48);
+        expect(attack(archwing!, "Charged Shot Laser")?.damage.total).toBe(1_000);
+        expect(attack(archwing!, "Charged Shot Explosion")?.damage.total).toBe(3_000);
+        expect(atmosphere!.damage).toMatchObject({ total: 180, impact: 35, puncture: 70, heat: 75 });
+        expect(attack(atmosphere!, "Auto")?.damage.total).toBe(180);
+        expect(attack(atmosphere!, "Auto Radial Attack")?.damage.total).toBe(72);
+        expect(attack(atmosphere!, "Charged Shot Laser")?.damage.total).toBe(1_500);
+        expect(attack(atmosphere!, "Charged Shot Explosion")?.damage.total).toBe(4_500);
+
+        const auto = attack(archwing!, "Auto")!;
+        const radial = attack(archwing!, "Auto Radial Attack")!;
+        expect(auto.lingeringDamageRule).toMatchObject({
+            componentAttackName: "Auto Radial Attack",
+            firstTickDelaySeconds: 0,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+        });
+        expect(radial.multishotLocked).toBe(true);
+        expect(withSelectedAttack(archwing!, archwing!.attacks.indexOf(radial)).selectedAttackMultishotLocked).toBe(true);
+        expect(withSelectedAttack(archwing!, archwing!.attacks.indexOf(auto)).selectedAttackLingeringDamageRule).toEqual(
+            auto.lingeringDamageRule,
+        );
+
+        const archwingMods = getModsForWeapon(archwing!);
+        const atmosphereMods = getModsForWeapon(atmosphere!);
+        expect(archwingMods.some((mod) => mod.name === "Archgun Ace")).toBe(true);
+        const archgunAce = archwingMods.find((mod) => mod.name === "Archgun Ace");
+        expect(archgunAce?.effectsByRank.map((effect) => effect.conditionalEffects?.find((conditional) =>
+            conditional.trigger === "onHeadshotKill" && (conditional.stats.fireRateBonus ?? 0) > 0,
+        )?.durationSeconds)).toEqual([2, 3, 5, 6, 8, 9]);
+        expect(new Set(atmosphereMods.map((mod) => mod.uniqueName))).toEqual(
+            new Set(archwingMods.map((mod) => mod.uniqueName)),
         );
     });
 

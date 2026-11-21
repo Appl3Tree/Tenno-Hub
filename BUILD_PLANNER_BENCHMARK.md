@@ -1,5 +1,59 @@
 # Build Planner Optimizer Benchmark
 
+## D3-OPT-UNDERFRAME-MAUSOLON-001 — Mausolon profiles and objective-matched audit (2026-11-20; in progress)
+
+The [Mausolon Wiki page](https://wiki.warframe.com/w/Mausolon) lists distinct Archwing and deployed Heavy Weapon (Atmosphere) damage profiles. Tenno-Hub exposes both as selectable `Mausolon (Archwing)` and `Mausolon (Atmosphere)` entries, as requested. Archwing Auto / radial / charged laser / charged explosion are 120 (24 Impact / 46 Puncture / 50 Heat) / 48 Heat / 1,000 (150 Impact / 400 Puncture / 450 Heat) / 3,000 Heat. Atmosphere values are 180 (35 Impact / 70 Puncture / 75 Heat) / 72 Heat / 1,500 (150 Impact / 600 Puncture / 750 Heat) / 4,500 Heat.
+
+Auto links one fixed-count radial event to each direct hit on the struck target. The radial event has no multishot scaling. This single-target score excludes spatial coverage and other enemies. Lifted targets can receive additional damage instances, and spatial AoE is still outside this bounded model. Charged fire remains preview-only for Auto Optimize because the five-kill charge and subsequent recharge history is not modeled. The current [Archgun Ace mod data](https://wiki.warframe.com/w/Module:Mods/data?mobileaction=toggle_view_mobile) specifies +50% Fire/Charge Rate and +100% Reload Speed for 9 seconds on headshot kill; Tenno-Hub now carries the same rank-specific duration on both parsed stats.
+
+### Underframe capture
+
+The integrated browser used an Underframe Mausolon copy with Auto Build's five-second simulation, Sample Size Multiplier 3, Final Refinement size 200, Luck Averaged and Elemental Candidates on, Cost Control on, and a three-Forma cap. The captured Stats panel showed 180 Auto damage and 72 radial damage, identifying this as the Atmosphere profile. The target was Grineer / 100,000 Health / 3,000 Armor, no Shields/Overguard, no headshots, and no external statuses/buffs. The captured list was Archgun Ace R5, Automatic Trigger R5, Ballista Measure R3, Containment Breach R3, Critical Focus R5, Deadly Efficiency R5, Dual Rounds R5, and Hollowed Bullets R3. Manual Auto Polarize yielded 2/60 capacity with three Forma.
+
+The original Auto Build capture had Primary Bulwark 500/500 and Secondary Outburst 12/12 enabled; these inapplicable category Arcanes are not used as comparison results. Three later Auto-only runs began with both sliders cleared to zero, repeated the same list and 21,760 Best DPS, and the UI reset the sliders to 500/12 after each run. This confirms repeatability for those Auto-only runs, while the initial capture's provenance remains separate.
+
+The captured list was then read in `[C] Auto (Combined)` (Auto + Auto Radial Attack at a 1:1 ratio). At 100,000 Health / 3,000 Armor, three Luck Averaged reads repeated 25,755 DPS / 3.89 s TTK, with 1,383 raw +72 DoT average damage per shot. At 2,000,000 Health / 3,000 Armor, three reads gave 28,724 DPS, 1,531 raw +107 DoT per shot, and no kill. At 2,000,000 Health / 0 Armor, one read gave 107,028 DPS, 5,773 raw +329 DoT per shot, and no kill. All three used zero category-Arcane sliders. These are calculator readouts for the captured list; none is an Auto Build winner for Combined mode.
+
+### Corrected fixed-window scorer and reproducible comparison
+
+Reproduce the shared-model and exact one-mod audits with:
+
+```sh
+npx tsx scripts/compareUnderframeFixedWindowDps.ts --weapon="Mausolon (Atmosphere)" --health=100000 --armor=3000 --runs=1
+npx tsx scripts/compareUnderframeFixedWindowDps.ts --weapon="Mausolon (Atmosphere)" --health=2000000 --armor=3000 --runs=3
+npx tsx scripts/compareUnderframeFixedWindowDps.ts --weapon="Mausolon (Atmosphere)" --health=2000000 --armor=0 --runs=1
+npx tsx scripts/auditFixedWindowDpsFullPool.ts --weapon="Mausolon (Atmosphere)" --attack=Auto --health=2000000 --armor=3000 --runs=3
+npx tsx scripts/auditFixedWindowDpsFullPool.ts --weapon="Mausolon (Atmosphere)" --attack=Auto --health=2000000 --armor=3000 --runs=3 --baseline-file=scripts/fixtures/underframeMausolonAutoBuild.json
+```
+
+The deterministic `windowDps` score applies damage in `[0,5s)`, clips overkill, and starts event-triggered mod buffs inactive. The model has no trigger history for headshots, reloads, kills, or similar events during the interval; the explicit Fully Stacked state remains available. This corrects the prior steady-state estimate that could credit a reload-from-empty buff although the finite clip had not reloaded. The explanation now states that these histories are not simulated. It is still a mean-field single-target scorer, not Underframe's seeded stochastic engine.
+
+| Target / build | Tenno-Hub fixed-window result | Underframe calculator result |
+| --- | ---: | ---: |
+| 2,000,000 Health / 3,000 Armor; captured Auto list | 42,807.6 damage / 5s = 8,561.5 DPS; 67 attacks; no kill | 28,724 DPS; 1,531 raw +107 DoT / shot; no kill |
+| 2,000,000 Health / 0 Armor; captured Auto list | 156,085.4 damage / 5s = 31,217.1 DPS; 67 attacks; no kill | 107,028 DPS; 5,773 raw +329 DoT / shot; no kill |
+| 100,000 Health / 3,000 Armor; captured Auto list | 42,807.6 damage / 5s = 8,561.5 DPS; 67 attacks; no kill | 25,755 DPS; 3.89 s TTK |
+| 2,000,000 Health / 3,000 Armor; optimized Auto list | 1,575,206.5 damage / 5s = 315,041.3 DPS; no kill | No matched Underframe optimization run |
+
+The high-health gap is about 3.35x at 3,000 Armor and 3.43x with armor removed, so early-kill normalization and armor alone do not explain it. Local Realistic `calculateBuild` stats show 13.33 fire rate / 43.5% critical chance / 4.96x critical multiplier / 1.90 multishot, versus the Underframe Stats panel's 17.49 / 48% / 5.29x / 1.90. The attack-speed difference is consistent with Underframe crediting some of Archgun Ace's headshot-kill bonus, although no headshots or kills were configured; that remains an inference from its private simulator. The per-shot damage gap also remains unexplained. Do not adjust the scorer just to force these readouts to agree.
+
+The captured list is legal at 58/60 and three Forma under Tenno-Hub capacity rules. Its exact legal one-mod neighborhood contained 181 candidates; the best replacement (Archgun Ace → Primed Rubedo-Lined Barrel) scored 24,571.3 DPS versus the captured list's 8,561.5. The optimizer returned the same legal list in three runs at 59/60 and three Forma, 315,041.3 DPS, evaluating 229 refinement candidates per run. Its 135 legal one-mod neighbors had no improvement; the best was Parallax Scope → Magnetized Cycle at 308,465.7 DPS. These are bounded Tenno-Hub model results; the large captured-to-optimizer difference and cross-tool gap remain open accuracy/quality findings, not global optimality or gameplay validation.
+
+Validation on the current worktree passes: optimizer tests 152/152, full serial suite 820/820 across 54 files, app/node TypeScript and production Vite build, source validation, prerequisite audit (162 entries), mod-effect coverage audit (695 weapons / 600 eligible mod records / 491 parsed / 109 without parsed effects / zero empty weapon pools), strict TypeScript checks for both changed audit scripts, focused ESLint, fixture JSON parsing, and CRLF-aware `git diff --check`. The existing large-chunk warning remains. Integrated-browser QA of this branch is unavailable: the port-81 Vite preview times out, while the user-provided port-80 site visibly serves bundle `2bf6faea` without the new objective control. The worktree is uncommitted on `codex/underframe-companion-window-dps-20261121`, based on `d4ab5098`.
+
+### D3-OPT-FIXED-WINDOW-TRIGGER-START-STATE-001 — event-trigger state in `[0,5s)` (2026-11-20; in progress)
+
+New Mausolon evidence exposed that realistic uptime estimation treated on-reload-from-empty effects as if a finite five-second encounter inherited steady-state trigger history. The window scorer now removes event-triggered conditional stats at its initial state unless the user explicitly chooses Fully Stacked; passive conditions and the separate modeled non-critical/no-status hit stack sequence remain available. This correction applies to the exact finite score used by optimization and the debug evaluator. A regression verifies that a 40-round weapon fired for five seconds does not receive a reload-from-empty damage bonus, while Fully Stacked still does. The “Why This Build” summary explains that trigger histories are not simulated.
+
+The remaining limitation is explicit: event activations that could happen during `[0,5s)` are not simulated either. Modeling them needs an event-by-event reload, hit, and kill history; the current score should not be read as a full stochastic DPS estimate. Validation passes at 152/152 optimizer tests and 820/820 serial tests / 54 files, strict TypeScript for the changed audit scripts, app TypeScript/production build, source/prerequisite/mod-effect audits, focused ESLint, fixture JSON parsing, and CRLF-aware diff check. Reopen if a trigger is incorrectly suppressed despite an existing sequence model, or if an event-level fixed-window simulator is implemented.
+
+### D3-OPT-UNDERFRAME-AVG-DPS-SEMANTICS-001 — surviving-target gap (in progress)
+
+The public Underframe Desktop port specification at commit `fe38d07f3515a995a068015314ad85acc65bef61` documents mean `avgDps` over seeded five-second simulations. At 2,000,000 Health, the same captured Atmosphere list survives five seconds in both tools, yet Underframe reports 28,724 DPS at 3,000 Armor and 107,028 DPS without armor while Tenno-Hub reports 8,561.5 and 31,217.1 DPS. This controls for early kill and shows armor does not explain the ratio. The local profile, event triggers, and per-shot/status calculations still need alignment; Underframe's private engine limits attribution.
+
+Next, inspect the same attack's raw/projectile/effect accounting and controlled hit cadence in the two public interfaces. Preserve the captured list and target, test Auto-only as well as Combined, and compare full target/trigger configuration before changing the objective. Until a mechanics discrepancy is isolated, `windowDps` remains a deterministic applied-damage proxy inspired by Underframe's documented metric, not verified score parity.
+
+
 ## D3-OPT-SEED-CORPUS-003 — third seeded 12-case Expected TTK audit (2026-11-18; bounded)
 
 Reproduce with:

@@ -98,17 +98,17 @@ export interface WeaponAttackModelLimitation {
 }
 
 export interface WeaponAttackLingeringDamageRule {
-    /** Attack row whose damage values describe the linked lingering component. */
+    /** Attack row whose damage values describe the linked component event. */
     componentAttackName: string;
-    /** First linked damage tick after the trigger event. */
+    /** Delay from the triggering attack to the first linked component event. */
     firstTickDelaySeconds: number;
-    /** Time between linked damage ticks. */
+    /** Time between linked component events when there is more than one. */
     tickIntervalSeconds: number;
-    /** Number of linked ticks produced by one projectile. */
+    /** Number of linked component events produced by one triggering attack. */
     tickCount: number;
-    /** Whether the linked component remains attached to the directly struck target. */
+    /** Whether the linked component also affects the directly struck target. */
     attachedToDirectTarget: boolean;
-    /** Whether independently created components stack their ticks. */
+    /** Whether linked events from separate triggering attacks stack. */
     stacks: boolean;
     sourceUrl: string;
 }
@@ -149,6 +149,8 @@ export interface WeaponAttack {
     burstDelay?: number;
     /** Base projectiles/hits per trigger for this attack, when it differs from the weapon default. */
     multishot?: number;
+    /** This attack component ignores the weapon's multishot stat and all multishot modifiers. */
+    multishotLocked?: boolean;
     /** Ammo consumed by one trigger/attack event when it differs by firing mode. */
     ammoCostPerShot?: number;
     /** Source-backed limit of an attack-row ammo-cost approximation. */
@@ -187,7 +189,11 @@ export interface WeaponAttack {
 
 export interface WeaponEntry {
     uniqueName: string;
+    /** Upstream identity for a selectable profile that derives from another catalog item. */
+    sourceUniqueName?: string;
     name: string;
+    /** Context label for entries with distinct source-backed equipment profiles. */
+    variantLabel?: string;
     category: WeaponCategory;
     /** Internal weapon type as reported by WFCD (e.g. "Rifle", "Shotgun", "Bow", "Sword", "Melee") */
     weaponType: string;
@@ -288,10 +294,16 @@ export interface WeaponEntry {
     selectedAttackAutoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the selected attack cannot be represented by the standard damage model. */
     selectedAttackModelLimitation?: WeaponAttackModelLimitation;
+    /** True when the selected attack's projectile count is fixed and ignores multishot modifiers. */
+    selectedAttackMultishotLocked?: boolean;
     /** Linked damage component emitted by each selected attack projectile. */
     selectedAttackLingeringDamageRule?: WeaponAttackLingeringDamageRule;
     /** True when an AoE component also directly affects the attached projectile's target. */
     selectedAttackAppliesToAttachedTarget?: boolean;
+}
+
+export function getWeaponDisplayName(weapon: Pick<WeaponEntry, "name" | "variantLabel">): string {
+    return weapon.variantLabel ? `${weapon.name} (${weapon.variantLabel})` : weapon.name;
 }
 
 export type WeaponForcedProcType = Exclude<keyof WeaponDamage, "total" | "true">;
@@ -1577,6 +1589,22 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
             sourceUrl: "https://wiki.warframe.com/w/Torid",
         }),
     }),
+    // Mausolon's primary shot also creates one immediate radial hit on the
+    // directly struck enemy. The component is separately catalogued and must
+    // share the shot's modded damage/status profile while keeping its own AoE
+    // classification and fixed one-hit projectile count.
+    // Verified 2026-11-20: https://wiki.warframe.com/w/Mausolon
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
+        "auto": Object.freeze({
+            componentAttackName: "Auto Radial Attack",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+        }),
+    }),
 });
 
 const VERIFIED_ATTACK_ATTACHED_TARGET_OVERRIDES: Readonly<Record<string, readonly string[]>> = Object.freeze({
@@ -1605,6 +1633,20 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
         "poison cloud": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Torid",
             reason: "Poison Cloud is a component of each Torid Grenade Impact, not a separate firing mode. Select Grenade Impact to evaluate the bounded single-target impact-plus-cloud sequence.",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
+        "auto radial attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+            reason: "Auto Radial Attack is a component of every Mausolon Auto shot, not an independent firing mode. Select Auto to score the bounded direct-hit-plus-radial sequence against one struck target.",
+        }),
+        "charged shot laser": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+            reason: "Mausolon's alternate fire requires five primary-fire kills to charge, and more kills after each use. The planner does not track this multi-target charge history, so Auto Optimize cannot assume a repeatable charged-shot cadence.",
+        }),
+        "charged shot explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+            reason: "Charged Shot Explosion is a component of Mausolon's alternate fire, which requires five primary-fire kills to charge and more kills after each use. Select Charged Shot Laser for a per-shot preview; Auto Optimize cannot assume a repeatable charged-shot cadence.",
         }),
     }),
 });
@@ -1682,6 +1724,16 @@ const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Reco
         "air burst projectile": 1,
         "air burst explosion": 1,
     }),
+});
+
+/** Wiki-confirmed attack components that do not inherit multishot modifiers. */
+const VERIFIED_ATTACK_MULTISHOT_LOCKED_OVERRIDES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    // Primary-fire explosions do not receive multishot mods. The radial hit is
+    // emitted once per Auto shot even when the direct projectile count rises.
+    // Verified 2026-11-20: https://wiki.warframe.com/w/Mausolon
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze([
+        "auto radial attack",
+    ]),
 });
 
 function parseForcedProcs(input: unknown): WeaponForcedProcs | undefined {
@@ -1900,6 +1952,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     statusChance:  n(a.status_chance) / 100,
                     multishot: VERIFIED_ATTACK_MULTISHOT_OVERRIDES[uniqueName]?.[attackName]
                         ?? (n(a.multishot) > 0 ? n(a.multishot) : undefined),
+                    multishotLocked: VERIFIED_ATTACK_MULTISHOT_LOCKED_OVERRIDES[uniqueName]?.includes(attackName) ?? false,
                     ammoCostPerShot: VERIFIED_ATTACK_AMMO_COST_OVERRIDES[uniqueName]?.[attackName]
                         ?? (typeof a.ammo_cost === "number" ? a.ammo_cost : undefined),
                     ammoCostModelNote,
@@ -2009,6 +2062,48 @@ export function getWeaponCatalog(): WeaponEntry[] {
         seenUniqueNames.add(uniqueName);
     }
 
+    // WFCD's Arch-Gun row represents Mausolon's Archwing profile. The Wiki
+    // documents a distinct Heavy Weapon profile for atmospheric deployment.
+    // Keep both selectable so the planner never silently substitutes one
+    // context's damage values for the other.
+    const mausolon = entries.find((entry) => entry.uniqueName ===
+        "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun");
+    if (mausolon) {
+        mausolon.variantLabel = "Archwing";
+        const atmosphereDamageByAttack: Readonly<Record<string, Partial<WeaponDamage>>> = {
+            "Auto": { total: 180, impact: 35, puncture: 70, heat: 75 },
+            "Auto Radial Attack": { total: 72, heat: 72 },
+            "Charged Shot Laser": { total: 1500, impact: 150, puncture: 600, heat: 750 },
+            "Charged Shot Explosion": { total: 4500, heat: 4500 },
+        };
+        const atmosphereDamage: WeaponDamage = {
+            ...mausolon.damage,
+            total: 180,
+            impact: 35,
+            puncture: 70,
+            heat: 75,
+        };
+        entries.push({
+            ...mausolon,
+            uniqueName: `${mausolon.uniqueName}::Atmosphere`,
+            sourceUniqueName: mausolon.uniqueName,
+            variantLabel: "Atmosphere",
+            damage: atmosphereDamage,
+            attacks: mausolon.attacks.map((attack) => {
+                const damageOverride = atmosphereDamageByAttack[attack.name];
+                if (!damageOverride) return { ...attack, damage: { ...attack.damage } };
+                const damage = { ...attack.damage, ...damageOverride };
+                const damageTotal = [
+                    damage.impact, damage.puncture, damage.slash, damage.heat, damage.cold,
+                    damage.electricity, damage.toxin, damage.blast, damage.radiation,
+                    damage.gas, damage.magnetic, damage.viral, damage.corrosive,
+                    damage.void, damage.tau, damage.true,
+                ].reduce((sum, value) => sum + value, 0);
+                return { ...attack, damage: { ...damage, total: damageTotal }, damageTotal };
+            }),
+        });
+    }
+
     for (const [uniqueName] of Object.entries(OVERFRAME_ITEMS)) {
         if (seenUniqueNames.has(uniqueName)) continue;
         if (!uniqueName.includes("/BeastWeapons/")) continue;
@@ -2043,7 +2138,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
         weapon.stanceClass = stanceClasses[0];
     }
 
-    entries.sort((a, b) => a.name.localeCompare(b.name));
+    entries.sort((a, b) => a.name.localeCompare(b.name) || (a.variantLabel ?? "").localeCompare(b.variantLabel ?? ""));
     _cache = entries;
     return entries;
 }

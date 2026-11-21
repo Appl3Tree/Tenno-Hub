@@ -1,5 +1,7 @@
+import { readFile } from "node:fs/promises";
 import { filterBuilderExpertVariants, getModsForWeapon } from "../src/domain/catalog/modCatalog";
-import { getWeaponCatalog } from "../src/domain/catalog/weaponCatalog";
+import { getWeaponCatalog, getWeaponDisplayName } from "../src/domain/catalog/weaponCatalog";
+import type { WeaponEntry } from "../src/domain/catalog/weaponCatalog";
 import { withSelectedAttack } from "../src/domain/catalog/weaponRules";
 import {
     assignModsToSlots,
@@ -23,9 +25,23 @@ interface ModRequest {
 
 interface Fixture {
     weaponName: string;
+    attackName?: string;
     underframeObservedCapacityAfterAutoPolarize: string;
     underframeMods: ModRequest[];
+    underframeAutoBuildSliderState?: Record<string, number>;
+    underframeAutoBuildDisposition?: string;
+    underframeNativeTargetPools?: Record<string, string | number>;
+    underframeNativeReadout?: Record<string, unknown>;
+    underframeNativeCombinedModeReadout?: Record<string, unknown>;
+    underframeNativeCombinedHighHealthReadout?: Record<string, unknown>;
+    underframeNativeCombinedUnarmoredHighHealthReadout?: Record<string, unknown>;
+    underframeObservedAutoStats?: Record<string, unknown>;
 }
+
+const MAUSOLON_CAPTURE = JSON.parse(await readFile(
+    new URL("./fixtures/underframeMausolonAutoBuild.json", import.meta.url),
+    "utf8",
+)) as Fixture;
 
 const FIXTURES: Fixture[] = [
     {
@@ -70,15 +86,26 @@ const FIXTURES: Fixture[] = [
             { name: "Volcanic Edge", rank: 3 },
         ],
     },
+    MAUSOLON_CAPTURE,
 ];
 
-const TARGET_FACTION = "Grineer";
+function stringOption(name: string, fallback: string): string {
+    return process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
+}
+
+function numericOption(name: string, fallback: number): number {
+    const value = Number(stringOption(name, String(fallback)));
+    if (!Number.isFinite(value) || value < 0) throw new Error(`--${name} must be a non-negative number`);
+    return value;
+}
+
+const TARGET_FACTION = stringOption("faction", "Grineer");
 const TARGET = {
-    description: "Grineer custom target: 100,000 Health / 3,000 Armor",
-    health: 100_000,
-    shields: 0,
-    overguard: 0,
-    armor: 3_000,
+    description: `${TARGET_FACTION} custom target: ${numericOption("health", 100_000).toLocaleString()} Health / ${numericOption("armor", 3_000).toLocaleString()} Armor`,
+    health: numericOption("health", 100_000),
+    shields: numericOption("shields", 0),
+    overguard: numericOption("overguard", 0),
+    armor: numericOption("armor", 3_000),
     toxinBypassesShields: true,
 };
 const CONDITIONAL_STATE: ConditionalState = { mode: "realistic" };
@@ -91,14 +118,25 @@ const CAPACITY_CONFIG: CapacityConfig = {
 };
 const requestedRuns = Number(process.argv.find((arg) => arg.startsWith("--runs="))?.slice(7) ?? 3);
 const RUNS = Number.isInteger(requestedRuns) && requestedRuns > 0 ? requestedRuns : 3;
+const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9)?.trim().toLowerCase();
 
-function getWeapon(name: string) {
-    const catalogWeapon = getWeaponCatalog().find((entry) => entry.name.toLowerCase() === name.toLowerCase());
+function getWeapon(name: string, attackName = "Normal Attack") {
+    const catalog = getWeaponCatalog();
+    const normalizedName = name.trim().toLowerCase();
+    const catalogWeapon = catalog.find((entry) => getWeaponDisplayName(entry).toLowerCase() === normalizedName) ??
+        catalog.find((entry) => entry.name.toLowerCase() === normalizedName);
     if (!catalogWeapon) throw new Error(`Weapon missing from catalog: ${name}`);
-    const weapon = withSelectedAttack(catalogWeapon, 0);
-    if (weapon.attacks[0]?.name !== "Normal Attack") throw new Error(`${name} Normal Attack row changed.`);
-    return weapon;
+    const attackIndex = catalogWeapon.attacks.findIndex((attack) => attack.name.toLowerCase() === attackName.toLowerCase());
+    const attack = catalogWeapon.attacks[attackIndex];
+    if (!attack) throw new Error(`Attack missing from catalog: ${name} / ${attackName}`);
+    return { weapon: withSelectedAttack(catalogWeapon, attackIndex), attack };
 }
+
+const fixturesToRun = requestedWeapon
+    ? FIXTURES.filter((fixture) => getWeaponDisplayName(getWeapon(fixture.weaponName, fixture.attackName).weapon)
+        .toLowerCase() === requestedWeapon || fixture.weaponName.toLowerCase() === requestedWeapon)
+    : FIXTURES;
+if (requestedWeapon && fixturesToRun.length === 0) throw new Error(`No captured fixture matches --weapon=${requestedWeapon}`);
 
 function getMod(name: string, rank: number, compatibleMods: ReturnType<typeof getModsForWeapon>) {
     const variants = compatibleMods.filter((entry) => entry.name.toLowerCase() === name.toLowerCase());
@@ -110,7 +148,7 @@ function getMod(name: string, rank: number, compatibleMods: ReturnType<typeof ge
 }
 
 function evaluateFixedBuild(
-    weapon: ReturnType<typeof getWeapon>,
+    weapon: WeaponEntry,
     fixture: Fixture,
     compatibleMods: ReturnType<typeof getModsForWeapon>,
 ) {
@@ -172,7 +210,7 @@ function evaluateFixedBuild(
 }
 
 function runFixture(fixture: Fixture) {
-    const weapon = getWeapon(fixture.weaponName);
+    const { weapon, attack } = getWeapon(fixture.weaponName, fixture.attackName);
     const compatibleMods = filterBuilderExpertVariants(getModsForWeapon(weapon));
     const fixedBuild = evaluateFixedBuild(weapon, fixture, compatibleMods);
     const optimizerRuns = Array.from({ length: RUNS }, () => {
@@ -191,7 +229,7 @@ function runFixture(fixture: Fixture) {
             optimizeArcane: false,
             arcaneCandidates: [],
             optimizeExilus: false,
-            buildForAttack: weapon.attacks[0] ?? null,
+            buildForAttack: attack,
         });
         const durationMs = performance.now() - startedAt;
         const formaCount = countPolarityChanges(weapon.polarities, result.slotPolarities);
@@ -225,10 +263,18 @@ function runFixture(fixture: Fixture) {
     const uniqueScores = new Set(optimizerScores);
     const firstRun = optimizerRuns[0];
     return {
-        weapon: fixture.weaponName,
+        weapon: getWeaponDisplayName(weapon),
         category: weapon.category,
-        attack: weapon.attacks[0]?.name ?? "base attack",
+        attack: attack.name,
         underframeObservedCapacityAfterAutoPolarize: fixture.underframeObservedCapacityAfterAutoPolarize,
+        underframeAutoBuildSliderState: fixture.underframeAutoBuildSliderState ?? null,
+        underframeAutoBuildDisposition: fixture.underframeAutoBuildDisposition ?? null,
+        underframeNativeTargetPools: fixture.underframeNativeTargetPools ?? null,
+        underframeNativeReadout: fixture.underframeNativeReadout ?? null,
+        underframeNativeCombinedModeReadout: fixture.underframeNativeCombinedModeReadout ?? null,
+        underframeNativeCombinedHighHealthReadout: fixture.underframeNativeCombinedHighHealthReadout ?? null,
+        underframeNativeCombinedUnarmoredHighHealthReadout: fixture.underframeNativeCombinedUnarmoredHighHealthReadout ?? null,
+        underframeObservedAutoStats: fixture.underframeObservedAutoStats ?? null,
         capturedUnderframeBuild: fixedBuild,
         tennoHubWindowDps: firstRun ? {
             mods: firstRun.mods,
@@ -254,8 +300,9 @@ console.log(JSON.stringify({
         target: TARGET,
         conditionalState: CONDITIONAL_STATE.mode,
         constraints: "Eight normal slots, max-rank mods, Catalyst, up to three Forma, no Exilus or Arcanes.",
-        modelBoundary: "All captured and optimized lists use Tenno-Hub's same deterministic finite encounter engine. It clips overkill and damage after the single target dies, begins on-kill stacks at zero, and does not reset the target. It excludes neighboring targets and melee stance/combo history. This is not Underframe's seeded stochastic simulator or live-game validation.",
+        modelBoundary: "All captured and optimized lists use Tenno-Hub's same deterministic finite encounter engine. It clips overkill and damage after the single target dies, begins event-triggered mod buffs inactive, does not simulate their trigger history during the window, and does not reset the target. It excludes neighboring targets and melee stance/combo history. This is not Underframe's seeded stochastic simulator or live-game validation.",
         optimizerRunsPerFixture: RUNS,
+        selectedFixtureFilter: requestedWeapon ?? null,
     },
-    fixtures: FIXTURES.map(runFixture),
+    fixtures: fixturesToRun.map(runFixture),
 }, null, 2));

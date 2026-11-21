@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     getWeaponCatalog,
+    getWeaponDisplayName,
     clampMeleeComboMultiplier,
     getMeleeComboRules,
     isGroundMeleeCategory,
@@ -1607,10 +1608,20 @@ function buildMathBreakdown(
         `Nightwatch Napalm: ${fmt(stats.nightwatchNapalm.directDamagePerProjectilePerTick, 5)} direct Heat damage per overlapping blaze tick × 6 ticks per ${damageUnit}; the first tick is immediate. Each tick rolls the Wiki's fixed ${(stats.nightwatchNapalm.heatProcChancePerTick * 100).toFixed(0)}% Heat proc chance independently of weapon Status Chance. Heat status lasts ${fmt(stats.nightwatchNapalm.heatStatusDurationSeconds, 3)}s after duration modifiers.`,
         `Napalm DPS = ${fmt(stats.nightwatchNapalm.directDamagePerSecond, 5)} direct tick damage/s + ${fmt(stats.nightwatchNapalm.heatStatusDamagePerSecond, 5)} steady-state Heat status damage/s. Assumes a stationary single target receives every blaze tick; spatial exposure, other on-tick effects (including Toxic Lash and Xata's Whisper), and crowd coverage are not modeled. Data: https://wiki.warframe.com/w/Nightwatch_Napalm`,
     ] : [];
-    const attachedAttackDamageLines = stats.attachedAttackDamageSequence ? [
-        `${stats.attachedAttackDamageSequence.rule.componentAttackName} linked to each direct hit: ${fmt(stats.attachedAttackDamageSequence.rule.tickCount, 0)} ticks at ${fmt(stats.attachedAttackDamageSequence.rule.tickIntervalSeconds, 3)}s intervals, first at +${fmt(stats.attachedAttackDamageSequence.rule.firstTickDelaySeconds, 3)}s. The ticks attach to the struck target and stack across grenades.`,
-        `Finite Expected TTK scores this single target's impact-plus-cloud sequence; it does not score cloud coverage on other targets, projectiles that hit surfaces or nearby enemies, target movement, or multi-target overlap. Sources: ${stats.attachedAttackDamageSequence.rule.sourceUrl} · https://wiki.warframe.com/w/Damage_over_Time#Weapons`,
-    ] : [];
+    const attachedAttackDamageLines = stats.attachedAttackDamageSequence ? (() => {
+        const { rule } = stats.attachedAttackDamageSequence;
+        const eventTiming = rule.tickCount === 1
+            ? `one linked component event at +${fmt(rule.firstTickDelaySeconds, 3)}s`
+            : `${fmt(rule.tickCount, 0)} linked damage ticks at ${fmt(rule.tickIntervalSeconds, 3)}s intervals, first at +${fmt(rule.firstTickDelaySeconds, 3)}s`;
+        const targetScope = rule.attachedToDirectTarget
+            ? "The linked component also affects the directly struck target"
+            : "The linked component does not affect the directly struck target";
+        const stacking = rule.stacks ? "Linked events from separate attacks stack." : "Linked events from separate attacks do not stack.";
+        return [
+            `${rule.componentAttackName} is linked to each direct hit: ${eventTiming}. ${targetScope}. ${stacking}`,
+            `Finite scoring follows this linked sequence on one target. It excludes area coverage on other targets, environmental impacts away from the struck target, movement, and multi-target overlap. Source: ${rule.sourceUrl}${rule.tickCount > 1 ? " · https://wiki.warframe.com/w/Damage_over_Time#Weapons" : ""}`,
+        ];
+    })() : [];
     const damageRampLines = weapon.selectedAttackDamageRamp ? [
         `Verified attack ramp: ${fmt(weapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 1)}% → 100% over ${fmt(weapon.selectedAttackDamageRamp.rampToFullSeconds, 3)}s; decay begins after ${fmt(weapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 3)}s idle and reaches minimum over ${fmt(weapon.selectedAttackDamageRamp.decayToMinimumSeconds, 3)}s.`,
         `Fresh-magazine average ramp multiplier = ${fmt(stats.freshMagazineDamageMultiplier, 6)}; steady repeating-cycle multiplier = ${fmt(stats.sustainedDamageMultiplier, 6)}. Ramp scales direct damage. Per-attack DoT/Blast seed scaling is a model assumption because the Wiki does not specify seed inheritance separately; status chance and proc weights stay unchanged.`,
@@ -2223,7 +2234,7 @@ function buildExportPayload(args: {
         exportedAt: new Date().toISOString(),
         source: "tenno-hub/mod-builder",
         weapon: {
-            name: weapon.name,
+            name: getWeaponDisplayName(weapon),
             uniqueName: weapon.uniqueName,
             category: weapon.category,
             selectedAttack: selectedAttack?.name ?? null,
@@ -2909,17 +2920,18 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
             if (!q) return true;
 
             const haystacks = [
-                weapon.name,
+                getWeaponDisplayName(weapon),
                 weapon.category,
                 weapon.weaponType,
+                weapon.variantLabel ?? "",
             ].map((value) => value.toLowerCase());
             return haystacks.some((value) => value.includes(q));
         });
 
         const ranked = matches.sort((a, b) => {
             if (!q) return a.name.localeCompare(b.name);
-            const aName = a.name.toLowerCase();
-            const bName = b.name.toLowerCase();
+            const aName = getWeaponDisplayName(a).toLowerCase();
+            const bName = getWeaponDisplayName(b).toLowerCase();
             const aStarts = aName.startsWith(q) ? 1 : 0;
             const bStarts = bName.startsWith(q) ? 1 : 0;
             if (aStarts !== bStarts) return bStarts - aStarts;
@@ -2932,7 +2944,7 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
             const bIdx = bName.indexOf(q);
             if (aIdx !== bIdx) return aIdx - bIdx;
 
-            return a.name.localeCompare(b.name);
+            return getWeaponDisplayName(a).localeCompare(getWeaponDisplayName(b));
         });
 
         return ranked.slice(0, 120);
@@ -2951,7 +2963,7 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
                 {selected ? (
                     <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold text-slate-100">{selected.name}</div>
+                            <div className="truncate text-sm font-semibold text-slate-100">{getWeaponDisplayName(selected)}</div>
                             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
                                 <span>{selected.category}</span>
                                 <span className="text-slate-700">/</span>
@@ -3004,16 +3016,20 @@ function WeaponSelector({ selected, onSelect }: { selected: WeaponEntry | null; 
                         {filtered.map(w => (
                             <button key={w.uniqueName}
                                 className={["w-full px-4 py-3 text-left transition-colors hover:bg-slate-900/80",
-                                    w.name === selected?.name ? "bg-slate-900/70" : ""].join(" ")}
+                                    w.uniqueName === selected?.uniqueName ? "bg-slate-900/70" : ""].join(" ")}
                                 onClick={() => { onSelect(w); setOpen(false); setQuery(""); triggerRef.current?.focus(); }}>
                                 <div className="flex items-start gap-3">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
-                                            <span className="truncate text-sm font-semibold text-slate-100">{w.name}</span>
+                                            <span className="truncate text-sm font-semibold text-slate-100">{getWeaponDisplayName(w)}</span>
                                             {w.attacks.length > 1 && <span className="rounded-full border border-blue-700/40 bg-blue-950/30 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-blue-300">{w.attacks.length} atk</span>}
                                         </div>
                                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
                                             <span>{w.weaponType}</span>
+                                            {w.variantLabel && <>
+                                                <span className="text-slate-700">/</span>
+                                                <span>{w.variantLabel} profile</span>
+                                            </>}
                                             <span className="text-slate-700">/</span>
                                             <span>{fmt(w.damage.total)} dmg</span>
                                             <span className="text-slate-700">/</span>
@@ -3125,7 +3141,7 @@ function SavedBuildsPanel({ weapon, availableMods, currentSlots, currentRanks, c
         if (!weapon || !saveName.trim()) return;
         saveModBuild({
             id: uid(), name: saveName.trim(),
-            weaponUniqueName: weapon.uniqueName, weaponName: weapon.name,
+            weaponUniqueName: weapon.uniqueName, weaponName: getWeaponDisplayName(weapon),
             slotModUniqueNames: currentSlots.map(m => m?.uniqueName ?? ""),
             slotRanks: [...currentRanks],
             stanceModUniqueName: stanceMod?.uniqueName,

@@ -239,6 +239,25 @@ describe("Wiki stance DPS objective", () => {
 });
 
 describe("fixed-window DPS objective", () => {
+    it("scores Mausolon's linked Auto radial hit on the directly struck target", () => {
+        const mausolon = getWeaponCatalog().find((entry) =>
+            entry.name === "Mausolon" && entry.variantLabel === "Archwing",
+        );
+        expect(mausolon).toBeDefined();
+        const autoIndex = mausolon!.attacks.findIndex((attack) => attack.name === "Auto");
+        expect(autoIndex).toBeGreaterThanOrEqual(0);
+        const auto = withSelectedAttack(mausolon!, autoIndex);
+        const target = { health: 1_000_000_000, shields: 0, overguard: 0, armor: 0 };
+        const linked = debugEvaluateFixedWindowDps(auto, [], "", target, { mode: "initial" });
+        const directOnly = debugEvaluateFixedWindowDps({
+            ...auto,
+            selectedAttackLingeringDamageRule: undefined,
+        }, [], "", target, { mode: "initial" });
+
+        expect(linked.damageInWindow).toBeGreaterThan(directOnly.damageInWindow);
+        expect(linked.encounter?.timeToKillSeconds).toBeNull();
+    });
+
     it("divides applied single-target damage by five seconds and clips overkill", () => {
         const weapon = makeWeapon({
             damage: {
@@ -301,6 +320,45 @@ describe("fixed-window DPS objective", () => {
         );
         expect(explanation.summary).toContain("350.0 damage during [0, 5.0s)");
         expect(explanation.summary).toContain("Overkill and events at the window endpoint are excluded.");
+        expect(explanation.summary).toContain("Reload, kill, and other event-triggered mod buffs start inactive");
+    });
+
+    it("starts reload-triggered buffs inactive in the finite DPS window", () => {
+        const weapon = makeWeapon({
+            damage: {
+                total: 100, impact: 100, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 0,
+            fireRate: 1,
+            magazineSize: 40,
+            reloadTime: 1,
+        });
+        const reloadBuff = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onReloadFromEmpty" as const,
+                durationSeconds: 10,
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { damageBonus: 2.2 },
+            }],
+        };
+        const target = { health: 1_000_000_000, shields: 0, overguard: 0, armor: 0 };
+        const baseline = debugEvaluateFixedWindowDps(weapon, [], "", target, { mode: "realistic" });
+        const realistic = debugEvaluateFixedWindowDps(
+            weapon, [reloadBuff], "", target, { mode: "realistic" },
+        );
+        const fullyStacked = debugEvaluateFixedWindowDps(
+            weapon, [reloadBuff], "", target, { mode: "fullyStacked" },
+        );
+
+        expect(realistic.damageInWindow).toBeCloseTo(baseline.damageInWindow, 10);
+        expect(fullyStacked.damageInWindow).toBeGreaterThan(baseline.damageInWindow);
     });
 
     it("selects Arcanes by the exact fixed-window score", () => {

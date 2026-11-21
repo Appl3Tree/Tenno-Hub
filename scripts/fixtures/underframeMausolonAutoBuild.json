@@ -1,0 +1,158 @@
+{
+  "weaponName": "Mausolon (Atmosphere)",
+  "variantLabel": "Atmosphere",
+  "attackName": "Auto",
+  "underframeAutoBuildSliderState": {
+    "primaryBulwark": 500,
+    "secondaryOutburst": 12
+  },
+  "underframeAutoBuildDisposition": "The initial captured list was produced while Primary Bulwark and Secondary Outburst were enabled even though neither category Arcane applies to Archguns. Three later Auto-only runs began with both sliders explicitly at zero and returned the same list at 21,760 Best DPS; Underframe reset the sliders to 500/12 after each run. The static list is retained as a recorded capture, and its later combined-mode readout is a calculator result, not a combined-mode Auto Build winner.",
+  "underframeNativeTargetPools": {
+    "faction": "Grineer",
+    "health": 100000,
+    "shields": 0,
+    "overguard": 0,
+    "armor": 3000
+  },
+  "underframeObservedAutoStats": {
+    "weaponProfileInference": "Atmosphere; the Stats panel reports 180 Auto damage and 72 Auto Radial Attack damage, matching the Wiki profile.",
+    "attackSpeed": 17.49,
+    "critChance": 0.48,
+    "critMultiplier": 5.29,
+    "multishot": 1.9,
+    "damageTotal": 618.75,
+    "radialDamageTotal": 252.45
+  },
+  "underframeObservedCapacityAfterAutoPolarize": "2/60; 3 Forma",
+  "underframeMods": [
+    { "name": "Archgun Ace", "rank": 5 },
+    { "name": "Automatic Trigger", "rank": 5 },
+    { "name": "Ballista Measure", "rank": 3 },
+    { "name": "Containment Breach", "rank": 3 },
+    { "name": "Critical Focus", "rank": 5 },
+    { "name": "Deadly Efficiency", "rank": 5 },
+    { "name": "Dual Rounds", "rank": 5 },
+    { "name": "Hollowed Bullets", "rank": 3 }
+  ],
+  "underframeNativeReadout": {
+    "mode": "Auto",
+    "optimizerRuns": 3,
+    "optimizerModListStable": true,
+    "luckAveragedReads": 3,
+    "luckAveragedSliderState": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "averageDamagePerShotRaw": 1174,
+    "averageDamagePerShotDot": 67,
+    "averageDps": 21899,
+    "targetDefeated": false,
+    "timeToKillSeconds": null
+  },
+  "zeroConditionAutoBuildRuns": {
+    "mode": "Auto",
+    "runs": 3,
+    "modListStable": true,
+    "conditionalSliderStateBeforeEachRun": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "bestDps": 21760,
+    "postRunSliderState": {
+      "primaryBulwark": 500,
+      "secondaryOutburst": 12
+    }
+  },
+  "underframeNativeCombinedModeReadout": {
+    "buildSource": "captured Auto Build mod list",
+    "mode": "[C] Auto (Combined)",
+    "composition": "Auto + Auto Radial Attack at a 1:1 ratio",
+    "luckAveragedReads": 3,
+    "luckAveragedSliderState": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "averageDamagePerShotRaw": 1383,
+    "averageDamagePerShotDot": 72,
+    "averageDps": 25755,
+    "targetDefeated": true,
+    "timeToKillSeconds": 3.89
+  },
+  "underframeNativeCombinedHighHealthReadout": {
+    "target": {
+      "faction": "Grineer",
+      "health": 2000000,
+      "shields": 0,
+      "overguard": 0,
+      "armor": 3000
+    },
+    "mode": "[C] Auto (Combined)",
+    "composition": "Auto + Auto Radial Attack at a 1:1 ratio",
+    "luckAveragedReads": 3,
+    "luckAveragedSliderState": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "averageDamagePerShotRaw": 1531,
+    "averageDamagePerShotDot": 107,
+    "averageDps": 28724,
+    "targetDefeated": false,
+    "timeToKillSeconds": null
+  },
+  "underframeNativeCombinedUnarmoredHighHealthReadout": {
+    "target": {
+      "faction": "Grineer",
+      "health": 2000000,
+      "shields": 0,
+      "overguard": 0,
+      "armor": 0
+    },
+    "mode": "[C] Auto (Combined)",
+    "composition": "Auto + Auto Radial Attack at a 1:1 ratio",
+    "luckAveragedReads": 1,
+    "luckAveragedSliderState": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "averageDamagePerShotRaw": 5773,
+    "averageDamagePerShotDot": 329,
+    "averageDps": 107028,
+    "targetDefeated": false,
+    "timeToKillSeconds": null
+  },
+  "tennoHubCapturedBuildComparison": {
+    "weaponProfile": "Mausolon (Atmosphere)",
+    "scoringWindowSeconds": 5,
+    "targetHealth": 2000000,
+    "armor3000": {
+      "damagePerSecond": 8561.520954345953,
+      "damageInWindow": 42807.60477172977,
+      "attacks": 67,
+      "statusDamage": 2027.5295560596383,
+      "targetDefeated": false
+    },
+    "armor0": {
+      "damagePerSecond": 31217.081438132864,
+      "damageInWindow": 156085.40719066432,
+      "attacks": 67,
+      "statusDamage": 6407.5482989613265,
+      "targetDefeated": false
+    },
+    "fixedWindowTriggerPolicy": "Event-triggered mod buffs start inactive; trigger history during [0, 5s) is not simulated unless Fully Stacked is selected.",
+    "realisticModeledStats": {
+      "fireRate": 13.333334400000002,
+      "critChance": 0.4350000145,
+      "critMultiplier": 4.9582419991493225,
+      "multishot": 1.9,
+      "headshots": false
+    }
+  },
+  "invalidCategoryArcaneObservation": {
+    "optimizerDisplayedBestDps": 100990,
+    "sliderState": {
+      "primaryBulwark": 500,
+      "secondaryOutburst": 12
+    },
+    "disposition": "Exclude from matched comparison: Primary Bulwark and Secondary Outburst do not apply to Archguns."
+  }
+}
