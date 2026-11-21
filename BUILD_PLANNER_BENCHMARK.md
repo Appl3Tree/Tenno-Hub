@@ -24,7 +24,7 @@ Reproduce the Tenno-Hub side with:
 npx tsx scripts/auditMausolonAttackModeAlignment.ts
 ```
 
-The helper applies the captured mod ranks to `Mausolon (Atmosphere)` / `Auto`, then scores Realistic and Fully Stacked condition states at both armor values. The diagnostic values are:
+The helper applies the captured mod ranks to `Mausolon (Atmosphere)` / `Auto`, records `targetDistanceMeters: 1400`, then scores Realistic and Fully Stacked condition states at 3,000, 500, and zero Armor. The diagnostic values from the original 3,000/zero-Armor matrix are:
 
 | Target / Tenno-Hub state and attack mix | Tenno-Hub fixed-window DPS | Underframe native calculator DPS | Tenno-Hub delta |
 | --- | ---: | ---: | ---: |
@@ -36,6 +36,24 @@ The helper applies the captured mod ranks to `Mausolon (Atmosphere)` / `Auto`, t
 Tenno-Hub's Fully Stacked stats for the captured list are 17.49 fire rate, 48% critical chance, 5.29x critical multiplier, and 1.90 multishot; these match Underframe's visible Stats panel. This indicates the earlier 3.35–3.43x comparison mixed Tenno-Hub's Realistic state with Underframe's displayed full conditional stats, and compared linked Auto to Combined output. Aligning Tenno-Hub to the displayed stats and separating Auto from Combined substantially narrows the difference. Underframe's Luck Averaged calculator does not expose its effective conditional-state mixture, so these are attack-mode/displayed-stat aligned diagnostics rather than a fully state-matched comparison. The remaining 0.2–7.6% Auto and 2.1–4.2% Combined deltas are unexplained; Armor/status timing, seeded-run semantics, or effective conditional state may contribute. The direct-only Tenno-Hub row deliberately removes its linked component and is a diagnostic ablation, not product behavior. These figures do not demonstrate simulator or gameplay parity.
 
 The direct-only Auto per-attack split offers a narrower lead, but bucket names are not assumed equivalent across simulators. At 3,000 Armor, Tenno-Hub averages 1,318.1 direct damage +49.3 status damage per attack, versus Underframe's displayed 1,211 raw +64 DoT; the totals are 1,367.4 vs 1,275. At zero Armor, Tenno-Hub averages 4,819.9 direct +155.6 status vs Underframe's 4,762 raw +221 DoT; totals are 4,975.5 vs 4,983. The aggregate is nearly equal unarmored, while the reported direct/status split differs at both armor settings. This points the next audit toward status attribution and armor interaction, but does not identify a defect or prove that the tools' buckets mean the same thing.
+
+#### Controlled-distance intermediate-Armor read
+
+The integrated-browser control showed distance 1,400m within a 1,400–2,800m range before and after the Auto-only samples. With the same 2,000,000-Health Grineer target, no Shields/Overguard/headshots, zero category Arcane sliders, and the captured mod list, three Luck Averaged reads at 500 Armor repeated at 60,510 DPS / 3,300 raw +149 DoT per shot. Three reads at 3,000 Armor repeated at 22,361 DPS / 1,211 raw +64 DoT per shot. The raw observations are in `underframeControlledDistanceAutoHighHealthArmorMatrix` in `scripts/fixtures/underframeMausolonAutoBuild.json`.
+
+The reproducible helper now includes the 500-Armor point and records 1,400m as the target-distance input:
+
+```sh
+npx tsx scripts/auditMausolonAttackModeAlignment.ts
+```
+
+At 500 Armor, its Fully Stacked Auto direct-only diagnostic is 61,529.1 DPS / 3,495.97 total damage per attack versus Underframe's 60,510 DPS / 3,449 displayed raw-plus-DoT per shot (+1.7% DPS). This is a diagnostic comparison only: Underframe's effective Luck Averaged conditional-state mixture remains hidden, and the Tenno-Hub attack model does not apply general weapon falloff. The user-selected Mausolon Atmosphere page lists Auto as hit-scan with 300m range; the 1,400m value therefore cannot validate a physically reachable in-game shot. The Archwing profile's Auto falloff (1,400–2,800m) is a separate mode. The current Wiki also says Ballista Measure increases weapon falloff distance, while this capture has Ballista Measure R3; Tenno-Hub currently parses that mod's `+20% Range` as zero and has no general attack-falloff model. Treat these samples as a repeatable Underframe UI/calculator observation, not distance-mechanics parity or gameplay evidence. Sources: [Mausolon](https://wiki.warframe.com/w/Mausolon), [Damage Falloff](https://wiki.warframe.com/w/Damage_Falloff), and [Ballista Measure data](https://wiki.warframe.com/w/Module:Mods/data).
+
+Earlier 500-Armor Auto-only readings taken before distance 1,400m was verified returned the same displayed value but remain excluded from the fixture and comparison. After switching back to Combined mode, the Distance control displayed a 0–2,800m range again; the selected value after that transition was not captured. The distance-setting transition remains open under D3-OPT-UNDERFRAME-TARGET-DISTANCE-REPRO-001. Separately, implement source-backed attack falloff and compatible range effects under D3-MECH-WEAPON-FALLOFF-001 before using long-distance reads as weapon-performance validation.
+
+The follow-up harness/fixture update is locally validated: two audit runs are byte-identical, strict TypeScript and focused ESLint pass for the script, the fixture parses as JSON, and `git diff --check` passes. No application code changed.
+
+The attack-mode/state alignment helper and fixture are released in PR [#180](https://github.com/Appl3Tree/Tenno-Hub/pull/180), squash-merged as `d3c34e27767c84dff8af35d9cc9ca2727b0e1f02`; Pages run [#260](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44870380703) succeeded. Validation passed twice with deterministic output, strict TypeScript, focused ESLint, fixture JSON parsing, and `git diff --check`. No app source changed in that checkpoint.
 
 ### Corrected fixed-window scorer and reproducible comparison
 

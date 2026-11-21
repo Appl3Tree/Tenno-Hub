@@ -198,5 +198,40 @@
       "secondaryOutburst": 12
     },
     "disposition": "Exclude from matched comparison: Primary Bulwark and Secondary Outburst do not apply to Archguns."
+  },
+  "underframeControlledDistanceAutoHighHealthArmorMatrix": {
+    "target": {
+      "faction": "Grineer",
+      "health": 2000000,
+      "shields": 0,
+      "overguard": 0,
+      "distanceMeters": 1400,
+      "distanceControlRangeMeters": {
+        "min": 1400,
+        "max": 2800
+      }
+    },
+    "mode": "Auto",
+    "luckAveragedSliderState": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "targetSurvivedAllReads": true,
+    "readsPerArmor": 3,
+    "rows": [
+      {
+        "armor": 500,
+        "averageDamagePerShotRaw": 3300,
+        "averageDamagePerShotDot": 149,
+        "averageDps": 60510
+      },
+      {
+        "armor": 3000,
+        "averageDamagePerShotRaw": 1211,
+        "averageDamagePerShotDot": 64,
+        "averageDps": 22361
+      }
+    ],
+    "distanceControlStateNotes": "The 1400–2800m range and 1400m selected distance were visible before and after the Auto-only readings. After switching the tool back to Combined mode, the Distance control showed a 0–2800m range again; its selected value after that transition was not captured. Earlier 500-Armor reads made before verifying the 1400m selection remain excluded."
   }
 }
