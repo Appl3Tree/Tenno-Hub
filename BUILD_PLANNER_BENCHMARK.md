@@ -14,6 +14,29 @@ The original Auto Build capture had Primary Bulwark 500/500 and Secondary Outbur
 
 The captured list was then read in `[C] Auto (Combined)` (Auto + Auto Radial Attack at a 1:1 ratio). At 100,000 Health / 3,000 Armor, three Luck Averaged reads repeated 25,755 DPS / 3.89 s TTK, with 1,383 raw +72 DoT average damage per shot. At 2,000,000 Health / 3,000 Armor, three reads gave 28,724 DPS, 1,531 raw +107 DoT per shot, and no kill. At 2,000,000 Health / 0 Armor, one read gave 107,028 DPS, 5,773 raw +329 DoT per shot, and no kill. All three used zero category-Arcane sliders. These are calculator readouts for the captured list; none is an Auto Build winner for Combined mode.
 
+### Attack-mode and conditional-state alignment diagnostic (2026-11-21)
+
+The integrated browser was used to separate Underframe's `Auto` from `[C] Auto (Combined)` on the same captured list. With Grineer / 2,000,000 Health / 3,000 Armor / zero Shields and Overguard / headshots off / both category Arcane sliders at zero, three Luck Averaged Auto-only reads returned 22,361 DPS and 1,211 raw +64 DoT average damage per shot; the target survived. At zero Armor, one Auto-only read returned 87,418 DPS and 4,762 raw +221 DoT per shot; the target survived. These readings are distinct from the Combined reads above. They are calculator outputs for the captured build, not additional Auto Build winners.
+
+Reproduce the Tenno-Hub side with:
+
+```sh
+npx tsx scripts/auditMausolonAttackModeAlignment.ts
+```
+
+The helper applies the captured mod ranks to `Mausolon (Atmosphere)` / `Auto`, then scores Realistic and Fully Stacked condition states at both armor values. The diagnostic values are:
+
+| Target / Tenno-Hub state and attack mix | Tenno-Hub fixed-window DPS | Underframe native calculator DPS | Tenno-Hub delta |
+| --- | ---: | ---: | ---: |
+| 2,000,000 Health / 3,000 Armor; Fully Stacked; Auto direct-only | 24,065.9 | 22,361 | +7.6% |
+| 2,000,000 Health / 3,000 Armor; Fully Stacked; Auto + linked radial | 28,115.4 | 28,724 | −2.1% |
+| 2,000,000 Health / 0 Armor; Fully Stacked; Auto direct-only | 87,568.5 | 87,418 | +0.2% |
+| 2,000,000 Health / 0 Armor; Fully Stacked; Auto + linked radial | 102,549.4 | 107,028 | −4.2% |
+
+Tenno-Hub's Fully Stacked stats for the captured list are 17.49 fire rate, 48% critical chance, 5.29x critical multiplier, and 1.90 multishot; these match Underframe's visible Stats panel. This indicates the earlier 3.35–3.43x comparison mixed Tenno-Hub's Realistic state with Underframe's displayed full conditional stats, and compared linked Auto to Combined output. Aligning Tenno-Hub to the displayed stats and separating Auto from Combined substantially narrows the difference. Underframe's Luck Averaged calculator does not expose its effective conditional-state mixture, so these are attack-mode/displayed-stat aligned diagnostics rather than a fully state-matched comparison. The remaining 0.2–7.6% Auto and 2.1–4.2% Combined deltas are unexplained; Armor/status timing, seeded-run semantics, or effective conditional state may contribute. The direct-only Tenno-Hub row deliberately removes its linked component and is a diagnostic ablation, not product behavior. These figures do not demonstrate simulator or gameplay parity.
+
+The direct-only Auto per-attack split offers a narrower lead, but bucket names are not assumed equivalent across simulators. At 3,000 Armor, Tenno-Hub averages 1,318.1 direct damage +49.3 status damage per attack, versus Underframe's displayed 1,211 raw +64 DoT; the totals are 1,367.4 vs 1,275. At zero Armor, Tenno-Hub averages 4,819.9 direct +155.6 status vs Underframe's 4,762 raw +221 DoT; totals are 4,975.5 vs 4,983. The aggregate is nearly equal unarmored, while the reported direct/status split differs at both armor settings. This points the next audit toward status attribution and armor interaction, but does not identify a defect or prove that the tools' buckets mean the same thing.
+
 ### Corrected fixed-window scorer and reproducible comparison
 
 Reproduce the shared-model and exact one-mod audits with:
@@ -35,7 +58,7 @@ The deterministic `windowDps` score applies damage in `[0,5s)`, clips overkill, 
 | 100,000 Health / 3,000 Armor; captured Auto list | 42,807.6 damage / 5s = 8,561.5 DPS; 67 attacks; no kill | 25,755 DPS; 3.89 s TTK |
 | 2,000,000 Health / 3,000 Armor; optimized Auto list | 1,575,206.5 damage / 5s = 315,041.3 DPS; no kill | No matched Underframe optimization run |
 
-The high-health gap is about 3.35x at 3,000 Armor and 3.43x with armor removed, so early-kill normalization and armor alone do not explain it. Local Realistic `calculateBuild` stats show 13.33 fire rate / 43.5% critical chance / 4.96x critical multiplier / 1.90 multishot, versus the Underframe Stats panel's 17.49 / 48% / 5.29x / 1.90. The attack-speed difference is consistent with Underframe crediting some of Archgun Ace's headshot-kill bonus, although no headshots or kills were configured; that remains an inference from its private simulator. The per-shot damage gap also remains unexplained. Do not adjust the scorer just to force these readouts to agree.
+The initial high-health Realistic comparison remains 3.35x at 3,000 Armor and 3.43x without armor, but it is not a fully state-matched comparison and it combines different attack modes. The diagnostic above shows that Fully Stacked Tenno-Hub stats match Underframe's Stats panel, and aligning Auto-only/Combined attack mixes substantially narrows the difference. Underframe's effective condition mix during Luck Averaged runs remains unobserved. No cause has yet been isolated for the smaller residuals; do not adjust the scorer just to force the seeded native readouts to agree.
 
 The captured list is legal at 58/60 and three Forma under Tenno-Hub capacity rules. Its exact legal one-mod neighborhood contained 181 candidates; the best replacement (Archgun Ace → Primed Rubedo-Lined Barrel) scored 24,571.3 DPS versus the captured list's 8,561.5. The optimizer returned the same legal list in three runs at 59/60 and three Forma, 315,041.3 DPS, evaluating 229 refinement candidates per run. Its 135 legal one-mod neighbors had no improvement; the best was Parallax Scope → Magnetized Cycle at 308,465.7 DPS. These are bounded Tenno-Hub model results; the large captured-to-optimizer difference and cross-tool gap remain open accuracy/quality findings, not global optimality or gameplay validation.
 
