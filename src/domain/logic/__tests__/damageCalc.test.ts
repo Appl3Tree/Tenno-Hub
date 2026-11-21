@@ -713,7 +713,7 @@ describe("source-backed weapon attack falloff", () => {
         expect(maxRank.totalDamage).toBeCloseTo(fullDamage * 0.75, 6);
     });
 
-    it("uses the struck target as the linked radial center and reports the unmodeled 300m cap", () => {
+    it("keeps the 300m listing informational for each profile while preserving its falloff", () => {
         const archwing = archwingMausolon!;
         const auto = withSelectedAttack(archwing, archwing.attacks.findIndex((attack) => attack.name === "Auto"));
         const linked = calculateBuild(auto, [], "", {
@@ -733,8 +733,14 @@ describe("source-backed weapon attack falloff", () => {
             const inRange = calculateBuild(profile, [], "", {
                 conditionalState: { mode: "initial", attackFalloffDistanceMeters: 250 },
             }).modded;
+            const justBeyondListedRange = calculateBuild(profile, [], "", {
+                conditionalState: { mode: "initial", attackFalloffDistanceMeters: 301 },
+            }).modded;
             expect(inRange.attackDamageFalloff?.damageMultiplier).toBe(1);
             expect(inRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(false);
+            expect(justBeyondListedRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+            expect(justBeyondListedRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
+            expect(justBeyondListedRange.totalDamage).toBeCloseTo(inRange.totalDamage, 8);
         }
         const atmosphere = calculateBuild(atmosphereAuto, [], "", {
             conditionalState: { mode: "initial", attackFalloffDistanceMeters: 1400 },
