@@ -18,6 +18,18 @@ Reproduce the joint full-pool audit with:
 npx tsx scripts/auditExpectedTtkFullPool.ts --weapon="Braton Prime" --attack="Normal Attack" --slots=2 --forma=0 --state=realistic --health=100000 --armor=3000 --warframe-armor=1500 --warframe-max-energy=1000 --warframe-energy-percent=100 --joint-arcane=true
 ```
 
+## D3-OPT-JOINT-ARCANE-FULLPOOL-3SLOT-001 — three-slot full-catalog joint Arcane neighborhood (2026-11-21; audit complete)
+
+The released Braton Prime / Normal Attack / Grineer / Realistic / 100,000 Health / 3,000 Armor / zero-Forma joint-Arcane audit was repeated with three slots, 1,500 Warframe Armor, and 1,000 maximum Energy at 100%. The optimizer selected Malignant Force R3 + Primed Cryo Rounds R10 + Wildfire R3 with Primary Bulwark R5 at 8.9770355s / 11,139.53 modeled DPS. The optimizer search took 5,888.4ms.
+
+The full pool contains 106 proposals, of which 62 are eligible after the existing PvE/source/effect gates; 14 compatible Arcanes expose 84 modeled ranks. The exact one-mod add/remove/replacement audit found 178 legal neighbors and scored 15,215 Arcane variants. None improved the optimizer build; the best neighbor is the baseline itself. This extends the two-slot full-pool result from 121 neighbors / 10,370 Arcane scores to three slots. The roughly 15-minute end-to-end audit is a single local desktop observation. These results establish no improving one-mod move for this one finite-model fixture, not joint two-plus-mod optimality, global search quality, Underframe objective/simulator parity, Forma optimization, or live-game accuracy.
+
+Reproduce with:
+
+```sh
+npx tsx scripts/auditExpectedTtkFullPool.ts --weapon="Braton Prime" --attack="Normal Attack" --slots=3 --forma=0 --state=realistic --health=100000 --armor=3000 --warframe-armor=1500 --warframe-max-energy=1000 --warframe-energy-percent=100 --joint-arcane=true
+```
+
 ## D3-OPT-JOINT-ARCANE-3SLOT-ORACLE-001 — seeded three-slot mod/Arcane oracle (2026-11-21; PR #201 merged)
 
 The new seed `20261122` broadens the joint mod/Arcane oracle from four sampled mods / two slots to five sampled mods / up to three slots in four fixtures: Braton Prime / Grineer / Realistic; Lex Prime / shielded Corpus / Initial; Cedo / armored Grineer / Realistic; and Broken War / Infested / Initial. Each fixture samples a supported attack and five max-rank damage mods from that weapon's full compatible catalog. Candidate eligibility and unsupported effects are filtered using the same source/effect gates as the existing eight-case oracle. The exhaustive scorer enumerates every legal subset up to three slots under the three native slot polarities and scores each with every modeled rank of each compatible Arcane, including the no-Arcane option. Warframe Armor is 1,500 in every case; current Energy varies from 50% to 100%, with target Health/Shields/Armor and faction/state varying by fixture.
