@@ -550,7 +550,7 @@ export function normalizeStrainInfectionCystCount(value: number | undefined): nu
         : 0;
 }
 
-/** Remove assumptions whose timing only supports the single-hit Burst objective. */
+/** Remove assumptions reserved for Burst scoring when evaluating other objectives. */
 export function withoutBurstOnlyConditionalAssumptions(
     state: ConditionalState | undefined,
 ): ConditionalState | undefined {
