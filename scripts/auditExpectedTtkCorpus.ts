@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
-import { getWeaponCatalog } from "../src/domain/catalog/weaponCatalog";
+import { getWeaponCatalog, getWeaponDisplayName } from "../src/domain/catalog/weaponCatalog";
 
 type Fixture = {
     category: string;
@@ -34,7 +34,7 @@ const SEEDED_STRATA: Array<{ category: string; candidates: Array<Omit<Fixture, "
         category: "Archgun",
         candidates: [
             { category: "Archgun", weapon: "Corvas Prime", attack: "Charged Shot" },
-            { category: "Archgun", weapon: "Mausolon", attack: "Charged Shot Explosion" },
+            { category: "Archgun", weapon: "Mausolon (Archwing)", attack: "Auto" },
         ],
     },
     {
@@ -84,7 +84,9 @@ const weaponNames = new Set<string>();
 for (const fixture of fixtures) {
     if (weaponNames.has(fixture.weapon)) throw new Error(`Duplicate corpus weapon: ${fixture.weapon}`);
     weaponNames.add(fixture.weapon);
-    const weapon = weaponCatalog.find((entry) => entry.name === fixture.weapon);
+    const weapon = weaponCatalog.find((entry) =>
+        entry.name === fixture.weapon || getWeaponDisplayName(entry) === fixture.weapon,
+    );
     if (!weapon) throw new Error(`Weapon not found in catalog: ${fixture.weapon}`);
     if (!weapon.attacks.some((attack) => attack.name === fixture.attack)) {
         throw new Error(`Attack not found in catalog: ${fixture.weapon} / ${fixture.attack}`);

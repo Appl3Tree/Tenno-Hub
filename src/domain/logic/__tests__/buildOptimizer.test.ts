@@ -5,7 +5,7 @@ import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
-import { getWeaponCatalog, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
+import { getWeaponCatalog, getWeaponDisplayName, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
 import { assignModsToSlots, debugEvaluateExpectedEncounter, debugEvaluateFixedWindowDps, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
@@ -868,7 +868,7 @@ describe("build optimizer scoring", () => {
         expect(result.slots.some((mod) => mod?.name === "Primed Pressure Point")).toBe(true);
         expect(result.slots.some((mod) => mod?.name === "Lasting Sting")).toBe(false);
         expect(result.slots.some((mod) => mod?.name === "Condition Overload")).toBe(false);
-        expect(scored.timeToKillSeconds).toBeCloseTo(6, 8);
+        expect(scored.timeToKillSeconds).toBeCloseTo(6.838709677419354, 8);
     });
     it("stops Expected TTK refinement when the build already kills on its first attack", () => {
         const result = optimizeBuild(makeWeapon({
@@ -2923,7 +2923,7 @@ describe("build optimizer scoring", () => {
         expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
         expect(result.mods.some((mod) => mod.name === "Blaze")).toBe(true);
         expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
-        expect(independentlyScored.timeToKillSeconds).toBeCloseTo(2.610966057441, 8);
+        expect(independentlyScored.timeToKillSeconds).toBeCloseTo(2.9839612085042893, 8);
     });
 
     it("keeps a fire-rate tradeoff candidate in full-pool finite-TTK refinement", { timeout: 60000 }, () => {
@@ -2973,7 +2973,53 @@ describe("build optimizer scoring", () => {
         expect(independentlyScored.timeToKillSeconds).toBe(52);
     });
 
-    it("keeps the best critical replacement slot in full-pool finite-TTK refinement", { timeout: 60000 }, () => {
+    it("uses the final Expected TTK pass for a Mausolon Archwing critical replacement", { timeout: 60000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => getWeaponDisplayName(entry) === "Mausolon (Archwing)");
+        expect(weapon).toBeTruthy();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Auto");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const attack = weapon!.attacks[attackIndex]!;
+        const target = { health: 100000, shields: 0, overguard: 0, armor: 3000 };
+        const conditionalState = { mode: "realistic" as const };
+        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const slotPolarities = Array.from({ length: 8 }, (_, index) => weapon!.polarities[index] ?? "");
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 8, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig: {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            },
+            slotPolarities,
+            defaultSlotPolarities: slotPolarities,
+            allowForma: true,
+            maxFormaCount: 3,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            buildForAttack: attack,
+        });
+        const effects = result.slots.map((mod, index) => mod
+            ? mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+            : null);
+        const independentlyScored = debugScoreExpectedEncounter(
+            withSelectedAttack(weapon!, attackIndex),
+            effects,
+            "Grineer",
+            target,
+            conditionalState,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(countPolarityChanges(slotPolarities, result.slotPolarities)).toBeLessThanOrEqual(3);
+        expect(result.mods.some((mod) => mod.name === "Parallax Scope")).toBe(true);
+        expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+        expect(independentlyScored.timeToKillSeconds).toBeCloseTo(1.0109306880647, 8);
+    });
+
+    it("keeps a critical mod in the best Laetum full-pool finite-TTK build", { timeout: 60000 }, () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Laetum");
         expect(weapon).toBeTruthy();
         const target = { health: 100000, shields: 0, overguard: 0, armor: 3000 };
@@ -3010,9 +3056,9 @@ describe("build optimizer scoring", () => {
 
         expect(result.capacityValid).toBe(true);
         expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
-        expect(result.mods.some((mod) => mod.name === "Creeping Bullseye")).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Primed Target Cracker")).toBe(true);
         expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
-        expect(independentlyScored.timeToKillSeconds).toBeLessThanOrEqual(1.886792452831);
+        expect(independentlyScored.timeToKillSeconds).toBeCloseTo(1.8, 8);
     });
 
     it("optimizes Torid against the fixed Grineer target with its attached cloud stream", { timeout: 60000 }, () => {

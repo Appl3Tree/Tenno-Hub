@@ -1,5 +1,5 @@
 import { filterBuilderExpertVariants, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEntry } from "../src/domain/catalog/modCatalog";
-import { getWeaponCatalog, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
+import { getWeaponCatalog, getWeaponDisplayName, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
 import { getArcanesForWeapon } from "../src/domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../src/domain/logic/arcaneEffects";
 import { countPolarityChanges, fitsWithinCapacity } from "../src/domain/logic/capacityCalc";
@@ -63,7 +63,9 @@ const target: TargetProfileOverride = {
 };
 const slotCount = Math.max(1, Math.min(8, Math.floor(numericOption("slots", 8))));
 const formaLimit = Math.max(0, Math.min(slotCount, Math.floor(numericOption("forma", 3))));
-const weapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
+const weapon = getWeaponCatalog().find((entry) =>
+    entry.name === weaponName || getWeaponDisplayName(entry) === weaponName,
+);
 if (!weapon) throw new Error(`Weapon not found: ${weaponName}`);
 
 const attackIndex = attackName ? weapon.attacks.findIndex((attack) => attack.name === attackName) : 0;
@@ -254,7 +256,7 @@ const baselineForma = countPolarityChanges(defaultPolarities, optimized.slotPola
 const bestForma = countPolarityChanges(defaultPolarities, best.polarities);
 
 console.log(JSON.stringify({
-    weapon: weapon.name,
+    weapon: getWeaponDisplayName(weapon),
     attack: attack?.name ?? "weapon default",
     faction,
     target,
