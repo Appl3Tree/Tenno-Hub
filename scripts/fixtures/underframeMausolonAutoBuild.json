@@ -99,6 +99,50 @@
     "targetDefeated": false,
     "timeToKillSeconds": null
   },
+  "underframeNativeAutoHighHealthReadout": {
+    "buildSource": "captured Auto Build mod list",
+    "target": {
+      "faction": "Grineer",
+      "health": 2000000,
+      "shields": 0,
+      "overguard": 0,
+      "armor": 3000
+    },
+    "mode": "Auto",
+    "composition": "Auto direct attack only; Auto Radial Attack excluded",
+    "luckAveragedReads": 3,
+    "luckAveragedSliderState": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "averageDamagePerShotRaw": 1211,
+    "averageDamagePerShotDot": 64,
+    "averageDps": 22361,
+    "targetDefeated": false,
+    "timeToKillSeconds": null
+  },
+  "underframeNativeAutoUnarmoredHighHealthReadout": {
+    "buildSource": "captured Auto Build mod list",
+    "target": {
+      "faction": "Grineer",
+      "health": 2000000,
+      "shields": 0,
+      "overguard": 0,
+      "armor": 0
+    },
+    "mode": "Auto",
+    "composition": "Auto direct attack only; Auto Radial Attack excluded",
+    "luckAveragedReads": 1,
+    "luckAveragedSliderState": {
+      "primaryBulwark": 0,
+      "secondaryOutburst": 0
+    },
+    "averageDamagePerShotRaw": 4762,
+    "averageDamagePerShotDot": 221,
+    "averageDps": 87418,
+    "targetDefeated": false,
+    "timeToKillSeconds": null
+  },
   "underframeNativeCombinedUnarmoredHighHealthReadout": {
     "target": {
       "faction": "Grineer",
