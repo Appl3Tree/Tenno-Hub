@@ -7141,3 +7141,39 @@ describe("Sacrificial set optimizer scoring", () => {
     });
 });
 
+describe("Strain Infection optimizer scope", () => {
+    it("uses cysts for Burst while excluding them from Scaling, finite TTK, and 5s Avg DPS", () => {
+        const weapon = makeWeapon({
+            category: "Melee",
+            weaponType: "Sword",
+            modCompat: "Melee",
+            critChance: 0.5,
+            critMultiplier: 2,
+            fireRate: 1,
+        });
+        const strainInfection = { ...emptyEffect(), strainInfectionCritDamagePerCyst: 0.2 };
+        const withoutCysts = { mode: "initial" as const, strainInfectionCystsAtImpact: 0 };
+        const eightCysts = { mode: "initial" as const, strainInfectionCystsAtImpact: 8 };
+        const target = { health: 100_000, shields: 0, overguard: 0, armor: 0 };
+
+        expect(debugScoreBuild(weapon, [strainInfection], "burst", "", null, undefined, eightCysts))
+            .toBeGreaterThan(debugScoreBuild(weapon, [strainInfection], "burst", "", null, undefined, withoutCysts));
+        expect(debugScoreBuild(weapon, [strainInfection], "scaling", "", null, undefined, eightCysts))
+            .toBeCloseTo(debugScoreBuild(weapon, [strainInfection], "scaling", "", null, undefined, withoutCysts), 10);
+        expect(debugScoreBuild(weapon, [strainInfection], "meleeDps", "", null, undefined, eightCysts))
+            .toBeCloseTo(debugScoreBuild(weapon, [strainInfection], "meleeDps", "", null, undefined, withoutCysts), 10);
+
+        const finiteWithCysts = debugEvaluateExpectedEncounter(weapon, [strainInfection], "", target, eightCysts);
+        const finiteWithoutCysts = debugEvaluateExpectedEncounter(weapon, [strainInfection], "", target, withoutCysts);
+        expect(finiteWithCysts.timeToKillSeconds).toBe(finiteWithoutCysts.timeToKillSeconds);
+        expect(finiteWithCysts.damagePerSecond).toBeCloseTo(finiteWithoutCysts.damagePerSecond, 10);
+
+        const windowWithCysts = debugEvaluateFixedWindowDps(weapon, [strainInfection], "", target, eightCysts);
+        const windowWithoutCysts = debugEvaluateFixedWindowDps(weapon, [strainInfection], "", target, withoutCysts);
+        expect(windowWithCysts.damageInWindow).toBeCloseTo(windowWithoutCysts.damageInWindow, 10);
+        expect(windowWithCysts.damagePerSecond).toBeCloseTo(windowWithoutCysts.damagePerSecond, 10);
+        expect(debugScoreBuild(weapon, [strainInfection], "windowDps", "", null, target, eightCysts))
+            .toBeCloseTo(debugScoreBuild(weapon, [strainInfection], "windowDps", "", null, target, withoutCysts), 10);
+    });
+});
+

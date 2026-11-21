@@ -20,6 +20,7 @@ import {
     calculateMeleeAverageDps,
     avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
+    withoutBurstOnlyConditionalAssumptions,
     type ConditionalState,
     type HitLocationDamageProfile,
     type MeleeAverageDpsParameters,
@@ -1162,6 +1163,9 @@ function scoreEffects(
     conditionalState?: ConditionalState,
     meleeStanceCombo?: MeleeAverageDpsParameters,
 ): number {
+    const scoringConditionalState = goal === "burst"
+        ? conditionalState
+        : withoutBurstOnlyConditionalAssumptions(conditionalState);
     if (goal === "windowDps") {
         // Keep the shortlist proxy aligned with the exact objective: one target,
         // no kill-reset cadence, and no neighboring-target collateral.
@@ -1172,7 +1176,7 @@ function scoreEffects(
             targetFaction,
             arcaneEffect,
             singleTargetProfileForFixedWindow(targetProfileOverride ?? undefined),
-            conditionalState,
+            scoringConditionalState,
             meleeStanceCombo,
             0,
         ).primaryScore;
@@ -1184,11 +1188,11 @@ function scoreEffects(
                 conditional.trigger === "onKill" && (conditional.stats.directDamagePerStatusBonus ?? 0) > 0,
             ) === true,
         );
-    const usesRealisticState = (conditionalState?.mode ?? DEFAULT_CONDITIONAL_STATE.mode) === "realistic";
+    const usesRealisticState = (scoringConditionalState?.mode ?? DEFAULT_CONDITIONAL_STATE.mode) === "realistic";
     if (!hasGalvanizedPerStatusKillEffect || !usesRealisticState || goal === "meleeDps") {
         return scoreEffectsCore(
             weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride,
-            conditionalState, meleeStanceCombo,
+            scoringConditionalState, meleeStanceCombo,
         ).score;
     }
 
@@ -1197,7 +1201,7 @@ function scoreEffects(
     // avoids a circular self-buff feedback loop in the optimizer hot path.
     const baseline = scoreEffectsCore(
         weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride,
-        conditionalState, meleeStanceCombo, 0,
+        scoringConditionalState, meleeStanceCombo, 0,
     );
     if (baseline.poolTotal <= 0 || baseline.killCadenceScore <= 0) return baseline.score;
     let expectedKillRatePerSecond = baseline.killCadenceScore / baseline.poolTotal;
@@ -1208,7 +1212,7 @@ function scoreEffects(
     for (let iteration = 0; iteration < 2; iteration++) {
         evaluation = scoreEffectsCore(
             weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride,
-            conditionalState, meleeStanceCombo, expectedKillRatePerSecond,
+            scoringConditionalState, meleeStanceCombo, expectedKillRatePerSecond,
         );
         if (evaluation.killCadenceScore <= 0) break;
         const nextKillRatePerSecond = evaluation.killCadenceScore / evaluation.poolTotal;
@@ -1946,7 +1950,8 @@ function beamThemeSignature(state: BeamState): string {
             (effect.critChanceBonus ?? 0) > 0 ||
             (effect.heavyAttackCritChanceBonus ?? 0) > 0 ||
             (effect.slideAttackCritChanceBonus ?? 0) > 0 ||
-            (effect.critMultBonus ?? 0) > 0
+            (effect.critMultBonus ?? 0) > 0 ||
+            (effect.strainInfectionCritDamagePerCyst ?? 0) > 0
         ) tags.add("crit");
     }
     return [...tags].sort().join("|");
@@ -2609,7 +2614,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
+    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "chargeRateBonus", "attackSpeedBonus")) families.push("fire-rate");
@@ -2641,13 +2646,14 @@ function expectedEncounterScoreForEffectsAtKillRate(
     const target = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
     if (target.poolTotal <= 0) return { score: 0, timeToKillSeconds: null, encounter: null };
 
+    const finiteConditionalState = withoutBurstOnlyConditionalAssumptions(conditionalState);
     const scoringEffects = fixedWindowSeconds === undefined
         ? effects
-        : getFixedWindowScoringEffects(effects, conditionalState);
+        : getFixedWindowScoringEffects(effects, finiteConditionalState);
     const encounterBuild = calculateBuildForExpectedEncounter(weapon, scoringEffects, targetFaction, {
         statusImmuneTypes: target.statusImmuneTypes,
         statusStackCaps: target.statusStackCaps,
-        conditionalState,
+        conditionalState: finiteConditionalState,
         targetStatusState: "initial",
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
@@ -4830,6 +4836,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     addPercent("finalCritChanceBonus", "percentage points of Critical Chance");
     addPercent("weakPointCritChanceBonus", "Critical Chance on weak-point hits");
     addPercent("critMultBonus", "Critical Damage");
+    addPercent("strainInfectionCritDamagePerCyst", "Critical Damage per active Strain Infection cyst (Burst only)");
     if (value("finalCritMultiplierBonus") !== 0) {
         parts.push(`${value("finalCritMultiplierBonus") < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(value("finalCritMultiplierBonus")))}× Critical Damage`);
     }
@@ -5030,7 +5037,11 @@ export function explainBuild(
         Array(slotCount).fill(undefined),
     );
     const targetAssumptions = getTargetProfileAssumptions(targetFaction, targetProfileOverride);
-    const statsConditionalState = goal === "meleeDps" ? { mode: "initial" as const } : conditionalState;
+    const statsConditionalState = goal === "meleeDps"
+        ? { mode: "initial" as const }
+        : goal === "burst"
+            ? conditionalState
+            : withoutBurstOnlyConditionalAssumptions(conditionalState);
     const statsOptions = {
         statusImmuneTypes: targetAssumptions.statusImmuneTypes,
         statusStackCaps: targetAssumptions.statusStackCaps,
@@ -5056,6 +5067,9 @@ export function explainBuild(
     if (changed(baselineStats.critChance, selectedStats.critChance) ||
         changed(baselineStats.critMultiplier, selectedStats.critMultiplier)) {
         buildHighlights.push(`Critical stats for this attack: Critical Chance ${formatExplanationPercent(selectedStats.critChance)} (configured baseline ${formatExplanationPercent(baselineStats.critChance)}); Critical Damage ${formatExplanationNumber(selectedStats.critMultiplier)}× (configured baseline ${formatExplanationNumber(baselineStats.critMultiplier)}×).`);
+    }
+    if (selectedStats.strainInfectionCritDamageBonus > 0) {
+        buildHighlights.push(`Strain Infection Burst scoring assumes ${selectedStats.strainInfectionCystsAtImpact} active cysts at impact and adds ${formatExplanationPercent(selectedStats.strainInfectionCritDamageBonus)} Critical Damage. The selected count stays static within that calculation; cyst growth, erosion timing, and average uptime are not modeled. Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this assumption.`);
     }
     if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
         buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);

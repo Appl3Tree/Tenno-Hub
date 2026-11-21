@@ -252,6 +252,10 @@ export interface ModdedWeaponStats {
     quantizedBaseCritMultiplier: number;
     critChance: number;
     critMultiplier: number;
+    /** Relative Critical Damage bonus from selected Strain Infection rank × assumed impact cysts. */
+    strainInfectionCritDamageBonus: number;
+    /** Cyst count used by this one-hit stat view, normalized to 0–8. */
+    strainInfectionCystsAtImpact: number;
     /** Count of selected and external Vigilante pieces, capped at six. */
     vigilanteSetModCount: number;
     /** Count of selected and external Gladiator pieces, capped at six. */
@@ -520,6 +524,8 @@ export interface ConditionalState {
     externalGladiatorSetModCount?: number;
     /** Additional distinct Nira set mods equipped on the Warframe (0–2); exclude duplicates of selected identities. */
     externalNiraSetModCount?: number;
+    /** Assumed active Strain Infection cysts on this one impact (0–8); used for Burst scoring only. */
+    strainInfectionCystsAtImpact?: number;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -534,6 +540,22 @@ export interface ConditionalState {
     attackFalloffDistanceMeters?: number;
     /** Assume the player is sliding at impact; selected weapon perks may use this static contact-state condition. */
     playerSlidingAtImpact?: boolean;
+}
+
+export const MAX_STRAIN_INFECTION_CYSTS = 8;
+
+export function normalizeStrainInfectionCystCount(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(MAX_STRAIN_INFECTION_CYSTS, Math.floor(value ?? 0)))
+        : 0;
+}
+
+/** Remove assumptions whose timing only supports the single-hit Burst objective. */
+export function withoutBurstOnlyConditionalAssumptions(
+    state: ConditionalState | undefined,
+): ConditionalState | undefined {
+    if (!state || normalizeStrainInfectionCystCount(state.strainInfectionCystsAtImpact) === 0) return state;
+    return { ...state, strainInfectionCystsAtImpact: 0 };
 }
 
 export const DEFAULT_CONDITIONAL_STATE: Readonly<ConditionalState> = Object.freeze({ mode: "realistic" });
@@ -1186,6 +1208,9 @@ export function calculateBuild(
         ? options.statusImmuneTypes
         : new Set(options.statusImmuneTypes ?? []);
     const conditionalState = options.conditionalState ?? DEFAULT_CONDITIONAL_STATE;
+    const strainInfectionCystsAtImpact = normalizeStrainInfectionCystCount(
+        conditionalState.strainInfectionCystsAtImpact,
+    );
     const attackDamageFalloff = calculateAttackDamageFalloff(
         weapon,
         mods,
@@ -1229,6 +1254,7 @@ export function calculateBuild(
     let comboCritChanceBonus = 0;
     let finalCritChanceBonus = 0;
     let critMultBonus = 0;
+    let strainInfectionCritDamagePerCyst = 0;
     let finalCritMultiplierBonus = 0;
     let headshotMultiplierBonus = 0;
     let bodyshotDamageBonus = 0;
@@ -1337,6 +1363,7 @@ export function calculateBuild(
         comboCritChanceBonus += e.comboCritChanceBonus ?? 0;
         finalCritChanceBonus += e.finalCritChanceBonus ?? 0;
         critMultBonus += e.critMultBonus ?? 0;
+        strainInfectionCritDamagePerCyst += e.strainInfectionCritDamagePerCyst ?? 0;
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
         areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
@@ -1907,6 +1934,10 @@ export function calculateBuild(
         ? weapon.selectedAttackSlideCritMultiplierOverride ?? weapon.critMultiplier
         : weapon.critMultiplier;
     const quantizedBaseCritMultiplier = quantizeBaseCriticalDamageMultiplier(baseCritMultiplier);
+    const strainInfectionCritDamageBonus = weapon.category === "Melee" && !weapon.isExalted
+        ? strainInfectionCritDamagePerCyst * strainInfectionCystsAtImpact
+        : 0;
+    critMultBonus += strainInfectionCritDamageBonus;
     const critMultiplier = quantizedBaseCritMultiplier * (1 + critMultBonus) + finalCritMultiplierBonus;
     const averageCritTier = Math.max(0, critChance) + Math.min(1, Math.max(0, critChance)) * vigilanteCritTierEnhancementChance;
     const statusChanceFromCritChanceBonus = Number.isFinite(weapon.selectedAttackBaseStatusChancePerCriticalChance) &&
@@ -2700,6 +2731,8 @@ export function calculateBuild(
         quantizedBaseCritMultiplier,
         critChance,
         critMultiplier,
+        strainInfectionCritDamageBonus,
+        strainInfectionCystsAtImpact,
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
         sacrificialSetModCount,

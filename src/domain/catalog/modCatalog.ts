@@ -42,6 +42,8 @@ import {
 } from "./weaponCatalog";
 
 const ALL = ALL_RAW as Record<string, unknown>[];
+const STRAIN_INFECTION_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/MeleeStrainInfectionMod";
+const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
     [DISABLING_CONDITIONING_MOD_PATH]: "puncture",
@@ -170,6 +172,8 @@ export interface ModEffect {
     comboCritChanceBonus: number;
     finalCritChanceBonus: number;
     critMultBonus: number;
+    /** Burst-only relative Critical Damage per assumed active Strain cyst at impact. */
+    strainInfectionCritDamagePerCyst: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
     /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
@@ -1401,6 +1405,20 @@ function buildCaches(): ModCaches {
             unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
+        if (path === STRAIN_INFECTION_MOD_PATH) {
+            // Only the per-cyst rank value is modeled. The cyst count is a saved
+            // Burst-at-impact assumption; the set's growth and eruption timeline
+            // are not used to infer uptime for multi-second scores.
+            // https://wiki.warframe.com/w/Strain_Infection
+            STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.strainInfectionCritDamagePerCyst = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Melee Attacks gain \+\d+(?:\.\d+)?% Critical Damage per Cyst\.?$/i.test(line),
+                );
+            });
+        }
         if (path === ARCHGUN_ACE_PATH) {
             // The Wiki's grouped description puts the shared headshot-kill
             // duration on the final Reload Speed line. WFCD splits Fire Rate
