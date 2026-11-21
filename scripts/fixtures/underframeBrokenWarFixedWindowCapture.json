@@ -1,0 +1,14 @@
+{
+  "weaponName": "Broken War",
+  "attackName": "Normal Attack",
+  "underframeMods": [
+    { "name": "Primed Fever Strike", "rank": 10 },
+    { "name": "Primed Pressure Point", "rank": 10 },
+    { "name": "Voltaic Strike", "rank": 3 },
+    { "name": "Galvanized Steel", "rank": 10 },
+    { "name": "Condition Overload", "rank": 5 },
+    { "name": "Berserker Fury", "rank": 5 },
+    { "name": "Primed Smite Grineer", "rank": 10 },
+    { "name": "Volcanic Edge", "rank": 3 }
+  ]
+}

@@ -2682,3 +2682,23 @@ The legal optimizer result is Infected Clip R5 + Stormbringer R5 + Heavy Caliber
 A two-slot repeat with the same target and context also found no improvement across 122 legal neighbors / 10,455 exact Arcane scores; its baseline was Infected Clip R5 + Stormbringer R5 with Primary Overcharge R5 at 3,771.2503 DPS. The no-Arcane mode remains the default and passed a separate Braton smoke run (122 neighbors, no baseline improvement).
 
 Validation for this audit-only change: `npx tsc -p tsconfig.node.json --noEmit`, focused ESLint on `scripts/auditFixedWindowDpsFullPool.ts`, the default-mode smoke run, both joint-Arcane full-pool runs, and `git diff --check` pass. PR [#207](https://github.com/Appl3Tree/Tenno-Hub/pull/207) was squash-merged as `7dd315fd776463dfd410ad48461393d04364f67b`; GitHub reported no PR-triggered workflows. No application source or UI changed, so no browser capture or production deployment applies. This is one-target, one-faction, one-state, three-slot, zero-Forma, max-rank, single-mod neighborhood evidence. It does not cover ranks, Forma search, multi-mod moves, all catalog configurations, native Underframe parity, or live-game behavior.
+
+## D3-OPT-UNDERFRAME-CAPTURED-WINDOW-NEIGHBORS-001 — exact neighborhoods around captured lists (2026-11-21; bounded)
+
+Reproduce a captured-list audit with Node 22's built-in TypeScript stripping and the checked-in extension loader. For example:
+
+```sh
+node --no-warnings --experimental-strip-types --experimental-loader ./scripts/resolveTsExtensionLoader.mjs scripts/auditFixedWindowDpsFullPool.ts --weapon="Cedo" --attack="Normal Attack" --faction=Grineer --state=realistic --health=2000000 --shields=0 --overguard=0 --armor=3000 --slots=8 --forma=3 --runs=3 --baseline-file=./scripts/fixtures/underframeCedoFixedWindowCapture.json
+```
+
+Use the corresponding fixtures `underframeLexPrimeFixedWindowCapture.json` and `underframeBrokenWarFixedWindowCapture.json` for the other rows. The audit uses the deterministic applied-single-target `windowDps` model over `[0,5s)`, Grineer / 2,000,000 Health / 3,000 Armor / zero Shields and Overguard, Realistic conditionals, eight normal slots, Catalyst, max-rank incoming mods, up to three Forma, and no Exilus or Arcane. Each captured list is checked for modeled capacity legality; the optimizer is run three times and the exact legal max-rank one-mod add/remove/replacement neighborhood around the captured list is independently scored. All three targets survive the window. Totals cover 918 legal neighbors.
+
+| Captured build | Captured list score and modeled capacity | Best legal one-mod neighbor | Tenno-Hub optimizer | Exact neighbors |
+| --- | --- | --- | --- | ---: |
+| Cedo / Normal Attack | 10,592.48 DPS; 60/60, 3 Forma | 18,013.49 DPS (Galvanized Savvy → Primed Ammo Stock; +70.1%) | 29,769.16 DPS; 58/60, 3 Forma; 349 candidates/run | 310 |
+| Lex Prime / Normal Attack | 6,623.68 DPS; 59/60, 3 Forma | 22,662.18 DPS (Anemic Agility → Semi-Pistol Cannonade; +242.1%) | 38,011.00 DPS; 60/60, 3 Forma; 373 candidates/run | 301 |
+| Broken War / Normal Attack | 1,669.32 DPS; 59/60, 3 Forma | 2,961.47 DPS (Berserker Fury → Organ Shatter; +77.4%) | 5,071.25 DPS; 60/60, 2 Forma; 193 candidates/run | 307 |
+
+Every captured baseline was legal under Tenno-Hub's modeled capacity assignment, and each of the three repeated optimizer runs returned the same build and score. The result shows that the captured lists have improving one-mod neighbors under Tenno-Hub's model; it does not establish Underframe's own ranking quality. Underframe's native simulator remains private, its auto-build target settings are a distinct observation, and Broken War uses a generic Normal Attack without the captured Lone Vengeance stance sequence or evolving combo history. These are common-model list comparisons, not engine parity or gameplay validation.
+
+The first Broken War run stopped before scoring because the audit harness resolved the first matching name, which was the Beginner Berserker Fury R3 record, instead of the standard Berserker Fury R5 in the captured build. The baseline resolver now prefers a non-flawed variant; the corrected script completed the exact neighborhood and identified Berserker Fury → Organ Shatter. No weapon/mod catalog entry or app scoring code changed. The three captures were run with Node 22.16.0's experimental TypeScript stripping and `scripts/resolveTsExtensionLoader.mjs` because this worktree had no `node_modules`; the repeated optimizer timings are one Windows desktop sample, not Worker/mobile or tail-latency measurements.

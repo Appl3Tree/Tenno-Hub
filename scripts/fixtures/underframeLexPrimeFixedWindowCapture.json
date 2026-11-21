@@ -1,0 +1,14 @@
+{
+  "weaponName": "Lex Prime",
+  "attackName": "Normal Attack",
+  "underframeMods": [
+    { "name": "Ice Storm", "rank": 3 },
+    { "name": "Pistol Pestilence", "rank": 3 },
+    { "name": "Primed Heated Charge", "rank": 10 },
+    { "name": "Galvanized Shot", "rank": 10 },
+    { "name": "Galvanized Diffusion", "rank": 10 },
+    { "name": "Anemic Agility", "rank": 5 },
+    { "name": "Lethal Torrent", "rank": 5 },
+    { "name": "Frostbite", "rank": 3 }
+  ]
+}
