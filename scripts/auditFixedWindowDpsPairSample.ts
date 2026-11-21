@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
 import { filterBuilderExpertVariants, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEntry } from "../src/domain/catalog/modCatalog";
@@ -10,7 +11,7 @@ import {
     FIXED_WINDOW_DPS_SECONDS,
 } from "../src/domain/logic/buildOptimizerCore";
 import { optimizeBuild } from "../src/domain/logic/buildOptimizer";
-import { countPolarityChanges, effectiveDrain, fitsWithinCapacity } from "../src/domain/logic/capacityCalc";
+import { countPolarityChanges, effectiveDrain, fitsWithinCapacity, totalModCapacity } from "../src/domain/logic/capacityCalc";
 import type { ConditionalState } from "../src/domain/logic/damageCalc";
 
 type Fixture = {
@@ -183,6 +184,20 @@ function runCorpus(): void {
 function runFixture(): void {
     const weaponName = option("weapon", "");
     const attackName = option("attack", "");
+    const baselineFile = process.argv.find((argument) => argument.startsWith("--baseline-file="))
+        ?.slice("--baseline-file=".length);
+    const capturedBaseline = baselineFile
+        ? JSON.parse(readFileSync(resolve(baselineFile), "utf8")) as {
+            weaponName?: string;
+            attackName?: string;
+            underframeMods?: Array<{ name: string; rank: number }>;
+            mods?: Array<{ name: string; rank: number }>;
+        }
+        : null;
+    const capturedRequests = capturedBaseline?.underframeMods ?? capturedBaseline?.mods ?? null;
+    if (capturedBaseline && !Array.isArray(capturedRequests)) {
+        throw new Error("--baseline-file must contain an object with an underframeMods or mods array");
+    }
     const seed = integerOption("seed", 0, 0xffffffff);
     const sampleCount = integerOption("samples", 1024, 100000);
     if (sampleCount < 1) throw new Error("--samples must be at least 1");
@@ -209,10 +224,16 @@ function runFixture(): void {
         entry.name === weaponName || getWeaponDisplayName(entry) === weaponName,
     );
     if (!weapon) throw new Error(`Weapon not found: ${weaponName}`);
+    if (capturedBaseline?.weaponName && capturedBaseline.weaponName.toLowerCase() !== getWeaponDisplayName(weapon).toLowerCase()) {
+        throw new Error(`Captured baseline weapon ${capturedBaseline.weaponName} does not match ${getWeaponDisplayName(weapon)}`);
+    }
     const attackIndex = weapon.attacks.findIndex((entry) => entry.name === attackName);
     if (attackIndex < 0) throw new Error(`Attack not found: ${weaponName} / ${attackName}`);
     const attack = weapon.attacks[attackIndex];
     if (!attack) throw new Error(`Attack not found: ${weaponName} / ${attackName}`);
+    if (capturedBaseline?.attackName && capturedBaseline.attackName.toLowerCase() !== attack.name.toLowerCase()) {
+        throw new Error(`Captured baseline attack ${capturedBaseline.attackName} does not match ${attack.name}`);
+    }
     const scoringWeapon = withSelectedAttack(weapon, attackIndex);
     const conditionalState: ConditionalState = {
         mode: "realistic",
@@ -241,6 +262,7 @@ function runFixture(): void {
         masteryRank: 30,
         canOverLevel: weapon.canOverLevel,
     };
+    const capacityLimit = totalModCapacity(capacityConfig);
     const optimizerOptions = {
         targetFaction: faction,
         targetProfileOverride: target,
@@ -278,10 +300,53 @@ function runFixture(): void {
             timeToKillSeconds: evaluation.timeToKillSeconds,
         };
     };
-    const baseline = scoreBuild(optimized.slots, optimized.slotRanks);
-    const baselineEntries = optimized.slots.flatMap((mod, index) => mod
+    const optimizerEntries = optimized.slots.flatMap((mod, index) => mod
         ? [{ mod, rank: optimized.slotRanks[index] ?? mod.fusionLimit }]
         : []);
+    const baselineEntries = capturedRequests
+        ? capturedRequests.map(({ name, rank }) => {
+            const variants = candidates.filter((entry) => entry.name.toLowerCase() === name.toLowerCase());
+            const mod = variants.find((entry) => !isFlawedVariant(entry.path)) ?? variants[0];
+            if (!mod) throw new Error(`Captured baseline mod missing from compatible candidate pool: ${name}`);
+            if (!Number.isInteger(rank) || rank < 0 || rank > mod.fusionLimit) {
+                throw new Error(`Captured baseline rank is invalid for ${name}: ${rank}/${mod.fusionLimit}`);
+            }
+            return { mod, rank };
+        })
+        : optimizerEntries;
+    if (baselineEntries.length > slotCount) throw new Error("Captured baseline has more mods than available slots");
+    const baselineUnique = new Set(baselineEntries.map(({ mod }) => (mod.uniqueName ?? mod.name).toLowerCase())).size === baselineEntries.length;
+    const baselineGroups = baselineEntries.map(({ mod }) => mod.incompatibilityGroup).filter((group): group is string => !!group);
+    const baselineCompatible = new Set(baselineGroups).size === baselineGroups.length;
+    const baselineAssignment = capturedRequests
+        ? assignModsToSlots(
+            baselineEntries.map(({ mod }) => mod),
+            baselineEntries.map(({ rank }) => rank),
+            defaultPolarities,
+            slotCount,
+            true,
+            formaLimit,
+        )
+        : {
+            slotMods: optimized.slots,
+            slotRanks: optimized.slotRanks,
+            resultPolarities: optimized.slotPolarities,
+        };
+    const baselineFormaUsed = countPolarityChanges(defaultPolarities, baselineAssignment.resultPolarities);
+    const baselineCapacityUsed = baselineAssignment.slotMods.reduce((total, mod, index) => mod
+        ? total + effectiveDrain(mod, baselineAssignment.resultPolarities[index] ?? "", baselineAssignment.slotRanks[index] ?? mod.fusionLimit)
+        : total, 0);
+    const baselineLegal = baselineAssignment.slotMods.filter(Boolean).length === baselineEntries.length &&
+        baselineUnique && baselineCompatible && baselineFormaUsed <= formaLimit &&
+        fitsWithinCapacity(capacityConfig, baselineAssignment.resultPolarities, baselineAssignment.slotMods, baselineAssignment.slotRanks);
+    if (!baselineLegal) throw new Error("Comparison baseline is not legal under the configured slots and Forma limit");
+    const optimizerScore = scoreBuild(optimized.slots, optimized.slotRanks);
+    const baseline = capturedRequests
+        ? scoreBuild(baselineAssignment.slotMods, baselineAssignment.slotRanks)
+        : optimizerScore;
+    if (!capturedRequests && Math.abs(optimizerScore.damagePerSecond - optimized.windowDpsScore!) > 1e-6) {
+        throw new Error("Independent fixed-window scorer did not reproduce the optimizer's reported score");
+    }
     const baselineNames = new Set(baselineEntries.map(({ mod }) => mod.uniqueName));
     const outgoingPairs: Array<[number, number]> = [];
     for (let left = 0; left < baselineEntries.length; left++) {
@@ -365,12 +430,19 @@ function runFixture(): void {
             used: optimized.slots.reduce((total, mod, index) => mod
                 ? total + effectiveDrain(mod, optimized.slotPolarities[index] ?? "", optimized.slotRanks[index] ?? mod.fusionLimit)
                 : total, 0),
-            limit: 60,
+            limit: capacityLimit,
             formaUsed: countPolarityChanges(defaultPolarities, optimized.slotPolarities),
             legal: optimized.capacityValid,
         },
-        optimizerDps: baseline.damagePerSecond,
-        optimizerDamageInWindow: baseline.damageInWindow,
+        optimizerDps: optimizerScore.damagePerSecond,
+        optimizerDamageInWindow: optimizerScore.damageInWindow,
+        comparisonBaseline: {
+            source: baselineFile ?? "tennoHubOptimizer",
+            mods: formatBuild(baselineAssignment.slotMods, baselineAssignment.slotRanks),
+            damagePerSecond: baseline.damagePerSecond,
+            damageInWindow: baseline.damageInWindow,
+            capacity: { used: baselineCapacityUsed, limit: capacityLimit, legal: baselineLegal, formaUsed: baselineFormaUsed },
+        },
         optimizerCandidatesEvaluated: optimized.encounterCandidatesEvaluated ?? null,
         optimizerElapsedMs,
         rawProposalUniverse,
@@ -395,5 +467,5 @@ function runFixture(): void {
     }, null, 2));
 }
 
-if (process.argv.includes("--worker")) runFixture();
+if (process.argv.includes("--worker") || process.argv.some((argument) => argument.startsWith("--baseline-file="))) runFixture();
 else runCorpus();

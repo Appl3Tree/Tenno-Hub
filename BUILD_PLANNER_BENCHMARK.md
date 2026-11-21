@@ -2702,3 +2702,58 @@ Use the corresponding fixtures `underframeLexPrimeFixedWindowCapture.json` and `
 Every captured baseline was legal under Tenno-Hub's modeled capacity assignment, and each of the three repeated optimizer runs returned the same build and score. The result shows that the captured lists have improving one-mod neighbors under Tenno-Hub's model; it does not establish Underframe's own ranking quality. Underframe's native simulator remains private, its auto-build target settings are a distinct observation, and Broken War uses a generic Normal Attack without the captured Lone Vengeance stance sequence or evolving combo history. These are common-model list comparisons, not engine parity or gameplay validation.
 
 The first Broken War run stopped before scoring because the audit harness resolved the first matching name, which was the Beginner Berserker Fury R3 record, instead of the standard Berserker Fury R5 in the captured build. The baseline resolver now prefers a non-flawed variant; the corrected script completed the exact neighborhood and identified Berserker Fury → Organ Shatter. No weapon/mod catalog entry or app scoring code changed. The three captures were run with Node 22.16.0's experimental TypeScript stripping and `scripts/resolveTsExtensionLoader.mjs` because this worktree had no `node_modules`; the repeated optimizer timings are one Windows desktop sample, not Worker/mobile or tail-latency measurements.
+
+## D3-OPT-UNDERFRAME-CAPTURED-CROSSFACTION-001 — captured lists across shielded Corpus and unarmored Infested (2026-11-21; bounded)
+
+The three captured lists from the preceding section were rescored without changes against two more synthetic target profiles using the same `auditFixedWindowDpsFullPool.ts --baseline-file=...` runner. Both use Realistic conditionals, Normal Attack, `[0,5s)`, eight slots, Catalyst, up to three Forma, no Arcane, and no attack-distance override: shielded Corpus has 10,000,000 Health + 10,000,000 Shields / zero Overguard / zero Armor; unarmored Infested has 10,000,000 Health / zero Shields, Overguard, and Armor. For example, add `--faction=Corpus --health=10000000 --shields=10000000 --overguard=0 --armor=0 --runs=3` to the Cedo reproduction command above; use `--faction=Infested --health=10000000 --shields=0 --overguard=0 --armor=0 --runs=3` and the matching Lex Prime or Broken War capture path for the other rows. The 10m pools remain far above all damage scored in five seconds, so no row reaches a kill cap.
+
+| Faction / captured build | Captured-list DPS | Best legal one-mod neighbor | Tenno-Hub optimizer DPS | Neighbors |
+| --- | ---: | --- | ---: | ---: |
+| Corpus / Cedo | 48,513.62 | 92,347.72 (Toxic Barrage → Chilling Reload) | 195,350.14 | 310 |
+| Corpus / Lex Prime | 8,348.17 | 29,068.97 (Anemic Agility → Semi-Pistol Cannonade) | 158,891.32 | 301 |
+| Corpus / Broken War | 4,626.78 | 8,208.07 (Berserker Fury → Organ Shatter) | 25,330.13 | 316 |
+| Infested / Cedo | 48,513.62 | 90,539.10 (Primed Charged Shell → Primed Chilling Grasp) | 237,551.09 | 310 |
+| Infested / Lex Prime | 32,932.22 | 99,046.91 (Anemic Agility → Semi-Pistol Cannonade) | 192,144.25 | 301 |
+| Infested / Broken War | 5,513.28 | 9,780.71 (Berserker Fury → Organ Shatter) | 37,234.42 | 316 |
+
+Each captured list remains capacity-legal under the configured assignment. The optimizer returned an identical build and score on all three repetitions per case. All six captured-list one-mod neighborhoods improve, for 1,854 exact legal neighbors across the two factions; with the preceding Grineer cases, these comparisons score 2,772 neighbors total. This tests faction and shield sensitivity of fixed captured lists against Tenno-Hub's scorer. The profiles are synthetic, not named-enemy settings; results do not establish Underframe objective parity or live-game accuracy. Broken War's captured stance sequence and evolving combo remain outside the Normal Attack model. The user's Underframe saved builds were not edited.
+
+## D3-OPT-UNDERFRAME-CAPTURED-PAIR-SAMPLE-001 — seeded two-mod samples around captured lists (2026-11-21; bounded)
+
+`auditFixedWindowDpsPairSample.ts` now accepts `--baseline-file=...` for a direct single-weapon run. It validates the capture's weapon/attack, resolves same-name mod variants to the standard entry, preserves retained capture ranks, assigns incoming mods at maximum rank, and rejects duplicate, incompatible, or over-capacity builds. The output separates the sampled comparison baseline from the full-pool Tenno-Hub optimizer result. Reproduce the first row with:
+
+```sh
+node --no-warnings --experimental-strip-types --experimental-loader ./scripts/resolveTsExtensionLoader.mjs scripts/auditFixedWindowDpsPairSample.ts --weapon="Cedo" --attack="Normal Attack" --faction=Grineer --health=2000000 --shields=0 --overguard=0 --armor=3000 --samples=1024 --seed=20261158 --baseline-file=./scripts/fixtures/underframeCedoFixedWindowCapture.json
+```
+
+The three Cedo / Lex Prime / Broken War captures were each sampled at 1,024 unique legal two-out/two-in replacements in each of the same three fixed-window profiles: Grineer / 2m Health / 3k Armor, shielded Corpus / 10m Health + 10m Shields / zero Armor, and unarmored Infested / 10m Health / no Shields or Armor. All use Realistic state, Normal Attack, eight slots, Catalyst, up to three Forma, and no Arcane. The sampled pool preserves the other six captured mods and their ranks. The full-pool optimizer is independently scored under the same profile. All nine captured lists are legal; 9,216 unique legal pair candidates were scored, and 1,493 beat their captured baseline. Raw tuple draws are only 3.824%–4.792% of each unfiltered outgoing-pair × incoming-pair universe, so these results remain sampled rather than exhaustive.
+
+| Profile / capture | Captured DPS | Best sampled pair and score | Optimizer DPS | Improvements / 1,024 | Seed / raw tuples drawn |
+| --- | ---: | --- | ---: | ---: | --- |
+| Grineer / Cedo | 10,592.48 | Accelerated Blast + Galvanized Savvy → Scattering Inferno + Shotgun Elementalist; 20,510.46 | 29,769.16 | 158 | 20261158 / 1,832 |
+| Grineer / Lex Prime | 6,623.68 | Galvanized Shot + Anemic Agility → Magnetic Might + Semi-Pistol Cannonade; 24,520.72 | 38,011.00 | 56 | 20261159 / 2,051 |
+| Grineer / Broken War | 1,669.32 | Berserker Fury + Volcanic Edge → Magnetic Rush + Organ Shatter; 2,834.41 | 5,071.25 | 62 | 20261160 / 1,795 |
+| Corpus / Cedo | 48,513.62 | Toxic Barrage + Galvanized Savvy → Atomic Fallout + Chilling Grasp; 123,913.06 | 195,350.14 | 238 | 20261161 / 1,920 |
+| Corpus / Lex Prime | 8,348.17 | Pistol Pestilence + Galvanized Shot → Magnetic Might + Semi-Pistol Cannonade; 46,389.46 | 158,891.32 | 279 | 20261162 / 2,142 |
+| Corpus / Broken War | 4,626.78 | Berserker Fury + Primed Smite Grineer → North Wind + Organ Shatter; 9,518.11 | 25,330.13 | 200 | 20261163 / 1,649 |
+| Infested / Cedo | 48,513.62 | Primed Charged Shell + Galvanized Savvy → Ammo Stock + Frigid Blast; 116,827.40 | 237,551.09 | 236 | 20261164 / 1,816 |
+| Infested / Lex Prime | 32,932.22 | Galvanized Shot + Lethal Torrent → Hornet Strike + Semi-Pistol Cannonade; 88,391.57 | 192,144.25 | 86 | 20261165 / 2,112 |
+| Infested / Broken War | 5,513.28 | Berserker Fury + Primed Smite Grineer → Amalgam Organ Shatter + Buzz Kill; 12,358.29 | 37,234.42 | 178 | 20261166 / 1,673 |
+
+Each score is deterministic for the recorded seed and profile; the table's `improvements` count is measured against the captured list, not against the optimizer. The best sampled candidate in every row remains below the full-pool optimizer. These results show that multi-mod alternatives can materially improve the captured lists under Tenno-Hub's model, but do not establish Underframe's native ranking, practical gameplay performance, exhaustive pair quality, or global optimizer quality. Broken War uses a generic Normal Attack rather than the captured Lone Vengeance stance and combo sequence. The profiles remain synthetic, and the user's saved Underframe builds were not changed.
+
+### Mausolon Atmosphere Auto captured-list pair neighborhood
+
+The existing [Mausolon capture](scripts/fixtures/underframeMausolonAutoBuild.json) is explicitly the Atmosphere profile / Auto attack, not Archwing. Its eight mods assign legally at 58/60 with three Forma. The same runner exhaustively visited its 12,180 raw outgoing-pair × incoming-pair tuples and exact-scored all 5,223 unique legal two-mod replacements with seed `20261169` (`--samples=100000` ends only after exhausting the raw universe):
+
+| Captured DPS | Best legal two-mod neighbor | Current Tenno-Hub optimizer DPS | Legal candidates scored | Pair improvements |
+| ---: | --- | ---: | ---: | ---: |
+| 8,546.40 | Archgun Ace + Ballista Measure → Polar Magazine + Venomous Clip; 71,977.61 DPS | 315,041.23 | 5,223 / 5,223 | 1,499 |
+
+A preceding 1,024-pair sample (seed `20261167`) peaked at 51,928.19 DPS; a 4,096-pair sample (seed `20261168`) peaked at 71,977.61 after examining 77.808% of raw tuples. The exhaustive run found the same maximum among all legal pair builds; tied top variants differ in which two captured mods they remove. The current full-pool optimizer is still well above this captured-list pair neighborhood. This is exact only for legal two-out/two-in max-rank incoming changes under this fixed candidate pool, not for three-or-more changes, rank/FORMA search, or the global space.
+
+The Mausolon row uses Grineer / 2,000,000 Health / 3,000 Armor / Realistic / `[0,5s)` / eight slots / Catalyst / three Forma / no Arcane. No distance override is supplied, so the fixed-window profile assumes full damage; the Wiki-listed 300m range is still not enforced as a no-hit cap for this profile. Auto's attached radial event scores against the directly struck target only; area coverage and other targets are excluded. The Archwing profile and its falloff curve remain separate and were not tested by this fixture. The capture's original invalid Archgun Arcane slider state is disclosed in the fixture; three later Auto-only zero-slider runs reproduced the same list. No Underframe saved data was modified.
+
+### Pair-sampler validation and capacity reporting
+
+The baseline-file path was exercised with a 32-pair Broken War capture smoke; the existing optimizer-start path was exercised with a 32-pair Braton Prime smoke and reproduced the optimizer score. The nine seeded captures and the exhaustive Mausolon run then completed successfully. Capacity output now uses `totalModCapacity` instead of the previous fixed 60 label; a 32-pair Kuva Ogris / Rocket Explosion smoke reports a legal 77/80 no-Forma build. These are script checks only: this worktree has no `node_modules` and no globally available `tsc` or ESLint, so no project typecheck, lint, or full test suite was run. Node 22.16.0's built-in TypeScript stripping loaded and executed each audit.
