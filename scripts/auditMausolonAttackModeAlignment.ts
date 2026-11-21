@@ -45,8 +45,9 @@ const faction = "Grineer";
 const health = 2_000_000;
 const shields = 0;
 const overguard = 0;
+const targetDistanceMeters = 1_400;
 const states: Array<ConditionalState["mode"]> = ["realistic", "fullyStacked"];
-const armorValues = [3_000, 0];
+const armorValues = [3_000, 500, 0];
 const modeledStats = states.map((mode) => {
     const stats = calculateBuild(linkedWeapon, effects, faction, { conditionalState: { mode } }).modded;
     return {
@@ -64,7 +65,7 @@ const attackCases = [
 
 const results = armorValues.flatMap((armor) => states.flatMap((mode) =>
     attackCases.map(({ name, weapon }) => {
-        const conditionalState: ConditionalState = { mode };
+        const conditionalState: ConditionalState = { mode, targetDistanceMeters };
         const result = debugEvaluateFixedWindowDps(
             weapon,
             effects,
@@ -103,6 +104,7 @@ console.log(JSON.stringify({
     weapon: getWeaponDisplayName(linkedWeapon),
     attack: attackName,
     target: { faction, health, shields, overguard, armorValues },
+    targetDistanceMeters,
     scoringWindowSeconds: 5,
     capturedMods: fixture.underframeMods,
     diagnosticNote: "Direct-only rows use a cloned attack profile with its linked component removed; this is diagnostic ablation, not planner behavior or an Underframe simulation.",
