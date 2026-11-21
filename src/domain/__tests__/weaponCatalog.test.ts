@@ -64,6 +64,13 @@ describe("weapon catalog stance inference", () => {
         expect(attack(archwing!, "Auto Radial Attack")?.damage.total).toBe(48);
         expect(attack(archwing!, "Charged Shot Laser")?.damage.total).toBe(1_000);
         expect(attack(archwing!, "Charged Shot Explosion")?.damage.total).toBe(3_000);
+        for (const weapon of [archwing!, atmosphere!]) {
+            for (const name of ["Charged Shot Laser", "Charged Shot Explosion"]) {
+                expect(attack(weapon, name)).toMatchObject({ trigger: "Charge", chargeTime: 0.8 });
+            }
+            expect(attack(weapon, "Auto")?.trigger).toBe("Auto");
+            expect(attack(weapon, "Auto")?.chargeTime ?? 0).toBe(0);
+        }
         expect(atmosphere!.damage).toMatchObject({ total: 180, impact: 35, puncture: 70, heat: 75 });
         expect(attack(atmosphere!, "Auto")?.damage.total).toBe(180);
         expect(attack(atmosphere!, "Auto Radial Attack")?.damage.total).toBe(72);
@@ -87,6 +94,10 @@ describe("weapon catalog stance inference", () => {
 
         const archwingMods = getModsForWeapon(archwing!);
         const atmosphereMods = getModsForWeapon(atmosphere!);
+        const shellRush = archwingMods.find((mod) => mod.name === "Shell Rush");
+        expect(shellRush?.effectsByRank.map((effect) => effect.chargeRateBonus)).toEqual([0.125, 0.25, 0.375, 0.5]);
+        expect(shellRush?.hasDamageEffect).toBe(true);
+        expect(shellRush?.unparsedStatsByRank?.every((lines) => lines.length === 0)).toBe(true);
         expect(archwingMods.some((mod) => mod.name === "Archgun Ace")).toBe(true);
         const archgunAce = archwingMods.find((mod) => mod.name === "Archgun Ace");
         expect(archgunAce?.effectsByRank.map((effect) => effect.conditionalEffects?.find((conditional) =>
@@ -95,6 +106,27 @@ describe("weapon catalog stance inference", () => {
         expect(new Set(atmosphereMods.map((mod) => mod.uniqueName))).toEqual(
             new Set(archwingMods.map((mod) => mod.uniqueName)),
         );
+    });
+
+    it("marks the Larkspur charged grenade components as one sourced charged mode", () => {
+        const larkspurs = getWeaponCatalog().filter((weapon) => weapon.name === "Larkspur" || weapon.name === "Larkspur Prime");
+        expect(larkspurs.map((weapon) => weapon.name).sort()).toEqual(["Larkspur", "Larkspur Prime"]);
+        for (const weapon of larkspurs) {
+            for (const name of ["Alt-Fire Projectile Impact", "Explosion"]) {
+                expect(weapon.attacks.find((attack) => attack.name === name)).toMatchObject({ trigger: "Charge", chargeTime: 0.5 });
+            }
+            const impact = weapon.attacks.find((attack) => attack.name === "Alt-Fire Projectile Impact")!;
+            const explosion = weapon.attacks.find((attack) => attack.name === "Explosion")!;
+            expect(impact.lingeringDamageRule).toMatchObject({
+                componentAttackName: "Explosion",
+                firstTickDelaySeconds: 0,
+                tickCount: 1,
+                attachedToDirectTarget: true,
+            });
+            expect(explosion.modelLimitation?.reason).toContain("Select Alt-Fire Projectile Impact");
+            const uncharged = weapon.attacks.find((attack) => attack.trigger !== "Charge");
+            expect(uncharged).toBeDefined();
+        }
     });
 
     it("infers Tonbo as a Polearms weapon with available stance mods", () => {

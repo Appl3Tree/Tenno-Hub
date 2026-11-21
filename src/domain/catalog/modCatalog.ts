@@ -180,6 +180,8 @@ export interface ModEffect {
     /** Unique damage bonus applied only to projectiles beyond the weapon's base multishot. */
     multishotDamageBonus: number;
     fireRateBonus: number;
+    /** Charge-time speed bonus that does not speed the post-charge firing interval. */
+    chargeRateBonus: number;
     /** Cannonade mods lock ranged Fire Rate to the weapon's unmodified value. */
     fireRateLocked: boolean;
     magazineBonus: number;
@@ -328,6 +330,7 @@ export interface ConditionalEffect {
         | "multishotBonus"
         | "multishotDamageBonus"
         | "fireRateBonus"
+        | "chargeRateBonus"
         | "attackSpeedBonus"
         | "magazineBonus"
         | "reloadSpeedBonus"
@@ -422,7 +425,7 @@ function normalizeStatDescriptor(rest: string): string {
 const CONDITIONAL_STAT_KEYS: (keyof ConditionalEffect["stats"])[] = [
     "damageBonus", "critChanceBonus", "heavyAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus",
     "finalCritMultiplierBonus", "statusChanceBonus", "finalStatusChanceBonus",
-    "multishotBonus", "multishotDamageBonus", "fireRateBonus", "attackSpeedBonus", "magazineBonus",
+    "multishotBonus", "multishotDamageBonus", "fireRateBonus", "chargeRateBonus", "attackSpeedBonus", "magazineBonus",
     "reloadSpeedBonus", "projectileSpeedBonus", "beamRangeBonus", "accuracyBonus",
     "statusDamageBonus", "punchThrough", "headshotMultiplierBonus", "bodyshotDamageBonus", "weakPointDamageBonus",
     "blastBonus", "heatBonus", "coldBonus", "electricityBonus", "toxinBonus",
@@ -723,6 +726,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "status chance") return { statusChanceBonus: scaled };
     if (rest === "multishot") return { multishotBonus: scaled };
     if (rest === "ammo efficiency") return { ammoEfficiencyBonus: scaled };
+    if (rest === "charge rate") return { chargeRateBonus: scaled };
     if (rest.startsWith("fire rate") || rest.startsWith("fire/charge rate")) return { fireRateBonus: scaled };
     if (rest === "attack speed") return { attackSpeedBonus: scaled };
     if (rest === "magazine capacity" || rest === "clip size") return { magazineBonus: scaled };

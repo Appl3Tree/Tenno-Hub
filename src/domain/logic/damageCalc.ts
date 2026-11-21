@@ -76,9 +76,9 @@ function isBowWeapon(weapon: WeaponEntry): boolean {
     return weapon.weaponType.trim().toLowerCase() === "bow";
 }
 
-function moddedChargeTimeSeconds(weapon: WeaponEntry, rateBonus: number): number {
+function moddedChargeTimeSeconds(weapon: WeaponEntry, rateBonus: number, chargeRateBonus = 0): number {
     if (weapon.trigger !== "Charge" || weapon.chargeTime === null || weapon.chargeTime <= 0) return 0;
-    return weapon.chargeTime / Math.max(0.1, 1 + rateBonus);
+    return weapon.chargeTime / Math.max(0.1, 1 + rateBonus + chargeRateBonus);
 }
 
 function effectiveFireRate(
@@ -87,6 +87,7 @@ function effectiveFireRate(
     ammoCostPerShot = weapon.ammoCostPerShot,
     reloadTime = weapon.reloadTime,
     includeBowReload = true,
+    chargeRateBonus = 0,
 ): number {
     const rateScale = 1 + rateBonus;
     const rawFireRate = Math.max(0.05, weapon.fireRate * rateScale);
@@ -113,12 +114,12 @@ function effectiveFireRate(
     if (isBowWeapon(weapon)) {
         // Bow fire rate is charge time plus the post-shot reload delay.
         // Modes that ignore reload use charge cadence alone.
-        const chargeTime = moddedChargeTimeSeconds(weapon, rateBonus);
+        const chargeTime = moddedChargeTimeSeconds(weapon, rateBonus, chargeRateBonus);
         const firingCycle = chargeTime + (includeBowReload ? Math.max(0, reloadTime) : 0);
         return firingCycle > 0 ? 1 / Math.max(0.05, firingCycle) : rawFireRate;
     }
     if (weapon.trigger === "Charge" && weapon.chargeTime !== null && weapon.chargeTime > 0) {
-        const moddedChargeTime = moddedChargeTimeSeconds(weapon, rateBonus);
+        const moddedChargeTime = moddedChargeTimeSeconds(weapon, rateBonus, chargeRateBonus);
         return 1 / (moddedChargeTime + 1 / Math.max(0.0001, rawFireRate));
     }
     // The Wiki caps manual Semi-Auto weapons at 10 trigger pulls per second.
@@ -139,9 +140,10 @@ function effectiveBurstFireRate(
     reloadTime: number,
     includeBowReload: boolean,
     effectiveRate: number,
+    chargeRateBonus = 0,
 ): number {
     if (!isBowWeapon(weapon)) return effectiveRate;
-    const chargeTime = moddedChargeTimeSeconds(weapon, rateBonus);
+    const chargeTime = moddedChargeTimeSeconds(weapon, rateBonus, chargeRateBonus);
     if (chargeTime > 0) return 1 / Math.max(0.05, chargeTime);
     return includeBowReload && reloadTime > 0
         ? 1 / Math.max(0.05, reloadTime)
@@ -1236,6 +1238,7 @@ export function calculateBuild(
     let multishotBonus = 0;
     let multishotDamageBonus = 0;
     let fireRateBonus = 0;
+    let chargeRateBonus = 0;
     let fireRateLocked = false;
     let magazineBonus = 0;
     let reloadSpeedBonus = 0;
@@ -1340,6 +1343,7 @@ export function calculateBuild(
         multishotBonus += e.multishotBonus ?? 0;
         multishotDamageBonus += e.multishotDamageBonus ?? 0;
         fireRateBonus += e.fireRateBonus ?? 0;
+        chargeRateBonus += e.chargeRateBonus ?? 0;
         fireRateLocked ||= e.fireRateLocked === true;
         if (!ignoresReloadAndMagazine) {
             magazineBonus += e.magazineBonus ?? 0;
@@ -1448,6 +1452,7 @@ export function calculateBuild(
         weapon.ammoCostPerShot,
         baselineReloadTime,
         includeBowReload,
+        chargeRateBonus,
     );
     const baselineMagazineSize = Math.max(1, Math.round(weapon.magazineSize * (1 + magazineBonus)));
     let qualifyingHitGroupProbability = 0;
@@ -1462,6 +1467,7 @@ export function calculateBuild(
         let eligibilityFinalStatusChanceBonus = 0;
         let eligibilityMultishotBonus = 0;
         let eligibilityFireRateBonus = 0;
+        let eligibilityChargeRateBonus = 0;
         let eligibilityAttackSpeedBonus = 0;
         let eligibilityReloadSpeedBonus = 0;
         let eligibilityDamageBonus = damageBonus;
@@ -1487,6 +1493,7 @@ export function calculateBuild(
             eligibilityFinalStatusChanceBonus += (conditional.stats.finalStatusChanceBonus ?? 0) * factor;
             eligibilityMultishotBonus += (conditional.stats.multishotBonus ?? 0) * factor;
             eligibilityFireRateBonus += (conditional.stats.fireRateBonus ?? 0) * factor;
+            eligibilityChargeRateBonus += (conditional.stats.chargeRateBonus ?? 0) * factor;
             eligibilityAttackSpeedBonus += (conditional.stats.attackSpeedBonus ?? 0) * factor;
             eligibilityReloadSpeedBonus += (conditional.stats.reloadSpeedBonus ?? 0) * factor;
             eligibilityConditionalDirectBreakdown.blast += (conditional.stats.blastBonus ?? 0) * factor;
@@ -1567,6 +1574,7 @@ export function calculateBuild(
             weapon.ammoCostPerShot,
             eligibilityReloadTime,
             includeBowReload,
+            chargeRateBonus + eligibilityChargeRateBonus,
         ) * qualifyingHitGroupProbability;
     }
     let conditionalDamageBonus = 0;
@@ -1582,6 +1590,7 @@ export function calculateBuild(
     let conditionalMultishotBonus = 0;
     let conditionalMultishotDamageBonus = 0;
     let conditionalFireRateBonus = 0;
+    let conditionalChargeRateBonus = 0;
     let conditionalAttackSpeedBonus = 0;
     let conditionalReloadSpeedBonus = 0;
     let conditionalAmmoEfficiencyBonus = 0;
@@ -1662,6 +1671,7 @@ export function calculateBuild(
         conditionalMultishotBonus += (conditional.stats.multishotBonus ?? 0) * factor;
         conditionalMultishotDamageBonus += (conditional.stats.multishotDamageBonus ?? 0) * factor;
         conditionalFireRateBonus += (conditional.stats.fireRateBonus ?? 0) * factor;
+        conditionalChargeRateBonus += (conditional.stats.chargeRateBonus ?? 0) * factor;
         conditionalAttackSpeedBonus += (conditional.stats.attackSpeedBonus ?? 0) * factor;
         if (supportsAmmoEfficiency) {
             conditionalAmmoEfficiencyBonus += (conditional.stats.ammoEfficiencyBonus ?? 0) * factor;
@@ -1710,6 +1720,7 @@ export function calculateBuild(
         multishotDamageBonus = 0;
     }
     fireRateBonus += conditionalFireRateBonus;
+    chargeRateBonus += conditionalChargeRateBonus;
     attackSpeedBonus += conditionalAttackSpeedBonus;
     reloadSpeedBonus += conditionalReloadSpeedBonus;
     ammoEfficiencyBonus = Math.min(0.75, ammoEfficiencyBonus + conditionalAmmoEfficiencyBonus);
@@ -1919,8 +1930,8 @@ export function calculateBuild(
     const rateBonus = usesMeleeDamageModel(weapon.category)
         ? attackSpeedBonus
         : fireRateLocked ? 0 : fireRateBonus;
-    const fireRate = effectiveFireRate(weapon, rateBonus, chargeAmmoPerShot, reloadTime, includeBowReload);
-    const burstFireRate = effectiveBurstFireRate(weapon, rateBonus, reloadTime, includeBowReload, fireRate);
+    const fireRate = effectiveFireRate(weapon, rateBonus, chargeAmmoPerShot, reloadTime, includeBowReload, chargeRateBonus);
+    const burstFireRate = effectiveBurstFireRate(weapon, rateBonus, reloadTime, includeBowReload, fireRate, chargeRateBonus);
     const bowIncludesReloadInFireRate = isBowWeapon(weapon) && includeBowReload;
     const ammoCostPerShot = chargeAmmoPerShot;
     const unroundedShotsPerMag = magazineSize / (ammoCostPerShot * (1 - ammoEfficiencyBonus));

@@ -434,6 +434,20 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     "/Lotus/Weapons/Grineer/LongGuns/GrnHarpoonGun/GrnHarpoonGun|harpoon": "Semi",
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon": "Charge",
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon contact": "Charge",
+    // Shell Rush speeds the sourced charged alt-fire modes; component rows
+    // represent one release and share that charge trigger.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Shell_Rush
+    // https://wiki.warframe.com/w/Larkspur
+    // https://wiki.warframe.com/w/Larkspur_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun|alt-fire projectile impact": "Charge",
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun|explosion": "Charge",
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon|alt-fire projectile impact": "Charge",
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon|explosion": "Charge",
+    // The Mausolon charged laser and blast are two damage components of one
+    // fully charged alt-fire in both selectable equipment profiles.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Mausolon
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun|charged shot laser": "Charge",
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun|charged shot explosion": "Charge",
     // The Torid's Genesis Incarnon form is a held beam, although its base
     // grenade launcher is semi-auto. Cannonade requires every firing form to
     // be semi-auto, so the base trigger alone is insufficient here.
@@ -627,6 +641,18 @@ function getAutoSpoolTimingLimitation(uniqueName: string, attackName: string): W
 const ATTACK_CHARGE_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon": 0.25,
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon contact": 0.25,
+    // Larkspur's charged grenade impact and its linked explosion are one
+    // release; both carry the Wiki-listed 0.5s charge time.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
+    // https://wiki.warframe.com/w/Larkspur_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun|alt-fire projectile impact": 0.5,
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun|explosion": 0.5,
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon|alt-fire projectile impact": 0.5,
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon|explosion": 0.5,
+    // Both Mausolon equipment profiles share the charged 0.8s release time.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Mausolon
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun|charged shot laser": 0.8,
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun|charged shot explosion": 0.8,
 });
 
 const VERIFIED_WEAPON_RELOAD_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
@@ -1671,6 +1697,33 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
             sourceUrl: "https://wiki.warframe.com/w/Torid",
         }),
     }),
+    // Larkspur alt-fire's direct projectile impact and explosion are two
+    // components of the same charged grenade release. Score one immediate
+    // explosion against the directly struck target; other targets/area
+    // coverage remain outside this single-target model.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
+        "alt-fire projectile impact": Object.freeze({
+            componentAttackName: "Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
+        "alt-fire projectile impact": Object.freeze({
+            componentAttackName: "Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+        }),
+    }),
     // Mausolon's primary shot also creates one immediate radial hit on the
     // directly struck enemy. The component is separately catalogued and must
     // share the shot's modded damage/status profile while keeping its own AoE
@@ -1679,6 +1732,17 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
         "auto": Object.freeze({
             componentAttackName: "Auto Radial Attack",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+        }),
+        // Charged Shot Laser and Explosion are components of one charged
+        // alt-fire release in both the Archwing and Atmosphere profiles.
+        "charged shot laser": Object.freeze({
+            componentAttackName: "Charged Shot Explosion",
             firstTickDelaySeconds: 0,
             tickIntervalSeconds: 1,
             tickCount: 1,
@@ -1700,6 +1764,22 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // Larkspur's explosion is the linked component of its charged Alt-Fire.
+    // Select the projectile impact row to score its full single-target release.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
+    // https://wiki.warframe.com/w/Larkspur_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
+        "explosion": {
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+            reason: "This is the linked explosion component of Larkspur's charged Alt-Fire. Select Alt-Fire Projectile Impact to score the full single-target release.",
+        },
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
+        "explosion": {
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+            reason: "This is the linked explosion component of Larkspur Prime's charged Alt-Fire. Select Alt-Fire Projectile Impact to score the full single-target release.",
+        },
+    }),
     // Alt-Fire launches a mite that can latch onto multiple enemies and apply
     // Impact/Magnetic damage and statuses over ten seconds. The Mercy-finisher
     // branch and delayed multi-target tick history cannot be represented by the
@@ -1724,11 +1804,11 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
         }),
         "charged shot laser": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Mausolon",
-            reason: "Mausolon's alternate fire requires five primary-fire kills to charge, and more kills after each use. The planner does not track this multi-target charge history, so Auto Optimize cannot assume a repeatable charged-shot cadence.",
+            reason: "Charged Shot Laser and its linked explosion are components of one release. Mausolon's alternate fire also requires five primary-fire kills to charge, and more kills after each use; the planner does not track that history, so Auto Optimize cannot score a repeatable charged-shot cadence.",
         }),
         "charged shot explosion": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Mausolon",
-            reason: "Charged Shot Explosion is a component of Mausolon's alternate fire, which requires five primary-fire kills to charge and more kills after each use. Select Charged Shot Laser for a per-shot preview; Auto Optimize cannot assume a repeatable charged-shot cadence.",
+            reason: "Charged Shot Explosion is a linked blast component of Mausolon's charged release, which also requires five primary-fire kills to charge and more kills after each use. Select Charged Shot Laser for a per-shot preview; Auto Optimize cannot score a repeatable charged-shot cadence.",
         }),
     }),
 });

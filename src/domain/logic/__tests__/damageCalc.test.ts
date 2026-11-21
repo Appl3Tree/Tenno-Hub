@@ -803,6 +803,77 @@ describe("source-backed weapon attack falloff", () => {
     });
 });
 
+describe("source-backed Arch-Gun charge-rate mechanics", () => {
+    const catalog = getWeaponCatalog();
+
+    it("applies Shell Rush to charged Larkspur modes without changing uncharged cadence", () => {
+        const larkspur = catalog.find((weapon) => weapon.name === "Larkspur");
+        expect(larkspur).toBeDefined();
+        const shellRush = getModsForWeapon(larkspur!).find((mod) => mod.name === "Shell Rush");
+        expect(shellRush).toBeDefined();
+        const shellRushEffect = shellRush!.effectsByRank[shellRush!.fusionLimit]!;
+
+        for (const attackName of ["Alt-Fire Projectile Impact", "Explosion"]) {
+            const selected = withSelectedAttack(larkspur!, larkspur!.attacks.findIndex((attack) => attack.name === attackName));
+            const baseline = calculateBuild(selected, []).modded;
+            const modded = calculateBuild(selected, [shellRushEffect]).modded;
+            expect(selected.trigger).toBe("Charge");
+            expect(selected.chargeTime).toBe(0.5);
+            expect(baseline.fireRate).toBeCloseTo(1 / (0.5 + 1 / selected.fireRate), 8);
+            expect(modded.fireRate).toBeCloseTo(1 / (0.5 / 1.5 + 1 / selected.fireRate), 8);
+        }
+
+        const impactIndex = larkspur!.attacks.findIndex((attack) => attack.name === "Alt-Fire Projectile Impact");
+        const explosionIndex = larkspur!.attacks.findIndex((attack) => attack.name === "Explosion");
+        const impactSequence = calculateBuild(withSelectedAttack(larkspur!, impactIndex), [shellRushEffect]).modded.attachedAttackDamageSequence;
+        const explosionStats = calculateBuild(withSelectedAttack(larkspur!, explosionIndex), [shellRushEffect]).modded;
+        expect(impactSequence?.rule.componentAttackName).toBe("Explosion");
+        expect(impactSequence?.profile.baseDamageTotal).toBeCloseTo(explosionStats.baseDamageTotal, 8);
+        expect(withSelectedAttack(larkspur!, explosionIndex).selectedAttackModelLimitation?.reason)
+            .toContain("Select Alt-Fire Projectile Impact");
+
+        const unchargedIndex = larkspur!.attacks.findIndex((attack) => attack.trigger !== "Charge");
+        expect(unchargedIndex).toBeGreaterThanOrEqual(0);
+        const uncharged = withSelectedAttack(larkspur!, unchargedIndex);
+        expect(calculateBuild(uncharged, [shellRushEffect]).modded.fireRate).toBeCloseTo(
+            calculateBuild(uncharged, []).modded.fireRate,
+            10,
+        );
+    });
+
+    it("applies Shell Rush to both Mausolon charged profiles and not either Auto profile", () => {
+        const mausolons = catalog.filter((weapon) => weapon.name === "Mausolon");
+        const shellRush = getModsForWeapon(mausolons[0]!).find((mod) => mod.name === "Shell Rush");
+        expect(shellRush).toBeDefined();
+        const shellRushEffect = shellRush!.effectsByRank[shellRush!.fusionLimit]!;
+
+        for (const weapon of mausolons) {
+            for (const name of ["Charged Shot Laser", "Charged Shot Explosion"]) {
+                const selected = withSelectedAttack(weapon, weapon.attacks.findIndex((attack) => attack.name === name));
+                expect(selected.trigger).toBe("Charge");
+                expect(selected.chargeTime).toBe(0.8);
+                expect(calculateBuild(selected, [shellRushEffect]).modded.fireRate).toBeCloseTo(
+                    1 / (0.8 / 1.5 + 1 / selected.fireRate),
+                    8,
+                );
+            }
+            const laserIndex = weapon.attacks.findIndex((attack) => attack.name === "Charged Shot Laser");
+            const explosionIndex = weapon.attacks.findIndex((attack) => attack.name === "Charged Shot Explosion");
+            const laserSequence = calculateBuild(withSelectedAttack(weapon, laserIndex), [shellRushEffect]).modded.attachedAttackDamageSequence;
+            const explosionStats = calculateBuild(withSelectedAttack(weapon, explosionIndex), [shellRushEffect]).modded;
+            expect(laserSequence?.rule.componentAttackName).toBe("Charged Shot Explosion");
+            expect(laserSequence?.profile.baseDamageTotal).toBeCloseTo(explosionStats.baseDamageTotal, 8);
+            expect(withSelectedAttack(weapon, explosionIndex).selectedAttackModelLimitation?.reason)
+                .toContain("Select Charged Shot Laser");
+            const auto = withSelectedAttack(weapon, weapon.attacks.findIndex((attack) => attack.name === "Auto"));
+            expect(calculateBuild(auto, [shellRushEffect]).modded.fireRate).toBeCloseTo(
+                calculateBuild(auto, []).modded.fireRate,
+                10,
+            );
+        }
+    });
+});
+
 describe("Cull the Weak Wiki modeling", () => {
     it("parses every rank and applies the bonus only to non-critical hits", () => {
         const chesaClaws = getWeaponCatalog().find((candidate) => candidate.name === "Chesa Claws");

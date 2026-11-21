@@ -80,6 +80,26 @@ describe("Beast Claw Conditioning optimizer legality", () => {
     });
 });
 
+describe("Shell Rush charged-attack optimization", () => {
+    it("selects the sourced Charge Rate mod for a Corvas charged-shot build", () => {
+        const corvas = getWeaponCatalog().find((weapon) => weapon.name === "Corvas");
+        expect(corvas).toBeDefined();
+        const chargedShot = withSelectedAttack(corvas!, corvas!.attacks.findIndex((attack) => attack.name === "Charged Shot"));
+        const shellRush = getModsForWeapon(corvas!).find((mod) => mod.name === "Shell Rush");
+        expect(shellRush).toBeDefined();
+
+        const optimized = optimizeBuild(chargedShot, [shellRush!], "burst", 1, {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        });
+        expect(optimized.mods.some((mod) => mod?.name === "Shell Rush")).toBe(true);
+        expect(explainBuild(chargedShot, [shellRush!], [shellRush!.fusionLimit], "burst").steps[0]?.why).toContain("Charge Rate");
+    });
+});
+
 describe("Beast Claw elemental conversion optimizer legality", () => {
     it("never selects more than one of the mutually exclusive elemental conversion mods", () => {
         const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
