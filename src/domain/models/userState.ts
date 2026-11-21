@@ -243,6 +243,8 @@ export interface SavedBuildPlannerConfig {
     phantasmaChargeAmmo?: number;
     /** Assumed target distance used by rank-conditioned weapon effects such as Spring-Loaded Broadhead. */
     targetDistanceMeters?: number;
+    /** Explicit distance used for attack falloff; separate from distance-conditioned mod triggers. */
+    attackFalloffDistanceMeters?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */
     meleeAverageComboDamageMultiplier?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */

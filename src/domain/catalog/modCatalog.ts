@@ -730,6 +730,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "status duration") return { statusDurationBonus: scaled };
     if (rest === "status damage") return { statusDamageBonus: scaled };
     if (rest === "projectile speed") return { projectileSpeedBonus: scaled };
+    if (rest === "range") return { rangeBonus: scaled };
     if (rest === "accuracy") return { accuracyBonus: scaled };
     if (rest === "blast radius" || rest === "blast range") return { blastRadiusBonus: scaled };
     if (rest === "beam range") return { beamRangeBonus: scaled };

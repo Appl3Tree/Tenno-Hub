@@ -238,6 +238,74 @@ describe("Wiki stance DPS objective", () => {
     });
 });
 
+describe("attack falloff optimizer propagation", () => {
+    it("selects a range mod only when the configured distance makes its falloff extension valuable", () => {
+        const attack = {
+            name: "Normal Attack",
+            speed: 8,
+            critChance: 0,
+            critMultiplier: 1,
+            statusChance: 0,
+            damage: {
+                total: 100, impact: 100, puncture: 0, slash: 0,
+                heat: 0, cold: 0, electricity: 0, toxin: 0,
+                blast: 0, radiation: 0, gas: 0, magnetic: 0,
+                viral: 0, corrosive: 0, void: 0, tau: 0, true: 0,
+            },
+            damageTotal: 100,
+            damageFalloff: {
+                startDistanceMeters: 10,
+                endDistanceMeters: 20,
+                minimumDamageMultiplier: 0,
+                scaleBy: ["weaponRange"] as const,
+                sourceUrl: "https://wiki.warframe.com/w/Damage_Falloff",
+            },
+        } satisfies WeaponEntry["attacks"][number];
+        const weapon = makeWeapon({
+            uniqueName: "/Test/RangeFalloffOptimizer",
+            attacks: [attack],
+        });
+        const makeCandidate = (name: string, effect: ModEffect): ModEntry => ({
+            uniqueName: `/Test/${name}`,
+            path: `/Test/${name}`,
+            name,
+            compatBucket: "Rifle",
+            rawCompatName: "Rifle",
+            polarity: "",
+            rarity: "Common",
+            drain: 0,
+            baseDrain: 0,
+            fusionLimit: 0,
+            statsLabel: "",
+            statsTextByRank: [""],
+            effectsByRank: [effect],
+            effect,
+            hasDamageEffect: true,
+            isAura: false,
+            isExilus: false,
+            isStance: false,
+            incompatibilityGroup: name,
+            compatibilityTags: [],
+            incompatibilityTags: [],
+        });
+        const damageMod = makeCandidate("Additive Damage", { ...emptyEffect(), damageBonus: 0.2 });
+        const rangeMod = makeCandidate("Range Extension", { ...emptyEffect(), rangeBonus: 1 });
+        const availableMods = [damageMod, rangeMod];
+        const buildForAttack = attack;
+        const nearby = optimizeBuild(weapon, availableMods, "burst", 1, {
+            buildForAttack,
+            conditionalState: { mode: "initial" },
+        });
+        const atFalloff = optimizeBuild(weapon, availableMods, "burst", 1, {
+            buildForAttack,
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 15 },
+        });
+
+        expect(nearby.mods.map((mod) => mod.name)).toEqual(["Additive Damage"]);
+        expect(atFalloff.mods.map((mod) => mod.name)).toEqual(["Range Extension"]);
+    });
+});
+
 describe("fixed-window DPS objective", () => {
     it("scores Mausolon's linked Auto radial hit on the directly struck target", () => {
         const mausolon = getWeaponCatalog().find((entry) =>

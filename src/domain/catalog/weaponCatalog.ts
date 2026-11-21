@@ -97,6 +97,20 @@ export interface WeaponAttackModelLimitation {
     reason: string;
 }
 
+export type WeaponAttackFalloffScaleBy = "weaponRange" | "projectileSpeed" | "blastRadius";
+
+export interface WeaponAttackDamageFalloff {
+    /** Distance where damage first begins to decrease. */
+    startDistanceMeters: number;
+    /** Distance where the minimum damage multiplier is reached. */
+    endDistanceMeters: number;
+    /** Remaining fraction of the pre-falloff damage at and beyond the end distance. */
+    minimumDamageMultiplier: number;
+    /** Only source-listed stats that extend this attack's falloff distances. */
+    scaleBy: readonly WeaponAttackFalloffScaleBy[];
+    sourceUrl: string;
+}
+
 export interface WeaponAttackLingeringDamageRule {
     /** Attack row whose damage values describe the linked component event. */
     componentAttackName: string;
@@ -169,6 +183,11 @@ export interface WeaponAttack {
     autoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the attack's damage and score cannot be represented by the standard attack-row model. */
     modelLimitation?: WeaponAttackModelLimitation;
+    /** Wiki-listed falloff for this attack. AoE profiles measure target offset from the explosion center. */
+    damageFalloff?: WeaponAttackDamageFalloff;
+    /** Wiki-listed maximum hit range. Current scoring reports this limit but does not reject out-of-range hits. */
+    maximumRangeMeters?: number;
+    maximumRangeSourceUrl?: string;
     /** A separately catalogued damage component linked to each projectile from this attack. */
     lingeringDamageRule?: WeaponAttackLingeringDamageRule;
     /** This row damages the target directly struck by its attached projectile, while retaining AoE rules elsewhere. */
@@ -254,6 +273,11 @@ export interface WeaponEntry {
     hasGaleForceAmmoPassive?: boolean;
     /** Selected attack context carried into calculator/optimizer scoring. */
     selectedAttackName?: string;
+    /** Source-listed falloff profile carried from the selected attack row. */
+    selectedAttackDamageFalloff?: WeaponAttackDamageFalloff;
+    /** Source-listed range limit carried from the selected attack row; currently informational. */
+    selectedAttackMaximumRangeMeters?: number;
+    selectedAttackMaximumRangeSourceUrl?: string;
     /** True when the selected attack is part of the weapon's Incarnon form. */
     selectedAttackIsIncarnon?: boolean;
     /** Wiki-listed total ammo loaded by one fully charged ranged Incarnon form. */
@@ -670,6 +694,64 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
     }),
     "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun": Object.freeze({
         "beam": PHANTASMA_BEAM_DAMAGE_RAMP,
+    }),
+});
+
+const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
+    Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
+> = Object.freeze({
+    // Mausolon's Archwing page lists separate direct and radial falloff. The
+    // Atmosphere variant has no direct Auto falloff and a smaller radial minimum.
+    // Radial distance is from the explosion center to the target.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Mausolon
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
+        "auto": Object.freeze({
+            startDistanceMeters: 1400,
+            endDistanceMeters: 2800,
+            minimumDamageMultiplier: 0,
+            scaleBy: Object.freeze(["weaponRange", "projectileSpeed"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+        }),
+        "auto radial attack": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 1.8,
+            minimumDamageMultiplier: 0.9,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+        }),
+        "charged shot explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 8,
+            minimumDamageMultiplier: 0.6,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+        }),
+    }),
+    // The Wiki lists 100%→26.67% falloff between 10m and 25m, with the
+    // distance range affected by Projectile Speed.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Vaykor_Hek
+    "/Lotus/Weapons/Syndicates/SteelMeridian/LongGuns/SMHek": Object.freeze({
+        "normal attack": Object.freeze({
+            startDistanceMeters: 10,
+            endDistanceMeters: 25,
+            minimumDamageMultiplier: 0.2666666667,
+            scaleBy: Object.freeze(["projectileSpeed"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Vaykor_Hek",
+        }),
+    }),
+});
+
+const VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES: Readonly<
+    Record<string, Readonly<Record<string, { meters: number; sourceUrl: string }>>>
+> = Object.freeze({
+    // The Wiki reports a 300m range for the direct hit-scan rows. The Archwing
+    // Auto row also reports falloff beginning at 1,400m; both source facts are
+    // retained and the range limit stays informational until its semantics are
+    // reconciled against the game and Underframe's Distance control.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Mausolon
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
+        "auto": Object.freeze({ meters: 300, sourceUrl: "https://wiki.warframe.com/w/Mausolon" }),
+        "charged shot laser": Object.freeze({ meters: 300, sourceUrl: "https://wiki.warframe.com/w/Mausolon" }),
     }),
 });
 
@@ -1924,6 +2006,8 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
                 const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
                 const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
+                const damageFalloff = VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES[uniqueName]?.[attackName];
+                const maximumRange = VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES[uniqueName]?.[attackName];
                 const modelLimitation = VERIFIED_ATTACK_MODEL_LIMITATIONS[uniqueName]?.[attackName];
                 const lingeringDamageRule = VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
                 const appliesToAttachedTarget = VERIFIED_ATTACK_ATTACHED_TARGET_OVERRIDES[uniqueName]?.includes(attackName) ?? false;
@@ -1959,6 +2043,11 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     chargeAmmoPerSecond: ammoChargeRule?.ammoPerSecond,
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
                     damageRamp,
+                    ...(damageFalloff ? { damageFalloff } : {}),
+                    ...(maximumRange ? {
+                        maximumRangeMeters: maximumRange.meters,
+                        maximumRangeSourceUrl: maximumRange.sourceUrl,
+                    } : {}),
                     ...(modelLimitation ? { modelLimitation } : {}),
                     ...(lingeringDamageRule ? { lingeringDamageRule } : {}),
                     ...(appliesToAttachedTarget ? { appliesToAttachedTarget } : {}),
@@ -2090,8 +2179,15 @@ export function getWeaponCatalog(): WeaponEntry[] {
             variantLabel: "Atmosphere",
             damage: atmosphereDamage,
             attacks: mausolon.attacks.map((attack) => {
+                const attackName = attack.name.trim().toLowerCase();
+                const atmosphereFalloff = attackName === "auto radial attack" && attack.damageFalloff
+                    ? { ...attack.damageFalloff, minimumDamageMultiplier: 0.8 }
+                    : undefined;
+                const damageFalloff = attackName === "auto" || attackName === "charged shot explosion"
+                    ? undefined
+                    : atmosphereFalloff ?? attack.damageFalloff;
                 const damageOverride = atmosphereDamageByAttack[attack.name];
-                if (!damageOverride) return { ...attack, damage: { ...attack.damage } };
+                if (!damageOverride) return { ...attack, damage: { ...attack.damage }, damageFalloff };
                 const damage = { ...attack.damage, ...damageOverride };
                 const damageTotal = [
                     damage.impact, damage.puncture, damage.slash, damage.heat, damage.cold,
@@ -2099,7 +2195,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     damage.gas, damage.magnetic, damage.viral, damage.corrosive,
                     damage.void, damage.tau, damage.true,
                 ].reduce((sum, value) => sum + value, 0);
-                return { ...attack, damage: { ...damage, total: damageTotal }, damageTotal };
+                return { ...attack, damage: { ...damage, total: damageTotal }, damageTotal, damageFalloff };
             }),
         });
     }

@@ -667,6 +667,136 @@ describe("Range Advantage Wiki modeling", () => {
     });
 });
 
+describe("source-backed weapon attack falloff", () => {
+    const catalog = getWeaponCatalog();
+    const archwingMausolon = catalog.find((candidate) => candidate.name === "Mausolon" && candidate.variantLabel === "Archwing");
+    const atmosphereMausolon = catalog.find((candidate) => candidate.name === "Mausolon" && candidate.variantLabel === "Atmosphere");
+
+    it("keeps the Wiki falloff profiles distinct by attack and equipment mode", () => {
+        expect(archwingMausolon).toBeDefined();
+        expect(atmosphereMausolon).toBeDefined();
+        expect(archwingMausolon!.attacks.find((attack) => attack.name === "Auto")?.damageFalloff).toMatchObject({
+            startDistanceMeters: 1400,
+            endDistanceMeters: 2800,
+            minimumDamageMultiplier: 0,
+            scaleBy: ["weaponRange", "projectileSpeed"],
+        });
+        expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Auto")?.damageFalloff).toBeUndefined();
+        expect(archwingMausolon!.attacks.find((attack) => attack.name === "Auto")?.maximumRangeMeters).toBe(300);
+        expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Auto")?.maximumRangeMeters).toBe(300);
+        expect(archwingMausolon!.attacks.find((attack) => attack.name === "Auto Radial Attack")?.damageFalloff?.minimumDamageMultiplier).toBe(0.9);
+        expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Auto Radial Attack")?.damageFalloff?.minimumDamageMultiplier).toBe(0.8);
+        expect(archwingMausolon!.attacks.find((attack) => attack.name === "Charged Shot Explosion")?.damageFalloff?.minimumDamageMultiplier).toBe(0.6);
+        expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Charged Shot Explosion")?.damageFalloff).toBeUndefined();
+    });
+
+    it("applies linear falloff and Ballista Measure's rank-specific Range bonus", () => {
+        const archwing = archwingMausolon!;
+        const autoIndex = archwing.attacks.findIndex((attack) => attack.name === "Auto");
+        const auto = withSelectedAttack(archwing, autoIndex);
+        const fullDamage = calculateBuild(auto, []).modded.totalDamage;
+        const baseline = calculateBuild(auto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 2100 },
+        }).modded;
+        expect(baseline.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.5, 10);
+        expect(baseline.totalDamage).toBeCloseTo(fullDamage * 0.5, 6);
+
+        const ballistaMeasure = getModsForWeapon(archwing).find((mod) => mod.name === "Ballista Measure");
+        expect(ballistaMeasure).toBeDefined();
+        expect(ballistaMeasure!.effectsByRank.map((effect) => effect.rangeBonus)).toEqual([0.05, 0.1, 0.15, 0.2]);
+        const maxRank = calculateBuild(auto, [ballistaMeasure!.effectsByRank[3]], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 2100 },
+        }).modded;
+        expect(maxRank.attackDamageFalloff?.startDistanceMeters).toBeCloseTo(1680, 8);
+        expect(maxRank.attackDamageFalloff?.endDistanceMeters).toBeCloseTo(3360, 8);
+        expect(maxRank.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.75, 10);
+        expect(maxRank.totalDamage).toBeCloseTo(fullDamage * 0.75, 6);
+    });
+
+    it("uses the struck target as the linked radial center and reports the unmodeled 300m cap", () => {
+        const archwing = archwingMausolon!;
+        const auto = withSelectedAttack(archwing, archwing.attacks.findIndex((attack) => attack.name === "Auto"));
+        const linked = calculateBuild(auto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 2800 },
+        }).modded;
+        expect(linked.attackDamageFalloff?.damageMultiplier).toBe(0);
+        expect(linked.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
+        expect(linked.attachedAttackDamageSequence?.profile.attackDamageFalloff?.distanceMeters).toBe(0);
+        expect(linked.attachedAttackDamageSequence?.profile.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(linked.attachedAttackDamageSequence?.profile.damageByType.heat).toBeCloseTo(48, 8);
+
+        const atmosphereAuto = withSelectedAttack(
+            atmosphereMausolon!,
+            atmosphereMausolon!.attacks.findIndex((attack) => attack.name === "Auto"),
+        );
+        for (const profile of [auto, atmosphereAuto]) {
+            const inRange = calculateBuild(profile, [], "", {
+                conditionalState: { mode: "initial", attackFalloffDistanceMeters: 250 },
+            }).modded;
+            expect(inRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+            expect(inRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(false);
+        }
+        const atmosphere = calculateBuild(atmosphereAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 1400 },
+        }).modded;
+        expect(atmosphere.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(atmosphere.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
+        expect(atmosphere.attachedAttackDamageSequence?.profile.attackDamageFalloff?.distanceMeters).toBe(0);
+        expect(atmosphere.attachedAttackDamageSequence?.profile.attackDamageFalloff?.minimumDamageMultiplier).toBe(0.8);
+
+        const atmosphericRadial = withSelectedAttack(
+            atmosphereMausolon!,
+            atmosphereMausolon!.attacks.findIndex((attack) => attack.name === "Auto Radial Attack"),
+        );
+        const radial = calculateBuild(atmosphericRadial, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 0.9 },
+        }).modded;
+        expect(radial.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.9, 10);
+    });
+
+    it("scales shotgun falloff with Projectile Speed and carries distance into finite encounter scoring", () => {
+        const vaykorHek = catalog.find((candidate) => candidate.name === "Vaykor Hek");
+        expect(vaykorHek).toBeDefined();
+        const selected = withSelectedAttack(vaykorHek!, 0);
+        const inRange = calculateBuild(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 9.9 },
+        }).modded;
+        const midFalloff = calculateBuild(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 17.5 },
+        }).modded;
+        expect(inRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(midFalloff.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.63333333335, 10);
+
+        const fasterProjectile = calculateBuild(selected, [{
+            ...emptyEffect(),
+            projectileSpeedBonus: 0.5,
+        }], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 17.5 },
+        }).modded;
+        expect(fasterProjectile.attackDamageFalloff?.startDistanceMeters).toBeCloseTo(15, 10);
+        expect(fasterProjectile.attackDamageFalloff?.endDistanceMeters).toBeCloseTo(37.5, 10);
+        expect(fasterProjectile.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.9185185185, 9);
+
+        const finite = calculateBuildForExpectedEncounter(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 25 },
+        }).modded;
+        expect(finite.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.2666666667, 10);
+        expect(finite.totalDamage).toBeCloseTo(midFalloff.totalDamage * 0.2666666667 / 0.63333333335, 6);
+    });
+
+    it("keeps conditional-mod distance separate from attack falloff distance", () => {
+        const archwing = withSelectedAttack(
+            archwingMausolon!,
+            archwingMausolon!.attacks.findIndex((attack) => attack.name === "Auto"),
+        );
+        const result = calculateBuild(archwing, [], "", {
+            conditionalState: { mode: "initial", targetDistanceMeters: 2100 },
+        }).modded;
+        expect(result.attackDamageFalloff?.distanceMeters).toBeNull();
+        expect(result.attackDamageFalloff?.damageMultiplier).toBe(1);
+    });
+});
+
 describe("Cull the Weak Wiki modeling", () => {
     it("parses every rank and applies the bonus only to non-critical hits", () => {
         const chesaClaws = getWeaponCatalog().find((candidate) => candidate.name === "Chesa Claws");
