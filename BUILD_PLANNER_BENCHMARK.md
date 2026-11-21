@@ -2494,3 +2494,63 @@ The runner uses the same eight fixed anchors and four seed-selected fixtures as 
 | Arca Titron / Heavy Slam Attack | 56,005.31 DPS | 42,888.45 DPS | True Steel + Organ Shatter → Amalgam Organ Shatter + Melee Elementalist | 1,449 | 0 |
 
 Across the twelve fixtures, the run accepted 12,288 legal sampled pairs after examining 21,787 raw tuples; no sampled move improved its optimizer baseline. Rejected tuples include unsupported effects, incompatible or duplicate mods, and builds that fail capacity/Forma constraints. This is a seeded sample, not an exhaustive pair neighborhood. It covers one target faction, target profile, state, and objective, and does not validate Underframe's native Auto Build objective, alternate target conditions, live-game damage, or global optimizer quality. The reproducible worker and corpus runner are in `scripts/auditFixedWindowDpsPairSample.ts`.
+
+### Armor-sensitivity sample with target overrides
+
+The pair-sample runner accepts `--faction`, `--health`, `--shields`, `--overguard`, and `--armor` integer options; defaults preserve the original Grineer / 2,000,000 Health / 0 Shields / 0 Overguard / 3,000 Armor fixture. Seed `20261146` selected Tenet Envoy / Rocket Explosion, Mausolon (Archwing) / Auto, Verglas Prime / Normal Attack, and Arca Titron / Heavy Slam Attack for the four seeded strata, alongside the same eight fixed anchors. The Mausolon sample keeps the corpus's 250m distance.
+
+I first tried these armor values at 2,000,000 Health. That exploratory run reached the score ceiling for Mausolon and, at zero Armor, Nataruk, so I excluded it from the comparison below. The final runs raise Health to 10,000,000 to keep every optimizer and best-sampled result below the five-second damage cap:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261146 --samples=1024 --armor=500 --health=10000000
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261146 --samples=1024 --armor=0 --health=10000000
+```
+
+Both use Grineer, 0 Shields, 0 Overguard, Realistic state, eight slots, Catalyst, max-rank replacements, and up to three Forma. Each run scored 12,288 legal two-out/two-in pairs. The 500-Armor run examined 23,038 raw tuples; the zero-Armor run examined 21,935. No sampled pair improved its optimizer baseline. The largest baseline score in either run applied 3,587,175 damage in five seconds, below the 10,000,000 Health cap.
+
+| Fixture | 500 Armor baseline / best sampled DPS | 0 Armor baseline / best sampled DPS | Improvements in either sample |
+| --- | ---: | ---: | ---: |
+| Braton Prime / Normal Attack | 62,371.08 / 59,947.85 | 95,853.11 / 78,056.99 | 0 |
+| Cedo / Normal Attack | 145,547.95 / 112,734.39 | 237,551.09 / 183,995.57 | 0 |
+| Laetum / Normal Attack | 139,155.59 / 102,882.62 | 211,288.68 / 158,981.08 | 0 |
+| Soma Prime / Fully Spooled | 132,512.74 / 109,912.40 | 215,589.48 / 179,054.75 | 0 |
+| Broken War / Normal Attack | 20,741.19 / 17,359.91 | 33,282.48 / 27,876.78 | 0 |
+| Kuva Nukor / Normal Attack | 150,622.81 / 122,674.51 | 245,711.55 / 220,080.38 | 0 |
+| Nataruk / Perfect Shot | 330,402.68 / 299,066.06 | 528,743.42 / 479,052.31 | 0 |
+| Torid / Grenade Impact | 28,358.80 / 24,494.00 | 41,686.66 / 38,813.68 | 0 |
+| Tenet Envoy / Rocket Explosion | 181,293.78 / 147,725.32 | 295,892.42 / 241,104.81 | 0 |
+| Mausolon (Archwing) / Auto | 528,051.45 / 503,636.83 | 717,435.02 / 608,774.77 | 0 |
+| Verglas Prime / Normal Attack | 74,519.14 / 59,214.02 | 105,668.63 / 84,237.70 | 0 |
+| Arca Titron / Heavy Slam Attack | 209,486.99 / 191,816.66 | 341,907.00 / 313,066.98 | 0 |
+
+This changes one synthetic target parameter to isolate armor sensitivity; it does not represent named enemy profiles or establish gameplay accuracy. The sample remains bounded to one faction and one fixed-window objective, not exhaustive pair coverage, Underframe parity, or global optimizer quality. Node TypeScript, focused ESLint, and a 500-Armor worker smoke pass for the override support.
+
+### Faction and shield sensitivity
+
+The same seeded fixture selection (`20261147`) was sampled against two further synthetic profiles:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261147 --samples=1024 --faction=Corpus --health=10000000 --shields=10000000 --overguard=0 --armor=0
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261147 --samples=1024 --faction=Infested --health=10000000 --shields=0 --overguard=0 --armor=0
+```
+
+Both runs selected Tenet Envoy / Rocket Explosion, Mausolon (Archwing) / Auto, Verglas Prime / Normal Attack, and Gram Prime / Heavy Slam Attack for the seeded strata. Corpus uses an explicit 10,000,000 Health + 10,000,000 Shields pool; Infested uses 10,000,000 Health and no Shields. Both use 0 Overguard, zero Armor, Realistic state, eight slots, Catalyst, max-rank replacements, and up to three Forma. The faction's other built-in status assumptions remain in effect; the explicit health-pool override is synthetic, and neighboring targets are not represented.
+
+Each run sampled 12,288 legal pairs. The Corpus sample examined 23,921 raw tuples and the Infested sample examined 22,452. No sampled pair improved its optimizer baseline. The highest baseline applied 4,725,333 damage in five seconds, below the Infested target's 10,000,000 Health limit.
+
+| Fixture | Corpus baseline / best sampled DPS | Infested baseline / best sampled DPS | Improvements in either sample |
+| --- | ---: | ---: | ---: |
+| Braton Prime / Normal Attack | 108,051.20 / 101,261.44 | 103,517.96 / 91,212.00 | 0 |
+| Cedo / Normal Attack | 195,350.14 / 193,041.23 | 237,551.09 / 215,704.74 | 0 |
+| Laetum / Normal Attack | 200,058.55 / 191,990.48 | 251,876.89 / 190,301.22 | 0 |
+| Soma Prime / Fully Spooled | 212,539.67 / 167,982.17 | 228,805.32 / 202,641.65 | 0 |
+| Broken War / Normal Attack | 25,330.13 / 21,663.06 | 37,234.42 / 30,444.60 | 0 |
+| Kuva Nukor / Normal Attack | 289,469.89 / 241,424.95 | 280,164.65 / 231,658.77 | 0 |
+| Nataruk / Perfect Shot | 528,743.42 / 492,615.69 | 550,902.18 / 475,506.43 | 0 |
+| Torid / Grenade Impact | 42,760.04 / 38,246.67 | 43,340.42 / 42,346.14 | 0 |
+| Tenet Envoy / Rocket Explosion | 295,892.42 / 248,029.22 | 295,892.42 / 244,815.89 | 0 |
+| Mausolon (Archwing) / Auto | 759,555.59 / 611,823.26 | 945,066.68 / 831,216.38 | 0 |
+| Verglas Prime / Normal Attack | 128,193.49 / 109,232.25 | 134,982.95 / 110,964.99 | 0 |
+| Gram Prime / Heavy Slam Attack | 314,186.60 / 303,510.73 | 357,665.42 / 291,696.79 | 0 |
+
+Across the seed-20261145 Grineer / 3,000-Armor sample, the two seed-20261146 Grineer armor points, and these seed-20261147 Corpus and Infested profiles, the current bounded corpus covers 61,440 legal sampled pairs across 60 fixture-runs from 113,133 raw tuples. No sample improved an optimizer baseline. The three factions and shield/armor variations broaden model-local coverage; the custom pools do not validate named-enemy values, spatial AoE, native Underframe behavior, or live gameplay. The script rejects noncanonical faction names and zero/invalid target Health; node TypeScript, focused ESLint, valid worker smoke, and invalid-input guards pass.
