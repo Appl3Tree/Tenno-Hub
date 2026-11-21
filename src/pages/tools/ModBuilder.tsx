@@ -4682,7 +4682,7 @@ export default function ModBuilder() {
         }) : null,
         [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride],
     );
-    const phantasmaBeamDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
+    const attackDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
         : "";
     const initialTargetMetrics = useMemo(
@@ -6845,9 +6845,9 @@ export default function ModBuilder() {
                                                                 </label>
                                                             </div>
                                                         )}
-                                                        {phantasmaBeamDamageRampNote && (
+                                                        {attackDamageRampNote && (
                                                             <div role="note" className="rounded-md border border-amber-700/50 bg-amber-950/20 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
-                                                                <span className="font-semibold">Phantasma Beam ramp:</span> {phantasmaBeamDamageRampNote}
+                                                                <span className="font-semibold">Attack damage ramp:</span> {attackDamageRampNote}
                                                             </div>
                                                         )}
                                                         {meleeDpsModelNote && (
@@ -6908,12 +6908,12 @@ export default function ModBuilder() {
                                                                     {
                                                                         label: "Burst DPS",
                                                                         value: fmt(activeMetrics.burstDPS),
-                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.burstDps}\n\nAt the current values, burst DPS is ${fmt(activeMetrics.burstDPS)}.${weapon.weaponType.trim().toLowerCase() === "bow" ? "\n\nCharged bow shots use charge cadence and exclude the post-shot reload; uncharged shots use the reload delay." : ""}${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${phantasmaBeamDamageRampNote ? `\n\n${phantasmaBeamDamageRampNote}` : ""}`,
+                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.burstDps}\n\nAt the current values, burst DPS is ${fmt(activeMetrics.burstDPS)}.${weapon.weaponType.trim().toLowerCase() === "bow" ? "\n\nCharged bow shots use charge cadence and exclude the post-shot reload; uncharged shots use the reload delay." : ""}${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${attackDamageRampNote ? `\n\n${attackDamageRampNote}` : ""}`,
                                                                     },
                                                                     {
                                                                         label: "Sustained DPS",
                                                                         value: fmt(activeMetrics.sustainedDPS),
-                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.sustainedDps}\n\nAt the current values, sustained DPS is ${fmt(activeMetrics.sustainedDPS)}.${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${phantasmaBeamDamageRampNote ? `\n\n${phantasmaBeamDamageRampNote}` : ""}`,
+                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.sustainedDps}\n\nAt the current values, sustained DPS is ${fmt(activeMetrics.sustainedDPS)}.${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${attackDamageRampNote ? `\n\n${attackDamageRampNote}` : ""}`,
                                                                     },
                                                                 ].map((row) => (
                                                                     <InlineStatRow
