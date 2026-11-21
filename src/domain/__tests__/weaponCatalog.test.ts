@@ -110,7 +110,7 @@ describe("weapon catalog stance inference", () => {
 
     it("marks the Larkspur charged grenade components as one sourced charged mode", () => {
         const larkspurs = getWeaponCatalog().filter((weapon) => weapon.name === "Larkspur" || weapon.name === "Larkspur Prime");
-        expect(larkspurs.map((weapon) => weapon.name).sort()).toEqual(["Larkspur", "Larkspur Prime"]);
+        expect(larkspurs).toHaveLength(4);
         for (const weapon of larkspurs) {
             for (const name of ["Alt-Fire Projectile Impact", "Explosion"]) {
                 expect(weapon.attacks.find((attack) => attack.name === name)).toMatchObject({ trigger: "Charge", chargeTime: 0.5 });
@@ -124,8 +124,112 @@ describe("weapon catalog stance inference", () => {
                 attachedToDirectTarget: true,
             });
             expect(explosion.modelLimitation?.reason).toContain("Select Alt-Fire Projectile Impact");
+            expect(impact.modelLimitation?.reason).toContain("Knockdown eligibility");
+            expect(withSelectedAttack(weapon, weapon.attacks.indexOf(impact)).selectedAttackModelLimitation).toEqual(
+                impact.modelLimitation,
+            );
             const uncharged = weapon.attacks.find((attack) => attack.trigger !== "Charge");
             expect(uncharged).toBeDefined();
+        }
+    });
+
+    it("keeps Larkspur and Larkspur Prime Archwing and Atmosphere profiles separate", () => {
+        const catalog = getWeaponCatalog();
+        for (const expected of [
+            {
+                name: "Larkspur",
+                archwingNormalRange: 160,
+                atmosphereNormalRange: 40,
+                archwingAltFireRate: 1,
+                sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+            },
+            {
+                name: "Larkspur Prime",
+                archwingNormalRange: 180,
+                atmosphereNormalRange: 50,
+                archwingAltFireRate: 2,
+                sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+            },
+        ]) {
+            const profiles = catalog.filter((weapon) => weapon.name === expected.name);
+            const archwing = profiles.find((weapon) => weapon.variantLabel === "Archwing");
+            const atmosphere = profiles.find((weapon) => weapon.variantLabel === "Atmosphere");
+            expect(profiles).toHaveLength(2);
+            expect(archwing).toBeDefined();
+            expect(atmosphere).toBeDefined();
+            const attack = (weapon: NonNullable<typeof archwing>, name: string) =>
+                weapon.attacks.find((candidate) => candidate.name === name);
+
+            expect(getWeaponDisplayName(archwing!)).toBe(`${expected.name} (Archwing)`);
+            expect(getWeaponDisplayName(atmosphere!)).toBe(`${expected.name} (Atmosphere)`);
+            expect(atmosphere!.sourceUniqueName).toBe(archwing!.uniqueName);
+            expect(atmosphere!.modCompat).toBe(archwing!.modCompat);
+            expect(new Set(getModsForWeapon(atmosphere!).map((mod) => mod.uniqueName))).toEqual(
+                new Set(getModsForWeapon(archwing!).map((mod) => mod.uniqueName)),
+            );
+
+            expect(archwing!.damage).toMatchObject({ total: 90, impact: 10, radiation: 80 });
+            expect(atmosphere!.damage).toMatchObject({ total: 180, impact: 20, radiation: 160 });
+            expect(archwing!.reloadTime).toBe(4.5);
+            expect(atmosphere!.reloadTime).toBe(2.5);
+
+            const archwingBeam = attack(archwing!, "Normal Attack")!;
+            const atmosphereBeam = attack(atmosphere!, "Normal Attack")!;
+            for (const beam of [archwingBeam, atmosphereBeam]) {
+                expect(beam).toMatchObject({
+                    damageRamp: {
+                        minimumDamageMultiplier: 0.2,
+                        rampToFullSeconds: 0.6,
+                        idleBeforeDecaySeconds: 0.8,
+                        decayToMinimumSeconds: 2,
+                    },
+                    ammoCostPerShot: 0.5,
+                });
+                expect(beam.scoreBoundaryNote?.reason).toContain("Chained hits on up to three nearby enemies");
+            }
+            expect(archwingBeam.damage.total).toBe(90);
+            expect(atmosphereBeam.damage.total).toBe(180);
+            expect(archwingBeam.maximumRangeMeters).toBe(expected.archwingNormalRange);
+            expect(atmosphereBeam.maximumRangeMeters).toBe(expected.atmosphereNormalRange);
+            expect(atmosphereBeam.maximumRangeSourceUrl).toBe(expected.sourceUrl);
+            expect(archwingBeam.scoreBoundaryNote?.reason).toContain("range is informational");
+            expect(atmosphereBeam.scoreBoundaryNote?.reason).toContain("range is informational");
+
+            const archwingImpact = attack(archwing!, "Alt-Fire Projectile Impact")!;
+            const atmosphereImpact = attack(atmosphere!, "Alt-Fire Projectile Impact")!;
+            expect(archwingImpact).toMatchObject({
+                speed: expected.archwingAltFireRate,
+                chargeTime: 0.5,
+                ammoCostPerShot: 10,
+                damage: { total: 420, impact: 140, blast: 180, radiation: 100 },
+            });
+            expect(atmosphereImpact).toMatchObject({
+                speed: expected.archwingAltFireRate,
+                chargeTime: 0.5,
+                ammoCostPerShot: 10,
+                maximumRangeMeters: 100,
+                maximumRangeSourceUrl: expected.sourceUrl,
+                lingeringDamageRule: { componentAttackName: "Explosion", tickCount: 1 },
+                damage: { total: 840, impact: 280, blast: 360, radiation: 200 },
+            });
+            if (expected.name === "Larkspur Prime") {
+                expect(atmosphereImpact.forcedProcs).toMatchObject({ impact: 1 });
+                expect(atmosphereBeam.scoreBoundaryNote?.reason).toContain("under active revision");
+            }
+
+            for (const profile of [archwing!, atmosphere!]) {
+                expect(attack(profile, "Explosion")).toMatchObject({
+                    isAreaDamage: true,
+                    damageFalloff: {
+                        startDistanceMeters: 0,
+                        endDistanceMeters: 9.6,
+                        minimumDamageMultiplier: 0.4,
+                        scaleBy: ["blastRadius"],
+                    },
+                });
+            }
+            expect(attack(archwing!, "Explosion")?.damage.total).toBe(800);
+            expect(attack(atmosphere!, "Explosion")?.damage.total).toBe(1_600);
         }
     });
 

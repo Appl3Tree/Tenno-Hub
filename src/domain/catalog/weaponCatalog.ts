@@ -97,6 +97,13 @@ export interface WeaponAttackModelLimitation {
     reason: string;
 }
 
+export interface WeaponAttackScoreBoundaryNote {
+    /** Current Wiki page documenting the modeled scoring boundary. */
+    sourceUrl: string;
+    /** What this single-target score includes and leaves out. */
+    reason: string;
+}
+
 export type WeaponAttackFalloffScaleBy = "weaponRange" | "projectileSpeed" | "blastRadius";
 
 export interface WeaponAttackDamageFalloff {
@@ -183,6 +190,8 @@ export interface WeaponAttack {
     autoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the attack's damage and score cannot be represented by the standard attack-row model. */
     modelLimitation?: WeaponAttackModelLimitation;
+    /** Source-backed boundary shown while keeping a useful single-target score available. */
+    scoreBoundaryNote?: WeaponAttackScoreBoundaryNote;
     /** Wiki-listed falloff for this attack. AoE profiles measure target offset from the explosion center. */
     damageFalloff?: WeaponAttackDamageFalloff;
     /** Wiki-listed maximum hit range. Current scoring reports this limit but does not reject out-of-range hits. */
@@ -682,6 +691,19 @@ const VERIFIED_ATTACK_AMMO_COST_OVERRIDES: Readonly<Record<string, Readonly<Reco
         "cluster bombs impact": 2,
         "cluster bombs explosion": 2,
     }),
+    // Larkspur consumes 0.5 ammo per beam tick and 10 ammo for each charged
+    // projectile release. Atmosphere profiles use the same costs; their
+    // different reload time and damage are attached to the profile clone.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
+    // https://wiki.warframe.com/w/Larkspur_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
+        "normal attack": 0.5,
+        "alt-fire projectile impact": 10,
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
+        "normal attack": 0.5,
+        "alt-fire projectile impact": 10,
+    }),
     // The Onos' fully charged Heat release spends 50 Incarnon rounds after
     // the charge-beam ticks. These two attack rows are separate direct/radial
     // representations of that one release; the earlier one-round-per-tick
@@ -710,6 +732,13 @@ const PHANTASMA_BEAM_DAMAGE_RAMP: WeaponDamageRampRule = Object.freeze({
     decayToMinimumSeconds: 2,
 });
 
+const LARKSPUR_BEAM_DAMAGE_RAMP: WeaponDamageRampRule = Object.freeze({
+    minimumDamageMultiplier: 0.2,
+    rampToFullSeconds: 0.6,
+    idleBeforeDecaySeconds: 0.8,
+    decayToMinimumSeconds: 2,
+});
+
 const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Record<string, WeaponDamageRampRule>>>> = Object.freeze({
     // Both Beam rows share the Wiki-documented 15%→100% ramp and 0.8s/2s
     // idle decay. The alternate-fire damage rows do not use this rule.
@@ -720,6 +749,17 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
     }),
     "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun": Object.freeze({
         "beam": PHANTASMA_BEAM_DAMAGE_RAMP,
+    }),
+    // Larkspur's continuous primary beam ramps from 20% to 100% over 0.6s,
+    // then begins decaying after 0.8s idle and returns to 20% over 2s. This
+    // source rule applies to both selectable equipment profiles.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
+    // https://wiki.warframe.com/w/Larkspur_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
+        "normal attack": LARKSPUR_BEAM_DAMAGE_RAMP,
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
+        "normal attack": LARKSPUR_BEAM_DAMAGE_RAMP,
     }),
 });
 
@@ -753,6 +793,29 @@ const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
             sourceUrl: "https://wiki.warframe.com/w/Mausolon",
         }),
     }),
+    // Both Larkspur equipment profiles list the charged explosion's 100% to
+    // 40% falloff over its 9.6m radius. The selected component-row model uses
+    // this curve for radial distance from the explosion center.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
+    // https://wiki.warframe.com/w/Larkspur_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
+        "explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 9.6,
+            minimumDamageMultiplier: 0.4,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
+        "explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 9.6,
+            minimumDamageMultiplier: 0.4,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+        }),
+    }),
     // The Wiki lists 100%→26.67% falloff between 10m and 25m, with the
     // distance range affected by Projectile Speed.
     // Verified 2026-11-21: https://wiki.warframe.com/w/Vaykor_Hek
@@ -778,6 +841,16 @@ const VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES: Readonly<
     "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
         "auto": Object.freeze({ meters: 300, sourceUrl: "https://wiki.warframe.com/w/Mausolon" }),
         "charged shot laser": Object.freeze({ meters: 300, sourceUrl: "https://wiki.warframe.com/w/Mausolon" }),
+    }),
+    // The attack tables list 160m / 180m Normal Attack ranges in Archwing.
+    // Atmospheric ranges are set on the separate cloned profiles below.
+    // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
+    // https://wiki.warframe.com/w/Larkspur_Prime
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
+        "normal attack": Object.freeze({ meters: 160, sourceUrl: "https://wiki.warframe.com/w/Larkspur" }),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
+        "normal attack": Object.freeze({ meters: 180, sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime" }),
     }),
 });
 
@@ -1773,11 +1846,19 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
             sourceUrl: "https://wiki.warframe.com/w/Larkspur",
             reason: "This is the linked explosion component of Larkspur's charged Alt-Fire. Select Alt-Fire Projectile Impact to score the full single-target release.",
         },
+        "alt-fire projectile impact": {
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+            reason: "Larkspur's charged projectile forces Knockdown, which can increase status-count damage bonuses on susceptible targets. The planner does not model Knockdown eligibility or its active window, so this attack remains reference-only and cannot be scored or Auto Optimized.",
+        },
     }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
         "explosion": {
             sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
             reason: "This is the linked explosion component of Larkspur Prime's charged Alt-Fire. Select Alt-Fire Projectile Impact to score the full single-target release.",
+        },
+        "alt-fire projectile impact": {
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+            reason: "Larkspur Prime's charged projectile forces Knockdown, which can increase status-count damage bonuses on susceptible targets. The planner does not model Knockdown eligibility or its active window, so this attack remains reference-only and cannot be scored or Auto Optimized. The Wiki page says its data is under active revision.",
         },
     }),
     // Alt-Fire launches a mite that can latch onto multiple enemies and apply
@@ -1809,6 +1890,23 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
         "charged shot explosion": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Mausolon",
             reason: "Charged Shot Explosion is a linked blast component of Mausolon's charged release, which also requires five primary-fire kills to charge and more kills after each use. Select Charged Shot Laser for a per-shot preview; Auto Optimize cannot score a repeatable charged-shot cadence.",
+        }),
+    }),
+});
+
+const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
+    Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
+> = Object.freeze({
+    "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
+        "normal attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+            reason: "The score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The attack table lists 160m in Archwing, while the overview describes a 320m beam with a 160m lock-on limit; range is informational and misses are not modeled.",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
+        "normal attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+            reason: "The score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The attack table lists 180m in Archwing while the overview says 320m; the page is under active revision and range is informational.",
         }),
     }),
 });
@@ -2089,6 +2187,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const damageFalloff = VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES[uniqueName]?.[attackName];
                 const maximumRange = VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES[uniqueName]?.[attackName];
                 const modelLimitation = VERIFIED_ATTACK_MODEL_LIMITATIONS[uniqueName]?.[attackName];
+                const scoreBoundaryNote = VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES[uniqueName]?.[attackName];
                 const lingeringDamageRule = VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES[uniqueName]?.[attackName];
                 const appliesToAttachedTarget = VERIFIED_ATTACK_ATTACHED_TARGET_OVERRIDES[uniqueName]?.includes(attackName) ?? false;
                 const sourceShotType = String(a.shot_type ?? "").trim().toLowerCase();
@@ -2129,6 +2228,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                         maximumRangeSourceUrl: maximumRange.sourceUrl,
                     } : {}),
                     ...(modelLimitation ? { modelLimitation } : {}),
+                    ...(scoreBoundaryNote ? { scoreBoundaryNote } : {}),
                     ...(lingeringDamageRule ? { lingeringDamageRule } : {}),
                     ...(appliesToAttachedTarget ? { appliesToAttachedTarget } : {}),
                     chargeTime:    typeof a.charge_time === "number" ? a.charge_time : undefined,
@@ -2276,6 +2376,91 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     damage.void, damage.tau, damage.true,
                 ].reduce((sum, value) => sum + value, 0);
                 return { ...attack, damage: { ...damage, total: damageTotal }, damageTotal, damageFalloff };
+            }),
+        });
+    }
+
+    // WFCD contains only the Archwing Larkspur rows. The Wiki gives each
+    // Larkspur a separate deployed Heavy Weapon (Atmosphere) profile, so expose
+    // that profile without replacing the Archwing damage, charge cadence, or
+    // falloff data. Atmospheric rows keep the same Archgun mod family.
+    const larkspurProfiles = [
+        {
+            uniqueName: "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun",
+            normalAttackRangeMeters: 40,
+            chargedAttackRangeMeters: 100,
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+            normalAttackNote: "This score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The Wiki lists 40m for this Atmosphere profile; range is informational and out-of-range misses are not modeled.",
+        },
+        {
+            uniqueName: "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon",
+            normalAttackRangeMeters: 50,
+            chargedAttackRangeMeters: 100,
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+            normalAttackNote: "This score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The Wiki table lists 50m for Atmosphere, while its overview says 40m; range is informational and out-of-range misses are not modeled. The Wiki page says its data is under active revision.",
+        },
+    ] as const;
+    for (const profile of larkspurProfiles) {
+        const larkspur = entries.find((entry) => entry.uniqueName === profile.uniqueName);
+        if (!larkspur) continue;
+        larkspur.variantLabel = "Archwing";
+        const atmosphereDamageByAttack: Readonly<Record<string, Partial<WeaponDamage>>> = {
+            "Normal Attack": { impact: 20, radiation: 160 },
+            "Alt-Fire Projectile Impact": { impact: 280, blast: 360, radiation: 200 },
+            "Explosion": { blast: 800, radiation: 800 },
+        };
+        const atmosphereDamage: WeaponDamage = {
+            ...larkspur.damage,
+            total: 180,
+            impact: 20,
+            radiation: 160,
+        };
+        const isPrime = larkspur.name === "Larkspur Prime";
+        entries.push({
+            ...larkspur,
+            uniqueName: `${larkspur.uniqueName}::Atmosphere`,
+            sourceUniqueName: larkspur.uniqueName,
+            variantLabel: "Atmosphere",
+            reloadTime: 2.5,
+            damage: atmosphereDamage,
+            attacks: larkspur.attacks.map((attack) => {
+                const attackName = attack.name.trim().toLowerCase();
+                const damageOverride = atmosphereDamageByAttack[attack.name];
+                let damage = { ...attack.damage };
+                let damageTotal = attack.damageTotal;
+                if (damageOverride) {
+                    damage = { ...damage, ...damageOverride };
+                    damageTotal = [
+                        damage.impact, damage.puncture, damage.slash, damage.heat, damage.cold,
+                        damage.electricity, damage.toxin, damage.blast, damage.radiation,
+                        damage.gas, damage.magnetic, damage.viral, damage.corrosive,
+                        damage.void, damage.tau, damage.true,
+                    ].reduce((sum, value) => sum + value, 0);
+                    damage.total = damageTotal;
+                }
+                const maximumRangeMeters = attackName === "normal attack"
+                    ? profile.normalAttackRangeMeters
+                    : attackName === "alt-fire projectile impact"
+                        ? profile.chargedAttackRangeMeters
+                        : attack.maximumRangeMeters;
+                const maximumRangeSourceUrl = attackName === "normal attack" || attackName === "alt-fire projectile impact"
+                    ? profile.sourceUrl
+                    : attack.maximumRangeSourceUrl;
+                const forcedProcs = isPrime && attackName === "alt-fire projectile impact"
+                    ? { ...(attack.forcedProcs ?? {}), impact: 1 }
+                    : attack.forcedProcs;
+                const scoreBoundaryNote = attackName === "normal attack"
+                    ? { sourceUrl: profile.sourceUrl, reason: profile.normalAttackNote }
+                    : attack.scoreBoundaryNote;
+                return {
+                    ...attack,
+                    damage,
+                    damageTotal,
+                    ...(maximumRangeMeters !== undefined ? { maximumRangeMeters } : {}),
+                    ...(maximumRangeSourceUrl ? { maximumRangeSourceUrl } : {}),
+                    ...(forcedProcs ? { forcedProcs } : {}),
+                    ...(scoreBoundaryNote ? { scoreBoundaryNote } : {}),
+                };
             }),
         });
     }

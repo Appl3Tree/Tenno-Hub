@@ -5748,6 +5748,17 @@ export default function ModBuilder() {
                                                     >Wiki source</a>
                                                 </p>
                                             )}
+                                            {weapon?.attacks[selectedAttackIdx]?.scoreBoundaryNote && (
+                                                <p role="note" className="basis-full text-left text-[10px] leading-relaxed text-sky-300">
+                                                    {weapon.attacks[selectedAttackIdx].scoreBoundaryNote.reason} {" "}
+                                                    <a
+                                                        href={weapon.attacks[selectedAttackIdx].scoreBoundaryNote.sourceUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="underline underline-offset-2"
+                                                    >Wiki source</a>
+                                                </p>
+                                            )}
                                             <button
                                                 onClick={() => setShowOptimizeOptions(v => !v)}
                                                 className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
