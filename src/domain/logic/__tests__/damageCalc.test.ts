@@ -690,6 +690,41 @@ describe("source-backed weapon attack falloff", () => {
         expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Charged Shot Explosion")?.damageFalloff).toBeUndefined();
     });
 
+    it("applies Larkspur beam ramps and profile-specific listed ranges without treating them as hit caps", () => {
+        const larkspurProfiles = catalog.filter((weapon) => weapon.name === "Larkspur" || weapon.name === "Larkspur Prime");
+        expect(larkspurProfiles).toHaveLength(4);
+
+        for (const weapon of larkspurProfiles) {
+            const beamIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            const beam = withSelectedAttack(weapon, beamIndex);
+            const baseline = calculateBuild(beam, []).modded;
+            expect(beam.selectedAttackDamageRamp).toEqual({
+                minimumDamageMultiplier: 0.2,
+                rampToFullSeconds: 0.6,
+                idleBeforeDecaySeconds: 0.8,
+                decayToMinimumSeconds: 2,
+            });
+            expect(baseline.firstAttackDamageMultiplier).toBe(0.2);
+
+            const beyondListedRange = calculateBuild(beam, [], "", {
+                conditionalState: {
+                    mode: "initial",
+                    attackFalloffDistanceMeters: (weapon.attacks[beamIndex]!.maximumRangeMeters ?? 0) + 1,
+                },
+            }).modded;
+            expect(beyondListedRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
+            expect(beyondListedRange.totalDamage).toBeCloseTo(baseline.totalDamage, 8);
+
+            const explosionIndex = weapon.attacks.findIndex((attack) => attack.name === "Explosion");
+            const explosion = withSelectedAttack(weapon, explosionIndex);
+            const fullDamage = calculateBuild(explosion, []).modded.totalDamage;
+            const midpointDamage = calculateBuild(explosion, [], "", {
+                conditionalState: { mode: "initial", attackFalloffDistanceMeters: 4.8 },
+            }).modded.totalDamage;
+            expect(midpointDamage).toBeCloseTo(fullDamage * 0.7, 8);
+        }
+    });
+
     it("applies linear falloff and Ballista Measure's rank-specific Range bonus", () => {
         const archwing = archwingMausolon!;
         const autoIndex = archwing.attacks.findIndex((attack) => attack.name === "Auto");
