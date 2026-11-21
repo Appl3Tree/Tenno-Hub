@@ -38,6 +38,18 @@ All four optimizer outputs are capacity-legal and match the exhaustive winner un
 
 The regression is in `src/domain/logic/__tests__/buildOptimizer.test.ts` under `matches seeded exhaustive three-slot mod-and-Arcane optima across weapon classes`.
 
+## D3-OPT-RANK-FORMA-WINDOWDPS-ORACLE-001 — seeded rank-limited mod/Arcane oracle (2026-11-21; local validation complete)
+
+Seed `20261124` broadens the fixed-window joint oracle to include owned-rank and capacity constraints. Four fixtures reuse Braton Prime / Primary / Grineer, Lex Prime / Secondary / shielded Corpus, Cedo / Shotgun / Grineer, and Broken War / Melee / Infested, each with a randomly selected supported attack and three randomly selected compatible damage mods. Each sampled mod receives an owned maximum-rank cap between R1 and R3, and the exhaustive scorer considers every rank from R0 through that cap. The two main slots use an uncatalyzed rank-10 weapon capacity; alternating fixtures permit zero or one Forma. For each legal ordered loadout/rank tuple, the scorer compares the no-Arcane case and every modeled compatible Arcane rank against the fixed five-second applied-damage objective.
+
+All four optimizer results match the exact sampled-pool winner, report the same score, and remain capacity/FORMA-legal. The focused test passes 1/1 in 9.39s; the complete optimizer test file passes 161/161 in 545.08s. Focused ESLint and `git diff --check` pass. `tsconfig.test.json` still fails on 52 existing diagnostics elsewhere in the test sources, with no diagnostics in the new block. This is a test/docs-only change, so the application build and full suite were not rerun. The bounded sample does not search the full mod catalog/rank space, exhaustive multi-Forma combinations, global joint neighborhoods, Underframe's private simulator, or live gameplay.
+
+Reproduce the focused test with:
+
+```sh
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded rank-limited joint mod, Arcane, and one-Forma" --reporter=dot
+```
+
 ## D3-OPT-JOINT-ARCANE-SEEDED-ORACLE-001 — seeded joint mod/Arcane sample (2026-11-21; PR #196 merged)
 
 `src/domain/logic/__tests__/buildOptimizer.test.ts` now adds seed `20261121` to the joint Expected TTK oracle. Eight fixtures span Primary, Secondary, Shotgun, and Melee weapons against Grineer, Corpus, and Infested target pools, with initial, realistic, and fully stacked states; target Health/Shields/Armor; Warframe Armor; and current Energy vary by case. Each case deterministically selects a supported attack profile and draws four max-rank mods from that weapon's full compatible catalog. The oracle exhaustively scores every legal ordered subset of up to two slots with every modeled rank of every compatible Arcane. The optimizer must match the exact finite-encounter TTK and return a capacity-legal build.
