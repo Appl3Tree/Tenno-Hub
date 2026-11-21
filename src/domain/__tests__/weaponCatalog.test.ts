@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon, sortBuilderModsForDisplay } from "../catalog/modCatalog";
+import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay } from "../catalog/modCatalog";
 import { getWeaponCatalog, getWeaponDisplayName } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
 import { effectiveDrain } from "../logic/capacityCalc";
@@ -566,6 +566,22 @@ describe("weapon catalog stance inference", () => {
 });
 
 describe("weapon mod set membership", () => {
+    it("maps all Strain Infection ranks to Critical Damage per cyst without an unmodeled damage warning", () => {
+        const melee = getWeaponCatalog().find((weapon) =>
+            weapon.category === "Melee" && getModsForWeapon(weapon).some((mod) => mod.name === "Strain Infection"),
+        );
+        expect(melee).toBeDefined();
+        const mod = getModsForWeapon(melee!).find((candidate) => candidate.name === "Strain Infection");
+        expect(mod).toBeDefined();
+        expect(mod!.effectsByRank.map((effect) => effect.strainInfectionCritDamagePerCyst)).toEqual([
+            0.05, 0.1, 0.15, 0.2,
+        ]);
+        expect(mod!.hasDamageEffect).toBe(true);
+        for (let rank = 0; rank < mod!.effectsByRank.length; rank++) {
+            expect(getUnmodeledDamageEffectLines(mod!, rank).some((line) => /Critical Damage per Cyst/i.test(line))).toBe(false);
+        }
+    });
+
     it("retains source set identity while leaving ordinary mods ungrouped", () => {
         const bratonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(bratonPrime).toBeTruthy();

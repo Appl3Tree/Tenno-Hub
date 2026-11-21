@@ -9,7 +9,7 @@ import { migrateToUserStateV2 } from "../migrations";
 import { PR } from "../../domain/ids/prereqIds";
 
 describe("progress pack inventory serialization", () => {
-    it("preserves saved Heat inheritance and Gas annulus assumptions through profile export and restore", () => {
+    it("preserves saved Heat, Gas, and Strain Infection assumptions through profile export and restore", () => {
         const source = makeDefaultState();
         source.modBuilder = {
             ownedModNames: [],
@@ -30,6 +30,7 @@ describe("progress pack inventory serialization", () => {
                     externalVigilanteSetModCount: 3,
                     externalGladiatorSetModCount: 2,
                     externalNiraSetModCount: 2,
+                    strainInfectionCystsAtImpact: 8,
                     externalHeatElementalDamageBonusPercent: 90,
                     externalHeatFactionDamageBonusPercent: 55,
                     target: {
@@ -64,6 +65,7 @@ describe("progress pack inventory serialization", () => {
             externalVigilanteSetModCount: 3,
             externalGladiatorSetModCount: 2,
             externalNiraSetModCount: 2,
+            strainInfectionCystsAtImpact: 8,
             externalHeatElementalDamageBonusPercent: 90,
             externalHeatFactionDamageBonusPercent: 55,
         });

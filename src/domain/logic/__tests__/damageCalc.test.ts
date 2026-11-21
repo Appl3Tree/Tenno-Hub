@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeStrainInfectionCystCount, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -4641,5 +4641,58 @@ describe("Sacrificial two-piece melee set bonus", () => {
                 ),
             10,
         );
+    });
+});
+
+describe("Strain Infection Burst critical damage", () => {
+    const weapon = {
+        ...makeWeapon({ impact: 100 }),
+        category: "Melee" as const,
+        weaponType: "Sword",
+        modCompat: "Melee",
+        critChance: 0.5,
+        critMultiplier: 2,
+    };
+    const strainInfection = { ...emptyEffect(), strainInfectionCritDamagePerCyst: 0.2 };
+
+    it("adds per-cyst Critical Damage to ordinary melee impacts and caps assumed cysts at eight", () => {
+        const fourCysts = calculateBuild(weapon, [strainInfection], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 4 },
+        }).modded;
+        const capped = calculateBuild(weapon, [strainInfection], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 12 },
+        }).modded;
+
+        expect(fourCysts.strainInfectionCritDamageBonus).toBeCloseTo(0.8, 10);
+        expect(fourCysts.strainInfectionCystsAtImpact).toBe(4);
+        expect(fourCysts.critMultiplier).toBeCloseTo(fourCysts.quantizedBaseCritMultiplier * 1.8, 10);
+        expect(capped.strainInfectionCritDamageBonus).toBeCloseTo(1.6, 10);
+        expect(capped.strainInfectionCystsAtImpact).toBe(8);
+        expect(capped.critMultiplier).toBeCloseTo(capped.quantizedBaseCritMultiplier * 2.6, 10);
+        expect(normalizeStrainInfectionCystCount(-1)).toBe(0);
+        expect(normalizeStrainInfectionCystCount(7.9)).toBe(7);
+        expect(normalizeStrainInfectionCystCount(Number.NaN)).toBe(0);
+    });
+
+    it("adds to other Critical Damage bonuses and excludes Exalted and ranged weapons", () => {
+        const additive = calculateBuild(weapon, [
+            strainInfection,
+            { ...emptyEffect(), critMultBonus: 0.1 },
+        ], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 2 },
+        }).modded;
+        const exalted = calculateBuild({ ...weapon, isExalted: true }, [strainInfection], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 8 },
+        }).modded;
+        const primary = calculateBuild({ ...weapon, category: "Primary" }, [strainInfection], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 8 },
+        }).modded;
+
+        expect(additive.critMultiplier).toBeCloseTo(additive.quantizedBaseCritMultiplier * 1.5, 10);
+        expect(additive.strainInfectionCritDamageBonus).toBeCloseTo(0.4, 10);
+        expect(exalted.strainInfectionCritDamageBonus).toBe(0);
+        expect(exalted.critMultiplier).toBeCloseTo(exalted.quantizedBaseCritMultiplier, 10);
+        expect(primary.strainInfectionCritDamageBonus).toBe(0);
+        expect(primary.critMultiplier).toBeCloseTo(primary.quantizedBaseCritMultiplier, 10);
     });
 });
