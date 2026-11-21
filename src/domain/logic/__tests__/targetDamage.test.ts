@@ -1098,7 +1098,7 @@ describe("single-attack damage against the target's current pools", () => {
             dotDamagePerApplicationByType: { heat: 10 },
             heatDotTickDamagePerProc: 10,
             heatDotAccumulatorDamagePerTick: 2,
-            expectedStatusApplicationsPerAttackByType: { heat: 1 },
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
         });
 
         expect(encounter.directDamageByPool.health).toBeCloseTo(1.5, 12);
@@ -1569,7 +1569,7 @@ describe("finite expected-value weapon encounters", () => {
             faction: "",
             attackIntervalSeconds: 2,
             maxAttacks: 2,
-            expectedStatusApplicationsPerAttackByType: { heat: 1 },
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
             heatDotTickDamagePerProc: 10,
             heatDotAccumulatorDamagePerTick: 1,
         });
@@ -1580,6 +1580,29 @@ describe("finite expected-value weapon encounters", () => {
         expect(result.attacks).toBe(2);
         expect(result.timeToKillSeconds).toBeNull();
         expect(result.statusDamageByPool.health).toBe(158);
+    });
+
+    it("weights Heat's shared tick accumulator by the chance that its proc group is active", () => {
+        const perAttackPresence = 0.25;
+        const expectedPresenceAfterThreeAttacks = 1 - Math.pow(1 - perAttackPresence, 3);
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            expectedProjectiles: 1,
+            statusProcWeightsByType: { heat: 1 },
+            statusRollsPerAttack: perAttackPresence,
+            attackIntervalSeconds: 0.5,
+            maxAttacks: 3,
+            maxDurationSeconds: 1,
+            heatDotTickDamagePerProc: 0,
+            heatDotAccumulatorDamagePerTick: 10,
+        });
+
+        expect(result.statusDamageByPool.health).toBeCloseTo(10 * expectedPresenceAfterThreeAttacks, 10);
     });
 
     it("uses burst shot timing instead of spreading every hit evenly", () => {
@@ -2523,13 +2546,38 @@ describe("finite expected-value weapon encounters", () => {
             critMultiplier: 2,
             attackIntervalSeconds: 0.5,
             maxAttacks: 5,
-            expectedStatusApplicationsPerAttackByType: { heat: 1 },
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
         });
         const expectedDamage = [0, 0.15, 0.3, 0.4, 0.5]
             .reduce((sum, strip) => sum + 100 * (1 - 0.9 * Math.sqrt(1 - strip)), 0);
 
         expect(result.attacks).toBe(5);
         expect(result.directDamageByPool.health).toBeCloseTo(expectedDamage, 10);
+    });
+
+    it("uses Heat presence probability rather than fractional expected applications for shared armor strip", () => {
+        const perAttackPresence = 0.25;
+        const expectedPresenceAfterTwoAttacks = 1 - Math.pow(1 - perAttackPresence, 2);
+        const result = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 100 },
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 2_700,
+            faction: "",
+            critChance: 0,
+            critMultiplier: 2,
+            expectedProjectiles: 1,
+            statusProcWeightsByType: { heat: 1 },
+            statusRollsPerAttack: perAttackPresence,
+            attackIntervalSeconds: 0.5,
+            maxAttacks: 3,
+            maxDurationSeconds: 1,
+        });
+        const expectedSecondHit = 100 * (1 - 0.9 * Math.sqrt(1 - 0.15 * perAttackPresence));
+        const expectedThirdHit = 100 * (1 - 0.9 * Math.sqrt(1 - 0.3 * expectedPresenceAfterTwoAttacks));
+
+        expect(result.directDamageByPool.health).toBeCloseTo(10 + expectedSecondHit + expectedThirdHit, 10);
     });
 
     it("stretches Heat armor-strip ramp timing with status duration", () => {
@@ -2545,7 +2593,7 @@ describe("finite expected-value weapon encounters", () => {
             attackIntervalSeconds: 1,
             maxAttacks: 3,
             statusDurationMultiplier: 2,
-            expectedStatusApplicationsPerAttackByType: { heat: 1 },
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
         });
         const expectedDamage = [0, 0.15, 0.3]
             .reduce((sum, strip) => sum + 100 * (1 - 0.9 * Math.sqrt(1 - strip)), 0);
@@ -2566,7 +2614,7 @@ describe("finite expected-value weapon encounters", () => {
             critMultiplier: 2,
             attackIntervalSeconds: 10,
             maxAttacks: 2,
-            expectedStatusApplicationsPerAttackByType: { heat: 1 },
+            forcedStatusApplicationsPerAttackByType: { heat: 1 },
         });
         const expectedDamage = 100 * (1 - 0.9) + 100 * (1 - 0.9 * Math.sqrt(0.7));
 

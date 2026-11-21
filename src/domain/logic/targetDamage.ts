@@ -1114,11 +1114,16 @@ export function simulateExpectedWeaponEncounter(
                 const previousHeatState = heatArmorStripState.current;
                 const canRefresh = previousHeatState !== null &&
                     attackTime < previousHeatState.lastAppliedAt + previousHeatState.durationSeconds - 1e-9;
+                // Heat armor reduction and the shared +1 tick accumulator only
+                // exist when at least one proc is active; proc count does not
+                // multiply either effect. Keep their mean-field weight as the
+                // union probability of the refreshed status group.
                 heatArmorStripState.current = {
                     firstAppliedAt: canRefresh ? previousHeatState.firstAppliedAt : attackTime,
                     lastAppliedAt: attackTime,
                     durationSeconds: resolvedDuration,
-                    activeWeight: Math.min(1, (canRefresh ? previousHeatState.activeWeight : 0) + applications),
+                    activeWeight: 1 - (1 - (canRefresh ? previousHeatState.activeWeight : 0)) *
+                        (1 - presenceProbability),
                 };
                 if (queue) {
                     for (let index = queue.head; index < queue.entries.length; index++) {

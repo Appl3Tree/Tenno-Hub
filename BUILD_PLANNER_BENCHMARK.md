@@ -1,5 +1,76 @@
 # Build Planner Optimizer Benchmark
 
+## D3-MECH-HEAT-PRESENCE-PROBABILITY-001 — fractional Heat group presence (2026-11-21; locally validated, publication pending)
+
+The current [Heat Damage Wiki page](https://wiki.warframe.com/w/Damage/Heat_Damage) describes Heat armor reduction as a staged, target-level effect: 15%, 30%, 40%, then 50% at half-second intervals, with one shared ramp rather than a ramp per proc. The [Damage Calculation page](https://wiki.warframe.com/w/Damage/Calculation) describes a shared +1 Heat tick accumulator. Both effects depend on whether the target has an active Heat group; additional proc count does not multiply the accumulator or the strip.
+
+The finite encounter previously advanced the shared group's `activeWeight` by fractional expected Heat applications, capped at one. With a 25% Heat chance per attack, that treated two rolls as 50% presence instead of the union probability `1 − (1 − 0.25)^2 = 43.75%`. The implementation now combines the refreshed group's existing presence with the probability of a new application, `1 − (1 − previousPresence) × (1 − newPresence)`, and uses the resulting presence weight for both the single shared tick accumulator and staged Heat strip. Guaranteed forced proc fixtures now say so explicitly; deterministic p=1 behavior is unchanged.
+
+Focused regressions cover a fractional 25% Heat chance across successive attacks for both the shared tick accumulator and the strip ramp. `src/domain/logic/__tests__/targetDamage.test.ts` passes 114/114. This remains an expected-value model: it does not represent every stochastic proc history, independently timed status-group refresh, or the full spread of strip states. The local source correction changes the current Mausolon displayed-stat alignment values: Fully Stacked / direct Auto becomes 23,812.7 DPS at 3,000 Armor (from 24,065.9), and linked Auto plus radial becomes 28,096.7 DPS (from 28,115.4); the zero-Armor values remain 87,568.5 and 102,549.4. Underframe's hidden Luck Averaged state and damage-bucket semantics remain unresolved; see [the comparison record](docs/UNDERFRAME_COMPARISON.md).
+
+## D3-OPT-MAUSOLON-ARCHWING-NEIGHBORHOOD-001 — final-pass single-mod refinement and seeded corpus (2026-11-21; locally validated, publication pending)
+
+The seeded 20261144 full-pool audit previously selected Mausolon / Charged Shot Explosion. That attack is now correctly blocked from Auto Optimize because its five-kill charge/recharge history is unsupported. The seeded Archgun stratum now selects the supported `Mausolon (Archwing)` / `Auto` profile; `auditExpectedTtkCorpus.ts`, `auditExpectedTtkFullPool.ts`, and the pair-sample runner resolve exact display-profile names as well as catalog internal names.
+
+The new full-pool case exposed a one-mod miss after the fifth and final finite-refinement pass: the last accepted move left a build whose Charged Bullets → Parallax Scope replacement improved modeled Expected TTK from 1.1372970 s to 1.0109307 s. Refinement now runs six passes so it can rescore a neighborhood exposed by a late accepted move. The full-pool regression selects Parallax Scope and independently scores the returned list at 1.0109307 s / 98,918.75 DPS; the build is legal with three Forma. The exact audit scores 167 legal one-mod neighbors around the returned build and finds no improvement. Reproduce with:
+
+```sh
+npx tsx scripts/auditExpectedTtkFullPool.ts --weapon="Mausolon (Archwing)" --attack=Auto --state=realistic
+```
+
+The seeded 12-case corpus was rerun after both the Heat-presence and six-pass corrections. Its settings remain Grineer, 100,000 Health / 3,000 Armor, Realistic state, eight slots, Catalyst, MR30, up to three Forma, and no Arcane/Exilus optimization. Exact scoring found no improving legal one-mod add/remove/replacement across 3,845 neighbors:
+
+| Weapon / attack | Legal one-mod neighbors | Optimizer Expected TTK |
+| --- | ---: | ---: |
+| Braton Prime / Normal Attack | 234 | 2.1194748 s |
+| Cedo / Normal Attack | 412 | 2.9839612 s |
+| Laetum / Normal Attack | 276 | 1.8000000 s |
+| Soma Prime / Fully Spooled | 420 | 1.7541983 s |
+| Broken War / Normal Attack | 344 | 8.8064516 s |
+| Kuva Nukor / Normal Attack | 359 | 1.4400000 s |
+| Nataruk / Perfect Shot | 396 | 1.3000000 s |
+| Torid / Grenade Impact | 238 | 4.7543860 s |
+| Kuva Ogris / Rocket Explosion | 450 | 2.0000000 s |
+| Mausolon (Archwing) / Auto | 167 | 1.0109307 s |
+| Verglas Prime / Normal Attack | 250 | 2.8070175 s |
+| Arca Titron / Heavy Slam Attack | 299 | 1.5591503 s |
+
+This is bounded single-mod evidence over a fixed target/state, not global or pairwise optimality. The matched Underframe Mausolon comparison remains a different simulator/objective with hidden Luck Averaged conditions, and separate profile range behavior remains unresolved.
+
+The updated seeded two-mod sample, using `npx tsx scripts/auditExpectedTtkPairSample.ts --seed=20261144 --samples=1024`, drew 1,024 legal replacements per fixture. It scored 12,288 legal moves after inspecting 25,813 raw tuples; no sampled pair improved its optimizer baseline:
+
+| Weapon / attack | Baseline TTK | Best sampled TTK | Improving samples |
+| --- | ---: | ---: | ---: |
+| Braton Prime / Normal Attack | 2.1194748 s | 2.4476280 s | 0 |
+| Cedo / Normal Attack | 2.9839612 s | 3.1088712 s | 0 |
+| Laetum / Normal Attack | 1.8000000 s | 2.0000000 s | 0 |
+| Soma Prime / Fully Spooled | 1.7541983 s | 2.1401632 s | 0 |
+| Broken War / Normal Attack | 8.8064516 s | 9.0967742 s | 0 |
+| Kuva Nukor / Normal Attack | 1.4400000 s | 1.7500000 s | 0 |
+| Nataruk / Perfect Shot | 1.3000000 s | 1.4750000 s | 0 |
+| Torid / Grenade Impact | 4.7543860 s | 5.0000000 s | 0 |
+| Kuva Ogris / Rocket Explosion | 2.0000000 s | 2.6666667 s | 0 |
+| Mausolon (Archwing) / Auto | 1.0109307 s | 1.0741139 s | 0 |
+| Verglas Prime / Normal Attack | 2.8070175 s | 3.0263158 s | 0 |
+| Arca Titron / Heavy Slam Attack | 1.5591503 s | 1.8190086 s | 0 |
+
+The sample uses the same Grineer / 100,000 Health / 3,000 Armor / Realistic / eight-slot / Catalyst / up-to-three-Forma context as the one-mod corpus. It is sampled, not an exhaustive pair neighborhood; this is not global optimality or gameplay validation. The initial run stopped at the renamed Mausolon display profile because the pair runner resolved internal names only. Its profile-aware lookup was fixed, and this complete 12-fixture rerun is the reported result.
+
+Four in-process optimizer calls compared the prior five-pass cap with six passes on Mausolon (Archwing) / Auto. The five-pass build repeated at 1.1372970 s and 253 exact evaluations; call times were 2.751, 2.132, 1.864, and 1.932 s. The six-pass build repeated at 1.0109307 s and 301 evaluations; call times were 2.994, 2.188, 2.004, and 2.227 s. Excluding each first call from the warm comparison, median latency rose from 1.932 to 2.188 s (about 13.3%) and the warm maximum from 2.132 to 2.227 s. This is one desktop Node fixture and a small in-process sample; it does not measure packaged browser Worker, cold-start, or mobile latency.
+
+### Current-model rescore of existing Underframe fixtures
+
+The Heat-presence correction changes finite Expected TTK results for builds that apply Heat; earlier benchmark sections retain their recorded historical model outputs. Re-running the existing common-model comparison scripts on this branch gives the following current scores:
+
+| Fixture | Captured Underframe list | Current Tenno-Hub optimizer | Current neighborhood / stability |
+| --- | ---: | ---: | --- |
+| Gram Prime / Normal Attack / Initial | 11.2500 s / 8,888.9 DPS | 6.8387 s / 14,622.6 DPS; legal 60/60, 1 Forma | 391 legal one-mod neighbors, none better; 3 identical builds, 133 exact refinement candidates/run |
+| Cedo / Normal Attack / Realistic | 5.3176 s / 18,805.6 DPS | 2.9840 s / 33,512.5 DPS; legal 59/60, 2 Forma | 412 legal one-mod neighbors in seeded corpus, none better; 133 refinement candidates |
+
+Gram was reproduced with `npx tsx scripts/compareUnderframeGramAutoBuild.ts` and `npx tsx scripts/auditExpectedTtkSlotFamilyNeighborhood.ts`. The three optimizer calls returned the same list: Primed Pressure Point R10, Primed Smite Grineer R10, Melee Elementalist R5, True Steel R5, Organ Shatter R5, Primed Fury R10, Melee Prowess R5, and Carnis Mandible R5. Current elapsed times were 3,487.9, 2,723.7, and 2,612.1 ms (median 2,723.7 ms, maximum 3,487.9 ms). The exact neighborhood rescored all 391 legal candidates and tied the optimizer baseline at best. The native Underframe capture remains 49,816 DPS / 2.01 s from its separate standard calculator; the modeled common scorer does not reproduce Lashing Tempest timing.
+
+Cedo was reproduced with `npx tsx scripts/compareCedoUnderframeMatched.ts`; its fixed capture remains 5.3176 s in Realistic, 6.8764 s in Initial, and 2.4941 s Fully Stacked. The optimizer's current list still uses Frail Momentum, Galvanized Hell, Primed Chilling Grasp, Toxic Barrage, Scattering Inferno, Blaze, Shotgun Barrage, and Galvanized Savvy, but the corrected finite scorer returns 2.9840 s rather than the historical 2.6110 s. These current-model results supersede those older score readouts; the older sections preserve what the earlier model measured. Both are bounded common-model rescoring, not Underframe search-objective parity, gameplay validation, or global optimality.
+
 ## D3-MECH-WEAPON-FALLOFF-001 — attack falloff and weapon-range propagation (PR #182 merged; deployed QA complete)
 
 Wiki source profiles now feed an optional attack-distance assumption through the calculator, finite single-target scoring, optimizer, saved build configuration, and math trace. [Damage Falloff](https://wiki.warframe.com/w/Damage_Falloff) describes linear falloff, Projectile Speed and weapon Range scaling, blast-radius scaling for AoE falloff, and the known Condition Overload/Galvanized exception. [Vaykor Hek](https://wiki.warframe.com/w/Vaykor_Hek) supplies a 10–25m, 100%→26.67% direct profile affected by Projectile Speed. [Mausolon](https://wiki.warframe.com/w/Mausolon) supplies separate profile values: Archwing Auto 1,400–2,800m to 0%, Auto radial 0–1.8m to 10%, and charged explosion 0–8m to 60%; Atmosphere Auto has no direct falloff, its radial reaches 20% minimum at 1.8m, and its charged explosion table has no profile-specific falloff entry. Ballista Measure now parses +5/10/15/20% Range by rank.
@@ -36,14 +107,14 @@ The helper applies the captured mod ranks to `Mausolon (Atmosphere)` / `Auto`, r
 
 | Target / Tenno-Hub state and attack mix | Tenno-Hub fixed-window DPS | Underframe native calculator DPS | Tenno-Hub delta |
 | --- | ---: | ---: | ---: |
-| 2,000,000 Health / 3,000 Armor; Fully Stacked; Auto direct-only | 24,065.9 | 22,361 | +7.6% |
-| 2,000,000 Health / 3,000 Armor; Fully Stacked; Auto + linked radial | 28,115.4 | 28,724 | −2.1% |
+| 2,000,000 Health / 3,000 Armor; Fully Stacked; Auto direct-only | 23,812.7 | 22,361 | +6.5% |
+| 2,000,000 Health / 3,000 Armor; Fully Stacked; Auto + linked radial | 28,096.7 | 28,724 | −2.2% |
 | 2,000,000 Health / 0 Armor; Fully Stacked; Auto direct-only | 87,568.5 | 87,418 | +0.2% |
 | 2,000,000 Health / 0 Armor; Fully Stacked; Auto + linked radial | 102,549.4 | 107,028 | −4.2% |
 
-Tenno-Hub's Fully Stacked stats for the captured list are 17.49 fire rate, 48% critical chance, 5.29x critical multiplier, and 1.90 multishot; these match Underframe's visible Stats panel. This indicates the earlier 3.35–3.43x comparison mixed Tenno-Hub's Realistic state with Underframe's displayed full conditional stats, and compared linked Auto to Combined output. Aligning Tenno-Hub to the displayed stats and separating Auto from Combined substantially narrows the difference. Underframe's Luck Averaged calculator does not expose its effective conditional-state mixture, so these are attack-mode/displayed-stat aligned diagnostics rather than a fully state-matched comparison. The remaining 0.2–7.6% Auto and 2.1–4.2% Combined deltas are unexplained; Armor/status timing, seeded-run semantics, or effective conditional state may contribute. The direct-only Tenno-Hub row deliberately removes its linked component and is a diagnostic ablation, not product behavior. These figures do not demonstrate simulator or gameplay parity.
+Tenno-Hub's Fully Stacked stats for the captured list are 17.49 fire rate, 48% critical chance, 5.29x critical multiplier, and 1.90 multishot; these match Underframe's visible Stats panel. This indicates the earlier 3.35–3.43x comparison mixed Tenno-Hub's Realistic state with Underframe's displayed full conditional stats, and compared linked Auto to Combined output. The current values include the Heat presence correction documented above; prior local 3,000-Armor values are superseded. Underframe's Luck Averaged calculator does not expose its effective conditional-state mixture, so these are attack-mode/displayed-stat aligned diagnostics rather than a fully state-matched comparison. Remaining deltas range from +0.2% to +6.5% for Auto and −2.2% to −4.2% for Combined; Armor/status timing, seeded-run semantics, or effective conditional state may contribute. The direct-only Tenno-Hub row deliberately removes its linked component and is a diagnostic ablation, not product behavior. These figures do not demonstrate simulator or gameplay parity.
 
-The direct-only Auto per-attack split offers a narrower lead, but bucket names are not assumed equivalent across simulators. At 3,000 Armor, Tenno-Hub averages 1,318.1 direct damage +49.3 status damage per attack, versus Underframe's displayed 1,211 raw +64 DoT; the totals are 1,367.4 vs 1,275. At zero Armor, Tenno-Hub averages 4,819.9 direct +155.6 status vs Underframe's 4,762 raw +221 DoT; totals are 4,975.5 vs 4,983. The aggregate is nearly equal unarmored, while the reported direct/status split differs at both armor settings. This points the next audit toward status attribution and armor interaction, but does not identify a defect or prove that the tools' buckets mean the same thing.
+The direct-only Auto per-attack split offers a narrower lead, but bucket names are not assumed equivalent across simulators. After the Heat presence correction, at 3,000 Armor Tenno-Hub averages 1,304.1 direct damage +48.9 status damage per attack, versus Underframe's displayed 1,211 raw +64 DoT; totals are 1,353.0 vs 1,275. At zero Armor, Tenno-Hub averages 4,819.9 direct +155.6 status vs Underframe's 4,762 raw +221 DoT; totals are 4,975.5 vs 4,983. The aggregate is nearly equal unarmored, while the reported direct/status split differs at both armor settings. The correction changes the armored estimate but does not identify the remaining status-attribution difference or prove that the tools' buckets mean the same thing.
 
 #### Controlled-distance intermediate-Armor read
 
@@ -55,7 +126,7 @@ The reproducible helper now includes the 500-Armor point and records 1,400m as t
 npx tsx scripts/auditMausolonAttackModeAlignment.ts
 ```
 
-At 500 Armor, the Fully Stacked Auto direct-only diagnostic is 61,529.1 DPS / 3,495.97 total damage per attack versus Underframe's 60,510 DPS / 3,449 displayed raw-plus-DoT per shot (+1.7% DPS). This is a diagnostic comparison only: Underframe's effective Luck Averaged conditional-state mixture remains hidden. The 1,400m value exceeds the Atmosphere Auto profile's listed 300m Range and cannot establish live-game accuracy. The Archwing profile's 1,400–2,800m Auto curve is separate; the Tenno-Hub Atmosphere scorer does not inherit it. The captured-list comparisons remain calculator observations, not profile-distance parity or gameplay evidence. Sources: [Mausolon](https://wiki.warframe.com/w/Mausolon), [Damage Falloff](https://wiki.warframe.com/w/Damage_Falloff), and [Ballista Measure data](https://wiki.warframe.com/w/Module:Mods/data).
+At 500 Armor, after the Heat presence correction, the Fully Stacked Auto direct-only diagnostic is 61,425.7 DPS / 3,490.1 total damage per attack versus Underframe's 60,510 DPS / 3,449 displayed raw-plus-DoT per shot (+1.5% DPS). This is a diagnostic comparison only: Underframe's effective Luck Averaged conditional-state mixture remains hidden. The 1,400m value exceeds the Atmosphere Auto profile's listed 300m Range and cannot establish live-game accuracy. The Archwing profile's 1,400–2,800m Auto curve is separate; the Tenno-Hub Atmosphere scorer does not inherit it. The captured-list comparisons remain calculator observations, not profile-distance parity or gameplay evidence. Sources: [Mausolon](https://wiki.warframe.com/w/Mausolon), [Damage Falloff](https://wiki.warframe.com/w/Damage_Falloff), and [Ballista Measure data](https://wiki.warframe.com/w/Module:Mods/data).
 
 Earlier 500-Armor Auto-only readings taken before distance 1,400m was verified returned the same displayed value but remain excluded from the fixture and comparison. The later controlled transition and distance-dependent score are recorded below; this resolves the UI-state reproduction, while the difference between Underframe's Atmosphere score and the profile-specific Wiki/Tenno-Hub model remains open under D3-OPT-UNDERFRAME-AVG-DPS-SEMANTICS-001.
 
@@ -81,7 +152,7 @@ npx tsx scripts/auditMausolonAttackModeAlignment.ts --distance=2100
 npx tsx scripts/auditMausolonAttackModeAlignment.ts --distance=2800
 ```
 
-All three runs keep the captured weapon profile explicitly set to `Mausolon (Atmosphere)`. At all three distances the Fully Stacked linked/direct-only Tenno-Hub scores are unchanged; for example, at 3,000 Armor direct-only remains 24,065.9 DPS and linked Auto-plus-radial remains 28,115.4 DPS. The Wiki's Atmosphere Auto profile has no direct falloff curve, while Archwing Auto has its own 1,400–2,800m curve. The Wiki lists 300m Range for both Auto rows, but its effective limit in these Archgun contexts is unresolved; Tenno-Hub currently displays it without enforcing a no-hit cap. Do not copy the Archwing curve to Atmosphere or adjust the scorer to match Underframe until the source/game behavior is resolved. This is a concrete cross-tool model discrepancy, not a parity claim.
+All three runs keep the captured weapon profile explicitly set to `Mausolon (Atmosphere)`. At all three distances the Fully Stacked linked/direct-only Tenno-Hub scores are unchanged; after the Heat presence correction, at 3,000 Armor direct-only is 23,812.7 DPS and linked Auto-plus-radial is 28,096.7 DPS. The Wiki's Atmosphere Auto profile has no direct falloff curve, while Archwing Auto has its own 1,400–2,800m curve. The Wiki lists 300m Range for both Auto rows, but its effective limit in these Archgun contexts is unresolved; Tenno-Hub currently displays it without enforcing a no-hit cap. Do not copy the Archwing curve to Atmosphere or adjust the scorer to match Underframe until the source/game behavior is resolved. This is a concrete cross-tool model discrepancy, not a parity claim.
 
 This probe locally passes at 1,400, 2,100, and 2,800m; the script's default remains 1,400m. Focused script type/lint validation and a negative-distance rejection check are recorded in the current work-status checkpoint. The UI test used only the integrated in-app browser and changed no saved build data.
 

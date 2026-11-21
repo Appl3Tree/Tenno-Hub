@@ -2434,7 +2434,7 @@ const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
 const ENCOUNTER_SLOT_ALTERNATIVE_LIMIT = 8;
-const ENCOUNTER_REFINE_PASSES = 5;
+const ENCOUNTER_REFINE_PASSES = 6;
 const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 13;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
 const ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT = 24;
@@ -3329,7 +3329,6 @@ function refineBuildByExpectedEncounter(
                 bestProposal = proposal;
             }
         }
-
         // A useful TTK build can require a pair of mutually reinforcing swaps:
         // neither move may win alone, so search pairs after the single-mod
         // neighborhood stalls.

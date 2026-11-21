@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
 import { filterBuilderExpertVariants, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEntry } from "../src/domain/catalog/modCatalog";
-import { getWeaponCatalog, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
+import { getWeaponCatalog, getWeaponDisplayName, withSelectedAttack } from "../src/domain/catalog/weaponCatalog";
 import { countPolarityChanges, fitsWithinCapacity } from "../src/domain/logic/capacityCalc";
 import {
     assignModsToSlots,
@@ -156,7 +156,9 @@ function runFixture(): void {
     };
     const slotCount = 8;
     const formaLimit = 3;
-    const weapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
+    const weapon = getWeaponCatalog().find((entry) =>
+        entry.name === weaponName || getWeaponDisplayName(entry) === weaponName,
+    );
     if (!weapon) throw new Error(`Weapon not found: ${weaponName}`);
     const attackIndex = weapon.attacks.findIndex((attack) => attack.name === attackName);
     if (attackIndex < 0) throw new Error(`Attack not found: ${weaponName} / ${attackName}`);
@@ -296,7 +298,7 @@ function runFixture(): void {
     )[0]!;
 
     console.log(JSON.stringify({
-        weapon: weapon.name,
+        weapon: getWeaponDisplayName(weapon),
         attack: attack.name,
         seed,
         candidatePool: candidates.length,
