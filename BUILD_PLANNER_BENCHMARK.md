@@ -2642,3 +2642,15 @@ This verifies one production desktop-browser page at a narrow viewport, includin
 ## D3-OPT-UNDERFRAME-COMPANION-FIXTURE-DISCOVERY-001 — read-only trusted-build candidate (2026-11-21; capture pending)
 
 Underframe Featured Builds' Archgun tag returns no trusted build. The Sentinel/Moa filter returns Hound, Nautilus, Shade, Nautilus (nova), and Wyrm; the Beast Companion filter returns Pharaoh Predasite and Huras examples. The public Verglas reference opens to a Verglas Prime profile with mod slots and stats, but no DPS calculator. Its Copy & Edit/Test action creates a personal saved copy. I requested authorization before using that action; no copy has been made and no build data was changed. If authorized, use a temporary copy for a five-second mean comparison and remove it afterward; otherwise continue the existing Mausolon and local corpus work and keep this comparison gap open.
+
+## D3-OPT-FIXED-WINDOW-JOINT-ARCANE-ORACLE-001 — seeded exhaustive 5s Avg DPS mod/Arcane oracle (2026-11-21)
+
+Reproduce with:
+
+```sh
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded exhaustive three-slot joint mod-and-Arcane oracle for 5s Avg DPS"
+```
+
+The deterministic LCG seed is `20261123`. Four fixtures cover Braton Prime / Primary / Grineer, Lex Prime / Secondary / Corpus, Cedo / Shotgun / Grineer, and Broken War / Melee / Infested. For each weapon, the test selects one supported attack and five max-rank damage mods from its compatible full-catalog pool, filtering out flawed/beginner duplicates, faction-incompatible mods, and effects the scorer does not model. It enumerates every legal distinct-mod subset through three slots at the weapon's default polarities with a Catalyst and no Forma, then scores each subset with no Arcane and every modeled rank of each compatible Arcane. The target pools use 1,000,000 Health (and for Corpus, 1,000,000 Shields) to avoid a low-health score ceiling; armor, conditional state, faction, Warframe Armor, and Energy context vary by fixture.
+
+All four optimizer results match the independent exact fixed-window scorer's exhaustive best score and report the same `windowDpsScore`. The focused run passes 1/1 in 10.24s. The complete `buildOptimizer.test.ts` file passes 160/160 in 549.80s; focused ESLint and `git diff --check` pass. This adds bounded randomized joint-search evidence for the objective used in the Underframe fixed-window comparison. It does not test all catalog mods, alternate ranks, Forma choices, broader Arcane loadout combinations, global optimality, native Underframe parity, or live-game behavior. The change is tests/docs only; no production build or full-suite run was needed or performed.
