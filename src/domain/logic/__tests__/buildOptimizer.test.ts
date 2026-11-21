@@ -4848,6 +4848,8 @@ describe("build optimizer scoring", () => {
             explanation.arcaneStep!.statAfter - explanation.arcaneStep!.statBefore,
             8,
         );
+        expect(explanation.arcaneStep!.why).toContain("base weapon damage");
+        expect(explanation.arcaneStep!.why).toContain("without this Arcane");
 
         expect(explanation.steps[0].statBefore).toBeCloseTo(
             debugScoreBuild(weapon, [fixedEffect], "burst", "", arcaneEffect),
@@ -4857,7 +4859,7 @@ describe("build optimizer scoring", () => {
             debugScoreBuild(weapon, [fixedEffect, modEffect], "burst", "", arcaneEffect),
             8,
         );
-        expect(explanation.winningEdge).toContain("Largest leave-one-out gains");
+        expect(explanation.winningEdge).toContain("largest score gains from keeping a mod");
         expect(explanation.comparisonNote).toContain("do not prove a global optimum");
     });
 
@@ -4897,9 +4899,9 @@ describe("build optimizer scoring", () => {
         const ranks = mods.map((mod) => mod.fusionLimit);
         const explanation = explainBuild(weapon, mods, ranks, "burst");
 
-        expect(explanation.steps[0].why).toContain("+90% status damage");
-        expect(explanation.steps[0].why).toContain("+0.6 punch-through");
-        expect(explanation.steps[1].why).toContain("+100% status duration");
+        expect(explanation.steps[0].why).toContain("+90% Status Damage");
+        expect(explanation.steps[0].why).toContain("+0.6 Punch-Through");
+        expect(explanation.steps[1].why).toContain("+100% Status Duration");
     });
 
     it("explains Galvanized Steel's heavy-only critical chance contribution", () => {
@@ -4911,7 +4913,7 @@ describe("build optimizer scoring", () => {
         expect(heavyAttack).toBeTruthy();
         const explanation = explainBuild(weapon!, [mod!], [mod!.fusionLimit], "burst", "", heavyAttack);
 
-        expect(explanation.steps[0].why).toContain("+110% heavy-attack cc");
+        expect(explanation.steps[0].why).toContain("+110% of base Critical Chance on Heavy Attacks");
     });
 
     it("summarizes conditional effects that contribute to the modeled build", () => {
@@ -4927,8 +4929,28 @@ describe("build optimizer scoring", () => {
 
         const explanation = explainBuild(weapon, [mod!], [rank], "burst");
 
-        expect(explanation.steps[0].why).toContain("on reload (9s, while aiming): +75% fr");
+        expect(explanation.steps[0].why).toContain("on reload (9s, while aiming): +75% Fire Rate");
         expect(explanation.steps[0].why).not.toContain("Effect not summarized by the active model");
+    });
+
+    it("shows calculated critical stats and direct damage per status in build highlights", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Braton Prime")!;
+        expect(weapon).toBeTruthy();
+        const criticalMod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Critical Delay");
+        const statusMod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Galvanized Aptitude");
+        expect(criticalMod).toBeTruthy();
+        expect(statusMod).toBeTruthy();
+        const mods = [criticalMod!, statusMod!];
+        const ranks = mods.map((mod) => mod.fusionLimit);
+        const explanation = explainBuild(weapon, mods, ranks, "burst");
+        const stats = calculateBuild(weapon, mods.map((mod, index) => mod.effectsByRank[ranks[index]] ?? mod.effect)).modded;
+
+        const criticalHighlight = explanation.buildHighlights.find((line) => line.includes("Critical Chance") && line.includes("Critical Damage"));
+        expect(criticalHighlight).toBeTruthy();
+        expect(criticalHighlight).toContain(`${Number((stats.critChance * 100).toFixed(1))}%`);
+        expect(criticalHighlight).toContain(`${Number(stats.critMultiplier.toFixed(1))}×`);
+        expect(explanation.steps[1].why).toContain("weapon damage per distinct active status type on the target");
+        expect(explanation.buildHighlights.some((line) => line.includes("Direct weapon damage gains") && line.includes("distinct active Status Effect type"))).toBe(true);
     });
 
     it("uses entered target pools and immunities when scoring a custom profile", () => {
