@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
 import { getWeaponCatalog, getWeaponDisplayName } from "../src/domain/catalog/weaponCatalog";
+import { CANONICAL_FACTIONS } from "../src/domain/logic/buildOptimizerCore";
 
 type Fixture = {
     category: string;
@@ -59,6 +60,22 @@ function option(name: string, fallback: string): string {
     return process.argv.find((argument) => argument.startsWith(prefix))?.slice(prefix.length) ?? fallback;
 }
 
+function nonNegativeIntegerOption(name: string, fallback: number): number {
+    const value = Number(option(name, String(fallback)));
+    if (!Number.isSafeInteger(value) || value < 0) {
+        throw new Error(`--${name} must be a non-negative safe integer`);
+    }
+    return value;
+}
+
+function positiveIntegerOption(name: string, fallback: number): number {
+    const value = Number(option(name, String(fallback)));
+    if (!Number.isSafeInteger(value) || value <= 0) {
+        throw new Error(`--${name} must be a positive safe integer`);
+    }
+    return value;
+}
+
 function mulberry32(seed: number): () => number {
     let state = seed >>> 0;
     return () => {
@@ -77,6 +94,16 @@ const requestedRuns = Number(option("runs", "1"));
 if (!Number.isInteger(requestedRuns) || requestedRuns < 1) {
     throw new Error("--runs must be a positive integer");
 }
+const targetFaction = option("faction", "Grineer").trim();
+if (!CANONICAL_FACTIONS.some((candidate) => candidate.toLowerCase() === targetFaction.toLowerCase())) {
+    throw new Error(`--faction must be one of: ${CANONICAL_FACTIONS.join(", ")}`);
+}
+const target = {
+    health: positiveIntegerOption("health", 2_000_000),
+    shields: nonNegativeIntegerOption("shields", 0),
+    overguard: nonNegativeIntegerOption("overguard", 0),
+    armor: nonNegativeIntegerOption("armor", 3_000),
+};
 
 const random = mulberry32(seed);
 const seededCases: Fixture[] = SEEDED_STRATA.map(({ candidates }) => ({
@@ -101,8 +128,8 @@ for (const fixture of fixtures) {
 const assumptions = {
     seed,
     randomGenerator: "Mulberry32; one uniform candidate selected per listed stratum, in listed order",
-    faction: "Grineer",
-    target: { health: 2_000_000, shields: 0, overguard: 0, armor: 3_000 },
+    faction: targetFaction,
+    target,
     state: "realistic",
     scoringWindow: "[0, 5s)",
     mainSlots: 8,
@@ -138,12 +165,12 @@ if (process.argv.includes("--dry-run")) {
             "--import", "tsx/esm", auditScript,
             `--weapon=${fixture.weapon}`,
             `--attack=${fixture.attack}`,
-            "--faction=Grineer",
+            `--faction=${targetFaction}`,
             "--state=realistic",
-            "--health=2000000",
-            "--shields=0",
-            "--overguard=0",
-            "--armor=3000",
+            `--health=${target.health}`,
+            `--shields=${target.shields}`,
+            `--overguard=${target.overguard}`,
+            `--armor=${target.armor}`,
             "--slots=8",
             "--forma=3",
             `--runs=${requestedRuns}`,
