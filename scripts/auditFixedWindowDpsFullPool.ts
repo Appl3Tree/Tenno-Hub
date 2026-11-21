@@ -12,6 +12,7 @@ import {
     countPolarityChanges,
     effectiveDrain,
     fitsWithinCapacity,
+    totalModCapacity,
     type CapacityConfig,
 } from "../src/domain/logic/capacityCalc";
 import {
@@ -67,6 +68,10 @@ const slotCount = Math.max(1, Math.min(8, Math.floor(numericOption("slots", 8)))
 const formaLimit = Math.max(0, Math.min(slotCount, Math.floor(numericOption("forma", 3))));
 const requestedRuns = Math.floor(numericOption("runs", 3));
 if (requestedRuns < 1) throw new Error("--runs must be at least 1");
+const attackDistanceArgument = process.argv.find((argument) => argument.startsWith("--attack-distance="));
+const attackFalloffDistanceMeters = attackDistanceArgument
+    ? numericOption("attack-distance", 0)
+    : undefined;
 const baselineFile = process.argv.find((argument) => argument.startsWith("--baseline-file="))?.slice("--baseline-file=".length);
 const capturedBaseline = baselineFile
     ? JSON.parse(await readFile(resolve(baselineFile), "utf8")) as {
@@ -115,6 +120,9 @@ const eligibleCandidates = candidatePool.filter((mod) => {
 });
 
 const conditionalState: ConditionalState = { mode: stateMode };
+if (attackFalloffDistanceMeters !== undefined) {
+    conditionalState.attackFalloffDistanceMeters = attackFalloffDistanceMeters;
+}
 const defaultPolarities = Array.from({ length: slotCount }, (_, index) => weapon.polarities[index] ?? "");
 const capacityConfig: CapacityConfig = {
     weaponRank: weapon.canOverLevel ? 40 : 30,
@@ -122,6 +130,7 @@ const capacityConfig: CapacityConfig = {
     masteryRank: 30,
     canOverLevel: weapon.canOverLevel,
 };
+const capacityLimit = totalModCapacity(capacityConfig);
 const optimizerOptions = {
     targetFaction,
     targetProfileOverride: target,
@@ -155,7 +164,7 @@ const runs = Array.from({ length: requestedRuns }, () => {
         buildSignature: formatBuild(result.slots, result.slotRanks)
             .map(({ name, rank }) => `${name} R${rank}`)
             .join(" | "),
-        capacity: { used: capacityUsed, limit: 60, legal: result.capacityValid, formaCount },
+        capacity: { used: capacityUsed, limit: capacityLimit, legal: result.capacityValid, formaCount },
         score: {
             damagePerSecond: result.windowDpsScore ?? 0,
             damageInWindow: result.windowDpsDamage ?? 0,
@@ -308,13 +317,16 @@ console.log(JSON.stringify({
         objective: `deterministic applied single-target damage divided by ${FIXED_WINDOW_DPS_SECONDS}s`,
         scoringWindow: `[0, ${FIXED_WINDOW_DPS_SECONDS}s)`,
         oneModNeighborhood: "One max-rank mod addition, removal, or replacement; only legal unique-mod/incompatibility and capacity assignments within the configured Forma limit are scored.",
-        modelBoundary: "Tenno-Hub's deterministic target encounter; it is not Underframe's private simulator or live-game validation. Companion precepts, targeting, range, and multi-target behavior are outside this weapon-only score.",
+        modelBoundary: "Tenno-Hub's deterministic target encounter; it is not Underframe's private simulator or live-game validation. When attack distance is omitted the profile assumes full damage. A listed maximum range is reported but not enforced as a no-hit cap. Companion precepts, targeting, and multi-target behavior are outside this weapon-only score.",
         optimizerRuns: requestedRuns,
     },
     fixture: {
-        weapon: weapon.name,
+        weapon: getWeaponDisplayName(catalogWeapon),
         category: weapon.category,
         attack: attack.name,
+        attackFalloffDistanceMeters: attackFalloffDistanceMeters ?? null,
+        maximumRangeMeters: attack.maximumRangeMeters ?? null,
+        maximumRangeSourceUrl: attack.maximumRangeSourceUrl ?? null,
         faction: targetFaction,
         target,
         state: stateMode,
@@ -330,7 +342,7 @@ console.log(JSON.stringify({
         mods: formatBuild(baselinePlacement.slotMods, baselinePlacement.slotRanks),
         capacity: {
             used: baselineCapacityUsed,
-            limit: 60,
+            limit: capacityLimit,
             legal: baselineLegal,
             formaCount: baselineFormaCount,
         },

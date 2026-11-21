@@ -307,6 +307,62 @@ describe("attack falloff optimizer propagation", () => {
 });
 
 describe("fixed-window DPS objective", () => {
+    function optimizeCatalogWindowFixture(weaponName: string, attackName: string) {
+        const catalogWeapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
+        expect(catalogWeapon).toBeDefined();
+        const attackIndex = catalogWeapon!.attacks.findIndex((attack) => attack.name === attackName);
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const attack = catalogWeapon!.attacks[attackIndex]!;
+        const weapon = withSelectedAttack(catalogWeapon!, attackIndex);
+        const slotCount = 8;
+        const slotPolarities = Array.from({ length: slotCount }, (_, index) => weapon.polarities[index] ?? "");
+        const result = optimizeBuild(
+            weapon,
+            filterBuilderExpertVariants(getModsForWeapon(weapon)),
+            "windowDps",
+            slotCount,
+            {
+                targetFaction: "Grineer",
+                targetProfileOverride: { health: 2_000_000, shields: 0, overguard: 0, armor: 3_000 },
+                conditionalState: { mode: "realistic" },
+                buildForAttack: attack,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                capacityConfig: {
+                    weaponRank: weapon.canOverLevel ? 40 : 30,
+                    hasCatalyst: true,
+                    masteryRank: 30,
+                    canOverLevel: weapon.canOverLevel,
+                },
+                allowCatalyst: true,
+                allowForma: true,
+                maxFormaCount: 3,
+                optimizeArcane: false,
+                arcaneCandidates: [],
+                optimizeExilus: false,
+            },
+        );
+        return { result, weapon };
+    }
+
+    it("retains a second multishot option for the final Braton Prime neighborhood", () => {
+        const { result } = optimizeCatalogWindowFixture("Braton Prime", "Normal Attack");
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Split Chamber")).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Galvanized Chamber")).toBe(false);
+        expect(result.windowDpsScore).toBeCloseTo(30_707.940468114255, 6);
+    });
+
+    it("keeps refining the Laetum finite window until its critical replacement is selected", () => {
+        const { result } = optimizeCatalogWindowFixture("Laetum", "Normal Attack");
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Primed Target Cracker")).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Hornet Strike")).toBe(false);
+        expect(result.windowDpsScore).toBeCloseTo(56_869.970342600674, 6);
+    });
+
     it("scores Mausolon's linked Auto radial hit on the directly struck target", () => {
         const mausolon = getWeaponCatalog().find((entry) =>
             entry.name === "Mausolon" && entry.variantLabel === "Archwing",
