@@ -18,11 +18,11 @@ Reproduce the joint full-pool audit with:
 npx tsx scripts/auditExpectedTtkFullPool.ts --weapon="Braton Prime" --attack="Normal Attack" --slots=2 --forma=0 --state=realistic --health=100000 --armor=3000 --warframe-armor=1500 --warframe-max-energy=1000 --warframe-energy-percent=100 --joint-arcane=true
 ```
 
-## D3-OPT-JOINT-ARCANE-FULLPOOL-3SLOT-001 — three-slot full-catalog joint Arcane neighborhood (2026-11-21; audit complete)
+## D3-OPT-JOINT-ARCANE-FULLPOOL-3SLOT-001 — three-slot full-catalog joint Arcane neighborhood (2026-11-21; PR #203 merged)
 
 The released Braton Prime / Normal Attack / Grineer / Realistic / 100,000 Health / 3,000 Armor / zero-Forma joint-Arcane audit was repeated with three slots, 1,500 Warframe Armor, and 1,000 maximum Energy at 100%. The optimizer selected Malignant Force R3 + Primed Cryo Rounds R10 + Wildfire R3 with Primary Bulwark R5 at 8.9770355s / 11,139.53 modeled DPS. The optimizer search took 5,888.4ms.
 
-The full pool contains 106 proposals, of which 62 are eligible after the existing PvE/source/effect gates; 14 compatible Arcanes expose 84 modeled ranks. The exact one-mod add/remove/replacement audit found 178 legal neighbors and scored 15,215 Arcane variants. None improved the optimizer build; the best neighbor is the baseline itself. This extends the two-slot full-pool result from 121 neighbors / 10,370 Arcane scores to three slots. The roughly 15-minute end-to-end audit is a single local desktop observation. These results establish no improving one-mod move for this one finite-model fixture, not joint two-plus-mod optimality, global search quality, Underframe objective/simulator parity, Forma optimization, or live-game accuracy.
+The full pool contains 106 proposals, of which 62 are eligible after the existing PvE/source/effect gates; 14 compatible Arcanes expose 84 modeled ranks. The exact one-mod add/remove/replacement audit found 178 legal neighbors and scored 15,215 Arcane variants. None improved the optimizer build; the best neighbor is the baseline itself. This extends the two-slot full-pool result from 121 neighbors / 10,370 Arcane scores to three slots. The roughly 15-minute end-to-end audit is a single local desktop observation. PR [#203](https://github.com/Appl3Tree/Tenno-Hub/pull/203) squash-merged as `7afcf2b3f7e57bf694b0b67f2e6a86848038aa59`; GitHub reported no status checks and the change does not alter the app bundle. These results establish no improving one-mod move for this one finite-model fixture, not joint two-plus-mod optimality, global search quality, Underframe objective/simulator parity, Forma optimization, or live-game accuracy.
 
 Reproduce with:
 
