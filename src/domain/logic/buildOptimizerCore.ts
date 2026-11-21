@@ -42,8 +42,18 @@ import {
     type ExpectedWeaponEncounterResult,
 } from "./targetDamage";
 
-export type OptimizeGoal = "burst" | "scaling" | "timeToKill" | "meleeDps";
+export const FIXED_WINDOW_DPS_SECONDS = 5;
+
+export type OptimizeGoal = "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps";
 export type LegacyOptimizeGoal = OptimizeGoal | "damage" | "crit" | "status";
+
+function isFiniteEncounterGoal(goal: OptimizeGoal): boolean {
+    return goal === "timeToKill" || goal === "windowDps";
+}
+
+function isFiniteWindowDpsGoal(goal: OptimizeGoal): boolean {
+    return goal === "windowDps";
+}
 
 export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefined): OptimizeGoal {
     switch (goal) {
@@ -55,6 +65,8 @@ export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefine
         case "scaling":
             return goal;
         case "timeToKill":
+            return goal;
+        case "windowDps":
             return goal;
         case "meleeDps":
             return goal;
@@ -165,6 +177,10 @@ export interface OptimizeResult {
     encounterRefined?: boolean;
     /** Number of local replacement candidates evaluated by the finite encounter. */
     encounterCandidatesEvaluated?: number;
+    /** Applied damage per second inside the fixed half-open 5-second window. */
+    windowDpsScore?: number;
+    /** Exact target-pool damage applied inside the fixed half-open 5-second window. */
+    windowDpsDamage?: number;
 }
 
 function resultUsesAnyNonMaxed(result: OptimizeResult): boolean {
@@ -198,6 +214,16 @@ function scoreOptimizeResult(
     const arcaneEffect = result.arcane
         ? getArcaneEffectAtRank(result.arcane, result.arcaneRank, warframeArmor, true, { warframeMaxEnergy, warframeEnergyPercent })
         : null;
+    if (goal === "windowDps") {
+        return expectedEncounterScoreForEffects(
+            scoringWeapon,
+            [...preEquippedEffects, ...effects, ...(arcaneEffect ? [normalizeArcaneEffect(arcaneEffect)] : [])],
+            targetFaction,
+            targetProfileOverride,
+            conditionalState,
+            FIXED_WINDOW_DPS_SECONDS,
+        ).score;
+    }
     return scoreEffects(scoringWeapon, [...preEquippedEffects, ...effects], goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState, meleeStanceCombo);
 }
 
@@ -1136,6 +1162,21 @@ function scoreEffects(
     conditionalState?: ConditionalState,
     meleeStanceCombo?: MeleeAverageDpsParameters,
 ): number {
+    if (goal === "windowDps") {
+        // Keep the shortlist proxy aligned with the exact objective: one target,
+        // no kill-reset cadence, and no neighboring-target collateral.
+        return scoreEffectsCore(
+            weapon,
+            effects,
+            goal,
+            targetFaction,
+            arcaneEffect,
+            singleTargetProfileForFixedWindow(targetProfileOverride ?? undefined),
+            conditionalState,
+            meleeStanceCombo,
+            0,
+        ).primaryScore;
+    }
     const normalizedArcaneEffect = arcaneEffect ? normalizeArcaneEffect(arcaneEffect) : null;
     const hasGalvanizedPerStatusKillEffect = weapon.selectedAttackIsAreaDamage !== true &&
         [...effects, normalizedArcaneEffect].some((effect) =>
@@ -1261,6 +1302,41 @@ export function debugEvaluateExpectedEncounter(
     );
     return {
         damagePerSecond: result.score,
+        timeToKillSeconds: result.timeToKillSeconds,
+        encounter: result.encounter,
+    };
+}
+
+/** Deterministic single-target damage rate in the fixed half-open 5s window. */
+export function debugEvaluateFixedWindowDps(
+    weapon: WeaponEntry,
+    effects: (ModEffect | null)[],
+    targetFaction = "",
+    targetProfileOverride?: TargetProfileOverride,
+    conditionalState?: ConditionalState,
+    arcaneEffect?: Partial<ModEffect> | null,
+): {
+    damagePerSecond: number;
+    damageInWindow: number;
+    windowSeconds: number;
+    timeToKillSeconds: number | null;
+    encounter: ExpectedWeaponEncounterResult | null;
+} {
+    const encounterEffects = arcaneEffect
+        ? [...effects, normalizeArcaneEffect(arcaneEffect)]
+        : effects;
+    const result = expectedEncounterScoreForEffects(
+        weapon,
+        encounterEffects,
+        targetFaction,
+        targetProfileOverride,
+        conditionalState,
+        FIXED_WINDOW_DPS_SECONDS,
+    );
+    return {
+        damagePerSecond: result.score,
+        damageInWindow: result.encounter?.totalDamage ?? 0,
+        windowSeconds: FIXED_WINDOW_DPS_SECONDS,
         timeToKillSeconds: result.timeToKillSeconds,
         encounter: result.encounter,
     };
@@ -2139,7 +2215,7 @@ function beamSearch(
         if (m) { resultMods.push(m); resultRanks.push(best.ranks[i] ?? m.fusionLimit); }
     }
     const expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [];
-    if (goal === "timeToKill" && !lockedSlots.some(Boolean) && beam.length > 1) {
+    if (isFiniteEncounterGoal(goal) && !lockedSlots.some(Boolean) && beam.length > 1) {
         const maxFilledCount = Math.max(...beam.map((state) => state.filledCount));
         const finalists = beam.filter((state) => state.filledCount === maxFilledCount);
         const seenBuilds = new Set<string>();
@@ -2475,6 +2551,18 @@ function expectedEncounterElementTransition(
     return incomingType && outgoingType ? `${incomingType}>${outgoingType}` : "";
 }
 
+function singleTargetProfileForFixedWindow(
+    targetProfileOverride: TargetProfileOverride | null | undefined,
+): TargetProfileOverride | null | undefined {
+    if (targetProfileOverride == null) return targetProfileOverride;
+    return {
+        ...targetProfileOverride,
+        nearbyEnemyCount: 0,
+        nearbyGasOuterEnemyCount: 0,
+        nearbyBlastEnemyCount: 0,
+    };
+}
+
 function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     const effect = candidate.mod.effectsByRank[candidate.rank] ?? candidate.mod.effect;
     const effects: Array<Partial<ModEffect>> = [effect, ...(effect.conditionalEffects ?? []).map((entry) => entry.stats)];
@@ -2541,6 +2629,7 @@ function expectedEncounterScoreForEffectsAtKillRate(
     targetProfileOverride: TargetProfileOverride | undefined,
     conditionalState: ConditionalState | undefined,
     expectedKillRatePerSecond?: number,
+    fixedWindowSeconds?: number,
 ): { score: number; timeToKillSeconds: number | null; encounter: ExpectedWeaponEncounterResult | null } {
     const target = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
     if (target.poolTotal <= 0) return { score: 0, timeToKillSeconds: null, encounter: null };
@@ -2589,6 +2678,10 @@ function expectedEncounterScoreForEffectsAtKillRate(
         expectedDamageMultiplier: stats.damageWeightedMultishot,
         singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
         attackIntervalSeconds: 1 / Math.max(0.0001, stats.fireRate),
+        ...(fixedWindowSeconds !== undefined ? {
+            maxDurationSeconds: fixedWindowSeconds,
+            stopAtSeconds: fixedWindowSeconds,
+        } : {}),
         autoSpoolCadenceRule: weapon.selectedAttackAutoSpoolCadence,
         autoSpoolShotSequenceRule: weapon.selectedAttackAutoSpoolShotSequence,
         shotsPerMagazine: stats.finiteShotsPerMag,
@@ -2666,7 +2759,21 @@ function expectedEncounterScoreForEffects(
     targetFaction: string,
     targetProfileOverride: TargetProfileOverride | undefined,
     conditionalState: ConditionalState | undefined,
+    fixedWindowSeconds?: number,
 ): { score: number; timeToKillSeconds: number | null; encounter: ExpectedWeaponEncounterResult | null } {
+    if (fixedWindowSeconds !== undefined) {
+        // This objective models one finite target. It does not assume a target
+        // reset after a kill, so realistic on-kill stacks have no pre-kill rate.
+        return expectedEncounterScoreForEffectsAtKillRate(
+            weapon,
+            effects,
+            targetFaction,
+            singleTargetProfileForFixedWindow(targetProfileOverride) ?? undefined,
+            conditionalState,
+            0,
+            fixedWindowSeconds,
+        );
+    }
     const usesRealisticState = (conditionalState?.mode ?? DEFAULT_CONDITIONAL_STATE.mode) === "realistic";
     const hasGalvanizedPerStatusKillEffect = weapon.selectedAttackIsAreaDamage !== true &&
         effects.some((effect) =>
@@ -2712,6 +2819,15 @@ function isExpectedEncounterBetter(
         return candidate.timeToKillSeconds < incumbent.timeToKillSeconds - 1e-9;
     }
     if (incumbent.timeToKillSeconds !== null) return false;
+    return candidate.score > incumbent.score + Math.max(1e-9, Math.abs(incumbent.score) * 1e-12);
+}
+
+function isFiniteObjectiveBetter(
+    goal: OptimizeGoal,
+    candidate: { score: number; timeToKillSeconds: number | null },
+    incumbent: { score: number; timeToKillSeconds: number | null },
+): boolean {
+    if (goal === "timeToKill") return isExpectedEncounterBetter(candidate, incumbent);
     return candidate.score > incumbent.score + Math.max(1e-9, Math.abs(incumbent.score) * 1e-12);
 }
 
@@ -2813,6 +2929,7 @@ function refineBuildByExpectedEncounter(
             targetFaction,
             opts.targetProfileOverride,
             opts.conditionalState,
+            isFiniteWindowDpsGoal(goal) ? FIXED_WINDOW_DPS_SECONDS : undefined,
         );
         exactCache.set(key, evaluated);
         return evaluated;
@@ -2824,10 +2941,11 @@ function refineBuildByExpectedEncounter(
     if (lockedSlots.some(Boolean)) {
         return { slots, ranks, polarities, ...current, candidatesEvaluated, refined };
     }
-    // TTK is the sole objective comparator, with no secondary DPS tie-break
-    // between builds that kill at the same instant. A time-zero kill is the
-    // lower bound, so no replacement can improve it.
-    if (current.timeToKillSeconds !== null && current.timeToKillSeconds <= 1e-9) {
+    // Expected TTK has no secondary damage-rate tie-break between builds that
+    // kill at the same instant. A time-zero kill is its lower bound, so no
+    // replacement can improve it. The window-DPS objective always compares its
+    // exact applied-damage rate over the full fixed horizon.
+    if (goal === "timeToKill" && current.timeToKillSeconds !== null && current.timeToKillSeconds <= 1e-9) {
         return { slots, ranks, polarities, ...current, candidatesEvaluated, refined };
     }
 
@@ -2869,7 +2987,7 @@ function refineBuildByExpectedEncounter(
         seedAssignments.add(signature);
         const evaluated = exactScore(assigned.slotMods, assigned.slotRanks);
         candidatesEvaluated++;
-        if (isExpectedEncounterBetter(evaluated, current)) {
+        if (isFiniteObjectiveBetter(goal, evaluated, current)) {
             slots = [...assigned.slotMods];
             ranks = [...assigned.slotRanks];
             polarities = seedPolarities;
@@ -2949,7 +3067,7 @@ function refineBuildByExpectedEncounter(
                         weapon,
                         assigned.slotMods,
                         assigned.slotRanks,
-                        goal === "timeToKill" ? "scaling" : goal,
+                        isFiniteEncounterGoal(goal) ? "scaling" : goal,
                         targetFaction,
                         arcaneEffect,
                         [...preEquippedEffects, ...extraEffects],
@@ -3165,7 +3283,7 @@ function refineBuildByExpectedEncounter(
         for (const proposal of shortlist) {
             const evaluated = exactScore(proposal.slots, proposal.ranks);
             candidatesEvaluated++;
-            if (isExpectedEncounterBetter(evaluated, best)) {
+            if (isFiniteObjectiveBetter(goal, evaluated, best)) {
                 best = evaluated;
                 bestProposal = proposal;
             }
@@ -3301,7 +3419,7 @@ function refineBuildByExpectedEncounter(
                                         weapon,
                                         assigned.slotMods,
                                         assigned.slotRanks,
-                                        goal === "timeToKill" ? "scaling" : goal,
+                                        isFiniteEncounterGoal(goal) ? "scaling" : goal,
                                         targetFaction,
                                         arcaneEffect,
                                         [...preEquippedEffects, ...extraEffects],
@@ -3353,7 +3471,7 @@ function refineBuildByExpectedEncounter(
                 for (const proposal of pairShortlist) {
                     const evaluated = exactScore(proposal.slots, proposal.ranks);
                     candidatesEvaluated++;
-                    if (isExpectedEncounterBetter(evaluated, best)) {
+                    if (isFiniteObjectiveBetter(goal, evaluated, best)) {
                         best = evaluated;
                         bestProposal = proposal;
                     }
@@ -3642,28 +3760,29 @@ function optimizeArcaneSlot(
     );
     if (!arcanes.length) return { arcane: null, rank: 0 };
 
-    let bestEncounter = goal === "timeToKill"
+    let bestEncounter = isFiniteEncounterGoal(goal)
         ? expectedEncounterScoreForEffects(
             weapon,
             mainBuildEffects,
             targetFaction,
             opts.targetProfileOverride,
             opts.conditionalState,
+            isFiniteWindowDpsGoal(goal) ? FIXED_WINDOW_DPS_SECONDS : undefined,
         )
         : null;
-    if (bestEncounter?.timeToKillSeconds !== null && bestEncounter?.timeToKillSeconds !== undefined &&
+    if (goal === "timeToKill" && bestEncounter?.timeToKillSeconds !== null && bestEncounter?.timeToKillSeconds !== undefined &&
         bestEncounter.timeToKillSeconds <= 1e-9) {
         return { arcane: null, rank: 0 };
     }
-    const baseScore = goal === "timeToKill"
+    const baseScore = isFiniteEncounterGoal(goal)
         ? 0
         : scoreEffects(weapon, mainBuildEffects, goal, targetFaction, null, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
     let bestArcane: ArcaneEntry | null = null;
     let bestRank = 0;
     let bestScore = baseScore;
 
-    const ttkCandidates: Array<{ arcane: ArcaneEntry; rank: number; effect: Partial<ModEffect> }> = [];
-    if (goal === "timeToKill") {
+    const finiteEncounterCandidates: Array<{ arcane: ArcaneEntry; rank: number; effect: Partial<ModEffect> }> = [];
+    if (isFiniteEncounterGoal(goal)) {
         // Without an inventory restriction, evaluate every candidate rank:
         // parsed rank tables may not scale uniformly. When the caller requires
         // an owned Arcane, inventory records only the highest owned rank, so
@@ -3681,13 +3800,13 @@ function optimizeArcaneSlot(
                 });
                 if (!effect || !Object.keys(effect).length) continue;
                 if (getUnmodeledScoringEffectLines(effect).length > 0) continue;
-                ttkCandidates.push({ arcane: arc, rank, effect });
+                finiteEncounterCandidates.push({ arcane: arc, rank, effect });
             }
         }
     }
 
     for (const arc of arcanes) {
-        if (goal === "timeToKill") continue;
+        if (isFiniteEncounterGoal(goal)) continue;
         const ownedMaxRank = opts.ownedArcaneMaxRankByUniqueName?.[arc.uniqueName];
         const rankCap = ownedMaxRank == null ? arc.maxRank : Math.min(arc.maxRank, ownedMaxRank);
         const ranks = opts.ownedArcaneUniqueNames
@@ -3708,15 +3827,16 @@ function optimizeArcaneSlot(
             if (s > bestScore + scoreTolerance) { bestScore = s; bestArcane = arc; bestRank = rank; }
         }
     }
-    for (const candidate of ttkCandidates) {
+    for (const candidate of finiteEncounterCandidates) {
         const evaluated = expectedEncounterScoreForEffects(
             weapon,
             [...mainBuildEffects, normalizeArcaneEffect(candidate.effect)],
             targetFaction,
             opts.targetProfileOverride,
             opts.conditionalState,
+            isFiniteWindowDpsGoal(goal) ? FIXED_WINDOW_DPS_SECONDS : undefined,
         );
-        if (bestEncounter && isExpectedEncounterBetter(evaluated, bestEncounter)) {
+        if (bestEncounter && isFiniteObjectiveBetter(goal, evaluated, bestEncounter)) {
             bestEncounter = evaluated;
             bestArcane = candidate.arcane;
             bestRank = candidate.rank;
@@ -3770,7 +3890,7 @@ function optimizeBuildInternal(
     const initial = beamSearch(scoringWeapon, candidates, goal, slotCount, effectiveOpts);
     let mods = initial.mods;
     let ranks = initial.ranks;
-    if (!hasLockedMainSlots && goal !== "timeToKill") {
+    if (!hasLockedMainSlots && !isFiniteEncounterGoal(goal)) {
         ({ mods, ranks } = refineBuildSet(
             scoringWeapon,
             initial.mods,
@@ -3880,7 +4000,7 @@ function optimizeBuildInternal(
     // Phase 5: Arcane optimization
     let arcane: ArcaneEntry | null = null;
     let arcaneRank = 0;
-    if (optimizeArcane && goal !== "timeToKill") {
+    if (optimizeArcane && !isFiniteEncounterGoal(goal)) {
         const allEffects = exilusMod
             ? [...preEquippedEffects, ...mainEffects, exilusMod.effectsByRank[exilusRank] ?? exilusMod.effect]
             : [...preEquippedEffects, ...mainEffects];
@@ -3902,7 +4022,7 @@ function optimizeBuildInternal(
         : null;
 
     if (!hasLockedMainSlots) {
-        if (goal !== "timeToKill") {
+        if (!isFiniteEncounterGoal(goal)) {
             const refinedWithContext = refineBuildSet(
                 scoringWeapon,
                 slotMods.filter((m): m is ModEntry => !!m),
@@ -3995,7 +4115,7 @@ function optimizeBuildInternal(
             effectiveOpts.meleeStanceCombo,
         );
 
-    let greedyImproved = goal !== "timeToKill";
+    let greedyImproved = !isFiniteEncounterGoal(goal);
     while (greedyImproved && slotMods.some((mod) => !mod)) {
         greedyImproved = false;
         const baseScore = scoreFinalMainSlots(slotMods, slotRanks);
@@ -4160,7 +4280,7 @@ function optimizeBuildInternal(
 
     // For proxy objectives, Arcane choice and mod refinement use the same score
     // function. Reconcile them after slot placement and the final empty-slot pass.
-    if (goal !== "timeToKill" && optimizeArcane && !hasLockedMainSlots) {
+    if (!isFiniteEncounterGoal(goal) && optimizeArcane && !hasLockedMainSlots) {
         for (let pass = 0; pass < ARCANE_MOD_JOINT_REFINE_PASSES; pass++) {
             const selectedArcane = optimizeArcaneSlot(
                 scoringWeapon,
@@ -4190,7 +4310,8 @@ function optimizeBuildInternal(
     let encounterTimeToKillSeconds: number | null | undefined;
     let encounterRefined: boolean | undefined;
     let encounterCandidatesEvaluated: number | undefined;
-    if (goal === "timeToKill") {
+    let windowDpsScore: number | undefined;
+    if (isFiniteEncounterGoal(goal)) {
         const encounterRefinement = refineBuildByExpectedEncounter(
             scoringWeapon,
             slotMods,
@@ -4209,7 +4330,8 @@ function optimizeBuildInternal(
             slotRanks[index] = slotMods[index] ? encounterRefinement.ranks[index] ?? slotMods[index]!.fusionLimit : 0;
         }
         finalPolarities = encounterRefinement.polarities;
-        encounterScore = encounterRefinement.score;
+        if (goal === "timeToKill") encounterScore = encounterRefinement.score;
+        else windowDpsScore = encounterRefinement.score;
         encounterTimeToKillSeconds = encounterRefinement.timeToKillSeconds;
         encounterRefined = encounterRefinement.refined;
         encounterCandidatesEvaluated = encounterRefinement.candidatesEvaluated;
@@ -4218,7 +4340,7 @@ function optimizeBuildInternal(
     // Alternate the exact finite-encounter Arcane choice with legal one-mod
     // refinement. An Arcane can change which replacement is best, and that
     // replacement can in turn change the best Arcane.
-    if (goal === "timeToKill" && optimizeArcane && !hasLockedMainSlots) {
+    if (isFiniteEncounterGoal(goal) && optimizeArcane && !hasLockedMainSlots) {
         for (let pass = 0; pass < ARCANE_MOD_JOINT_REFINE_PASSES; pass++) {
             const selectedArcane = optimizeArcaneSlot(
                 scoringWeapon,
@@ -4252,7 +4374,8 @@ function optimizeBuildInternal(
                     : 0;
             }
             finalPolarities = encounterRefinement.polarities;
-            encounterScore = encounterRefinement.score;
+            if (goal === "timeToKill") encounterScore = encounterRefinement.score;
+            else windowDpsScore = encounterRefinement.score;
             encounterTimeToKillSeconds = encounterRefinement.timeToKillSeconds;
             encounterRefined = encounterRefined || encounterRefinement.refined;
             encounterCandidatesEvaluated = (encounterCandidatesEvaluated ?? 0) + encounterRefinement.candidatesEvaluated;
@@ -4270,7 +4393,7 @@ function optimizeBuildInternal(
         ));
         // A time-zero kill is already the objective's lower bound; when no
         // Arcane was selected, the earlier exact score is still the final one.
-        if (!(arcane === null && encounterTimeToKillSeconds !== null &&
+        if (goal !== "timeToKill" || !(arcane === null && encounterTimeToKillSeconds !== null &&
             encounterTimeToKillSeconds !== undefined && encounterTimeToKillSeconds <= 1e-9)) {
             const finalEncounterEffects = contextualArcaneEffect
                 ? [...effectsForCurrentSlots(), normalizeArcaneEffect(contextualArcaneEffect)]
@@ -4281,8 +4404,10 @@ function optimizeBuildInternal(
                 targetFaction,
                 effectiveOpts.targetProfileOverride,
                 effectiveOpts.conditionalState,
+                isFiniteWindowDpsGoal(goal) ? FIXED_WINDOW_DPS_SECONDS : undefined,
             );
-            encounterScore = finalEncounter.score;
+            if (goal === "timeToKill") encounterScore = finalEncounter.score;
+            else windowDpsScore = finalEncounter.score;
             encounterTimeToKillSeconds = finalEncounter.timeToKillSeconds;
             encounterCandidatesEvaluated = (encounterCandidatesEvaluated ?? 0) + 1;
         }
@@ -4326,7 +4451,17 @@ function optimizeBuildInternal(
                 encounterRefined,
                 encounterCandidatesEvaluated,
             }
-            : {}),
+            : goal === "windowDps"
+                ? {
+                    windowDpsScore,
+                    windowDpsDamage: windowDpsScore === undefined
+                        ? undefined
+                        : windowDpsScore * FIXED_WINDOW_DPS_SECONDS,
+                    encounterTimeToKillSeconds,
+                    encounterRefined,
+                    encounterCandidatesEvaluated,
+                }
+                : {}),
     };
 }
 
@@ -4347,9 +4482,10 @@ export function optimizeBuildCore(
 
     const autoSpoolTimingLimitation = opts.buildForAttack?.autoSpoolTimingLimitation ??
         weapon.selectedAttackAutoSpoolTimingLimitation;
-    if (goal === "timeToKill" && autoSpoolTimingLimitation) {
+    if (isFiniteEncounterGoal(goal) && autoSpoolTimingLimitation) {
+        const objectiveName = goal === "timeToKill" ? "Expected TTK" : "5s Avg DPS";
         throw new Error(
-            `Expected TTK is unavailable for ${weapon.selectedAttackName ?? opts.buildForAttack?.name ?? weapon.name}: ` +
+            `${objectiveName} is unavailable for ${weapon.selectedAttackName ?? opts.buildForAttack?.name ?? weapon.name}: ` +
             `${autoSpoolTimingLimitation.reason} Wiki: ${autoSpoolTimingLimitation.sourceUrl}`,
         );
     }
@@ -4434,6 +4570,14 @@ export interface BuildExplanationOptions {
         refined: boolean;
         candidatesEvaluated: number;
     };
+    fixedWindowObjective?: {
+        damage: number;
+        damagePerSecond: number;
+        windowSeconds: number;
+        timeToKillSeconds: number | null;
+        refined: boolean;
+        candidatesEvaluated: number;
+    };
 }
 
 function goalLabel(goal: OptimizeGoal): string {
@@ -4441,6 +4585,7 @@ function goalLabel(goal: OptimizeGoal): string {
         case "burst": return "Burst DPS";
         case "scaling": return "Sustained DPS";
         case "timeToKill": return "Expected TTK";
+        case "windowDps": return "Fixed-window DPS (5s)";
         case "meleeDps": return "Wiki Stance DPS";
     }
 }
@@ -4520,19 +4665,38 @@ export function explainBuild(
         mods: (ModEntry | null)[],
         ranks: (number | undefined)[],
         arcaneEffect: Partial<ModEffect> | null | undefined = explanationOptions.arcaneEffect,
-    ) => scoreSlots(
-        scoringWeapon,
-        mods,
-        ranks,
-        goal,
-        targetFaction,
-        arcaneEffect,
-        explanationOptions.baseEffects ?? [],
-        conditionalState,
-        targetProfileOverride,
-        undefined,
-        explanationOptions.meleeStanceCombo,
-    );
+    ) => {
+        if (goal === "windowDps") {
+            const effects: (ModEffect | null)[] = [
+                ...(explanationOptions.baseEffects ?? []),
+                ...mods.map((mod, index) => mod
+                    ? mod.effectsByRank[ranks[index] ?? mod.fusionLimit] ?? mod.effect
+                    : null),
+                ...(arcaneEffect ? [normalizeArcaneEffect(arcaneEffect)] : []),
+            ];
+            return expectedEncounterScoreForEffects(
+                scoringWeapon,
+                effects,
+                targetFaction,
+                targetProfileOverride,
+                conditionalState,
+                FIXED_WINDOW_DPS_SECONDS,
+            ).score;
+        }
+        return scoreSlots(
+            scoringWeapon,
+            mods,
+            ranks,
+            goal,
+            targetFaction,
+            arcaneEffect,
+            explanationOptions.baseEffects ?? [],
+            conditionalState,
+            targetProfileOverride,
+            undefined,
+            explanationOptions.meleeStanceCombo,
+        );
+    };
     const fullScore = scoreSlotsForExplanation(fullSlots, fullRanks);
     const baseScore = scoreSlotsForExplanation(
         Array(slotCount).fill(null),
@@ -4602,18 +4766,24 @@ export function explainBuild(
             targetProfileOverride?.nearbyEnemyCount,
             targetProfileOverride?.nearbyGasOuterEnemyCount,
         );
-    const targetDetail = goal !== "meleeDps" && targetProfileOverride
-        ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}`
+    const targetDetail = goal === "windowDps" && targetProfileOverride
+        ? " using the entered target pools; only damage applied to this target is scored, with neighbor collateral excluded"
+        : goal !== "meleeDps" && targetProfileOverride
+            ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}`
         : "";
     const scoreLabel = goal === "timeToKill"
         ? "Screening proxy score"
+        : goal === "windowDps" ? "Exact 5-second damage rate"
         : goal === "meleeDps" ? "Raw stance DPS estimate" : "Selected build score";
     const encounterSummary = goal === "timeToKill" && explanationOptions.objectiveEncounter
         ? explanationOptions.objectiveEncounter.timeToKillSeconds === null
             ? ` Finite expected encounter reached its safety cap; fallback damage rate ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)}/s.`
             : ` Finite expected encounter TTK ${explanationOptions.objectiveEncounter.timeToKillSeconds.toFixed(2)}s at ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)} damage/s.`
         : "";
-    const summary    = `${goalLabel(goal)} ${targetLabel}${targetDetail}. ${scoreLabel}: ${fullScore.toFixed(1)}${baseScore > 0 ? ` (${totalMultiplier.toFixed(1)}x unmodded; ${totalGain >= 0 ? "+" : ""}${totalGain.toFixed(1)}%)` : ""}.${encounterSummary}`;
+    const fixedWindowSummary = goal === "windowDps" && explanationOptions.fixedWindowObjective
+        ? ` Applied ${explanationOptions.fixedWindowObjective.damage.toFixed(1)} damage during [0, ${explanationOptions.fixedWindowObjective.windowSeconds.toFixed(1)}s), or ${explanationOptions.fixedWindowObjective.damagePerSecond.toFixed(1)} damage/s${explanationOptions.fixedWindowObjective.timeToKillSeconds === null ? " without defeating the target" : ` with a target defeat at ${explanationOptions.fixedWindowObjective.timeToKillSeconds.toFixed(2)}s`}. Overkill and events at the window endpoint are excluded.`
+        : "";
+    const summary    = `${goalLabel(goal)} ${targetLabel}${targetDetail}. ${scoreLabel}: ${fullScore.toFixed(1)}${baseScore > 0 ? ` (${totalMultiplier.toFixed(1)}x unmodded; ${totalGain >= 0 ? "+" : ""}${totalGain.toFixed(1)}%)` : ""}.${encounterSummary}${fixedWindowSummary}`;
     const encounterSearchNote = !explanationOptions.objectiveEncounter || explanationOptions.objectiveEncounter.candidatesEvaluated <= 1
         ? " Locked slots kept the returned build fixed, so no replacement search was run."
         : explanationOptions.objectiveEncounter.refined
@@ -4631,6 +4801,8 @@ export function explainBuild(
             ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
             : goal === "timeToKill"
             ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls, the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter, alternating Arcane choice and legal mod refinement for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
+            : goal === "windowDps"
+                ? `The optimizer screens builds with a fast sustained-damage proxy, then exact-scores legal effect-diverse finalists and bounded one-/two-mod replacements in a single-target, half-open ${FIXED_WINDOW_DPS_SECONDS}s simulation. It ranks applied damage divided by ${FIXED_WINDOW_DPS_SECONDS}s, clips damage to remaining target pools, counts attacks and DoT ticks with timestamps below ${FIXED_WINDOW_DPS_SECONDS}s, and stops damage after the target dies. Realistic on-kill stacks start at zero because this objective does not reset targets; configured non-kill conditionals remain in effect. Damage/status outcomes are deterministic mean-field estimates, not Underframe's seeded sample mean. This bounded search does not prove global optimality or simulator/gameplay parity.`
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }

@@ -80,6 +80,49 @@ function makeToridCloudProfile(projectiles = 1): AttachedAttackTickProfile {
 }
 
 describe("target damage progress across defense pools", () => {
+    it("uses a half-open fixed window for attacks and attached damage ticks", () => {
+        const direct = simulateExpectedWeaponEncounter({
+            damageByType: { impact: 10 },
+            health: 100,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            infiniteAmmoActive: true,
+            maxAttacks: 20,
+            maxDurationSeconds: 5,
+            stopAtSeconds: 5,
+        });
+
+        expect(direct.attacks).toBe(5);
+        expect(direct.directDamageByPool.health).toBe(50);
+        expect(direct.evaluatedDurationSeconds).toBe(5);
+        expect(direct.damagePerSecond).toBe(10);
+
+        const cloud = simulateExpectedWeaponEncounter({
+            damageByType: {},
+            health: 1_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 1,
+            attackCountLimit: 1,
+            maxAttacks: 1,
+            maxDurationSeconds: 5,
+            stopAtSeconds: 5,
+            attachedAttackDamageSequence: {
+                rule: toridCloudRule,
+                profile: makeToridCloudProfile(),
+            },
+        });
+
+        expect(cloud.attacks).toBe(1);
+        expect(cloud.totalDamage).toBe(160);
+        expect(cloud.damagePerSecond).toBe(32);
+    });
+
     it("resolves Torid direct impact followed by ten attached cloud ticks, including multishot", () => {
         const singleProjectile = simulateExpectedWeaponEncounter({
             damageByType: { toxin: 100 },
