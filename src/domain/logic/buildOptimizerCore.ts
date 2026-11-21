@@ -2429,12 +2429,15 @@ function fillEmptySlots(
 }
 
 const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 40;
+const WINDOW_DPS_EXTRA_CANDIDATE_LIMIT = 4;
 const ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT = 8;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
 const ENCOUNTER_REFINE_ELEMENT_THEME_LIMIT = 4;
 const ENCOUNTER_SLOT_ALTERNATIVE_LIMIT = 8;
 const ENCOUNTER_REFINE_PASSES = 6;
+// The Laetum fixed-window fixture reaches its best one-mod neighborhood on pass seven.
+const ENCOUNTER_WINDOW_DPS_REFINE_PASSES = 7;
 const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 13;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
 const ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT = 24;
@@ -3037,7 +3040,12 @@ function refineBuildByExpectedEncounter(
         }
     }
 
-    for (let pass = 0; pass < ENCOUNTER_REFINE_PASSES; pass++) {
+    const refinePassLimit = goal === "windowDps"
+        ? ENCOUNTER_WINDOW_DPS_REFINE_PASSES
+        : ENCOUNTER_REFINE_PASSES;
+    for (let pass = 0; pass < refinePassLimit; pass++) {
+        const candidateLimit = ENCOUNTER_REFINE_CANDIDATE_LIMIT +
+            (goal === "windowDps" ? WINDOW_DPS_EXTRA_CANDIDATE_LIMIT : 0);
         type EncounterReplacementProposal = {
             slots: (ModEntry | null)[];
             ranks: number[];
@@ -3108,7 +3116,7 @@ function refineBuildByExpectedEncounter(
                         weapon,
                         assigned.slotMods,
                         assigned.slotRanks,
-                        isFiniteEncounterGoal(goal) ? "scaling" : goal,
+                        goal === "timeToKill" ? "scaling" : goal,
                         targetFaction,
                         arcaneEffect,
                         [...preEquippedEffects, ...extraEffects],
@@ -3157,7 +3165,7 @@ function refineBuildByExpectedEncounter(
         const singleCandidateKeys = new Set(shortlist.flatMap((proposal) => proposal.candidates.map((candidate) =>
             `${candidate.mod.uniqueName}@${candidate.rank}`,
         )));
-        // Exact encounter TTK is especially sensitive to elemental transitions;
+        // Finite-encounter scoring is especially sensitive to elemental transitions;
         // reserve this family before proxy-adjacent base-damage/tempo alternatives
         // can consume the bounded single-replacement shortlist.
         const singleCandidateFamilies = [
@@ -3172,7 +3180,7 @@ function refineBuildByExpectedEncounter(
         // families. Proxy order alone can underrank a tempo alternative (for
         // example Vile Acceleration under a short, high-health encounter).
         for (const family of singleCandidateFamilies) {
-            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+            if (shortlist.length >= candidateLimit) break;
             for (const proposal of sortedProposals) {
                 const candidate = proposal.candidates[0];
                 if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
@@ -3181,6 +3189,26 @@ function refineBuildByExpectedEncounter(
                 singleCandidateKeys.add(candidateKey);
                 if (!shortlist.includes(proposal)) shortlist.push(proposal);
                 break;
+            }
+        }
+        if (goal === "windowDps") {
+            // The seeded full-pool audit found near-substitute misses in both
+            // multishot and critical builds. Keep one more incoming mod from
+            // each family so later exact finite-window passes can reconsider it.
+            for (const family of ["multishot", "critical"]) {
+                const representedCandidates = new Set(shortlist.flatMap((proposal) => proposal.candidates)
+                    .filter((candidate) => expectedEncounterCandidateFamilies(candidate).includes(family))
+                    .map((candidate) => `${candidate.mod.uniqueName}@${candidate.rank}`));
+                for (const proposal of sortedProposals) {
+                    if (representedCandidates.size >= 2 || shortlist.length >= candidateLimit) break;
+                    const candidate = proposal.candidates[0];
+                    if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
+                    const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+                    if (representedCandidates.has(candidateKey)) continue;
+                    representedCandidates.add(candidateKey);
+                    singleCandidateKeys.add(candidateKey);
+                    if (!shortlist.includes(proposal)) shortlist.push(proposal);
+                }
             }
         }
         // The proxy-best replacement slot can miss a better finite-TTK swap when
@@ -3211,12 +3239,12 @@ function refineBuildByExpectedEncounter(
         // Keep several outgoing-slot choices for this explicit tradeoff family;
         // a single proxy-best slot can be the wrong one for Expected TTK.
         for (const [candidateKey, candidate] of shortlistedCandidates) {
-            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+            if (shortlist.length >= candidateLimit ||
                 slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
             if (!expectedEncounterCandidateFamilies(candidate).includes("tempo-damage-tradeoff")) continue;
             let alternativesForCandidate = 0;
             for (const proposal of sortedProposals) {
-                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                if (shortlist.length >= candidateLimit ||
                     slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
                 const proposalCandidate = proposal.candidates[0];
                 if (!proposalCandidate || !proposal.replacedModUniqueName ||
@@ -3228,14 +3256,14 @@ function refineBuildByExpectedEncounter(
                 shortlist.push(proposal);
                 alternativesForCandidate++;
                 slotAlternatives++;
-                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                if (shortlist.length >= candidateLimit ||
                     slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT || alternativesForCandidate >= 3) break;
             }
-            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+            if (shortlist.length >= candidateLimit ||
                 slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
         }
         for (const family of slotAlternativeFamilies) {
-            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+            if (shortlist.length >= candidateLimit ||
                 slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
             for (const [candidateKey, candidate] of shortlistedCandidates) {
                 if (candidatesWithSlotAlternative.has(candidateKey) ||
@@ -3251,17 +3279,17 @@ function refineBuildByExpectedEncounter(
                 candidatesWithSlotAlternative.add(candidateKey);
                 shortlist.push(alternate);
                 slotAlternatives++;
-                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT ||
+                if (shortlist.length >= candidateLimit ||
                     slotAlternatives >= ENCOUNTER_SLOT_ALTERNATIVE_LIMIT) break;
             }
         }
         // Second choices from broad effect families use only the remaining budget
         // after slot-specific alternatives have been reserved.
         for (const family of singleCandidateFamilies) {
-            if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+            if (shortlist.length >= candidateLimit) break;
             let addedForFamily = 0;
             for (const proposal of sortedProposals) {
-                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+                if (shortlist.length >= candidateLimit) break;
                 const candidate = proposal.candidates[0];
                 if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
                 const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
@@ -3272,10 +3300,10 @@ function refineBuildByExpectedEncounter(
                 if (addedForFamily >= 2) break;
             }
         }
-        if (shortlist.length < ENCOUNTER_REFINE_CANDIDATE_LIMIT) {
+        if (shortlist.length < candidateLimit) {
             const shortlistedProposals = new Set(shortlist);
             for (const proposal of sortedProposals) {
-                if (shortlist.length >= ENCOUNTER_REFINE_CANDIDATE_LIMIT) break;
+                if (shortlist.length >= candidateLimit) break;
                 if (shortlistedProposals.has(proposal)) continue;
                 shortlist.push(proposal);
             }
@@ -3459,7 +3487,7 @@ function refineBuildByExpectedEncounter(
                                         weapon,
                                         assigned.slotMods,
                                         assigned.slotRanks,
-                                        isFiniteEncounterGoal(goal) ? "scaling" : goal,
+                                        goal === "timeToKill" ? "scaling" : goal,
                                         targetFaction,
                                         arcaneEffect,
                                         [...preEquippedEffects, ...extraEffects],

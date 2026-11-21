@@ -1,6 +1,8 @@
 # Build Planner Optimizer Benchmark
 
-## D3-MECH-HEAT-PRESENCE-PROBABILITY-001 — fractional Heat group presence (2026-11-21; locally validated, publication pending)
+PR [#185](https://github.com/Appl3Tree/Tenno-Hub/pull/185) merged these local changes as `d90c0aedcee3d0c8fd50da9ad041bb0f83963986` on 2026-11-21. The GitHub connector returned no combined checks or PR-triggered workflow runs for that merge commit; Pages deployment and production availability are not independently verified. The current-branch IAB preview timed out, while port 80 served an older build, so rendered QA for this scoring-only change remains unverified.
+
+## D3-MECH-HEAT-PRESENCE-PROBABILITY-001 — fractional Heat group presence (2026-11-21; PR #185 merged, deployment unverified)
 
 The current [Heat Damage Wiki page](https://wiki.warframe.com/w/Damage/Heat_Damage) describes Heat armor reduction as a staged, target-level effect: 15%, 30%, 40%, then 50% at half-second intervals, with one shared ramp rather than a ramp per proc. The [Damage Calculation page](https://wiki.warframe.com/w/Damage/Calculation) describes a shared +1 Heat tick accumulator. Both effects depend on whether the target has an active Heat group; additional proc count does not multiply the accumulator or the strip.
 
@@ -8,7 +10,7 @@ The finite encounter previously advanced the shared group's `activeWeight` by fr
 
 Focused regressions cover a fractional 25% Heat chance across successive attacks for both the shared tick accumulator and the strip ramp. `src/domain/logic/__tests__/targetDamage.test.ts` passes 114/114. This remains an expected-value model: it does not represent every stochastic proc history, independently timed status-group refresh, or the full spread of strip states. The local source correction changes the current Mausolon displayed-stat alignment values: Fully Stacked / direct Auto becomes 23,812.7 DPS at 3,000 Armor (from 24,065.9), and linked Auto plus radial becomes 28,096.7 DPS (from 28,115.4); the zero-Armor values remain 87,568.5 and 102,549.4. Underframe's hidden Luck Averaged state and damage-bucket semantics remain unresolved; see [the comparison record](docs/UNDERFRAME_COMPARISON.md).
 
-## D3-OPT-MAUSOLON-ARCHWING-NEIGHBORHOOD-001 — final-pass single-mod refinement and seeded corpus (2026-11-21; locally validated, publication pending)
+## D3-OPT-MAUSOLON-ARCHWING-NEIGHBORHOOD-001 — final-pass single-mod refinement and seeded corpus (2026-11-21; PR #185 merged, deployment unverified)
 
 The seeded 20261144 full-pool audit previously selected Mausolon / Charged Shot Explosion. That attack is now correctly blocked from Auto Optimize because its five-kill charge/recharge history is unsupported. The seeded Archgun stratum now selects the supported `Mausolon (Archwing)` / `Auto` profile; `auditExpectedTtkCorpus.ts`, `auditExpectedTtkFullPool.ts`, and the pair-sample runner resolve exact display-profile names as well as catalog internal names.
 
@@ -2404,3 +2406,38 @@ Reproduce with `npx tsx scripts/auditFixedWindowDpsFullPool.ts --weapon='Broken 
 The optimizer's list was Primed Pressure Point R10, Carnis Mandible R5, Volcanic Edge R3, Primed Smite Grineer R10, Galvanized Elementalist R10, Galvanized Steel R10, Organ Shatter R5, and Primed Fury R10. Run times were 3,133.2, 3,158.1, and 3,668.1 ms (median 3,158.1 ms; maximum 3,668.1 ms). Independent fixed-window scoring reproduced the optimizer score, and none of the 286 exact legal one-mod add/remove/replacement neighbors improved it.
 
 This audits the optimizer baseline, not the captured Underframe list's neighborhood. The model uses a generic melee Normal Attack; it omits Broken War's Lone Vengeance stance sequence and evolving combo history. Capacity is checked for eight normal slots without an extra stance slot. The result is bounded to Tenno-Hub's deterministic model and is not Underframe or gameplay parity. Exact audits of captured-list neighborhoods, a matched Arch-Gun/Companion capture, and broader targets remain open.
+
+## D3-OPT-WINDOW-DPS-CORPUS-001 — seeded fixed-window full-pool neighborhood and shortlist correction (2026-11-21; local validation complete, PR/release pending)
+
+Reproduce the fixture selection and exact legal one-mod audit with:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsCorpus.ts --seed=20261144 --runs=1
+```
+
+The seeded corpus uses eight fixed anchors plus one uniformly selected weapon from each of four listed strata, using Mulberry32 in a fixed order. The targets are Grineer / 2,000,000 Health / 3,000 Armor / zero Shields and Overguard, Realistic state, and a half-open `[0,5s)` score window. Each run uses eight normal slots, Catalyst, MR30, max-rank candidates, up to three Forma, and no Exilus or Arcane optimization. `scripts/auditFixedWindowDpsFullPool.ts` validates the returned build and independently scores every legal one-mod add/remove/replacement at max rank under the same target and distance setting. All 12 targets survive the five-second window, so the reported value is applied damage divided by five seconds rather than TTK.
+
+The first full-pool pass found two exact legal one-mod improvements. The optimizer now uses its single-target `windowDps` proxy to rank both one-mod and paired proposals, reserves a second incoming candidate in the multishot and critical families, and allows seven refinement passes with a core shortlist of up to 44 single-mod proposals (plus the pre-existing bounded outgoing-family supplements). Expected TTK retains its existing six-pass / 40-proposal core budget. The Braton move replaces Galvanized Chamber with Split Chamber. The Laetum move replaces Hornet Strike with Primed Target Cracker.
+
+| Category | Weapon / attack | Distance | Baseline | Capacity | Exact legal one-mod neighbors | Best exact neighbor | Improvement |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- |
+| Rifle | Braton Prime / Normal Attack | — | 30,707.94 DPS | 60/60, 3 Forma | 226 | 30,707.94 (Heavy Caliber → Serration) | No |
+| Hybrid shotgun | Cedo / Normal Attack | — | 29,769.16 DPS | 58/60, 3 Forma | 359 | 28,951.55 (Vigilante Armaments → Primed Ravage) | No |
+| Incarnon secondary | Laetum / Normal Attack | — | 56,869.97 DPS | 60/60, 3 Forma | 286 | 50,748.09 (Primed Expel Grineer → Hornet Strike) | No |
+| Spooling rifle | Soma Prime / Fully Spooled | — | 45,602.16 DPS | 57/60, 3 Forma | 414 | 45,602.16 (Heavy Caliber → Serration) | No |
+| Melee | Broken War / Normal Attack | — | 5,071.25 DPS | 56/60, 3 Forma | 379 | 4,946.70 (Organ Shatter → Amalgam Organ Shatter) | No |
+| Beam secondary | Kuva Nukor / Normal Attack | — | 61,237.29 DPS | 72/80, 3 Forma | 436 | 59,028.21 (Barrel Diffusion → Amalgam Barrel Diffusion) | No |
+| Bow | Nataruk / Perfect Shot | — | 110,066.83 DPS | 51/60, 3 Forma | 403 | 110,066.83 (Heavy Caliber → Serration) | No |
+| Incarnon explosive | Torid / Grenade Impact | — | 10,876.37 DPS | 60/60, 3 Forma | 295 | 10,876.37 (Heavy Caliber → Serration) | No |
+| Explosive primary (seeded) | Kuva Ogris / Rocket Explosion | — | 42,749.00 DPS | 59/80, 3 Forma | 450 | 42,310.22 (Thermite Rounds → Heavy Caliber) | No |
+| Archgun (seeded) | Mausolon (Archwing) / Auto | 250m | 210,027.96 DPS | 59/60, 3 Forma | 139 | 205,644.26 (Parallax Scope → Magnetized Cycle) | No |
+| Companion weapon (seeded) | Verglas Prime / Normal Attack | — | 30,095.76 DPS | 59/60, 3 Forma | 264 | 29,129.14 (Heavy Caliber → Split Chamber) | No |
+| Heavy melee (seeded) | Arca Titron / Heavy Slam Attack | — | 56,005.31 DPS | 54/60, 3 Forma | 412 | 54,814.78 (Volcanic Edge → Molten Impact) | No |
+
+After the correction, the one-run corpus contains 4,063 exact legal neighbors and no improvement over any returned baseline. The Mausolon distance is 250m, inside its Wiki-listed 300m maximum and inside the separate Archwing direct falloff profile. An omitted distance for other rows uses their catalog profile's full-damage default; the reported maximum range is not treated as a no-hit cap. The script now reports rank-40 capacity correctly for Kuva weapons (80 with Catalyst).
+
+Three repeated full-pool runs returned identical lists and scores for the two corrected cases. Braton Prime returned 30,707.94 DPS at 60/60 and three Forma in 5,191.7 / 3,855.0 / 4,024.8ms (median 4,024.8ms; maximum 5,191.7ms). Laetum returned 56,869.97 DPS at 60/60 and three Forma in 4,489.1 / 3,489.0 / 3,285.5ms (median 3,489.0ms; maximum 4,489.1ms). These are in-process desktop optimizer timings, not browser, Worker, mobile, cold-start, or tail-latency measurements. Focused regressions pass 2/2. Full release validation and PR are pending.
+
+Validation passes: full serial suite 831/831 across 54 files (optimizer file 156/156); app TypeScript/production build; node TypeScript; source validation; prerequisite audit (162 entries, no unresolved references or cycles); mod-effect audit (695 weapons / 600 eligible / 492 parsed / 108 without effects / 70 review / 18 partial / 52 unparsed / zero empty pools); focused ESLint; and CRLF-aware diff check. The production build retains its existing Vite large-chunk warning. This change touches optimizer scoring and audit scripts only; no UI layout changed or new visual browser check was run. PR/release status is pending.
+
+These are bounded Tenno-Hub model-local one-mod results, not exhaustive multi-mod search, Underframe objective parity, global optimality, Companion AI/range validation, spatial coverage, or gameplay accuracy. Melee stance/combo sequence, Incarnon activation histories, status randomness, and Underframe's private sampling engine remain model boundaries. Continue with other seeds/targets and compare captured Underframe outputs under the same fixed-window objective before claiming broad optimizer quality.
