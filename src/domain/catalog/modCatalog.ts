@@ -270,6 +270,7 @@ const SACRIFICIAL_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Sacrifice/Sacrific
 const NIRA_SET_BONUS_PATH = "/Lotus/Upgrades/Mods/Sets/Nira/NiraSetMod";
 export const SPRING_LOADED_BROADHEAD_PATH = "/Lotus/Upgrades/Mods/PvPMods/Rifle/DaikyuMoreDamageOverDistanceMod";
 const MENTOR_LEGACY_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/TennokaiBaseMod";
+const ARCHGUN_ACE_PATH = "/Lotus/Upgrades/Mods/Archwing/Rifle/ArchwingHeadshotKillAmmoEfficiencyMod";
 const AMANATA_PRESSURE_STATUS_TYPES: readonly WeaponForcedProcType[] = [
     "impact", "puncture", "slash", "heat", "cold", "electricity", "toxin",
     "blast", "radiation", "gas", "magnetic", "viral", "corrosive",
@@ -1159,7 +1160,8 @@ function matchesKnownWeaponFamilyPath(weapon: WeaponEntry, itemCompatibilityPath
 
 function weaponMatchesItemCompatibility(weapon: WeaponEntry, itemCompatibilityPath: string | undefined): boolean {
     if (!itemCompatibilityPath) return true;
-    if (weapon.uniqueName === itemCompatibilityPath) return true;
+    const sourceUniqueName = weapon.sourceUniqueName ?? weapon.uniqueName;
+    if (sourceUniqueName === itemCompatibilityPath || weapon.uniqueName === itemCompatibilityPath) return true;
     // WFCD's weapon records do not necessarily appear in the curated item
     // ancestry catalog. Generic player-melee compatibility still applies to
     // ordinary melee weapons when that ancestry is unavailable.
@@ -1168,7 +1170,7 @@ function weaponMatchesItemCompatibility(weapon: WeaponEntry, itemCompatibilityPa
         weapon.modCompat === "Melee" &&
         !weapon.tags.includes("BEAST_WEAPON")
     ) return true;
-    const raw = ITEMS_CATALOG.byKey[weapon.uniqueName]?.raw as
+    const raw = ITEMS_CATALOG.byKey[sourceUniqueName]?.raw as
         | {
             parent?: string;
             parents?: string[];
@@ -1394,6 +1396,27 @@ function buildCaches(): ModCaches {
             unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
+        if (path === ARCHGUN_ACE_PATH) {
+            // The Wiki's grouped description puts the shared headshot-kill
+            // duration on the final Reload Speed line. WFCD splits Fire Rate
+            // and Reload Speed into separate lines, so restore that duration
+            // to the preceding Fire/Charge Rate effect at every rank.
+            // https://wiki.warframe.com/w/Archgun_Ace
+            for (const effect of effectsByRank) {
+                const conditionals = effect.conditionalEffects ?? [];
+                const durationSeconds = conditionals.find((conditional) =>
+                    conditional.trigger === "onHeadshotKill" &&
+                    (conditional.stats.reloadSpeedBonus ?? 0) > 0 &&
+                    conditional.durationSeconds > 0,
+                )?.durationSeconds;
+                if (durationSeconds === undefined) continue;
+                for (const conditional of conditionals) {
+                    if (conditional.trigger === "onHeadshotKill" && (conditional.stats.fireRateBonus ?? 0) > 0) {
+                        conditional.durationSeconds = durationSeconds;
+                    }
+                }
+            }
+        }
         if (item.modSet === VIGILANTE_SET_BONUS_PATH) {
             // Set bonuses are piece-count based and do not depend on mod rank.
             effectsByRank.forEach((effect) => { effect.vigilanteSetModCount = 1; });

@@ -2061,6 +2061,34 @@ describe("damage calculation status eligibility", () => {
         );
     });
 
+    it("keeps Mausolon radial multishot fixed while Auto projectiles receive multishot mods", () => {
+        const archwing = getWeaponCatalog().find((entry) =>
+            entry.name === "Mausolon" && entry.variantLabel === "Archwing",
+        );
+        expect(archwing).toBeDefined();
+        const autoIndex = archwing!.attacks.findIndex((attack) => attack.name === "Auto");
+        const radialIndex = archwing!.attacks.findIndex((attack) => attack.name === "Auto Radial Attack");
+        expect(autoIndex).toBeGreaterThanOrEqual(0);
+        expect(radialIndex).toBeGreaterThanOrEqual(0);
+
+        const dualRounds = getModsForWeapon(archwing!).find((mod) => mod.name === "Dual Rounds");
+        expect(dualRounds).toBeDefined();
+        const dualRoundsEffect = dualRounds!.effectsByRank[dualRounds!.fusionLimit] ?? dualRounds!.effect;
+        const auto = withSelectedAttack(archwing!, autoIndex);
+        const radial = withSelectedAttack(archwing!, radialIndex);
+        const baseAuto = calculateBuild(auto, []).modded;
+        const moddedAuto = calculateBuild(auto, [dualRoundsEffect]).modded;
+        const baseRadial = calculateBuild(radial, []).modded;
+        const moddedRadial = calculateBuild(radial, [dualRoundsEffect]).modded;
+
+        expect(moddedAuto.multishot).toBeGreaterThan(baseAuto.multishot);
+        expect(moddedAuto.attachedAttackDamageSequence?.rule.componentAttackName).toBe("Auto Radial Attack");
+        expect(moddedAuto.attachedAttackDamageSequence?.profile.expectedProjectiles).toBeCloseTo(1, 10);
+        expect(moddedAuto.attachedAttackDamageSequence?.profile.expectedDamageMultiplier).toBeCloseTo(1, 10);
+        expect(moddedRadial.multishot).toBeCloseTo(baseRadial.multishot, 10);
+        expect(moddedRadial.damageWeightedMultishot).toBeCloseTo(baseRadial.damageWeightedMultishot, 10);
+    });
+
     it("caps the displayed Impact Mercy threshold bonus at five expected stacks", () => {
         const stats = calculateBuild({
             ...makeWeapon({ impact: 100 }),

@@ -162,6 +162,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackAutoSpoolShotSequence: attack.autoSpoolShotSequence,
         selectedAttackAutoSpoolTimingLimitation: attack.autoSpoolTimingLimitation,
         selectedAttackModelLimitation: attack.modelLimitation,
+        selectedAttackMultishotLocked: attack.multishotLocked === true,
         selectedAttackLingeringDamageRule: attack.lingeringDamageRule,
         selectedAttackAppliesToAttachedTarget: attack.appliesToAttachedTarget,
     };

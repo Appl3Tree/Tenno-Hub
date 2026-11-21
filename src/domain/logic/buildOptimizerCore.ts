@@ -9,7 +9,7 @@
 
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
-import type { ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
+import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
 import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
@@ -2634,7 +2634,10 @@ function expectedEncounterScoreForEffectsAtKillRate(
     const target = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
     if (target.poolTotal <= 0) return { score: 0, timeToKillSeconds: null, encounter: null };
 
-    const encounterBuild = calculateBuildForExpectedEncounter(weapon, effects, targetFaction, {
+    const scoringEffects = fixedWindowSeconds === undefined
+        ? effects
+        : getFixedWindowScoringEffects(effects, conditionalState);
+    const encounterBuild = calculateBuildForExpectedEncounter(weapon, scoringEffects, targetFaction, {
         statusImmuneTypes: target.statusImmuneTypes,
         statusStackCaps: target.statusStackCaps,
         conditionalState,
@@ -2751,6 +2754,44 @@ function expectedEncounterScoreForEffectsAtKillRate(
         timeToKillSeconds: encounter.timeToKillSeconds,
         encounter,
     };
+}
+
+const FIXED_WINDOW_TRIGGERED_CONDITIONALS = new Set<ConditionalTrigger>([
+    "onAbilityCast",
+    "onReload",
+    "onReloadFromEmpty",
+    "onKill",
+    "onHeadshot",
+    "onHeadshotKill",
+    "onHit",
+    "onPunchThroughHit",
+    "onWeakPointHit",
+    "onWeakPointKill",
+    "onMeleeKill",
+    "onKillOrAssist",
+    "onConsecutiveThrow",
+    "onOcucorTendrilKill",
+    "afterJumpLanding",
+]);
+
+function getFixedWindowScoringEffects(
+    effects: (ModEffect | null)[],
+    conditionalState: ConditionalState | undefined,
+): (ModEffect | null)[] {
+    // Fixed-window encounters begin at t=0 and cannot assume prior trigger
+    // history. The dedicated hit-stack sequence remains modeled separately;
+    // other event-triggered mod buffs are omitted unless the user explicitly
+    // selects Fully Stacked.
+    if (conditionalState?.mode === "fullyStacked") return effects;
+    return effects.map((effect) => {
+        if (!effect?.conditionalEffects?.length) return effect;
+        const conditionalEffects = effect.conditionalEffects.filter((conditional) =>
+            !FIXED_WINDOW_TRIGGERED_CONDITIONALS.has(conditional.trigger),
+        );
+        return conditionalEffects.length === effect.conditionalEffects.length
+            ? effect
+            : { ...effect, conditionalEffects };
+    });
 }
 
 function expectedEncounterScoreForEffects(
@@ -4781,7 +4822,7 @@ export function explainBuild(
             : ` Finite expected encounter TTK ${explanationOptions.objectiveEncounter.timeToKillSeconds.toFixed(2)}s at ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)} damage/s.`
         : "";
     const fixedWindowSummary = goal === "windowDps" && explanationOptions.fixedWindowObjective
-        ? ` Applied ${explanationOptions.fixedWindowObjective.damage.toFixed(1)} damage during [0, ${explanationOptions.fixedWindowObjective.windowSeconds.toFixed(1)}s), or ${explanationOptions.fixedWindowObjective.damagePerSecond.toFixed(1)} damage/s${explanationOptions.fixedWindowObjective.timeToKillSeconds === null ? " without defeating the target" : ` with a target defeat at ${explanationOptions.fixedWindowObjective.timeToKillSeconds.toFixed(2)}s`}. Overkill and events at the window endpoint are excluded.`
+        ? ` Applied ${explanationOptions.fixedWindowObjective.damage.toFixed(1)} damage during [0, ${explanationOptions.fixedWindowObjective.windowSeconds.toFixed(1)}s), or ${explanationOptions.fixedWindowObjective.damagePerSecond.toFixed(1)} damage/s${explanationOptions.fixedWindowObjective.timeToKillSeconds === null ? " without defeating the target" : ` with a target defeat at ${explanationOptions.fixedWindowObjective.timeToKillSeconds.toFixed(2)}s`}. Overkill and events at the window endpoint are excluded. Reload, kill, and other event-triggered mod buffs start inactive; their trigger history is not simulated.`
         : "";
     const summary    = `${goalLabel(goal)} ${targetLabel}${targetDetail}. ${scoreLabel}: ${fullScore.toFixed(1)}${baseScore > 0 ? ` (${totalMultiplier.toFixed(1)}x unmodded; ${totalGain >= 0 ? "+" : ""}${totalGain.toFixed(1)}%)` : ""}.${encounterSummary}${fixedWindowSummary}`;
     const encounterSearchNote = !explanationOptions.objectiveEncounter || explanationOptions.objectiveEncounter.candidatesEvaluated <= 1
