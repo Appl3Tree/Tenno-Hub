@@ -744,10 +744,10 @@ const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
 const VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, { meters: number; sourceUrl: string }>>>
 > = Object.freeze({
-    // The Wiki reports a 300m range for the direct hit-scan rows. The Archwing
-    // Auto row also reports falloff beginning at 1,400m; both source facts are
-    // retained and the range limit stays informational until its semantics are
-    // reconciled against the game and Underframe's Distance control.
+    // Both Wiki Auto rows list a 300m range. Archwing Auto separately lists
+    // 1,400–2,800m direct falloff, while Atmosphere Auto has no direct falloff
+    // entry. Keep each profile's source facts; treat 300m as informational
+    // until its effective limit is reconciled for each Archgun context.
     // Verified 2026-11-21: https://wiki.warframe.com/w/Mausolon
     "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
         "auto": Object.freeze({ meters: 300, sourceUrl: "https://wiki.warframe.com/w/Mausolon" }),
