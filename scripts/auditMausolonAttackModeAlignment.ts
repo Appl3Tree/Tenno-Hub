@@ -45,7 +45,13 @@ const faction = "Grineer";
 const health = 2_000_000;
 const shields = 0;
 const overguard = 0;
-const targetDistanceMeters = 1_400;
+const distanceArgument = process.argv.slice(2).find((argument) => argument.startsWith("--distance="));
+const targetDistanceMeters = distanceArgument === undefined
+    ? 1_400
+    : Number(distanceArgument.slice("--distance=".length));
+if (!Number.isFinite(targetDistanceMeters) || targetDistanceMeters < 0) {
+    throw new Error(`Invalid --distance value: ${distanceArgument}`);
+}
 const states: Array<ConditionalState["mode"]> = ["realistic", "fullyStacked"];
 const armorValues = [3_000, 500, 0];
 const modeledStats = states.map((mode) => {

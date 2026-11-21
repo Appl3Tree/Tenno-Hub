@@ -232,6 +232,86 @@
         "averageDps": 22361
       }
     ],
-    "distanceControlStateNotes": "The 1400–2800m range and 1400m selected distance were visible before and after the Auto-only readings. After switching the tool back to Combined mode, the Distance control showed a 0–2800m range again; its selected value after that transition was not captured. Earlier 500-Armor reads made before verifying the 1400m selection remain excluded."
+    "distanceControlStateNotes": "The 1400–2800m range and 1400m selected distance were visible before and after the Auto-only readings. A later controlled Auto → Combined → Auto transition captured the selected value at each step; see underframeDistanceModeTransitionAndScoreProbe. Earlier 500-Armor reads made before verifying the 1400m selection remain excluded."
+  },
+  "underframeDistanceModeTransitionAndScoreProbe": {
+    "date": "2026-11-21",
+    "weaponProfile": "Mausolon (Atmosphere)",
+    "browser": "Codex integrated in-app browser",
+    "savedBuildChanged": false,
+    "target": {
+      "faction": "Grineer",
+      "health": 2000000,
+      "shields": 0,
+      "overguard": 0,
+      "armor": 3000,
+      "headshots": false,
+      "primaryBulwarkSlider": 0,
+      "secondaryOutburstSlider": 0
+    },
+    "modeTransition": [
+      {
+        "mode": "Auto",
+        "distanceRangeMeters": { "min": 1400, "max": 2800 },
+        "selectedDistanceMeters": 1400
+      },
+      {
+        "action": "switch to Combined",
+        "mode": "[C] Auto (Combined)",
+        "distanceRangeMeters": { "min": 0, "max": 2800 },
+        "selectedDistanceMeters": 0
+      },
+      {
+        "action": "switch back to Auto",
+        "mode": "Auto",
+        "distanceRangeMeters": { "min": 1400, "max": 2800 },
+        "selectedDistanceMeters": 1400
+      }
+    ],
+    "transitionFromNonDefaultDistance": [
+      {
+        "mode": "Auto",
+        "distanceRangeMeters": { "min": 1400, "max": 2800 },
+        "selectedDistanceMeters": 2100
+      },
+      {
+        "action": "switch to Combined",
+        "mode": "[C] Auto (Combined)",
+        "distanceRangeMeters": { "min": 0, "max": 2800 },
+        "selectedDistanceMeters": 0
+      },
+      {
+        "action": "switch back to Auto",
+        "mode": "Auto",
+        "distanceRangeMeters": { "min": 1400, "max": 2800 },
+        "selectedDistanceMeters": 1400
+      }
+    ],
+    "resetBehavior": "Mode changes reset the distance selection to that mode's minimum; the prior selected value is not preserved.",
+    "measurementMethod": "Standard Calculate DPS, one read per distance; not Luck Averaged and not Auto Build.",
+    "distanceReadings": [
+      {
+        "distanceMeters": 1400,
+        "averageDamagePerShotRaw": 1377,
+        "averageDamagePerShotDot": 77,
+        "averageDps": 25504,
+        "targetDefeated": false
+      },
+      {
+        "distanceMeters": 2100,
+        "averageDamagePerShotRaw": 704,
+        "averageDamagePerShotDot": 64,
+        "averageDps": 13461,
+        "targetDefeated": false
+      },
+      {
+        "distanceMeters": 2800,
+        "averageDamagePerShotRaw": 0,
+        "averageDamagePerShotDot": 0,
+        "averageDps": 0,
+        "targetDefeated": false
+      }
+    ],
+    "interpretation": "Underframe's calculator score is distance-sensitive for this Atmosphere-labeled copy. Wiki data lists no direct Auto falloff curve for Atmosphere, so the source/model cause is unresolved; do not transfer Archwing falloff to Atmosphere without evidence. These are UI/calculator reads, not gameplay validation."
   }
 }
