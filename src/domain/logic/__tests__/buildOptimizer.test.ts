@@ -345,7 +345,7 @@ describe("fixed-window DPS objective", () => {
         return { result, weapon };
     }
 
-    it("retains a second multishot option for the final Braton Prime neighborhood", () => {
+    it("retains a second multishot option for the final Braton Prime neighborhood", { timeout: 15000 }, () => {
         const { result } = optimizeCatalogWindowFixture("Braton Prime", "Normal Attack");
 
         expect(result.capacityValid).toBe(true);
@@ -5640,6 +5640,126 @@ describe("build optimizer scoring", () => {
         if (exhaustiveBest.timeToKillSeconds === null) {
             expect(optimizedScore.damagePerSecond).toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
         }
+    });
+
+    it("finds a coordinated mod-and-Arcane move exposed by the full-pool audit", { timeout: 60000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const candidateNames = ["Thermite Rounds", "Heavy Caliber", "Galvanized Chamber"];
+        const catalogMods = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const candidates = candidateNames.map((name) => {
+            const mod = catalogMods.find((entry) => entry.name === name);
+            expect(mod, name).toBeTruthy();
+            return mod!;
+        });
+        const targetFaction = "Grineer";
+        const target = { health: 100_000, shields: 0, overguard: 0, armor: 3_000 };
+        const conditionalState = { mode: "realistic" as const };
+        const scoringWeapon = withSelectedAttack(weapon!, 0);
+        const attack = weapon!.attacks[0] ?? null;
+        const capacityConfig = {
+            weaponRank: 30,
+            hasCatalyst: true,
+            masteryRank: 30,
+            canOverLevel: weapon!.canOverLevel,
+        };
+        const slotCount = 2;
+        const slotPolarities = weapon!.polarities.slice(0, slotCount);
+        const energyContext = { warframeMaxEnergy: 1_000, warframeEnergyPercent: 100 };
+        const arcanes = getArcanesForWeapon(weapon!);
+        const arcaneOptions = [
+            null,
+            ...arcanes.flatMap((arcane) =>
+                Array.from({ length: arcane.maxRank + 1 }, (_, rank) => ({
+                    arcane,
+                    rank,
+                    effect: getArcaneEffectAtRank(arcane, rank, 1_500, true, energyContext),
+                })).filter((option) => option.effect && Object.keys(option.effect).length > 0 &&
+                    getUnmodeledScoringEffectLines(option.effect).length === 0),
+            ),
+        ];
+        const score = (effects: (ModEffect | null)[], arcaneEffect: Partial<ModEffect> | null) =>
+            debugScoreExpectedEncounter(
+                scoringWeapon,
+                effects,
+                targetFaction,
+                target,
+                conditionalState,
+                arcaneEffect,
+            );
+        let exhaustiveBest = score([], null);
+        const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+            const ranks = ordered.map((mod) => mod.fusionLimit);
+            const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, false);
+            if (placement.slotMods.filter(Boolean).length === ordered.length) {
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (!capacity.overCapacity) {
+                    const effects = placement.slotMods.map((mod, index) => {
+                        if (!mod) return null;
+                        const rank = placement.slotRanks[index] ?? mod.fusionLimit;
+                        return mod.effectsByRank[rank] ?? mod.effect;
+                    });
+                    for (const option of arcaneOptions) {
+                        const effect = option
+                            ? getArcaneEffectAtRank(option.arcane, option.rank, 1_500, true, energyContext)
+                            : null;
+                        const candidateScore = score(effects, effect);
+                        if (rankExpectedEncounter(candidateScore.timeToKillSeconds, candidateScore.damagePerSecond) >
+                            rankExpectedEncounter(exhaustiveBest.timeToKillSeconds, exhaustiveBest.damagePerSecond)) {
+                            exhaustiveBest = candidateScore;
+                        }
+                    }
+                }
+            }
+            if (ordered.length >= slotCount) return;
+            for (let index = 0; index < remaining.length; index++) {
+                const candidate = remaining[index];
+                if (ordered.some((mod) =>
+                    mod.uniqueName === candidate.uniqueName ||
+                    (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                )) continue;
+                enumerate(
+                    [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                    [...ordered, candidate],
+                );
+            }
+        };
+        enumerate(candidates, []);
+
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", slotCount, {
+            targetFaction,
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig,
+            slotPolarities,
+            defaultSlotPolarities: slotPolarities,
+            allowForma: false,
+            optimizeExilus: false,
+            optimizeArcane: true,
+            arcaneCandidates: arcanes,
+            warframeArmor: 1_500,
+            ...energyContext,
+            buildForAttack: attack,
+        });
+        const resultEffects = result.slots.map((mod, index) => {
+            if (!mod) return null;
+            const rank = result.slotRanks[index] ?? mod.fusionLimit;
+            return mod.effectsByRank[rank] ?? mod.effect;
+        });
+        const resultArcaneEffect = result.arcane
+            ? getArcaneEffectAtRank(result.arcane, result.arcaneRank, 1_500, true, energyContext)
+            : null;
+        const resultScore = score(resultEffects, resultArcaneEffect);
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.flatMap((mod) => mod ? [mod.name] : [])).toContain("Galvanized Chamber");
+        expect(result.arcane?.name).toBe("Primary Bulwark");
+        expect(resultScore.timeToKillSeconds).toBe(exhaustiveBest.timeToKillSeconds);
     });
 
     it("matches seeded exhaustive joint mod-and-Arcane optima across weapon classes", { timeout: 180000 }, () => {

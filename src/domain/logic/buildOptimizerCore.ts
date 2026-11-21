@@ -2442,6 +2442,10 @@ const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 13;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
 const ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT = 24;
 const ARCANE_MOD_JOINT_REFINE_PASSES = 3;
+const ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT = 8;
+const ARCANE_MOD_JOINT_EXACT_SHORTLIST_LIMIT = 12;
+const ARCANE_MOD_JOINT_PRE_EQUIPPED_SHORTLIST_LIMIT = 2;
+const ARCANE_MOD_JOINT_SMALL_POOL_PROXY_SHORTLIST_LIMIT = 4;
 
 const ENCOUNTER_PRIMARY_ELEMENT_COMBINATIONS: Record<string, string> = {
     "cold+electricity": "magnetic",
@@ -2954,22 +2958,36 @@ function refineBuildByExpectedEncounter(
     const defaultPolarities = [...defaultSlotPolarities];
     while (defaultPolarities.length < slots.length) defaultPolarities.push("");
 
-    const makeEffects = (mods: (ModEntry | null)[], modRanks: number[]) => [
+    let currentArcaneEffect = arcaneEffect;
+    const makeEffects = (
+        mods: (ModEntry | null)[],
+        modRanks: number[],
+        scoringArcaneEffect: Partial<ModEffect> | null = currentArcaneEffect,
+    ) => [
         ...preEquippedEffects,
         ...mods.map((mod, index) => mod
             ? mod.effectsByRank[modRanks[index] ?? mod.fusionLimit] ?? mod.effect
             : null),
         ...extraEffects,
-        ...(arcaneEffect ? [normalizeArcaneEffect(arcaneEffect)] : []),
+        ...(scoringArcaneEffect ? [normalizeArcaneEffect(scoringArcaneEffect)] : []),
     ];
     const exactCache = new Map<string, { score: number; timeToKillSeconds: number | null }>();
-    const exactScore = (mods: (ModEntry | null)[], modRanks: number[]) => {
-        const key = getBeamStateSignature(mods.filter((mod): mod is ModEntry => !!mod), mods.flatMap((mod, index) => mod ? [modRanks[index]] : []), true);
+    const exactScore = (
+        mods: (ModEntry | null)[],
+        modRanks: number[],
+        scoringArcaneEffect: Partial<ModEffect> | null = currentArcaneEffect,
+    ) => {
+        const modSignature = getBeamStateSignature(
+            mods.filter((mod): mod is ModEntry => !!mod),
+            mods.flatMap((mod, index) => mod ? [modRanks[index]] : []),
+            true,
+        );
+        const key = `${modSignature}::${JSON.stringify(scoringArcaneEffect ?? null)}`;
         const cached = exactCache.get(key);
         if (cached) return cached;
         const evaluated = expectedEncounterScoreForEffects(
             weapon,
-            makeEffects(mods, modRanks),
+            makeEffects(mods, modRanks, scoringArcaneEffect),
             targetFaction,
             opts.targetProfileOverride,
             opts.conditionalState,
@@ -2977,6 +2995,30 @@ function refineBuildByExpectedEncounter(
         );
         exactCache.set(key, evaluated);
         return evaluated;
+    };
+    const selectProposalArcaneEffect = (mods: (ModEntry | null)[], modRanks: number[]) => {
+        if (!opts.optimizeArcane || !opts.arcaneCandidates?.length) return currentArcaneEffect;
+        const proposalEffects = [
+            ...preEquippedEffects,
+            ...mods.map((mod, index) => mod
+                ? mod.effectsByRank[modRanks[index] ?? mod.fusionLimit] ?? mod.effect
+                : null),
+            ...extraEffects,
+        ];
+        const exactFiniteSelection = goal === "timeToKill" && opts.arcaneCandidates.length <= 2 && !preEquippedEffects.length;
+        const selection = optimizeArcaneSlot(
+            weapon,
+            proposalEffects,
+            exactFiniteSelection ? goal : "scaling",
+            targetFaction,
+            opts,
+        );
+        return selection.arcane
+            ? getArcaneEffectAtRank(selection.arcane, selection.rank, opts.warframeArmor, true, {
+                warframeMaxEnergy: opts.warframeMaxEnergy,
+                warframeEnergyPercent: opts.warframeEnergyPercent,
+            })
+            : null;
     };
 
     let current = exactScore(slots, ranks);
@@ -3050,11 +3092,76 @@ function refineBuildByExpectedEncounter(
             slots: (ModEntry | null)[];
             ranks: number[];
             polarities: string[];
+            arcaneEffect: Partial<ModEffect> | null;
             proxyScore: number;
             elementTheme: string;
             elementTransition: string;
             replacedModUniqueName?: string;
             candidates: Candidate[];
+        };
+        const refreshProposalArcaneProxy = (proposal: EncounterReplacementProposal) => {
+            if (!opts.optimizeArcane || !opts.arcaneCandidates?.length) return;
+            proposal.arcaneEffect = selectProposalArcaneEffect(proposal.slots, proposal.ranks);
+            proposal.proxyScore = scoreSlots(
+                weapon,
+                proposal.slots,
+                proposal.ranks,
+                goal === "timeToKill" ? "scaling" : goal,
+                targetFaction,
+                proposal.arcaneEffect,
+                [...preEquippedEffects, ...extraEffects],
+                opts.conditionalState,
+                opts.targetProfileOverride,
+                undefined,
+                opts.meleeStanceCombo,
+            );
+        };
+        const refreshJointArcaneProxies = (
+            proposalsToRefresh: EncounterReplacementProposal[],
+            families: string[],
+        ) => {
+            if (!opts.optimizeArcane || !opts.arcaneCandidates?.length) return;
+            const jointShortlist = new Set<EncounterReplacementProposal>();
+            const useExactFiniteArcane = goal === "timeToKill" && opts.arcaneCandidates.length <= 2 && !preEquippedEffects.length;
+            const proposalLimit = candidates.length <= 4 && opts.arcaneCandidates.length <= 2 && !preEquippedEffects.length
+                ? proposalsToRefresh.length
+                : useExactFiniteArcane
+                    ? ARCANE_MOD_JOINT_EXACT_SHORTLIST_LIMIT
+                    : preEquippedEffects.length
+                        ? ARCANE_MOD_JOINT_PRE_EQUIPPED_SHORTLIST_LIMIT
+                        : candidates.length <= 4
+                            ? ARCANE_MOD_JOINT_SMALL_POOL_PROXY_SHORTLIST_LIMIT
+                        : ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT;
+            if (useExactFiniteArcane) {
+                const tempoProposals = proposalsToRefresh.filter((proposal) =>
+                    proposal.candidates.some((candidate) =>
+                        expectedEncounterCandidateFamilies(candidate).includes("tempo-damage-tradeoff"),
+                    ),
+                );
+                const topTempoCandidate = tempoProposals[0]?.candidates[0];
+                if (topTempoCandidate) {
+                    const tempoCandidateKey = `${topTempoCandidate.mod.uniqueName}@${topTempoCandidate.rank}`;
+                    for (const proposal of tempoProposals) {
+                        const candidate = proposal.candidates[0];
+                        if (!candidate || `${candidate.mod.uniqueName}@${candidate.rank}` !== tempoCandidateKey) continue;
+                        jointShortlist.add(proposal);
+                        if (jointShortlist.size >= Math.min(ENCOUNTER_SLOT_ALTERNATIVE_LIMIT, proposalLimit)) break;
+                    }
+                }
+            }
+            for (const family of families) {
+                if (jointShortlist.size >= proposalLimit) break;
+                const proposal = proposalsToRefresh.find((entry) => entry.candidates.some((candidate) =>
+                    expectedEncounterCandidateFamilies(candidate).includes(family),
+                ));
+                if (proposal) jointShortlist.add(proposal);
+            }
+            for (const proposal of proposalsToRefresh) {
+                if (jointShortlist.size >= proposalLimit) break;
+                jointShortlist.add(proposal);
+            }
+            for (const proposal of jointShortlist) refreshProposalArcaneProxy(proposal);
+            proposalsToRefresh.sort((left, right) => right.proxyScore - left.proxyScore);
         };
         const proposals = new Map<string, EncounterReplacementProposal>();
         const existing = slots.flatMap((mod, index) => mod ? [{ mod, rank: ranks[index] ?? mod.fusionLimit, index }] : []);
@@ -3112,13 +3219,14 @@ function refineBuildByExpectedEncounter(
                     slots: assigned.slotMods,
                     ranks: assigned.slotRanks,
                     polarities: trialPolarities,
+                    arcaneEffect: currentArcaneEffect,
                     proxyScore: scoreSlots(
                         weapon,
                         assigned.slotMods,
                         assigned.slotRanks,
                         goal === "timeToKill" ? "scaling" : goal,
                         targetFaction,
-                        arcaneEffect,
+                        currentArcaneEffect,
                         [...preEquippedEffects, ...extraEffects],
                         opts.conditionalState,
                         opts.targetProfileOverride,
@@ -3346,21 +3454,44 @@ function refineBuildByExpectedEncounter(
             if (familySlotExtras >= ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT) break;
         }
         if (!shortlist.length) break;
+        refreshJointArcaneProxies(shortlist, singleCandidateFamilies);
 
         let best = current;
         let bestProposal: typeof shortlist[number] | null = null;
+        let bestProposalArcaneEffect = currentArcaneEffect;
+        const passArcaneEffect = currentArcaneEffect;
+        let jointArcaneImprovementFound = false;
+        const scoreProposal = (proposal: EncounterReplacementProposal) => {
+            const jointScore = exactScore(proposal.slots, proposal.ranks, proposal.arcaneEffect);
+            if (!opts.optimizeArcane || !opts.arcaneCandidates?.length ||
+                JSON.stringify(proposal.arcaneEffect ?? null) === JSON.stringify(passArcaneEffect ?? null)) {
+                return { score: jointScore, arcaneEffect: proposal.arcaneEffect };
+            }
+            const currentArcaneScore = exactScore(proposal.slots, proposal.ranks, passArcaneEffect);
+            if (isFiniteObjectiveBetter(goal, jointScore, currentArcaneScore)) {
+                jointArcaneImprovementFound = true;
+            }
+            return isFiniteObjectiveBetter(goal, currentArcaneScore, jointScore)
+                ? { score: currentArcaneScore, arcaneEffect: passArcaneEffect }
+                : { score: jointScore, arcaneEffect: proposal.arcaneEffect };
+        };
         for (const proposal of shortlist) {
-            const evaluated = exactScore(proposal.slots, proposal.ranks);
+            const evaluation = scoreProposal(proposal);
             candidatesEvaluated++;
-            if (isFiniteObjectiveBetter(goal, evaluated, best)) {
-                best = evaluated;
+            if (isFiniteObjectiveBetter(goal, evaluation.score, best)) {
+                best = evaluation.score;
                 bestProposal = proposal;
+                bestProposalArcaneEffect = evaluation.arcaneEffect;
             }
         }
         // A useful TTK build can require a pair of mutually reinforcing swaps:
         // neither move may win alone, so search pairs after the single-mod
         // neighborhood stalls.
-        if (!bestProposal) {
+        // A joint Arcane can unlock a one-mod move that otherwise appears to stall;
+        // keep the bounded pair neighborhood available when that exact score improves.
+        if (!bestProposal || (
+            opts.optimizeArcane && opts.arcaneCandidates?.length && candidates.length > 4 && jointArcaneImprovementFound
+        )) {
             const candidateMoves = new Map<string, { candidate: Candidate; proxyScore: number }>();
             for (const proposal of sortedProposals) {
                 const candidate = proposal.candidates[0];
@@ -3483,13 +3614,14 @@ function refineBuildByExpectedEncounter(
                                     slots: assigned.slotMods,
                                     ranks: assigned.slotRanks,
                                     polarities: trialPolarities,
+                                    arcaneEffect: currentArcaneEffect,
                                     proxyScore: scoreSlots(
                                         weapon,
                                         assigned.slotMods,
                                         assigned.slotRanks,
                                         goal === "timeToKill" ? "scaling" : goal,
                                         targetFaction,
-                                        arcaneEffect,
+                                        currentArcaneEffect,
                                         [...preEquippedEffects, ...extraEffects],
                                         opts.conditionalState,
                                         opts.targetProfileOverride,
@@ -3536,12 +3668,14 @@ function refineBuildByExpectedEncounter(
                         pairShortlist.push(proposal);
                     }
                 }
+                refreshJointArcaneProxies(pairShortlist, singleCandidateFamilies);
                 for (const proposal of pairShortlist) {
-                    const evaluated = exactScore(proposal.slots, proposal.ranks);
+                    const evaluation = scoreProposal(proposal);
                     candidatesEvaluated++;
-                    if (isFiniteObjectiveBetter(goal, evaluated, best)) {
-                        best = evaluated;
+                    if (isFiniteObjectiveBetter(goal, evaluation.score, best)) {
+                        best = evaluation.score;
                         bestProposal = proposal;
+                        bestProposalArcaneEffect = evaluation.arcaneEffect;
                     }
                 }
             }
@@ -3551,6 +3685,7 @@ function refineBuildByExpectedEncounter(
         ranks = [...bestProposal.ranks];
         polarities = [...bestProposal.polarities];
         current = best;
+        currentArcaneEffect = bestProposalArcaneEffect;
         refined = true;
     }
 
@@ -4868,10 +5003,10 @@ export function explainBuild(
         comparisonNote: goal === "meleeDps"
             ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
             : goal === "timeToKill"
-            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls, the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is evaluated against the finite encounter, alternating Arcane choice and legal mod refinement for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
+            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls—or when an Arcane-dependent move improves the exact score—the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is exact-scored against the current mod list. For up to ${ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT} varied legal mod changes per pass, a fast Arcane estimate chooses a candidate effect and the complete finite-encounter score evaluates the combined move; small mod/Arcane pools are scored exactly. The Arcane is rechecked as the build changes, for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
             : goal === "windowDps"
                 ? `The optimizer screens builds with a fast sustained-damage proxy, then exact-scores legal effect-diverse finalists and bounded one-/two-mod replacements in a single-target, half-open ${FIXED_WINDOW_DPS_SECONDS}s simulation. It ranks applied damage divided by ${FIXED_WINDOW_DPS_SECONDS}s, clips damage to remaining target pools, counts attacks and DoT ticks with timestamps below ${FIXED_WINDOW_DPS_SECONDS}s, and stops damage after the target dies. Realistic on-kill stacks start at zero because this objective does not reset targets; configured non-kill conditionals remain in effect. Damage/status outcomes are deterministic mean-field estimates, not Underframe's seeded sample mean. This bounded search does not prove global optimality or simulator/gameplay parity.`
-            : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, Arcane choice and legal mod refinement alternate for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes, then the Arcane is rechecked against the returned list. This bounded search and its leave-one-out rows do not prove a global optimum.`,
+            : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, the optimizer checks a small, varied set of legal mod changes together with their Arcane effects, then rechecks the Arcane on the returned list. Small Arcane pools receive exact finite-encounter scoring. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
 
