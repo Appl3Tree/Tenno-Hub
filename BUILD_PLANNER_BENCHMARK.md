@@ -44,6 +44,29 @@ The one-case harness wall-time median is 8.84s and maximum 42.59s (Kuva Nukor). 
 
 Reproduce with `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261127`.
 
+## D3-OPT-EXPECTED-TTK-POST-REMOVAL-PAIR-SAMPLE-001 — seeded two-mod audit (2026-11-22; bounded)
+
+Using the same 12 fixtures and Grineer / 100,000 Health / 3,000 Armor / Realistic / eight-slot / Catalyst / MR 30 / up-to-three-Forma assumptions, `npx tsx scripts/auditExpectedTtkPairSample.ts --seed=20261127 --samples=1024` sampled 1,024 legal maximum-rank two-mod replacements per fixture. The deterministic sampler examined 24,987 raw outgoing-pair × incoming-pair tuples and exact-scored 12,288 legal moves; no sampled pair improved the optimizer result.
+
+| Weapon / attack | Optimizer baseline TTK | Best sampled TTK | Raw tuples examined | Legal pair samples |
+| --- | ---: | ---: | ---: | ---: |
+| Braton Prime / Normal Attack | 2.1195s | 2.4618s | 2,990 | 1,024 |
+| Cedo / Normal Attack | 2.9840s | 3.2060s | 1,594 | 1,024 |
+| Laetum / Normal Attack | 1.8000s | 2.0000s | 2,415 | 1,024 |
+| Soma Prime / Fully Spooled | 1.7542s | 2.1927s | 1,541 | 1,024 |
+| Broken War / Normal Attack | 8.8065s | 9.6774s | 1,908 | 1,024 |
+| Kuva Nukor / Normal Attack | 1.4400s | 1.7143s | 1,762 | 1,024 |
+| Nataruk / Perfect Shot | 2.0000s | 2.0000s | 1,594 | 1,024 |
+| Torid / Grenade Impact | 4.7544s | 5.0000s | 3,109 | 1,024 |
+| Acceltra Prime / Rocket Explosion | 1.3158s | 1.3684s | 1,682 | 1,024 |
+| Corvas Prime / Charged Shot | 1.5625s | 1.5625s | 2,204 | 1,024 |
+| Helstrum / Explosion | 52.0000s | 59.0000s | 2,084 | 1,024 |
+| Arca Titron / Heavy Slam Attack | 1.5592s | 1.7053s | 2,104 | 1,024 |
+
+The sample is without replacement over legal outgoing-pair × incoming-full-catalog-pair tuples, with incompatible or illegal proposals rejected. The reported best sampled time may tie the baseline within the scorer's improvement tolerance; the runner found zero improvements in all fixtures. This complements the exact one-mod audit but does not exhaust the pair neighborhoods or prove global, Arcane-joint, Underframe, or gameplay optimality.
+
+Reproduce with `npx tsx scripts/auditExpectedTtkPairSample.ts --seed=20261127 --samples=1024`.
+
 ## D3-OPT-EXPECTED-TTK-REMOVAL-IAB-LATENCY-001 — hosted Worker repeatability sample (2026-11-22; bounded)
 
 On the deployed planner at [`version=f4cefa9`](https://appl3tree.github.io/Tenno-Hub/?probe=removal-review-20261122&version=f4cefa9), three clean IAB runs used Kuva Nukor / Normal Attack, Expected TTK, Grineer damage modifiers, custom current-level target pools of 100,000 Health / 3,000 Armor, Realistic state, eight standard slots, Catalyst enabled, MR 30, up to three Forma, and Exilus/Arcane optimization disabled. Each click-to-result run returned the same legal 60/60 build with three Forma and 1.93s modeled Expected TTK (51,785.7 modeled damage/s): Pistol Pestilence R3, Convulsion R5, Anemic Agility R5, Magnetic Might R3, Accelerated Isotope R3, Lethal Torrent R5, Galvanized Diffusion R10, and Galvanized Shot R10.
