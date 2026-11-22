@@ -3153,3 +3153,15 @@ Focused Vitest passes 1/1 in 158.36s test time. `npx tsc -p tsconfig.test.json -
 This is exact only inside four seeded seven-mod pools. It expands both tested objectives from six sampled mods/four slots to seven/five; it does not establish full-catalog/global optimality, joint rank/Arcane optimization at this pool size, Underframe's private simulator, or live-game accuracy.
 
 PR [#255](https://github.com/Appl3Tree/Tenno-Hub/pull/255) squash-merged this test/documentation change as `b820526ca016fb4ea4d61f660fbf63ed157bac50`. GitHub reported no status checks or PR-triggered workflow runs; no application deployment applies.
+
+## D3-OPT-RANK-LIMITED-SIX-MOD-THREE-SLOT-ORACLE-001 — seeded six-mod owned-rank Expected TTK oracle (2026-11-22; bounded)
+
+Reproduce with:
+
+```sh
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded six-mod, three-slot rank-limited Expected TTK oracle across weapon classes" --reporter=dot --configLoader runner
+```
+
+Seed `20261137` draws six fully modeled, pairwise-compatible mods with owned rank caps from R1–R3 and a supported attack from each of four fixtures: Braton Prime / Grineer / 70,000 Health / 2,400 Armor / Realistic; Lex Prime / shielded Corpus / 36,000 Health + 44,000 Shields / Initial; Cedo / Grineer / 140,000 Health / 1,800 Armor / Realistic; and Broken War / Infested / 95,000 Health / 300 Armor / Fully Stacked. The oracle independently evaluates every legal ordered subset through three slots, every rank tuple through each owned cap, and zero/one-Forma placements with uncatalyzed rank-10 capacity, default polarities, and no Arcane. It compares the finite Expected TTK winner, time, and DPS against the optimizer and asserts capacity, Forma, and owned-rank legality. All four optimizer results match their exact sampled-pool winners.
+
+The focused test passes 1/1 in 108.97s. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, focused ESLint, and `git diff --check` pass. The full suite was not rerun; this is test-only and has no app deployment. PR [#268](https://github.com/Appl3Tree/Tenno-Hub/pull/268) squash-merged as `f7114f7bccae31bddb191a59921ca290c91693b9`. This expands sampled rank-limited candidate breadth from five to six mods at three slots; it does not establish full-catalog/global optimality, joint Arcane search, Underframe parity, or gameplay accuracy.
