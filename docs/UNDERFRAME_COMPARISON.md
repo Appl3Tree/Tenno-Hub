@@ -1,6 +1,6 @@
 # Tenno-Hub and Underframe comparison
 
-Research checkpoint: 2026-11-21. This comparison records verifiable product and architecture differences; it does not claim general numerical superiority from one paired fixture.
+Research checkpoint: 2026-11-22. This comparison records verifiable product and architecture differences; it does not claim general numerical superiority from one paired fixture.
 
 ## Evidence and limits
 
@@ -8,6 +8,7 @@ Research checkpoint: 2026-11-21. This comparison records verifiable product and 
 - The public [Underframe Desktop repository](https://github.com/NevermindNilas/underframe-desktop/tree/fe38d07f3515a995a068015314ad85acc65bef61) was inspected at commit `fe38d07f3515a995a068015314ad85acc65bef61` (repository last updated 2026-10-25). Relevant sources include its [README](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/README.md), [Auto Build implementation](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/src/shared/auto-build.js), [worker](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/src/renderer/auto-build.worker.js), and [Auto Build port notes](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/docs/port-auto-build.md).
 - The Desktop repository declares `AGPL-3.0-only` for its public application code. Its README and NOTICE identify `core/` as a private submodule containing the damage engine and game data. This review uses public behavior and documentation only; it does not copy code or rely on the private engine.
 - A read-only Underframe Featured Builds Larkspur Prime page exposed a public build at −15/60 capacity with zero Forma and no calculator. This is not a legal comparison fixture; do not use Copy & Edit/Test or change saved data to pursue it.
+- A read-only IAB check of the public Corvas Prime Featured Build (`/featured_builds/corvas-prime`) showed eight installed mods, −24/60 capacity, zero Forma, and no calculator. The public Tazicor (Viral Elec) Featured Build (`/featured_builds/tazicor-viral-elec`) showed eight mods, −3/60, zero Forma, and no calculator. Both pages expose a Copy & Edit/Test control, which was left untouched. Neither page can support a legal objective-matched score capture in its public view; no saved Underframe build was changed.
 
 ## Auto Build objective from public source (2026-11-18)
 
