@@ -516,6 +516,22 @@ The Gram common-model timing is not an objective-parity result: the captured Und
 
 PR [#163](https://github.com/Appl3Tree/Tenno-Hub/pull/163) was squash-merged as `b039dbd8f4b0c06dd89620e85dfb6eb0bdb7cc8e`; Pages deployment [run #243](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44275755814) succeeded.
 
+## D3-OPT-UNDERFRAME-BRATON-CURRENT-REPLAY-001 — current saved-build and condition-matched replay (2026-11-22; bounded, optimizer follow-up open)
+
+The in-app browser reopened the existing `Codex Matched Corpus Braton Prime` page read-only. It remains Braton Prime / Normal Attack / Grineer / 100,000 Health / 3,000 Armor / zero Shields and Overguard / three Forma / no Arcane. Its visible Galvanized Chamber and Galvanized Aptitude condition controls were at 5/5 and 2/2, respectively. No build edit or Save action was used.
+
+Three fresh standard `Calculate DPS` runs returned 78,947 DPS / 1.27s TTK, then 62,500 DPS / 1.60s twice. Their displayed average-shot rows also differed (4,074 raw + 93 DoT; 3,251 + 82; 3,286 + 48). This confirms that one ordinary simulator run is not a stable comparator for this status-heavy build. Three `Luck Averaged DPS` runs repeated 62,279 DPS / 1.62s and 3,237 raw + 92 DoT average damage per shot. The prior 2026-11-18 standard-calculator capture of 66,667 DPS / 1.50s did not reproduce in this session; retain it as a historical observation.
+
+`scripts/compareUnderframeBratonAutoBuild.ts` now accepts `--state=realistic` or `--state=fullyStacked`; default remains `realistic`. The `fullyStacked` run matches the page's visible Galvanized stacks:
+
+| Braton Prime, 100k Health / 3k Armor | Captured Underframe list scored by Tenno-Hub | Tenno-Hub optimizer |
+| --- | ---: | ---: |
+| Realistic | 2.197561s / 45,505.0 DPS / 41 attacks | 2.119475s / 47,181.5 DPS / 51 attacks |
+| Fully Stacked | 1.593232s / 62,765.5 DPS / 30 attacks | 1.610498s / 62,092.6 DPS / 28 attacks |
+
+Both lists are legal within the three-Forma cap: the captured list uses 60/60 capacity and the optimizer list 59/60. In the Fully Stacked common model, the saved capture beats the current optimizer result by 0.01727s (about 1.1%). An exact full-catalog one-mod neighborhood scores 216 legal neighbors and finds no improvement over the optimizer result, so the observed better capture is a coordinated multi-mod basin rather than a single replacement. The native Luck Averaged result (1.62s) is close to the Tenno-Hub Fully Stacked captured-list result (1.593s), but the simulators' scoring implementations are not identical; this is a bounded alignment diagnostic, not parity or gameplay evidence.
+
+Validation: both runner states repeated deterministically; unsupported `--state=other` exits with a validation error; the exact one-mod audit reproduced the optimizer baseline and found no better one-mod neighbor. Focused TypeScript, ESLint, and `git diff --check` pass. This script/docs-only update has no app build or full-suite run. The next benchmark step is to inspect a bounded pair neighborhood around the Fully Stacked optimizer output and determine whether multi-mod refinement can close the 1.1% gap. Keep the larger Underframe comparison corpus open.
 ## D3-OPT-UNDERFRAME-BRATON-LIVE-001 — current production Braton Prime replay (2026-11-18; bounded browser comparison)
 
 The integrated in-app browser opened the cache-busted production Build Planner at `https://appl3tree.github.io/Tenno-Hub/?probe=20261118-0728&version=0cd9e12`. It loaded the current hashed Build Planner bundle, selected Braton Prime / Normal Attack, and optimized for Expected TTK. Inputs were Grineer damage modifiers with custom current pools of 83,818 Health, 0 Shields, 0 Overguard, and 2,700 Armor; Realistic conditional state; zero assumed headshot share; no external status stacks, buffs, or nearby enemies; a Catalyst; weapon rank 30; and a maximum of three Forma. Primary Bulwark was enabled at the Underframe page's 500/500 cap and mapped to 1,500 Warframe Armor in Tenno-Hub. There was no Exilus or Arcane selected. Tenno-Hub displayed a capacity-valid eight-slot build at 60/60 capacity and three Forma.
