@@ -831,8 +831,9 @@ describe("build optimizer scoring", () => {
         expect(modeledEffect?.conditionalEffects?.[0]?.trigger).toBe("onMeleeKill");
 
         const weapon = makeWeapon();
-        const initial = calculateBuild(weapon, [modeledEffect!], "", { conditionalState: { mode: "initial" } });
-        const realistic = calculateBuild(weapon, [modeledEffect!], "", { conditionalState: { mode: "realistic" } });
+        const completeModeledEffect = { ...emptyEffect(), ...(modeledEffect ?? {}) };
+        const initial = calculateBuild(weapon, [completeModeledEffect], "", { conditionalState: { mode: "initial" } });
+        const realistic = calculateBuild(weapon, [completeModeledEffect], "", { conditionalState: { mode: "realistic" } });
 
         expect(initial.modded.totalDamageBonus).toBe(0);
         expect(realistic.modded.totalDamageBonus).toBeGreaterThan(0);
@@ -1778,12 +1779,32 @@ describe("build optimizer scoring", () => {
 
     it("does not score direct-hit per-status damage bonuses on source-marked AoE attacks", () => {
         const perStatusBonus = { ...emptyEffect(), directDamagePerStatusBonus: 0.4 };
-        const directWeapon = {
-            ...makeWeapon({ impact: 100, heat: 100 }),
+        const baseWeapon = makeWeapon();
+        const directWeapon = makeWeapon({
+            damage: {
+                ...baseWeapon.damage,
+                total: 200,
+                impact: 100,
+                puncture: 0,
+                slash: 0,
+                heat: 100,
+                cold: 0,
+                electricity: 0,
+                toxin: 0,
+                blast: 0,
+                radiation: 0,
+                gas: 0,
+                magnetic: 0,
+                viral: 0,
+                corrosive: 0,
+                void: 0,
+                tau: 0,
+                true: 0,
+            },
             statusChance: 1,
             fireRate: 10,
             selectedAttackIsAreaDamage: false,
-        };
+        });
         const areaWeapon = { ...directWeapon, selectedAttackIsAreaDamage: true };
         const score = (
             weapon: WeaponEntry,
@@ -1924,12 +1945,32 @@ describe("build optimizer scoring", () => {
 
     it("does not score direct-hit per-status damage bonuses on source-marked AoE attacks", () => {
         const perStatusBonus = { ...emptyEffect(), directDamagePerStatusBonus: 0.4 };
-        const directWeapon = {
-            ...makeWeapon({ impact: 100, heat: 100 }),
+        const baseWeapon = makeWeapon();
+        const directWeapon = makeWeapon({
+            damage: {
+                ...baseWeapon.damage,
+                total: 200,
+                impact: 100,
+                puncture: 0,
+                slash: 0,
+                heat: 100,
+                cold: 0,
+                electricity: 0,
+                toxin: 0,
+                blast: 0,
+                radiation: 0,
+                gas: 0,
+                magnetic: 0,
+                viral: 0,
+                corrosive: 0,
+                void: 0,
+                tau: 0,
+                true: 0,
+            },
             statusChance: 1,
             fireRate: 10,
             selectedAttackIsAreaDamage: false,
-        };
+        });
         const areaWeapon = { ...directWeapon, selectedAttackIsAreaDamage: true };
         const score = (weapon: WeaponEntry, effects: ModEffect[]) => debugScoreBuild(
             weapon,
@@ -2069,7 +2110,7 @@ describe("build optimizer scoring", () => {
         const result = optimizeBuild(
             withSelectedAttack(weapon!, areaAttackIndex),
             [volatileVariant!],
-            "status",
+            normalizeOptimizeGoal("status"),
             1,
             { allowForma: false },
         );
@@ -3535,7 +3576,7 @@ describe("build optimizer scoring", () => {
                 expect(arcane, `${scenario.weaponName}: ${name}`).toBeTruthy();
                 return arcane!;
             });
-            const energyContext = scenario.energyContext ?? {};
+            const energyContext = "energyContext" in scenario ? scenario.energyContext : {};
             const slotPolarities = weapon!.polarities.slice(0, 3);
             const baseline = optimizeBuild(weapon!, candidates, "timeToKill", 3, {
                 targetFaction,
@@ -3837,10 +3878,11 @@ describe("build optimizer scoring", () => {
                     })).filter((option) => option.effect),
                 ),
             ];
-            const attack = scenario.attackName
-                ? weapon!.attacks.find((entry) => entry.name === scenario.attackName)
+            const attackName = "attackName" in scenario ? scenario.attackName : undefined;
+            const attack = attackName
+                ? weapon!.attacks.find((entry) => entry.name === attackName)
                 : undefined;
-            expect(scenario.attackName ? attack : true, `${scenario.weaponName}: attack`).toBeTruthy();
+            expect(attackName ? attack : true, `${scenario.weaponName}: attack`).toBeTruthy();
             const attackIndex = attack ? weapon!.attacks.indexOf(attack) : -1;
             const scoringBaseWeapon = attack && "incarnonForm" in scenario
                 ? resolveIncarnonState(weapon!, attackIndex, { unlockedTier: 1, selectedOptionsByTier: {} }).weapon
@@ -4227,10 +4269,11 @@ describe("build optimizer scoring", () => {
                 expect(mod, scenario.weaponName + ": " + name).toBeTruthy();
                 return mod!;
             });
-            const attack = scenario.attackName
-                ? weapon!.attacks.find((entry) => entry.name === scenario.attackName)
+            const attackName = "attackName" in scenario ? scenario.attackName : undefined;
+            const attack = attackName
+                ? weapon!.attacks.find((entry) => entry.name === attackName)
                 : undefined;
-            expect(scenario.attackName ? attack : true, scenario.weaponName + ": attack").toBeTruthy();
+            expect(attackName ? attack : true, scenario.weaponName + ": attack").toBeTruthy();
             const scoringWeapon = attack
                 ? withSelectedAttack(weapon!, weapon!.attacks.indexOf(attack))
                 : weapon!;

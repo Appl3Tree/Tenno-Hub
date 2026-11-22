@@ -695,7 +695,7 @@ describe("Spring-Loaded Broadhead Wiki modeling", () => {
         expect(beyondThreshold.averageShotDamage - baseline.averageShotDamage).toBeCloseTo(40, 8);
         expect(beyondThreshold.damageBreakdown).toEqual(baseline.damageBreakdown);
         expect(beyondThreshold.statusChance).toBe(baseline.statusChance);
-        expect(beyondThreshold.procWeightBreakdown).toEqual(baseline.procWeightBreakdown);
+        expect(beyondThreshold.procChanceByType).toEqual(baseline.procChanceByType);
         expect(beyondThreshold.dotDamagePerApplicationSeedByType.slash).toBeCloseTo(
             (baseline.dotDamagePerApplicationSeedByType.slash ?? 0) * 1.2,
             8,
@@ -1578,8 +1578,8 @@ describe("damage calculation status eligibility", () => {
             requiresAiming: conditional.requiresAiming,
         });
         const expectRank = (
-            effects: NonNullable<ModEffect["conditionalEffects"]>,
-            expected: typeof galvCases[number]["r0"],
+            effects: readonly NonNullable<ModEffect["conditionalEffects"]>[number][],
+            expected: readonly NonNullable<ModEffect["conditionalEffects"]>[number][],
         ) => {
             expect(effects.map(metadata)).toEqual(expected.map(({ trigger, durationSeconds, maxStacks, requiresAiming }) => ({
                 trigger,
@@ -1962,7 +1962,7 @@ describe("damage calculation status eligibility", () => {
             name: "Low Quantized Impact Test Melee",
             category: "Melee",
             weaponType: "Melee",
-            modCompat: "Melee",
+            modCompat: "Melee" as const,
         };
         const roundedToZero = calculateBuild(fractionalImpactMelee, [shatteringImpact!.effect]).modded;
         expect(roundedToZero.damageBreakdownBeforePerStatus.impact).toBe(0);
@@ -2319,7 +2319,7 @@ describe("damage calculation status eligibility", () => {
             ...makeWeapon({ slash: 100 }),
             category: "Melee" as const,
             weaponType: "Sword",
-            modCompat: "Melee",
+            modCompat: "Melee" as const,
         };
         const baseStats = calculateBuild(baseWeapon, []).modded;
         const physicalStats = calculateBuild(baseWeapon, [{ ...emptyEffect(), slashBonus: 0.9 }]).modded;
@@ -3372,7 +3372,7 @@ describe("damage calculation status eligibility", () => {
             ...makeWeapon({ impact: 100, heat: 100 }),
             category: "Melee" as const,
             weaponType: "Sword",
-            modCompat: "Melee",
+            modCompat: "Melee" as const,
             statusChance: 1,
             fireRate: 10,
         };
@@ -3413,7 +3413,7 @@ describe("damage calculation status eligibility", () => {
             ...makeWeapon({ impact: 100 }),
             category: "Melee" as const,
             weaponType: "Sword",
-            modCompat: "Melee",
+            modCompat: "Melee" as const,
             statusChance: 0,
         };
         const overload = { ...emptyEffect(), conditionOverloadDamagePerStatusBonus: 0.8 };
@@ -4347,7 +4347,7 @@ describe("melee combo-scaled mod calculations", () => {
             ...makeWeapon({}),
             category: "Melee" as const,
             weaponType: "Sword",
-            modCompat: "Melee",
+            modCompat: "Melee" as const,
         };
         const initialCombo = { ...emptyEffect(), initialComboBonus: 40 };
         const bloodRush = { ...emptyEffect(), comboCritChanceBonus: 0.4 };
@@ -4653,7 +4653,7 @@ describe("Gladiator combo-scaled melee Critical Chance set bonus", () => {
 
     it("keeps Gladiator inactive on ranged weapons and adds no bonus at 1x combo", () => {
         const piece = { ...emptyEffect(), gladiatorSetModCount: 1 };
-        const melee = { ...makeWeapon({ impact: 100 }), category: "Melee" as const, weaponType: "Sword", modCompat: "Melee", critChance: 0.2 };
+        const melee = { ...makeWeapon({ impact: 100 }), category: "Melee" as const, weaponType: "Sword", modCompat: "Melee" as const, critChance: 0.2 };
         const noCombo = calculateBuild(melee, [piece], "", { conditionalState: { mode: "realistic", meleeComboMultiplier: 1 } }).modded;
         expect(noCombo.gladiatorSetModCount).toBe(1);
         expect(noCombo.gladiatorCritChancePerComboTier).toBeCloseTo(0.1, 10);
@@ -4675,7 +4675,7 @@ describe("Sacrificial two-piece melee set bonus", () => {
             ...weapon,
             category: "Melee" as const,
             weaponType: "Sword",
-            modCompat: "Melee",
+            modCompat: "Melee" as const,
             critChance: 0.2,
             statusChance: 0,
         };
@@ -4747,7 +4747,7 @@ describe("Sacrificial two-piece melee set bonus", () => {
             ...makeWeapon({ impact: 100 }),
             category: "Melee" as const,
             weaponType: "Sword",
-            modCompat: "Melee",
+            modCompat: "Melee" as const,
         };
         const setMods = getModsForWeapon(meleeWeapon).filter((mod) =>
             mod.setBonusPath === "/Lotus/Upgrades/Mods/Sets/Sacrifice/SacrificeSetMod",
@@ -4785,7 +4785,7 @@ describe("Strain Infection Burst critical damage", () => {
         ...makeWeapon({ impact: 100 }),
         category: "Melee" as const,
         weaponType: "Sword",
-        modCompat: "Melee",
+        modCompat: "Melee" as const,
         critChance: 0.5,
         critMultiplier: 2,
     };

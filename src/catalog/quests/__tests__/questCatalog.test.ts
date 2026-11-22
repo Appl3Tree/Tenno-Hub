@@ -9,7 +9,7 @@ import { computeUnlockGraphSnapshot } from "../../../domain/logic/unlockGraph";
 import { QUEST_GUIDE_ENTRIES, QUEST_GUIDE_GROUPS } from "../questCatalog";
 import { WIKI_QUEST_INVENTORY } from "./wikiQuestInventory.fixture";
 
-const byId = new Map(PREREQ_REGISTRY.map((definition) => [definition.id, definition]));
+const byId = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((definition) => [definition.id, definition]));
 const sorted = (values: string[]) => [...values].sort((a, b) => a.localeCompare(b));
 
 describe("Wiki-derived quest coverage", () => {

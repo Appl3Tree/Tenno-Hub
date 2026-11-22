@@ -295,7 +295,15 @@ describe("source prerequisite access", () => {
     it("hides Duviri resource routes until the quest unlocks them", () => {
         const aggristone = "items:/Lotus/Types/Gameplay/Duviri/Resource/DuviriRockItem" as CatalogId;
         const requirements = {
-            itemLines: [{ key: aggristone, name: FULL_CATALOG.recordsById[aggristone].displayName, remaining: 1 }],
+            itemLines: [{
+                key: aggristone,
+                name: FULL_CATALOG.recordsById[aggristone].displayName,
+                totalNeed: 1,
+                have: 0,
+                remaining: 1,
+                sources: [],
+                uniqueSourceCount: 0,
+            }],
             currencyLines: [],
             stats: {
                 actionableItemCount: 1,
@@ -304,7 +312,7 @@ describe("source prerequisite access", () => {
                 totalRemainingCredits: 0,
                 totalRemainingPlatinum: 0,
             },
-        } as RequirementsResult;
+        } satisfies RequirementsResult;
 
         const locked = buildFarmingSnapshot({ requirements, completedPrereqs: {} });
         expect(locked.targeted).toHaveLength(0);

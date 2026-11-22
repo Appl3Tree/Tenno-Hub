@@ -124,7 +124,7 @@ describe("AlecaFrame reconciliation", () => {
     expect(twice.counts).toEqual(once.counts);
     expect(twice.modRankCounts).toEqual(once.modRankCounts);
     expect(twice.arcaneRankCounts).toEqual(once.arcaneRankCounts);
-    expect(twice.customRivens).toHaveLength(once.customRivens?.length);
+    expect(twice.customRivens).toHaveLength(once.customRivens?.length ?? 0);
   });
 
   it("treats schema-normalized unresolved rank records as unchanged", () => {

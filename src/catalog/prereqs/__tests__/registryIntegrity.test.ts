@@ -7,6 +7,7 @@ import { MILESTONE_REGISTRY } from "../milestoneRegistry";
 import { STAR_CHART_NODES } from "../../../domain/catalog/starChart/nodes";
 import { STAR_CHART_PLANETS } from "../../../domain/catalog/starChart/planets";
 import { SY } from "../../../domain/ids/syndicateIds";
+import { normalizeSourceId } from "../../../domain/ids/sourceIds";
 import { computeUnlockGraphSnapshot } from "../../../domain/logic/unlockGraph";
 
 describe("prerequisite registry integrity", () => {
@@ -15,7 +16,7 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("defines every prerequisite referenced by other registry rows", () => {
-        const ids = new Set(PREREQ_REGISTRY.map((def) => def.id));
+        const ids = new Set<string>(PREREQ_REGISTRY.map((def) => def.id));
         const missing = PREREQ_REGISTRY.flatMap((def) =>
             [...def.prerequisites, ...(def.anyPrerequisites ?? []), ...(def.progressionAfter ?? [])]
                 .filter((prereqId) => !ids.has(prereqId))
@@ -26,7 +27,7 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("defines every prerequisite id referenced by the source catalog", () => {
-        const ids = new Set(PREREQ_REGISTRY.map((def) => def.id));
+        const ids = new Set<string>(PREREQ_REGISTRY.map((def) => def.id));
         const missing = Object.entries(SOURCE_INDEX).flatMap(([sourceId, source]) =>
             (source.prereqIds ?? [])
                 .filter((prereqId) => !ids.has(prereqId))
@@ -37,7 +38,7 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("defines every prerequisite id referenced by milestone rules", () => {
-        const ids = new Set(PREREQ_REGISTRY.map((def) => def.id));
+        const ids = new Set<string>(PREREQ_REGISTRY.map((def) => def.id));
         const missing = MILESTONE_REGISTRY.flatMap((milestone) =>
             milestone.rule.prereqIds
                 .filter((prereqId) => !ids.has(prereqId))
@@ -47,10 +48,10 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("defines every quest or junction reference used by a condition", () => {
-        const ids = new Set(PREREQ_REGISTRY.map((def) => def.id));
+        const ids = new Set<string>(PREREQ_REGISTRY.map((def) => def.id));
         const nodeIds = new Set(STAR_CHART_NODES.map((node) => node.id));
         const planetIds = new Set(STAR_CHART_PLANETS.map((planet) => planet.id));
-        const syndicateIds = new Set(Object.values(SY));
+        const syndicateIds = new Set<string>(Object.values(SY));
         const missing = PREREQ_REGISTRY.flatMap((def) =>
             (def.conditions ?? []).flatMap((condition) => {
                 if (condition.type === "quest_complete" && !ids.has(condition.prereqId)) return [`${def.id} -> ${condition.prereqId}`];
@@ -128,7 +129,7 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("keeps Star Chart junction relationships centralized in the prerequisite registry", () => {
-        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const byId = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((def) => [def.id, def]));
         const junctionNodes = STAR_CHART_NODES.filter((node) => node.nodeType === "junction");
         const missing = junctionNodes.filter((node) => !byId.has(node.id.replace(/^node:/, ""))).map((node) => node.id);
 
@@ -160,7 +161,7 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("has no cycles across AND and OR dependencies", () => {
-        const index = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const index = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((def) => [def.id, def]));
         const visiting = new Set<string>();
         const visited = new Set<string>();
 
@@ -196,7 +197,7 @@ describe("prerequisite registry integrity", () => {
 
         expect(roots).toEqual([PR.AWAKENING]);
 
-        const index = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const index = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((def) => [def.id, def]));
         function reachesAwakening(id: string, seen = new Set<string>()): boolean {
             if (id === PR.AWAKENING) return true;
             if (seen.has(id)) return false;
@@ -241,11 +242,11 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("keeps Quills rank sources aligned with the actual rank that unlocks them", () => {
-        expect(SOURCE_INDEX["data:syndicate/quills/architect"]?.prereqIds).toEqual([PR.SYNDICATE_QUILLS_RANK5]);
-        expect(SOURCE_INDEX["data:syndicate/quills/adherent"]?.prereqIds).toEqual([PR.SYNDICATE_QUILLS_RANK3]);
-        expect(SOURCE_INDEX["data:vendor/cetus/quills"]?.prereqIds).toEqual([PR.SYSTEM_ONKKO_VISITED]);
-        expect(SOURCE_INDEX["data:vendor/fortuna/vox-solaris"]?.prereqIds).toEqual([PR.VOX_SOLARIS, PR.SYSTEM_ONKKO_VISITED]);
-        expect(SOURCE_INDEX["data:system/focus"]?.prereqIds).toEqual([PR.SECOND_DREAM]);
+        expect(SOURCE_INDEX[normalizeSourceId("data:syndicate/quills/architect")]?.prereqIds).toEqual([PR.SYNDICATE_QUILLS_RANK5]);
+        expect(SOURCE_INDEX[normalizeSourceId("data:syndicate/quills/adherent")]?.prereqIds).toEqual([PR.SYNDICATE_QUILLS_RANK3]);
+        expect(SOURCE_INDEX[normalizeSourceId("data:vendor/cetus/quills")]?.prereqIds).toEqual([PR.SYSTEM_ONKKO_VISITED]);
+        expect(SOURCE_INDEX[normalizeSourceId("data:vendor/fortuna/vox-solaris")]?.prereqIds).toEqual([PR.VOX_SOLARIS, PR.SYSTEM_ONKKO_VISITED]);
+        expect(SOURCE_INDEX[normalizeSourceId("data:system/focus")]?.prereqIds).toEqual([PR.SECOND_DREAM]);
     });
 
     it("keeps Entrati rank progression separate from the MR8 Helminth segment gate", () => {
@@ -265,7 +266,7 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("keeps newly tracked syndicate ranks connected through their actual previous rank", () => {
-        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const byId = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((def) => [def.id, def]));
         expect(byId.get(PR.SYNDICATE_NECRALOID_RANK1)?.prerequisites).toEqual([PR.HUB_NECRALISK, PR.WAR_WITHIN]);
         expect(byId.get(PR.SYNDICATE_NECRALOID_RANK2)?.prerequisites).toEqual([PR.SYNDICATE_NECRALOID_RANK1]);
         expect(byId.get(PR.SYNDICATE_NECRALOID_RANK3)?.prerequisites).toEqual([PR.SYNDICATE_NECRALOID_RANK2]);
@@ -273,14 +274,14 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("keeps direct gates separate from their transitively implied progression", () => {
-        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const byId = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((def) => [def.id, def]));
         expect(byId.get(PR.JUNCTION_NEPTUNE_PLUTO)?.prerequisites).toEqual([PR.SECOND_DREAM]);
         expect(byId.get(PR.JUNCTION_PLUTO_SEDNA)?.prerequisites).toEqual([PR.WAR_WITHIN, PR.SYSTEM_ERIS_FOCUS_LENS]);
         expect(byId.get(PR.ACTIVITY_STEEL_PATH_HONORS)?.prerequisites).toEqual([PR.ACTIVITY_STEEL_PATH]);
     });
 
     it("has no redundant direct AND edges unless the game explicitly checks both flags", () => {
-        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const byId = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((def) => [def.id, def]));
         const memo = new Map<string, Set<string>>();
 
         function mandatoryClosure(id: string, active = new Set<string>()): Set<string> {
@@ -338,7 +339,7 @@ describe("prerequisite registry integrity", () => {
     });
 
     it("tracks open-world Necramech access requirements", () => {
-        const byId = new Map(PREREQ_REGISTRY.map((def) => [def.id, def]));
+        const byId = new Map<string, (typeof PREREQ_REGISTRY)[number]>(PREREQ_REGISTRY.map((def) => [def.id, def]));
         const openWorld = byId.get(PR.NECRAMECH_UNLOCKED)!;
         expect(openWorld.prerequisites).toEqual([PR.WAR_WITHIN]);
         expect(openWorld.anyPrerequisites).toEqual([PR.NECRAMECH_VOIDRIG, PR.NECRAMECH_BONEWIDOW, PR.NECRAMECH_MARKET]);
