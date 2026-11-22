@@ -2666,7 +2666,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                 {currentUnmodeledDamageLines.length > 0 && (
                                     <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[9px] leading-tight text-amber-300"
                                         title={currentUnmodeledDamageLines.join(" · ")}>
-                                        <span>Damage effect not modeled; Auto Optimize skips this mod</span>
+                                        <span>Unscored effect; Auto Optimize skips this mod</span>
                                         {currentUnmodeledDamageSourceUrl && (
                                             <a href={currentUnmodeledDamageSourceUrl} target="_blank" rel="noreferrer"
                                                 onClick={(event) => event.stopPropagation()}
@@ -2814,7 +2814,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                                     <div className="text-[10px] text-slate-500 mt-0.5 pl-5">
                                         {m.statsLabel || "—"}
                                         <span className="text-slate-700 ml-1">{m.rarity}</span>
-                                        {unmodeledDamageLines.length > 0 && <span className="ml-1 text-amber-400" title={unmodeledDamageLines.join(" · ")}>Damage effect not modeled; optimizer excludes</span>}
+                                        {unmodeledDamageLines.length > 0 && <span className="ml-1 text-amber-400" title={unmodeledDamageLines.join(" · ")}>Unscored effect; optimizer excludes</span>}
                                         {!m.hasDamageEffect && !m.isBuiltIn && unmodeledDamageLines.length === 0 && <span className="ml-1 text-amber-500">Effect not modeled</span>}
                                     </div>
                                 </button>

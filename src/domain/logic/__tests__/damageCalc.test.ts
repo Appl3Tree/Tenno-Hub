@@ -561,6 +561,61 @@ describe("Bell Ringer Wiki status applications", () => {
     });
 });
 
+describe("Beast Claw status mod interactions", () => {
+    it("converts Bell Ringer Impact applications through every Magnetic Strike rank", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.name === "Chesa Claws");
+        const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
+        expect(claw).toBeDefined();
+        expect(braton).toBeDefined();
+
+        const bellRinger = getModsForWeapon(claw!).find((candidate) => candidate.name === "Bell Ringer");
+        const magneticStrike = getModsForWeapon(claw!).find((candidate) => candidate.name === "Magnetic Strike");
+        expect(bellRinger).toBeDefined();
+        expect(magneticStrike).toBeDefined();
+        expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Magnetic Strike")).toBe(false);
+        expect(magneticStrike!.effectsByRank.map((effect) => effect.impactStatusAppliesMagneticChance))
+            .toEqual([0.25, 0.5, 0.75, 1]);
+
+        const maxBellRingerRank = bellRinger!.effectsByRank[bellRinger!.fusionLimit];
+        for (let rank = 0; rank <= magneticStrike!.fusionLimit; rank++) {
+            const effect = magneticStrike!.effectsByRank[rank];
+            expect(magneticStrike!.unparsedStatsByRank?.[rank]).toEqual([]);
+            expect(getUnmodeledDamageEffectLines(magneticStrike!, rank)).toEqual([]);
+
+            const result = calculateBuild(claw!, [maxBellRingerRank, effect]).modded;
+            const expectedImpactApplicationsPerHit = (claw!.statusChance ?? 0) + maxBellRingerRank.forcedImpactProcsPerMeleeHit;
+            expect(result.unfilteredExtraProcsPerShot.magnetic).toBeCloseTo(
+                expectedImpactApplicationsPerHit * effect.impactStatusAppliesMagneticChance,
+                8,
+            );
+        }
+    });
+
+    it("applies Immunity Resistance to Slash DoT without changing direct hit damage", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.name === "Chesa Claws");
+        expect(claw).toBeDefined();
+        const immunityResistance = getModsForWeapon(claw!).find((candidate) => candidate.name === "Immunity Resistance");
+        expect(immunityResistance).toBeDefined();
+        expect(immunityResistance!.effectsByRank.map((effect) => effect.statusDamageBonus))
+            .toEqual([0.125, 0.25, 0.375, 0.5]);
+
+        const slashWeapon = { ...makeWeapon({ slash: 100 }), critChance: 0, critMultiplier: 2 };
+        const baseline = calculateBuild(slashWeapon, []).modded;
+        for (let rank = 0; rank <= immunityResistance!.fusionLimit; rank++) {
+            const effect = immunityResistance!.effectsByRank[rank];
+            expect(immunityResistance!.unparsedStatsByRank?.[rank]).toEqual([]);
+            expect(getUnmodeledDamageEffectLines(immunityResistance!, rank)).toEqual([]);
+
+            const result = calculateBuild(slashWeapon, [effect]).modded;
+            expect(result.averageShotDamage).toBeCloseTo(baseline.averageShotDamage, 8);
+            expect(result.dotTickDamagePerProcByType.slash).toBeCloseTo(
+                baseline.dotTickDamagePerProcByType.slash! * (1 + effect.statusDamageBonus),
+                8,
+            );
+        }
+    });
+});
+
 describe("Spring-Loaded Broadhead Wiki modeling", () => {
     it("parses every rank and remains compatible with Daikyu and Daikyu Prime", () => {
         const daikyu = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu");

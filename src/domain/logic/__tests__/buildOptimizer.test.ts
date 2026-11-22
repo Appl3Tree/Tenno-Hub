@@ -1520,6 +1520,40 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("selects Magnetic Strike for a shielded Corpus target", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.name === "Chesa Claws");
+        expect(claw).toBeDefined();
+        const magneticStrike = getModsForWeapon(claw!).find((candidate) => candidate.name === "Magnetic Strike");
+        expect(magneticStrike).toBeDefined();
+
+        const result = optimizeBuild(claw!, [magneticStrike!], "burst", 1, {
+            allowForma: false,
+            targetProfileOverride: { health: 1_000_000, shields: 1_000_000, overguard: 0, armor: 0 },
+        });
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots).toContain(magneticStrike);
+        expect(result.ranks[result.slots.indexOf(magneticStrike!)]).toBe(magneticStrike!.fusionLimit);
+    });
+
+    it("explains Bloodthirst as companion healing and excludes it from damage optimization", () => {
+        const claw = getWeaponCatalog().find((weapon) => weapon.name === "Chesa Claws");
+        expect(claw).toBeDefined();
+        const bloodthirst = getModsForWeapon(claw!).find((candidate) => candidate.name === "Bloodthirst");
+        expect(bloodthirst).toBeDefined();
+        const warning = "Bloodthirst heals the companion for each active Slash stack per hit; companion healing is outside the damage score, so Auto Optimize skips this mod.";
+
+        expect(getUnmodeledDamageEffectSourceUrl(bloodthirst!)).toBe("https://wiki.warframe.com/w/Bloodthirst");
+        for (let rank = 0; rank <= bloodthirst!.fusionLimit; rank++) {
+            expect(bloodthirst!.unparsedStatsByRank?.[rank]).toHaveLength(1);
+            expect(getUnmodeledDamageEffectLines(bloodthirst!, rank)).toEqual([warning]);
+        }
+
+        const result = optimizeBuild(claw!, [bloodthirst!], "burst", 1, { allowForma: false });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots).toEqual([null]);
+    });
+
     it("selects Spring-Loaded Broadhead when its Wiki distance condition is met", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Daikyu Prime");
         expect(weapon).toBeDefined();
