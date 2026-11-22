@@ -2461,6 +2461,53 @@ describe("build optimizer scoring", () => {
         expect(perigalePrimeStats.shotsPerMag).toBe(16);
     });
 
+    it("uses Wiki Auto-Burst, Auto-Charge, and Semi-Auto triggers for Battacor and Morgha", () => {
+        const catalog = getWeaponCatalog();
+        const battacor = catalog.find((weapon) => weapon.name === "Battacor");
+        const morgha = catalog.find((weapon) => weapon.name === "Morgha");
+        expect(battacor).toBeTruthy();
+        expect(morgha).toBeTruthy();
+
+        const battacorPrimaryIndex = battacor!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const battacorAltFireIndex = battacor!.attacks.findIndex((attack) => attack.name === "Secondary Fire");
+        const battacorAltFireExplosionIndex = battacor!.attacks.findIndex((attack) => attack.name === "Secondary Fire AoE");
+        const battacorPrimary = battacor!.attacks[battacorPrimaryIndex]!;
+        const battacorAltFire = battacor!.attacks[battacorAltFireIndex]!;
+        const battacorAltFireExplosion = battacor!.attacks[battacorAltFireExplosionIndex]!;
+
+        expect(battacorPrimary.trigger).toBe("Burst");
+        expect(battacorPrimary.burstCount).toBe(2);
+        expect(battacorPrimary.burstDelay).toBeCloseTo(0.08, 8);
+        expect(calculateBuild(withSelectedAttack(battacor!, battacorPrimaryIndex), []).modded.fireRate)
+            .toBeCloseTo(2 / (1 / 2.5 + 0.08), 8);
+        expect(calculateBuild(withSelectedAttack(battacor!, battacorPrimaryIndex), [{
+            ...emptyEffect(),
+            fireRateBonus: 1,
+        }]).modded.fireRate).toBeCloseTo(2 / (1 / 5 + 0.04), 8);
+
+        for (const [attack, attackName] of [
+            [battacorAltFire, "Secondary Fire"],
+            [battacorAltFireExplosion, "Secondary Fire AoE"],
+        ] as const) {
+            expect(attack.trigger, attackName).toBe("Charge");
+            expect(attack.chargeTime, attackName).toBeCloseTo(0.4, 8);
+            expect(attack.modelLimitation?.reason, attackName).toContain("kill history are not modeled");
+            expect(() => optimizeBuild(battacor!, [], "burst", 1, { buildForAttack: attack }))
+                .toThrow("kill history are not modeled");
+        }
+
+        const morghaChargedShotIndex = morgha!.attacks.findIndex((attack) => attack.name === "Charged Shot");
+        const morghaChargedShotExplosionIndex = morgha!.attacks.findIndex((attack) => attack.name === "Charged Shot Explosion");
+        for (const attackIndex of [morghaChargedShotIndex, morghaChargedShotExplosionIndex]) {
+            const attack = morgha!.attacks[attackIndex]!;
+            expect(attack.trigger).toBe("Semi");
+            expect(attack.burstCount).toBeUndefined();
+            expect(attack.chargeTime).toBeUndefined();
+            expect(calculateBuild(withSelectedAttack(morgha!, attackIndex), []).modded.fireRate)
+                .toBeCloseTo(0.833, 6);
+        }
+    });
+
     it("applies Wiki Auto-Spool cadence only to source-verified attack modes", () => {
         const catalog = getWeaponCatalog();
         const verifiedModes = [
