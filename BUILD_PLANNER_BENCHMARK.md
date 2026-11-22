@@ -470,7 +470,7 @@ The public [engine worker](https://github.com/NevermindNilas/underframe-desktop/
 
 This is evidence about the Desktop wrapper at the cited commit, not proof that the website uses the same seed schedule or that either UI exposes the same settings. It does not reveal the private engine's per-run mechanics or bucket formulas. The variable standard Calculate DPS results observed on the website's Gram capture therefore remain website evidence; do not explain them using Desktop seed policy. Underframe website semantics and Tenno-Hub parity remain open.
 
-#### Gram Prime calculator repeatability probe (2026-11-22)#### Gram Prime calculator repeatability probe (2026-11-22)
+#### Gram Prime calculator repeatability probe (2026-11-22)
 
 The in-app browser replay opened the existing saved **Codex Matched Corpus Gram Prime** page and recalculated the saved Normal Attack / Lashing Tempest (Forward) / five-second / Grineer / 100,000 Health / 3,000 Armor / zero Shields / zero Overguard / zero-combo setup. The page showed 3/60 capacity with three Forma. No Save action was used.
 
