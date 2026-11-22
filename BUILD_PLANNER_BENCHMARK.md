@@ -3060,3 +3060,17 @@ This search produced no legal, on-page objective-scored comparison fixture. Buil
 The current [Mausolon](https://wiki.warframe.com/w/Mausolon) page lists Auto as hit-scan with a 300m Range and a separate 1,400–2,800m falloff profile. The general [Range](https://wiki.warframe.com/w/Range) page names Archguns as exceptions to the default 300m hit-scan range, while [Damage Falloff](https://wiki.warframe.com/w/Damage_Falloff) states a universal 300m hit-scan shot limit except for Sniper Rifles and does not give Archguns a corresponding exception. These Wiki statements do not resolve whether Mausolon Archwing Auto can register hits between 300m and 2,800m.
 
 The existing profile-specific model remains in place: Mausolon Atmosphere Auto enforces 300m; Archwing Auto uses its sourced falloff and displays the conflicting 300m maximum as informational. This source review does not establish game behavior, so direct gameplay verification remains open. No app scoring change was made.
+
+## D3-OPT-SEVEN-MOD-FIVE-SLOT-ORACLE-001 — seeded seven-mod, five-slot exact dual-objective oracle (2026-11-22; bounded)
+
+Reproduce with:
+
+```sh
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded seven-mod, five-slot max-rank Expected TTK and 5s DPS oracles" --reporter=dot --configLoader runner
+```
+
+The deterministic LCG seed is `20261132`. For each of four weapon classes—Braton Prime / Grineer, Lex Prime / shielded Corpus, Cedo / Grineer, and Broken War / Infested—the test draws a supported attack and seven fully modeled, compatible max-rank damage mods from the full weapon pool. It enumerates legal ordered subsets through five slots with a Catalyst, weapon-default polarities, and alternating zero/one-Forma budgets. Every accepted build is exact-scored for finite Expected TTK using the existing 82,000-Health Braton, 42,000-Health + 58,000-Shield Lex, 155,000-Health Cedo, and 108,000-Health Broken War target fixtures. The same sampled candidates and attack are independently scored for `[0,5s)` Avg DPS against an uncapped one-million-Health target; Corpus also has one million Shields. All four optimizer results match both objective winners, remain capacity-valid and max-rank, use no more than their Forma budget, and admit a legal five-mod build. The exact enumeration considers at most 3,620 ordered subset prefixes per fixture before incompatibility, placement, and capacity checks.
+
+Focused Vitest passes 1/1 in 158.36s test time. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, focused ESLint, and `git diff --check` pass. The default Vite config bundler failed before test startup because it could not write its temp bundle under the shared `node_modules` path; the supported runner config loader avoids that write. No application source, full suite, or production build changed.
+
+This is exact only inside four seeded seven-mod pools. It expands both tested objectives from six sampled mods/four slots to seven/five; it does not establish full-catalog/global optimality, joint rank/Arcane optimization at this pool size, Underframe's private simulator, or live-game accuracy.
