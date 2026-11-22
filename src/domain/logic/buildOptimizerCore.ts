@@ -2443,7 +2443,7 @@ function fillEmptySlots(
 }
 
 const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 40;
-const WINDOW_DPS_EXTRA_CANDIDATE_LIMIT = 4;
+const WINDOW_DPS_EXTRA_CANDIDATE_LIMIT = 8;
 const ENCOUNTER_REFINE_REMOVAL_LIMIT = 8;
 const ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT = 8;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
@@ -2622,15 +2622,18 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         if (!has(key)) continue;
         families.push(`elemental-${element}`);
         if (statusRelevant) families.push(`elemental-${element}-status`);
+        else if (element === "heat") families.push("elemental-heat-direct");
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
     if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
         families.push("critical");
     }
-    if (has("fireRateBonus", "chargeRateBonus", "attackSpeedBonus")) families.push("fire-rate");
+    if (has("fireRateBonus", "chargeRateBonus")) families.push("fire-rate");
+    if (has("attackSpeedBonus")) families.push("melee-attack-speed");
     if (has("damageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs")) families.push("base-damage");
     if (has("factionDamageBonus")) families.push("faction-damage");
+    if (has("nightwatchNapalmEffect")) families.push("weapon-specific-damage");
     if (has(
         "statusChanceBonus", "areaDamageStatusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
         "targetStatusDamageVulnerabilityBonus",
@@ -3357,14 +3360,37 @@ function refineBuildByExpectedEncounter(
         const singleCandidateKeys = new Set(shortlist.flatMap((proposal) => proposal.candidates.map((candidate) =>
             `${candidate.mod.uniqueName}@${candidate.rank}`,
         )));
+        if (goal === "windowDps") {
+            // Seeded full-pool audits found near-substitute misses in multishot,
+            // critical, melee attack speed, and status builds. Reserve these
+            // second choices before broad family coverage can consume the bounded
+            // shortlist; a Corpus heavy-slam case improved on both Fury and
+            // Elementalist substitutions. Pure heat mods have their own family
+            // reservation below, distinct from heat-plus-status candidates.
+            for (const family of ["multishot", "critical", "melee-attack-speed", "status"]) {
+                const representedCandidates = new Set(shortlist.flatMap((proposal) => proposal.candidates)
+                    .filter((candidate) => expectedEncounterCandidateFamilies(candidate).includes(family))
+                    .map((candidate) => `${candidate.mod.uniqueName}@${candidate.rank}`));
+                for (const proposal of sortedProposals) {
+                    if (representedCandidates.size >= 2 || shortlist.length >= candidateLimit) break;
+                    const candidate = proposal.candidates[0];
+                    if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
+                    const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
+                    if (representedCandidates.has(candidateKey)) continue;
+                    representedCandidates.add(candidateKey);
+                    singleCandidateKeys.add(candidateKey);
+                    if (!shortlist.includes(proposal)) shortlist.push(proposal);
+                }
+            }
+        }
         // Finite-encounter scoring is especially sensitive to elemental transitions;
         // reserve this family before proxy-adjacent base-damage/tempo alternatives
         // can consume the bounded single-replacement shortlist.
         const singleCandidateFamilies = [
             "tempo-damage-tradeoff", "elemental-cold-status", "elemental-toxin-status", "elemental-heat-status",
             "elemental-electricity-status", "elemental-cold", "elemental-toxin",
-            "elemental-heat", "elemental-electricity", "elemental",
-            "multishot", "faction-damage", "critical", "reload-fire-rate", "fire-rate",
+            "elemental-heat", "elemental-heat-direct", "elemental-electricity", "elemental",
+            "multishot", "faction-damage", "critical", "reload-fire-rate", "melee-attack-speed", "fire-rate",
             "base-damage", "status", "weapon-tempo", "other",
         ];
         // Reserve one exact TTK evaluation for every distinct effect family
@@ -3383,26 +3409,6 @@ function refineBuildByExpectedEncounter(
                 break;
             }
         }
-        if (goal === "windowDps") {
-            // The seeded full-pool audit found near-substitute misses in both
-            // multishot and critical builds. Keep one more incoming mod from
-            // each family so later exact finite-window passes can reconsider it.
-            for (const family of ["multishot", "critical"]) {
-                const representedCandidates = new Set(shortlist.flatMap((proposal) => proposal.candidates)
-                    .filter((candidate) => expectedEncounterCandidateFamilies(candidate).includes(family))
-                    .map((candidate) => `${candidate.mod.uniqueName}@${candidate.rank}`));
-                for (const proposal of sortedProposals) {
-                    if (representedCandidates.size >= 2 || shortlist.length >= candidateLimit) break;
-                    const candidate = proposal.candidates[0];
-                    if (!candidate || !expectedEncounterCandidateFamilies(candidate).includes(family)) continue;
-                    const candidateKey = `${candidate.mod.uniqueName}@${candidate.rank}`;
-                    if (representedCandidates.has(candidateKey)) continue;
-                    representedCandidates.add(candidateKey);
-                    singleCandidateKeys.add(candidateKey);
-                    if (!shortlist.includes(proposal)) shortlist.push(proposal);
-                }
-            }
-        }
         // The proxy-best replacement slot can miss a better finite-TTK swap when
         // another outgoing mod changes element composition or damage thresholds.
         // Keep bounded alternate replacement slots for selected candidates.
@@ -3419,7 +3425,7 @@ function refineBuildByExpectedEncounter(
             shortlistedCandidates.set(`${candidate.mod.uniqueName}@${candidate.rank}`, candidate);
         }
         const slotAlternativeFamilies = [
-            "tempo-damage-tradeoff", "critical", "reload-fire-rate", "base-damage",
+            "tempo-damage-tradeoff", "critical", "reload-fire-rate", "melee-attack-speed", "base-damage",
             "elemental-heat-status", "elemental-toxin-status", "elemental-cold-status", "elemental-electricity-status",
             "elemental-heat", "elemental-toxin", "elemental-cold", "elemental-electricity", "elemental",
             "fire-rate", "weapon-tempo", "multishot", "status", "faction-damage",
@@ -3505,7 +3511,28 @@ function refineBuildByExpectedEncounter(
         // which stat family leaves, including utility/status families that the proxy
         // does not rank as direct damage alternatives.
         let familySlotExtras = 0;
-        for (const candidateKey of shortlistedCandidates.keys()) {
+        const candidatesReplacingSpecialDamageEffects = new Set<string>();
+        for (const proposal of sortedProposals) {
+            const candidate = proposal.candidates[0];
+            const outgoing = existing.find((entry) => entry.mod.uniqueName === proposal.replacedModUniqueName);
+            if (!candidate || !outgoing) continue;
+            if (expectedEncounterCandidateFamilies({ mod: outgoing.mod, rank: outgoing.rank })
+                .includes("weapon-specific-damage")) {
+                candidatesReplacingSpecialDamageEffects.add(`${candidate.mod.uniqueName}@${candidate.rank}`);
+            }
+        }
+        const familySlotCandidateKeys = [...shortlistedCandidates.keys()].sort((left, right) => {
+            const leftCandidate = shortlistedCandidates.get(left)!;
+            const rightCandidate = shortlistedCandidates.get(right)!;
+            const leftSpecial = candidatesReplacingSpecialDamageEffects.has(left);
+            const rightSpecial = candidatesReplacingSpecialDamageEffects.has(right);
+            const leftPriority = Number(leftSpecial) * 2 + Number(leftSpecial &&
+                expectedEncounterCandidateFamilies(leftCandidate).includes("elemental-heat-direct"));
+            const rightPriority = Number(rightSpecial) * 2 + Number(rightSpecial &&
+                expectedEncounterCandidateFamilies(rightCandidate).includes("elemental-heat-direct"));
+            return rightPriority - leftPriority;
+        });
+        for (const candidateKey of familySlotCandidateKeys) {
             const representedOutgoingFamilies = new Set<string>();
             for (const proposal of shortlist) {
                 const proposalCandidate = proposal.candidates[0];
@@ -3518,7 +3545,20 @@ function refineBuildByExpectedEncounter(
                     representedOutgoingFamilies.add(family);
                 }
             }
-            for (const proposal of sortedProposals) {
+            const candidateProposals = sortedProposals.filter((proposal) =>
+                proposal.candidates[0] &&
+                `${proposal.candidates[0].mod.uniqueName}@${proposal.candidates[0].rank}` === candidateKey,
+            );
+            const specialEffectProposals = candidateProposals.filter((proposal) => {
+                const outgoing = existing.find((entry) => entry.mod.uniqueName === proposal.replacedModUniqueName);
+                return outgoing && expectedEncounterCandidateFamilies({ mod: outgoing.mod, rank: outgoing.rank })
+                    .includes("weapon-specific-damage");
+            });
+            const prioritizedCandidateProposals = [
+                ...specialEffectProposals,
+                ...candidateProposals.filter((proposal) => !specialEffectProposals.includes(proposal)),
+            ];
+            for (const proposal of prioritizedCandidateProposals) {
                 if (familySlotExtras >= ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT) break;
                 const proposalCandidate = proposal.candidates[0];
                 if (!proposalCandidate || !proposal.replacedModUniqueName ||
