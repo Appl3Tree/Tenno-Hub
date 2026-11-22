@@ -2,7 +2,7 @@
 
 PR [#185](https://github.com/Appl3Tree/Tenno-Hub/pull/185) merged these local changes as `d90c0aedcee3d0c8fd50da9ad041bb0f83963986` on 2026-11-21. The GitHub connector returned no combined checks or PR-triggered workflow runs for that merge commit; Pages deployment and production availability are not independently verified. The current-branch IAB preview timed out, while port 80 served an older build, so rendered QA for this scoring-only change remains unverified.
 
-## D3-OPT-EXPECTED-TTK-REMOVAL-001 — bounded single-mod removal refinement and ranked oracle (2026-11-22; local optimizer validation passes)
+## D3-OPT-EXPECTED-TTK-REMOVAL-001 — bounded single-mod removal refinement and ranked oracle (2026-11-22; released)
 
 A bounded exhaustive test found a finite Expected TTK miss on Cedo / Alt-Fire Glaive against Grineer (155,000 Health / 1,800 Armor), Realistic state, three uncatalyzed rank-10 slots, up to one Forma, 1,500 Warframe Armor, and 1,000 maximum Energy at 50%. The sampled pool is Contagious Spread R0–R1, Incendiary Coat R0–R1, Shredder R0–R1, and Blaze R0–R2. The optimizer's pre-fix build retained rank-zero Shredder and scored 145s; exact scoring of the legal removal proposal produces Blaze R2 + Incendiary Coat R1 with Primary Bulwark R5 at 142s. The change proposes legal one-mod removals during finite-encounter refinement with a separate allowance of up to eight exact scores beyond the existing add/replace cap of 40 (44 for fixed-window). Proposal capacity, slot assignment, and Forma accounting use the existing legality helpers.
 
@@ -16,6 +16,8 @@ Reproduce the focused checks with:
 npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts -t "drops a rank-zero Cedo mod when its removal improves finite Expected TTK" --reporter=dot
 npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts -t "matches a seeded four-mod, three-slot ranked Expected TTK oracle with an empty Arcane slot" --reporter=dot
 ```
+
+PR [#235](https://github.com/Appl3Tree/Tenno-Hub/pull/235) squash-merged as `f4cefa9cd9725404d47d1fb6cc1f08335584a08b`; Pages deployment [run #315](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44986057689) succeeded. The hosted IAB at `version=f4cefa9` shows “Why This Build” explaining that finite refinement tests bounded one-mod additions/replacements and removals, followed by a bounded two-mod search and explicit model limitations. Resetting the transient Braton test build returned the planner to 0/30 capacity; no saved build was modified. This validates the deployed explanation and workflow, not optimizer parity with Underframe or gameplay behavior.
 
 The remaining release validation at this checkpoint is remote review/deployment and hosted explanation verification. These fixtures establish a reproducible model-local removal correction and one small ranked sample, not full-catalog optimality, broad Arcane/Forma search, Underframe parity, stochastic history, or gameplay accuracy.
 
