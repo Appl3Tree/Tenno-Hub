@@ -3255,8 +3255,9 @@ function refineBuildByExpectedEncounter(
         }
 
         // Removing a selected mod can improve a finite encounter even when its
-        // rank-zero stats look positive to the proxy. Keep legal one-mod removals
-        // in the same bounded exact-scoring budget as additions and replacements.
+        // rank-zero stats look positive to the proxy. Give legal one-mod removals
+        // a separate bounded exact-scoring allowance so they cannot crowd out
+        // the existing addition and replacement shortlist.
         for (const removed of existing) {
             const trialMods = existing.filter((entry) => entry !== removed).map((entry) => entry.mod);
             const trialRanks = existing.filter((entry) => entry !== removed).map((entry) => entry.rank);
