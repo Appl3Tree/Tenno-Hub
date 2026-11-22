@@ -1,0 +1,124 @@
+{
+  "pageName": "Codex Mausolon Window DPS audit",
+  "profileIdentity": "Underframe shows the generic Mausolon label without a selector. This is the same page as the captured Auto Build fixture, whose visible 180 Auto / 72 radial stats match the Wiki Atmosphere profile, so Atmosphere is the best supported inference; the UI does not explicitly identify its internal profile.",
+  "attackName": "Auto",
+  "simulationSeconds": 5,
+  "target": {
+    "mode": "Single Target",
+    "faction": "Grineer",
+    "health": 100000,
+    "shields": 0,
+    "overguard": 0,
+    "armor": 3000,
+    "headshots": false
+  },
+  "distance": {
+    "selectedMeters": 1400,
+    "sliderMinimumMeters": 1400,
+    "sliderMaximumMeters": 2800
+  },
+  "conditionalControls": {
+    "arcaneToggleEnabled": true,
+    "primaryBulwarkStacks": 500,
+    "primaryBulwarkMaximum": 500,
+    "secondaryOutburstStacks": 12,
+    "secondaryOutburstMaximum": 12
+  },
+  "loadout": {
+    "capacity": "2/60",
+    "formaCount": 3,
+    "mods": [
+      { "name": "Archgun Ace", "rank": 5 },
+      { "name": "Automatic Trigger", "rank": 5 },
+      { "name": "Ballista Measure", "rank": 3 },
+      { "name": "Containment Breach", "rank": 3 },
+      { "name": "Critical Focus", "rank": 5 },
+      { "name": "Deadly Efficiency", "rank": 5 },
+      { "name": "Dual Rounds", "rank": 5 },
+      { "name": "Hollowed Bullets", "rank": 3 }
+    ]
+  },
+  "standardCalculateDps": [
+    {
+      "averageDps": 86957,
+      "timeToKillSeconds": 1.15,
+      "averageDamagePerShotRaw": 4762,
+      "averageDamagePerShotDot": 0
+    },
+    {
+      "averageDps": 96774,
+      "timeToKillSeconds": 1.03,
+      "averageDamagePerShotRaw": 5263,
+      "averageDamagePerShotDot": 0
+    },
+    {
+      "averageDps": 82192,
+      "timeToKillSeconds": 1.22,
+      "averageDamagePerShotRaw": 4545,
+      "averageDamagePerShotDot": 0
+    }
+  ],
+  "luckAveragedDps": {
+    "averageDps": 100130,
+    "timeToKillSeconds": 1,
+    "averageDamagePerShotRaw": 5453,
+    "averageDamagePerShotDot": 3,
+    "readCount": 1
+  },
+  "zeroCategorySliderRepeatability": {
+    "distanceMeters": 1400,
+    "target": {
+      "health": 100000,
+      "armor": 3000
+    },
+    "conditionalControls": {
+      "arcaneToggleEnabled": true,
+      "primaryBulwarkStacks": 0,
+      "primaryBulwarkMaximum": 500,
+      "secondaryOutburstStacks": 0,
+      "secondaryOutburstMaximum": 12
+    },
+    "visibleAutoStats": {
+      "criticalChancePercent": 48,
+      "criticalMultiplier": 5.29,
+      "statusChancePercent": 26,
+      "attackSpeed": 17.49,
+      "multishot": 1.9,
+      "damageTotal": 618.75
+    },
+    "standardCalculateDps": [
+      {
+        "averageDps": 14606,
+        "timeToKillDisplay": ">5s",
+        "averageDamagePerShotRaw": 793,
+        "averageDamagePerShotDot": 40
+      },
+      {
+        "averageDps": 20339,
+        "timeToKillSeconds": 4.92,
+        "averageDamagePerShotRaw": 1084,
+        "averageDamagePerShotDot": 65
+      },
+      {
+        "averageDps": 20067,
+        "timeToKillSeconds": 4.98,
+        "averageDamagePerShotRaw": 1088,
+        "averageDamagePerShotDot": 48
+      }
+    ],
+    "luckAveragedDps": {
+      "averageDps": 21899,
+      "timeToKillDisplay": "? ttk",
+      "averageDamagePerShotRaw": 1174,
+      "averageDamagePerShotDot": 67,
+      "readCount": 3,
+      "identicalDisplayedResults": true
+    }
+  },
+  "stateChanges": "The category sliders were cleared in the page, then Calculate DPS was run three times and Luck Averaged DPS three times. No Save action was used; the existing saved build was not edited.",
+  "limits": [
+    "The active-slider sample contains three standard reads and one Luck Averaged read; the zero-slider sample contains three standard and three identical Luck Averaged reads. These small observations do not independently establish the site’s seed policy or full result distribution.",
+    "The page exposes a generic Mausolon label, not an explicit Archwing/Atmosphere selector. Same-page 180 Auto / 72 radial stats support Atmosphere as an inference, but the UI does not explicitly state its internal profile or how category sliders apply to Arch-Guns.",
+    "At 1400m, the Underframe range control conflicts with the inferred Atmosphere profile’s 300m Auto cap. The readout is a calculator/source discrepancy, not a gameplay comparison; the separate Archwing curve is not a matched result unless an explicit profile control becomes available."
+  ]
+}

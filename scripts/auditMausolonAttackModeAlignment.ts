@@ -15,14 +15,25 @@ const fixture = JSON.parse(await readFile(
     new URL("./fixtures/underframeMausolonAutoBuild.json", import.meta.url),
     "utf8",
 )) as Fixture;
+const profileArgument = process.argv.slice(2).find((argument) => argument.startsWith("--profile="));
+const requestedProfile = profileArgument?.slice("--profile=".length).toLowerCase() ?? "atmosphere";
+const profileLabel = requestedProfile === "archwing"
+    ? "Archwing"
+    : requestedProfile === "atmosphere"
+        ? "Atmosphere"
+        : null;
+if (!profileLabel) {
+    throw new Error(`Invalid --profile value: ${profileArgument}. Choose Atmosphere or Archwing.`);
+}
+const weaponDisplayName = `Mausolon (${profileLabel})`;
 const weaponEntry = getWeaponCatalog().find((entry) =>
-    getWeaponDisplayName(entry).toLowerCase() === fixture.weaponName.toLowerCase(),
+    getWeaponDisplayName(entry).toLowerCase() === weaponDisplayName.toLowerCase(),
 );
-if (!weaponEntry) throw new Error(`Weapon missing from catalog: ${fixture.weaponName}`);
+if (!weaponEntry) throw new Error(`Weapon missing from catalog: ${weaponDisplayName}`);
 
 const attackName = fixture.attackName ?? "Auto";
 const attackIndex = weaponEntry.attacks.findIndex((attack) => attack.name.toLowerCase() === attackName.toLowerCase());
-if (attackIndex < 0) throw new Error(`Attack missing from catalog: ${fixture.weaponName} / ${attackName}`);
+if (attackIndex < 0) throw new Error(`Attack missing from catalog: ${weaponDisplayName} / ${attackName}`);
 const linkedWeapon = withSelectedAttack(weaponEntry, attackIndex);
 if (!linkedWeapon.selectedAttackLingeringDamageRule) {
     throw new Error(`${fixture.weaponName} / ${attackName} has no linked attack component to audit`);
@@ -42,18 +53,31 @@ const effects = fixture.underframeMods.map(({ name, rank }) => {
 });
 
 const faction = "Grineer";
-const health = 2_000_000;
 const shields = 0;
 const overguard = 0;
-const distanceArgument = process.argv.slice(2).find((argument) => argument.startsWith("--distance="));
-const targetDistanceMeters = distanceArgument === undefined
-    ? 1_400
-    : Number(distanceArgument.slice("--distance=".length));
-if (!Number.isFinite(targetDistanceMeters) || targetDistanceMeters < 0) {
-    throw new Error(`Invalid --distance value: ${distanceArgument}`);
+const readNumericArgument = (name: string): { supplied: boolean; value: number } => {
+    const argument = process.argv.slice(2).find((entry) => entry.startsWith(`--${name}=`));
+    if (argument === undefined) return { supplied: false, value: 0 };
+    const value = Number(argument.slice(name.length + 3));
+    if (!Number.isFinite(value)) throw new Error(`Invalid --${name} value: ${argument}`);
+    return { supplied: true, value };
+};
+const healthArgument = readNumericArgument("health");
+const health = healthArgument.supplied ? healthArgument.value : 2_000_000;
+if (!Number.isInteger(health) || health <= 0) {
+    throw new Error(`Invalid --health value: ${health}; expected a positive integer`);
+}
+const armorArgument = readNumericArgument("armor");
+if (!Number.isInteger(armorArgument.value) || armorArgument.value < 0) {
+    throw new Error(`Invalid --armor value: ${armorArgument.value}; expected a nonnegative integer`);
+}
+const distanceArgument = readNumericArgument("distance");
+const targetDistanceMeters = distanceArgument.supplied ? distanceArgument.value : 1_400;
+if (targetDistanceMeters < 0) {
+    throw new Error(`Invalid --distance value: ${targetDistanceMeters}; expected a nonnegative number`);
 }
 const states: Array<ConditionalState["mode"]> = ["realistic", "fullyStacked"];
-const armorValues = [3_000, 500, 0];
+const armorValues = armorArgument.supplied ? [armorArgument.value] : [3_000, 500, 0];
 const modeledStats = states.map((mode) => {
     const stats = calculateBuild(linkedWeapon, effects, faction, { conditionalState: { mode } }).modded;
     return {
@@ -71,7 +95,12 @@ const attackCases = [
 
 const results = armorValues.flatMap((armor) => states.flatMap((mode) =>
     attackCases.map(({ name, weapon }) => {
-        const conditionalState: ConditionalState = { mode, targetDistanceMeters };
+        // A physical target distance feeds both distance-gated mod conditions and weapon hit/falloff behavior.
+        const conditionalState: ConditionalState = {
+            mode,
+            targetDistanceMeters,
+            attackFalloffDistanceMeters: targetDistanceMeters,
+        };
         const result = debugEvaluateFixedWindowDps(
             weapon,
             effects,
@@ -108,9 +137,11 @@ const results = armorValues.flatMap((armor) => states.flatMap((mode) =>
 
 console.log(JSON.stringify({
     weapon: getWeaponDisplayName(linkedWeapon),
+    profile: profileLabel,
     attack: attackName,
     target: { faction, health, shields, overguard, armorValues },
     targetDistanceMeters,
+    attackFalloffDistanceMeters: targetDistanceMeters,
     scoringWindowSeconds: 5,
     capturedMods: fixture.underframeMods,
     diagnosticNote: "Direct-only rows use a cloned attack profile with its linked component removed; this is diagnostic ablation, not planner behavior or an Underframe simulation.",
