@@ -2738,9 +2738,13 @@ The cache-busted production planner (`version=2429af4`) was exercised in Codex's
 
 This verifies one production desktop-browser page at a narrow viewport, including objective selection, optimization, explanation, and reset. It is not physical-device coverage, a performance-tail measurement, a live-game result, or proof of Underframe score parity. The supplied localhost URL still served stale build `2bf6faea`, so this check used the published `2429af4` bundle.
 
-## D3-OPT-UNDERFRAME-COMPANION-FIXTURE-DISCOVERY-001 — read-only trusted-build candidate (2026-11-21; capture pending)
+## D3-OPT-UNDERFRAME-COMPANION-FIXTURE-DISCOVERY-001 — read-only Featured Builds search complete (2026-11-22; no legal comparator)
 
-Underframe Featured Builds' Archgun tag returns no trusted build. The Sentinel/Moa filter returns Hound, Nautilus, Shade, Nautilus (nova), and Wyrm; the Beast Companion filter returns Pharaoh Predasite and Huras examples. The public Verglas reference opens to a Verglas Prime profile with mod slots and stats, but no DPS calculator. Its Copy & Edit/Test action creates a personal saved copy. I requested authorization before using that action; no copy has been made and no build data was changed. If authorized, use a temporary copy for a five-second mean comparison and remove it afterward; otherwise continue the existing Mausolon and local corpus work and keep this comparison gap open.
+The read-only in-app-browser scan now covers all 11 public Featured Arch-Gun builds and all 3 Featured Beast Companion pages. The initial pass inspected Mausolon, Arbucep, Kuva Ayanga, Cortege, Dual Decurions, Pharaoh Predasite (mecha), and Huras. None supplied a legal, objective-scored pair; the Arch-Gun/Beast mod configurations were over capacity at zero Forma, and the Mausolon Stats panel did not expose a calculator result.
+
+The remaining six Arch-Gun examples are Grattler (Kuva Grattler), Corvas, Corvas Prime, Morgha, Phaedra, and Larkspur (Larkspur Prime). Their displayed zero-Forma capacities are −14/60, −34/60, −24/60, −16/60, −29/60, and −15/60, respectively. The last Beast Companion page, [Pharaoh Predasite (heal bot + decent nuke and primer)](https://www.underframe.site/featured_builds/pharaoh-predasite-heal-bot-decent-nuke-and-primer), is −18/60 for the companion and −24/60 for its Claw Mods, with zero Forma. These pages show no objective-scored DPS calculator result; numeric DPS tags are category ratings. The [Featured Builds list](https://www.underframe.site/featured_builds) is the source for the complete public inventory.
+
+No Copy & Edit/Test action was used, and no saved build was changed. This closes the current public Featured Build search with no usable fixture; it does not close D3-OPT-UNDERFRAME-MATCHED-CORPUS-001. Resume that comparison if a legal, scoreable build becomes available through a read-only path. Until then, keep the known metric and simulator differences explicit and do not claim Underframe parity.
 
 ## D3-OPT-FIXED-WINDOW-JOINT-ARCANE-ORACLE-001 — seeded exhaustive 5s Avg DPS mod/Arcane oracle (2026-11-21)
 
