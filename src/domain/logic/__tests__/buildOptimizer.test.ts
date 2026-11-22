@@ -1503,24 +1503,25 @@ describe("build optimizer scoring", () => {
         expect(snapResult.slots).toContain(protonSnap);
     });
 
-    it("keeps Motus Setup manually selectable but excludes its unmodeled jump timing from Auto Optimize", () => {
+    it("optimizes Motus Setup only when its static jump-landing buff is active", () => {
         const shotgun = getWeaponCatalog().find((candidate) => candidate.modCompat === "Shotgun");
         expect(shotgun).toBeDefined();
         const motusSetup = getModsForWeapon(shotgun!).find((candidate) => candidate.name === "Motus Setup");
         expect(motusSetup).toBeDefined();
         expect(motusSetup!.hasDamageEffect).toBe(true);
-        expect(getUnmodeledDamageEffectLines(motusSetup!, motusSetup!.fusionLimit)).toContain(
-            "Jump-landing activation and its rank-specific 1–4 second expiration/refresh timing are not simulated; Auto Optimize skips this conditional effect.",
-        );
-        expect(getUnmodeledScoringEffectLines(motusSetup!.effect)).toContain(
-            "Jump-landing activation and its rank-specific 1–4 second expiration/refresh timing are not simulated; Auto Optimize skips this conditional effect.",
-        );
+        expect(getUnmodeledDamageEffectLines(motusSetup!, motusSetup!.fusionLimit)).toEqual([]);
+        expect(getUnmodeledScoringEffectLines(motusSetup!.effect)).toEqual([]);
 
-        const result = optimizeBuild(shotgun!, [motusSetup!], "burst", 1, {
+        const realisticResult = optimizeBuild(shotgun!, [motusSetup!], "burst", 1, {
+            allowForma: false,
+            conditionalState: { mode: "realistic" },
+        });
+        const activeResult = optimizeBuild(shotgun!, [motusSetup!], "burst", 1, {
             allowForma: false,
             conditionalState: { mode: "fullyStacked" },
         });
-        expect(result.slots.filter(Boolean)).toHaveLength(0);
+        expect(realisticResult.slots).not.toContain(motusSetup);
+        expect(activeResult.slots).toContain(motusSetup);
     });
 
     it("models Bell Ringer Impact procs but excludes its unmodeled knockdown from Auto Optimize", () => {
