@@ -1,5 +1,18 @@
 # Build Planner Optimizer Benchmark
 
+## D3-OPT-MAUSOLON-DUAL-PROFILE-WINDOW-ORACLE-001 — seeded profile-specific fixed-window oracle (2026-11-22; validated, uncommitted)
+
+The four-weapon six-mod/four-slot `5s Avg DPS` oracle covers Primary, Secondary, Shotgun, and Melee, while existing Mausolon checks cover linked damage and profile range boundaries but not an exact sampled-pool optimizer oracle for both selectable Arch-Gun profiles. Seed `20261131` draws one shared six-mod sample that is fully modeled and compatible with both Mausolon profiles: Magazine Extension R5, Primed Deadly Efficiency R10, Primed Rubedo-Lined Barrel R10, Rubedo-Lined Barrel R5, Critical Focus R5, and Hollowed Bullets R3.
+
+Both profiles use Auto at 250m against a synthetic Grineer profile with 10,000,000 Health and 3,000 Armor in Realistic state over `[0,5s)`. This distance is inside the Atmosphere Auto 300m cap and below the Archwing Auto falloff start; it does not test the conflicting Archwing 300m limit. The search uses a Catalyst, four main slots, default polarities, max-ranked sampled mods, no Arcane/Exilus, and zero Forma for Archwing versus up to one for Atmosphere. The independent scorer enumerates legal ordered sampled subsets and ranks; it finds 347 legal loadouts in each profile. Both optimizer results match the exact sampled-pool winner, and each uses zero Forma.
+
+| Profile / Auto | Winning sampled build | Exact 5s Avg DPS | Applied damage in `[0,5s)` | Legal sampled loadouts |
+| --- | --- | ---: | ---: | ---: |
+| Mausolon (Archwing) | Primed Rubedo-Lined Barrel R10, Hollowed Bullets R3, Critical Focus R5, Primed Deadly Efficiency R10 | 3,950.6734 | 19,753.3672 | 347 |
+| Mausolon (Atmosphere) | Primed Rubedo-Lined Barrel R10, Critical Focus R5, Hollowed Bullets R3, Primed Deadly Efficiency R10 | 5,925.9509 | 29,629.7547 | 347 |
+
+The Atmosphere result is 1.5× the Archwing result with the same sampled mods, consistent with the two sourced Auto damage profiles in this fixture. Focused test passes 1/1 (0.90s Vitest time); the full test TypeScript project, focused ESLint, and `git diff --check` pass. The full test suite was not rerun. This is model-local sampled-pool evidence, not full-catalog/global optimization, a resolution of the Archwing range conflict, Underframe parity, or live-game validation. Reopen on a reproducible exact-oracle mismatch, changed profile data, or new source/gameplay evidence.
+
 ## D3-TEST-TS-CLEANUP-001 — test-project TypeScript diagnostics cleared (2026-11-22)
 
 The test TypeScript project had 57 diagnostics across eight test files. `tsconfig.test.json` now includes the already-installed Node types; registry tests explicitly use string-keyed maps/sets and normalize branded source IDs; test fixtures now satisfy complete public shapes; and stale properties, goal aliases, and widened literals use the APIs' actual types. Two direct-hit per-status optimizer tests also now use a valid nested 200-damage weapon fixture instead of silently passing ignored top-level `impact` / `heat` fields.
