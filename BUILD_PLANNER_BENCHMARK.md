@@ -3097,6 +3097,21 @@ The current [Mausolon](https://wiki.warframe.com/w/Mausolon) page lists Auto as 
 
 The existing profile-specific model remains in place: Mausolon Atmosphere Auto enforces 300m; Archwing Auto uses its sourced falloff and displays the conflicting 300m maximum as informational. This source review does not establish game behavior, so direct gameplay verification remains open. No app scoring change was made.
 
+## D3-OPT-EIGHT-MOD-FIVE-SLOT-ORACLE-001 — seeded eight-mod, five-slot max-rank dual-objective oracle (2026-11-22; bounded)
+
+Reproduce with:
+
+```sh
+npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded eight-mod, five-slot max-rank Expected TTK and 5s DPS oracles" --reporter=dot --configLoader runner
+```
+
+The deterministic LCG seed is `20261133`. For each of four profiles—Braton Prime / Grineer, Lex Prime / shielded Corpus, Cedo / Grineer, and Broken War / Infested—the test draws a supported attack and eight compatible, fully scoreable damage mods from the full weapon pool. It enumerates legal ordered loadouts through five slots using a Catalyst, weapon-default polarities, max-rank mods, and alternating zero/one-Forma budgets. Expected TTK is scored against the existing 82,000-Health / 2,700-Armor Braton, 42,000-Health + 58,000-Shield Lex, 155,000-Health / 2,100-Armor Cedo, and 108,000-Health / 300-Armor Broken War targets. The same sampled mods and attack are independently scored for uncapped `[0,5s)` Avg DPS against a one-million-Health target, with one million Shields for Corpus.
+
+All four optimizer results match the exact sampled-pool winner for both objectives and remain capacity-valid, max-rank, and within the Forma limit. Focused Vitest passes 1/1 in 218.09s. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, focused ESLint, and `git diff --check` pass. The full suite, app build, and deployment were not run; GitHub reported no workflow runs.
+
+This expands the sampled pool from seven to eight mods while retaining five slots and both objectives. It is exact only within these four seeded pools; it does not establish full-catalog/global optimality, joint rank/Arcane search at this pool size, Underframe parity, or gameplay accuracy.
+
+PR [#262](https://github.com/Appl3Tree/Tenno-Hub/pull/262) squash-merged as `01b5accd026efd50308d9c5a771ffb1b9d0359b6`. This test-only change has no app deployment.
 ## D3-OPT-SEVEN-MOD-FIVE-SLOT-ORACLE-001 — seeded seven-mod, five-slot exact dual-objective oracle (2026-11-22; bounded)
 
 Reproduce with:
