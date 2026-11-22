@@ -7216,8 +7216,8 @@ describe("build optimizer scoring", () => {
         }
     });
 
-    it("matches seeded seven-mod, five-slot max-rank Expected TTK and 5s DPS oracles across weapon classes", { timeout: 300000 }, () => {
-        let seed = 20261132;
+    it("matches seeded eight-mod, five-slot max-rank Expected TTK and 5s DPS oracles across weapon classes", { timeout: 600000 }, () => {
+        let seed = 20261133;
         const random = () => {
             seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
             return seed / 0x1_0000_0000;
@@ -7257,8 +7257,8 @@ describe("build optimizer scoring", () => {
                     ))
                     .map((mod) => [mod.uniqueName, mod] as const),
             ).values()];
-            const candidates = shuffled(candidatePool).slice(0, 7);
-            expect(candidates.length, `${scenario.weaponName} seed ${scenarioIndex} candidate pool`).toBe(7);
+            const candidates = shuffled(candidatePool).slice(0, 8);
+            expect(candidates.length, `${scenario.weaponName} seed ${scenarioIndex} candidate pool`).toBe(8);
 
             const capacityConfig = {
                 weaponRank: 30,
@@ -7356,7 +7356,7 @@ describe("build optimizer scoring", () => {
             enumerate(candidates, []);
             expect(legalLoadoutCount, `${scenario.weaponName} seed ${scenarioIndex} legal loadouts`)
                 .toBeGreaterThan(0);
-            expect(maximumLegalSlotCount, `${scenario.weaponName} seed ${scenarioIndex} five-mod loadout`)
+            expect(maximumLegalSlotCount, `${scenario.weaponName} seed ${scenarioIndex} five-slot loadout`)
                 .toBe(5);
             expect(exactScoreCount, `${scenario.weaponName} seed ${scenarioIndex} exact scores`)
                 .toBe(legalLoadoutCount);
