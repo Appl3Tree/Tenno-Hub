@@ -1284,6 +1284,22 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Thermagnetic Shells out of Auto Optimize while its on-death area damage is unmodeled", () => {
+        const detron = getWeaponCatalog().find((candidate) => candidate.name === "Detron");
+        expect(detron).toBeDefined();
+        const thermagneticShells = getModsForWeapon(detron!).find((mod) => mod.name === "Thermagnetic Shells");
+        expect(thermagneticShells).toBeDefined();
+        expect(getUnmodeledDamageEffectSourceUrl(thermagneticShells!)).toBe("https://wiki.warframe.com/w/Thermagnetic_Shells");
+        for (let rank = 0; rank <= thermagneticShells!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(thermagneticShells!, rank)).toContain(
+                "Thermagnetic Shells triggers an on-death explosion: 20–80 Magnetic Damage plus 10–40% of the triggering enemy's max Health as Blast Damage in a 6m radius. Linear falloff and line of sight apply. The Wiki says Elemental Ammo status effects no longer recursively retrigger these death explosions; the planner still does not resolve on-kill area damage, adjacent-target deaths, or mission-specific max-Health scaling, so Auto Optimize skips the mod.",
+            );
+        }
+
+        const result = optimizeBuild(detron!, [thermagneticShells!], "burst", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
     it("keeps Entropy Detonation out of Auto Optimize while disclosing its unmodeled area effect", () => {
         const obex = getWeaponCatalog().find((candidate) => candidate.name === "Obex");
         expect(obex).toBeDefined();
