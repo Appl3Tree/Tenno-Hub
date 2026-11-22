@@ -462,6 +462,20 @@ Source-backed mechanics provide checks for Tenno-Hub's side, not a way to infer 
 
 A separate standard `Calculate DPS` probe on the captured Atmosphere Auto list / Grineer / 2,000,000 Health / 3,000 Armor returned 25,504 at 1,400m, 13,461 at 2,100m, and zero at 2,800m (one read per point; not Luck Averaged or Auto Build). All three distances exceed the 300m Range listed for both Mausolon Auto profiles, so this is a UI formula-response probe, not an in-range gameplay comparison. At that pre-cap checkpoint, Tenno-Hub's Atmosphere profile was distance-invariant because its profile had no direct Auto falloff entry and the generic Atmospheric Archgun page says this category lacks falloff; its Archwing profile retained its separately listed 1,400–2,800m curve. D3-MOD-MAUSOLON-RANGE-CAP-001 now treats Atmosphere Auto shots beyond 300m as misses; the scores recorded here are historical. The Underframe distance response remains a profile/source discrepancy, but does not establish which rule Underframe applies in-game. Keep each profile's range/falloff facts distinct and do not adjust either score to force agreement.
 
+#### Gram Prime calculator repeatability probe (2026-11-22)
+
+The in-app browser replay opened the existing saved **Codex Matched Corpus Gram Prime** page and recalculated the saved Normal Attack / Lashing Tempest (Forward) / five-second / Grineer / 100,000 Health / 3,000 Armor / zero Shields / zero Overguard / zero-combo setup. The page showed 3/60 capacity with three Forma. No Save action was used.
+
+| Standard Calculate DPS run | Average DPS | TTK | Average damage per shot |
+| ---: | ---: | ---: | ---: |
+| 1 | 40,890 | 2.45 s | 4,076 raw + 15,924 DoT |
+| 2 | 49,816 | 2.01 s | 13,584 raw + 11,416 DoT |
+| 3 | 49,816 | 2.01 s | 10,660 raw + 14,340 DoT |
+
+Two separate Luck Averaged DPS recalculations both returned 46,237 DPS / 2.20 s and 9,781 raw + 13,954 DoT average damage per shot. The page initially retained a 62,279 DPS / 1.62 s Braton result until recalculation; that stale display was not treated as a Gram measurement.
+
+This is a small repeatability probe, not a gameplay-accuracy finding. Standard runs varied in score/time and damage buckets; two runs matched score/time while their raw/DoT split differed. Luck Averaged repeated exactly twice, which is too few reads to establish its distribution or underlying condition semantics. Tenno-Hub's generic Gram Normal Attack does not reproduce Underframe's Lashing Tempest (Forward) stance sequence, so these readings are not a direct shared-objective score comparison. The Underframe Luck Averaged semantics, bucket attribution, and native melee sequence remain open under this issue.
+
 #### Mod Builder range note checkpoint (2026-11-21; released and IAB verified)
 
 The PR #194 release's distance input explained Mausolon Auto's profile-specific source values. Archwing text identified the listed 300m range and separate 1,400–2,800m falloff while leaving the hit cap unverified; Atmosphere text noted its 300m listing, absence of direct falloff, and informational handling. This was the pre-cap behavior and made no scoring change. IAB verified those then-deployed notes on `version=21e421b` at desktop and 390×844; the current D3-MOD-MAUSOLON-RANGE-CAP-001 follow-up updates the Atmosphere Auto/charged Laser notes and retains the Archwing conflict. Local TypeScript/production build, focused ESLint, and diff check passed for PR #194. No saved build was changed. PR [#194](https://github.com/Appl3Tree/Tenno-Hub/pull/194) merged as `21e421bed4ca5c4e13baec42356531fbc6cbca4a`; Pages run [#274](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44905510158) succeeded. The IAB local port-80 site then served stale build `2bf6faea`, and the workspace preview on port 4173 was unreachable; deployed-browser QA superseded that local preview gap.
