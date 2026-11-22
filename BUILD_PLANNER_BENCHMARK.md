@@ -1,3 +1,19 @@
+## D3-OPT-RANK-OWNED-FIVE-SLOT-ORACLE-001 — seeded R1-owned five-slot Expected TTK oracle (2026-11-22; locally validated, pending release)
+
+Seed `20261136` randomly selects five fully modeled, mutually compatible damage mods and one supported attack from each Braton Prime / Grineer, Lex Prime / shielded Corpus, Cedo / Grineer, and Broken War / Infested pool. Each sampled mod is capped at owned Rank 1, and the oracle enumerates every legal ordered subset and rank tuple (0–1) through five slots. Builds use a Catalyst, weapon-default polarities, and alternating zero/one-Forma budgets. The score is finite Expected TTK; Exilus and Arcane selection are disabled. The sampled target profiles are 70,000 Health / 2,400 Armor (Braton), 36,000 Health + 44,000 Shields (Lex), 140,000 Health / 1,800 Armor (Cedo), and 95,000 Health / 300 Armor (Broken War).
+
+All four optimizer outputs match the exhaustive sampled-pool Expected TTK, time, and DPS winners. Each result remains capacity-legal and within its owned R1 cap and Forma budget. The focused test passes 1/1 in 173.51s. Test-project TypeScript, focused ESLint, and `git diff --check` pass. The full suite was not run; this test-only change has no production build or deployment.
+
+A preliminary uncatalyzed fixture could place only four mods and was discarded. The broader R1–R3 five-slot search was stopped at 10 minutes, and an R1–R2 version was stopped at five minutes. The final R1 cap keeps this regression bounded; rank-limited five-slot search above R1 remains open.
+
+Reproduce with:
+
+```sh
+npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded five-mod, five-slot R1-owned Expected TTK" --reporter=dot --configLoader runner
+```
+
+This is four randomized sampled pools, not full-catalog optimization, exhaustive high-rank search, joint Arcane search, Underframe parity, or gameplay validation.
+
 ## D3-MOD-MOTUS-SETUP-ACTIVE-SNAPSHOT-001 — allow the explicitly active conditional in Auto Optimize (2026-11-22; released in PR [#259](https://github.com/Appl3Tree/Tenno-Hub/pull/259), squash merge `fcc04cd22a01bb1390383b999a4cf7f6ed81d9d7`)
 
 The catalog already parsed Motus Setup's rank values as +25/+50/+75/+100% Critical Chance and Status Chance, with 1/2/3/4s duration after a Double or Bullet Jump. The current [Motus Setup Wiki page](https://wiki.warframe.com/w/Motus_Setup) says another jump refreshes the duration. The damage calculator already kept the buff inactive for Initial/Realistic states and allowed Fully Stacked/Custom to represent a static active snapshot. However, the global mod-effect coverage guard still marked its jump-landing condition unsupported, excluding it from Auto Optimize in every state. That blanket exclusion is removed: optimization can now compare the saved condition snapshot, while the UI assumption explains that jump activation, expiry, and refresh timing are not simulated. This does not infer realistic uptime or claim finite-sequence buff uptime.
