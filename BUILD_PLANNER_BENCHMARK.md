@@ -509,6 +509,8 @@ These misses refined the bounded `windowDps` shortlist: melee attack speed is se
 
 This adds 7,867 exact legal one-mod neighbors across 24 fixtures with no improving moves under Tenno-Hub's deterministic scorer. It is common-model local-optimum evidence only: it does not establish Underframe objective parity, global optimizer quality, a multi-mod optimum, or gameplay accuracy. Underframe's private engine, website Luck Averaged condition history, and raw/DoT bucket semantics remain unresolved.
 
+The shortlist refinement, regressions, and audit record were released in PR [#281](https://github.com/Appl3Tree/Tenno-Hub/pull/281), squash-merged as `17b2a1b6c9526f2884a86c11937f9f9bb9e2a18c`. GitHub reported no combined status checks or PR-triggered workflow runs; the Pages deployment was not independently verified.
+
 #### Public Underframe Desktop wrapper and seed-policy audit (2026-11-22; bounded)
 
 The public [Underframe Desktop repository](https://github.com/NevermindNilas/underframe-desktop/tree/fe38d07f3515a995a068015314ad85acc65bef61) makes the app wrapper inspectable, but its [README](https://github.com/NevermindNilas/underframe-desktop/blob/fe38d07f3515a995a068015314ad85acc65bef61/README.md#L60-L75) says the `core/` submodule contains the private damage engine and game data. Without that submodule, the public tests that require the core are skipped; the engine's internal random event resolution and output formulas cannot be audited from this repository.
