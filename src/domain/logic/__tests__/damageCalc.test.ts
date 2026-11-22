@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeStrainInfectionCystCount, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeStrainInfectionCystCount, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -3139,6 +3139,55 @@ describe("damage calculation status eligibility", () => {
         expect(calculateBuild(impactOnly, [effect]).modded.totalDamageBonus).toBe(0);
         expect(calculateBuild(impactOnly, [effect], "", { statusImmuneTypes: ["impact"] }).modded.totalDamageBonus)
             .toBeCloseTo(12, 3);
+    });
+
+    it("models weak-point hit stacks from target hit rate and a shared expiry timer", () => {
+        const conditional = {
+            trigger: "onWeakPointHit" as const,
+            durationSeconds: 5,
+            requiresAiming: false,
+            requiresPrimaryFire: true,
+            maxStacks: 10,
+            stats: { weakPointDamageBonus: 0.6 },
+        };
+        const state = { mode: "realistic" as const };
+        const context = {
+            headIsWeakPoint: true,
+            headshotHitRate: 0.5,
+            weakPointHitRatePerSecond: 0.5,
+            isPrimaryFire: true,
+        };
+        const uptime = estimateConditionalUptime(conditional, 1, 10, state, context);
+        const conditionalStacks = estimateConditionalStackFactor(conditional, 1, 10, state, context);
+        const meanHitsInWindow = 2.5;
+        let probability = Math.exp(-meanHitsInWindow);
+        let expectedStacks = 0;
+        let cumulativeProbability = probability;
+        for (let count = 1; count < 10; count++) {
+            probability *= meanHitsInWindow / count;
+            cumulativeProbability += probability;
+            expectedStacks += count * probability;
+        }
+        expectedStacks += 10 * (1 - cumulativeProbability);
+
+        expect(uptime).toBeCloseTo(1 - Math.exp(-meanHitsInWindow), 12);
+        expect(uptime * conditionalStacks).toBeCloseTo(expectedStacks, 12);
+        expect(estimateConditionalStackFactor(conditional, 1, 10, state, {
+            ...context,
+            headIsWeakPoint: false,
+        })).toBe(0);
+        expect(estimateConditionalStackFactor(conditional, 1, 10, state, {
+            ...context,
+            isPrimaryFire: false,
+        })).toBe(0);
+
+        const weapon = { ...makeWeapon({ impact: 100 }), category: "Secondary" as const, fireRate: 1, multishot: 1 };
+        const effect = { ...emptyEffect(), conditionalEffects: [conditional] };
+        const finite = calculateBuildForExpectedEncounter(weapon, [effect], "", {
+            conditionalState: state,
+            hitLocation: { headshotRate: 1, headIsWeakPoint: true },
+        }).modded;
+        expect(finite.hitLocation.weakPointDamageBonus).toBe(0);
     });
 
     it("matches the current Wiki worked example for modded Heat proc tick damage", () => {

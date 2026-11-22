@@ -434,9 +434,7 @@ const AIMING_UPTIME_ASSUMPTION = 0.75;
 const ON_KILL_UPTIME_ASSUMPTION = 0.6;
 const ON_HEADSHOT_KILL_UPTIME_ASSUMPTION = 0.35;
 const ON_HIT_UPTIME_ASSUMPTION = 0.85;
-const WEAK_POINT_HIT_UPTIME_ASSUMPTION = 0.55;
 const HIT_RATE_ASSUMPTION = 0.75;
-const WEAK_POINT_HIT_RATE_ASSUMPTION = 0.45;
 function probabilityAtLeastOnePoissonArrival(expectedArrivals: number): number {
     const mean = Math.max(0, expectedArrivals);
     if (mean <= 0) return 0;
@@ -1015,10 +1013,26 @@ export function estimateConditionalUptime(
             uptime = ON_HIT_UPTIME_ASSUMPTION * 0.45;
             break;
         case "onWeakPointHit":
-            uptime = WEAK_POINT_HIT_UPTIME_ASSUMPTION;
+            {
+                const mean = Math.max(0, context.weakPointHitRatePerSecond ?? 0) * Math.max(0, conditional.durationSeconds);
+                uptime = conditional.durationSeconds > 0
+                    ? probabilityAtLeastOnePoissonArrival(mean)
+                    : 0;
+            }
             break;
         case "onWeakPointKill":
-            uptime = ON_HEADSHOT_KILL_UPTIME_ASSUMPTION * 0.9;
+            {
+                const headshotRate = normalizeHitShare(context.headshotHitRate);
+                const expectedKillRatePerSecond = context.expectedKillRatePerSecond;
+                const expectedWeakPointKills = Number.isFinite(expectedKillRatePerSecond)
+                    ? Math.max(0, expectedKillRatePerSecond ?? 0) * headshotRate * Math.max(0, conditional.durationSeconds)
+                    : 0;
+                uptime = headshotRate <= 0
+                    ? 0
+                    : Number.isFinite(expectedKillRatePerSecond) && conditional.durationSeconds > 0
+                        ? probabilityAtLeastOnePoissonArrival(expectedWeakPointKills)
+                        : ON_HEADSHOT_KILL_UPTIME_ASSUMPTION * headshotRate;
+            }
             break;
         case "onMeleeKill":
         case "onKillOrAssist":
@@ -1148,6 +1162,12 @@ export interface ConditionalStackEstimationContext {
     expectedKillRatePerSecond?: number;
     /** Player's assumed share of direct hits that land on a headshot location. */
     headshotHitRate?: number;
+    /** Whether the selected target's modeled head is a weak point. */
+    headIsWeakPoint?: boolean;
+    /** Expected qualifying weak-point projectile hits per second in the modeled attack. */
+    weakPointHitRatePerSecond?: number;
+    /** False when the selected attack row is an alternate fire mode. */
+    isPrimaryFire?: boolean;
     /** Whether the selected target is an Eximus for target-class-gated effects. */
     isEximusTarget?: boolean;
 }
@@ -1182,6 +1202,9 @@ function estimateConditionalStackFactor(
     if (state.mode === "custom") {
         return Math.max(0, Math.min(conditional.maxStacks ?? 1, state.externalStacks ?? 0));
     }
+    const isWeakPointTrigger = conditional.trigger === "onWeakPointHit" || conditional.trigger === "onWeakPointKill";
+    if (isWeakPointTrigger && context.headIsWeakPoint !== true) return 0;
+    if (conditional.requiresPrimaryFire && context.isPrimaryFire === false) return 0;
     if (conditional.trigger === "onNonCriticalNoStatusHit") {
         const qualifyingHitGroupProbability = Math.max(0, Math.min(1, context.qualifyingHitGroupProbability ?? 0));
         return estimateDecayingHitStackCount(
@@ -1202,6 +1225,18 @@ function estimateConditionalStackFactor(
             conditional.durationSeconds,
             conditional.maxStacks,
         );
+    }
+    if (conditional.trigger === "onWeakPointHit") {
+        const arrivalRate = Math.max(0, context.weakPointHitRatePerSecond ?? 0);
+        const mean = arrivalRate * Math.max(0, conditional.durationSeconds);
+        const activeProbability = conditional.durationSeconds > 0
+            ? probabilityAtLeastOnePoissonArrival(mean)
+            : 0;
+        if (activeProbability <= 0) return 0;
+        // Pain Points' Wiki says all stacks expire together when the latest
+        // stack expires. At a random time, its active count is therefore the
+        // capped number of qualifying hits in the preceding duration window.
+        return estimateCappedPoissonCount(mean, conditional.maxStacks) / activeProbability;
     }
     if ((conditional.maxStacks ?? 1) <= 1) return 1;
 
@@ -1234,10 +1269,6 @@ function estimateConditionalStackFactor(
         case "onConsecutiveThrow": {
             const expected = fireRate * Math.max(0.25, conditional.durationSeconds || 0.25) * HIT_RATE_ASSUMPTION;
             return Math.max(1, Math.min(conditional.maxStacks, expected * 0.85));
-        }
-        case "onWeakPointHit": {
-            const expected = fireRate * Math.max(0.25, conditional.durationSeconds || 0.25) * WEAK_POINT_HIT_RATE_ASSUMPTION;
-            return Math.max(1, Math.min(conditional.maxStacks, expected * 0.8));
         }
         default:
             return 1;
@@ -1282,6 +1313,8 @@ export function calculateBuild(
         options.hitLocation?.canHeadshot !== false;
     const conditionalTriggerContext: ConditionalStackEstimationContext = {
         headshotHitRate: canHeadshot ? normalizeHitShare(options.hitLocation?.headshotRate) : 0,
+        headIsWeakPoint: options.hitLocation?.headIsWeakPoint === true,
+        isPrimaryFire: !weapon.selectedAttackName || !/\balt[- ]?fire\b/i.test(weapon.selectedAttackName),
         isEximusTarget: options.isEximusTarget === true,
         ...(killStackContext ?? {}),
     };
@@ -1551,6 +1584,12 @@ export function calculateBuild(
         magazineBonus,
         magazineCapacityFlatBonus,
     );
+    const baselineMultishot = weapon.selectedAttackMultishotLocked === true
+        ? weapon.multishot
+        : weapon.multishot * Math.max(0, 1 + multishotBonus);
+    conditionalTriggerContext.weakPointHitRatePerSecond = conditionalTriggerContext.headIsWeakPoint && canHeadshot
+        ? baselineRawFireRate * baselineMultishot * (conditionalTriggerContext.headshotHitRate ?? 0)
+        : 0;
     let qualifyingHitGroupProbability = 0;
     let qualifyingHitRatePerSecond = 0;
     if (
@@ -2999,21 +3038,34 @@ export function calculateBuild(
     return { modded, burstDPS, sustainedDPS };
 }
 
-/** Build stats for a finite encounter, keeping timed hit-stack triggers separate from steady-state DPS. */
+/** Build stats for a finite encounter, excluding weak-point triggers until their hit history is simulated. */
 export function calculateBuildForExpectedEncounter(
     weapon: WeaponEntry,
     mods: (ModEffect | null)[],
     targetFaction = "",
     options: DamageCalculationOptions = {},
 ): DamageMetrics {
-    const selectedState = calculateBuild(weapon, mods, targetFaction, {
+    const finiteEffects = mods.map((effect) => {
+        if (!effect?.conditionalEffects?.length) return effect;
+        return {
+            ...effect,
+            // The realistic estimator below is a steady-state mean, not a
+            // finite timeline. Do not grant these stacks from t=0 in Expected
+            // TTK or fixed-window scoring until weak-point trigger history is
+            // represented in the encounter simulator.
+            conditionalEffects: effect.conditionalEffects.filter((conditional) =>
+                conditional.trigger !== "onWeakPointHit" && conditional.trigger !== "onWeakPointKill",
+            ),
+        };
+    });
+    const selectedState = calculateBuild(weapon, finiteEffects, targetFaction, {
         ...options,
         includeTimedConditionalHitStackDetails: true,
     });
     const timedStacks = selectedState.modded.timedConditionalDamageStacks;
     if (timedStacks.length === 0) return selectedState;
 
-    const effectsWithoutTimedStackDamage = mods.map((effect) => {
+    const effectsWithoutTimedStackDamage = finiteEffects.map((effect) => {
         if (!effect?.conditionalEffects?.length) return effect;
         return {
             ...effect,

@@ -1214,14 +1214,19 @@ describe("build optimizer scoring", () => {
             requiresAiming: true,
             stats: { critChanceBonus: 1.35 },
         });
+        const weakPointTarget = {
+            hitLocation: { headshotRate: 1, headIsWeakPoint: true },
+        };
         const initialCritChance = calculateBuild(weapon!, [argonScope.effect], "", {
             conditionalState: { mode: "initial" },
+            ...weakPointTarget,
         }).modded.critChance;
         const realisticCritChance = calculateBuild(weapon!, [argonScope.effect], "", {
             conditionalState: { mode: "realistic" },
+            ...weakPointTarget,
         }).modded.critChance;
         expect(realisticCritChance - initialCritChance).toBeCloseTo(
-            weapon!.critChance * 1.35 * 0.55 * 0.75,
+            weapon!.critChance * 1.35 * (1 - Math.exp(-weapon!.fireRate * weapon!.multishot * 9)) * 0.75,
             8,
         );
 
@@ -1260,6 +1265,112 @@ describe("build optimizer scoring", () => {
         }).modded.statusChance;
         expect(realisticStatusChance).toBeCloseTo(baseStatusChance, 8);
         expect(stackedStatusChance - baseStatusChance).toBeCloseTo(baseStatusChance * 0.9, 8);
+    });
+
+    it("scores Pain Points only on modeled weak-point Primary Fire hits", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Athodai");
+        expect(weapon).toBeDefined();
+        const painPoints = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Pain Points");
+        expect(painPoints).toBeDefined();
+        expect(painPoints!.effect.conditionalEffects[0]).toMatchObject({
+            trigger: "onWeakPointHit",
+            durationSeconds: 5,
+            maxStacks: 10,
+            requiresPrimaryFire: true,
+            stats: { weakPointDamageBonus: 0.6 },
+        });
+
+        const targetProfileOverride = { headshotHitRate: 1, headIsWeakPoint: true };
+        const normalAttack = optimizeBuild(weapon!, [painPoints!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride,
+        });
+        expect(normalAttack.slots[0]?.uniqueName).toBe(painPoints!.uniqueName);
+        const explanation = explainBuild(
+            weapon!,
+            [painPoints!],
+            [painPoints!.fusionLimit],
+            "burst",
+            "Grineer",
+            undefined,
+            undefined,
+            targetProfileOverride,
+        );
+        expect(explanation.steps[0].why).toContain("Primary Fire only");
+        expect(explanation.buildHighlights.some((line) => line.includes("independent arrivals") && line.includes("5 seconds after the latest hit"))).toBe(true);
+
+        const noWeakPoint = optimizeBuild(weapon!, [painPoints!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride: { ...targetProfileOverride, headIsWeakPoint: false },
+        });
+        expect(noWeakPoint.slots).toEqual([null]);
+
+        const noHeadHits = optimizeBuild(weapon!, [painPoints!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride: { ...targetProfileOverride, headshotHitRate: 0 },
+        });
+        expect(noHeadHits.slots).toEqual([null]);
+
+        const altFire = weapon!.attacks.find((attack) => attack.name === "Alt-Fire");
+        expect(altFire).toBeDefined();
+        const alternateAttack = optimizeBuild(weapon!, [painPoints!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride,
+            buildForAttack: altFire,
+        });
+        expect(alternateAttack.slots).toEqual([null]);
+        const alternateExplanation = explainBuild(
+            weapon!,
+            [painPoints!],
+            [painPoints!.fusionLimit],
+            "burst",
+            "Grineer",
+            altFire,
+            undefined,
+            targetProfileOverride,
+        );
+        expect(alternateExplanation.buildHighlights).toContain("Pain Points' Primary Fire weak-point trigger is inactive for this Alt-Fire attack row.");
+
+        const initialExplanation = explainBuild(
+            weapon!,
+            [painPoints!],
+            [painPoints!.fusionLimit],
+            "burst",
+            "Grineer",
+            undefined,
+            { mode: "initial" },
+            targetProfileOverride,
+        );
+        expect(initialExplanation.buildHighlights).toContain("The initial state starts with no Pain Points stacks; this score does not assume a weak-point hit history.");
+
+        const fullyStackedAltFireExplanation = explainBuild(
+            weapon!,
+            [painPoints!],
+            [painPoints!.fusionLimit],
+            "burst",
+            "Grineer",
+            altFire,
+            { mode: "fullyStacked" },
+            targetProfileOverride,
+        );
+        expect(fullyStackedAltFireExplanation.buildHighlights).toContain("The fully stacked scenario assumes 10 Pain Points stacks without replaying weak-point hits. Primary Fire is the live trigger; this selected state supplies the stacks as a scenario override, including on Alt-Fire. Area coverage is not scored.");
+        expect(fullyStackedAltFireExplanation.buildHighlights).not.toContain("Pain Points' Primary Fire weak-point trigger is inactive for this Alt-Fire attack row.");
+
+        const customAltFireExplanation = explainBuild(
+            weapon!,
+            [painPoints!],
+            [painPoints!.fusionLimit],
+            "burst",
+            "Grineer",
+            altFire,
+            { mode: "custom", externalStacks: 3 },
+            targetProfileOverride,
+        );
+        expect(customAltFireExplanation.buildHighlights).toContain("The custom scenario assumes 3 Pain Points stacks without replaying weak-point hits. Primary Fire is the live trigger; this selected state supplies the stacks as a scenario override, including on Alt-Fire. Area coverage is not scored.");
     });
 
     it("scores Wiki-backed headshot bonuses at the configured hit share and keeps weak-point-only bonuses unscored", () => {
