@@ -2,6 +2,7 @@ import type { ModEffect } from "./modCatalog";
 
 export const VOLATILE_VARIANT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveSporothrixAugmentMod";
 export const ACID_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Shotgun/Event/ProjectNightwatch/SobekNightwatchMod";
+export const THERMAGNETIC_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/SupraCorpusArenaMod";
 export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamExplodeOnDeath";
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
 export const ENTROPY_DETONATION_MOD_PATH = "/Lotus/Upgrades/Mods/Syndicate/ObexMod";
@@ -92,6 +93,12 @@ export function getUnmodeledDamageEffectLines(
     if (mod.path === ACID_SHELLS_MOD_PATH) {
         lines.push("Acid Shells' on-death explosion is not scored; its falloff, line-of-sight checks, mode-specific max-Health scaling, and chain explosions are not modeled, so Auto Optimize skips the mod.");
     }
+    if (mod.path === THERMAGNETIC_SHELLS_MOD_PATH) {
+        // This Detron augment damages nearby enemies when one dies. Keep the
+        // sourced rank text visible, but do not treat it as ordinary hit damage.
+        // https://wiki.warframe.com/w/Thermagnetic_Shells
+        lines.push("Thermagnetic Shells triggers an on-death explosion: 20–80 Magnetic Damage plus 10–40% of the triggering enemy's max Health as Blast Damage in a 6m radius. Linear falloff and line of sight apply. The Wiki says Elemental Ammo status effects no longer recursively retrigger these death explosions; the planner still does not resolve on-kill area damage, adjacent-target deaths, or mission-specific max-Health scaling, so Auto Optimize skips the mod.");
+    }
     if (mod.path === COMBUSTION_BEAM_MOD_PATH) {
         lines.push("Combustion Beam's delayed on-kill Blast explosion is not scored; its radius/falloff and line-of-sight rules, damage attribution/scaling, and chain behavior are not modeled, so Auto Optimize skips this mod.");
     }
@@ -134,6 +141,9 @@ export function getUnmodeledDamageEffectLines(
 
 /** Current-source links for the on-kill area effects called out in the builder. */
 export function getUnmodeledDamageEffectSourceUrl(mod: { path?: string }): string | undefined {
+    if (mod.path === THERMAGNETIC_SHELLS_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Thermagnetic_Shells";
+    }
     if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Entropy_Detonation";
     }

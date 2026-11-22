@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
-import { getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
+import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeStrainInfectionCystCount, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
@@ -165,6 +165,42 @@ describe("Acid Shells Wiki rank display and safe scoring exclusion", () => {
         }
 
         expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Acid Shells")).toBe(false);
+    });
+});
+
+describe("Thermagnetic Shells Wiki rank display and safe scoring exclusion", () => {
+    it("shows all sourced ranks on the Detron variants without scoring the on-death explosion", () => {
+        const catalog = getWeaponCatalog();
+        const weapons = ["Detron", "Mara Detron", "Tenet Detron"].map((name) => {
+            const weapon = catalog.find((candidate) => candidate.name === name);
+            expect(weapon, name).toBeDefined();
+            return weapon!;
+        });
+        const expectedRankText = [
+            "Enemies explode on death, dealing 20 Magnetic Damage (+10% Enemy Max Health) in a 6m radius.",
+            "Enemies explode on death, dealing 40 Magnetic Damage (+20% Enemy Max Health) in a 6m radius.",
+            "Enemies explode on death, dealing 60 Magnetic Damage (+30% Enemy Max Health) in a 6m radius.",
+            "Enemies explode on death, dealing 80 Magnetic Damage (+40% Enemy Max Health) in a 6m radius.",
+        ];
+        const warning = "Thermagnetic Shells triggers an on-death explosion: 20–80 Magnetic Damage plus 10–40% of the triggering enemy's max Health as Blast Damage in a 6m radius. Linear falloff and line of sight apply. The Wiki says Elemental Ammo status effects no longer recursively retrigger these death explosions; the planner still does not resolve on-kill area damage, adjacent-target deaths, or mission-specific max-Health scaling, so Auto Optimize skips the mod.";
+
+        for (const weapon of weapons) {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Thermagnetic Shells");
+            expect(mod).toBeDefined();
+            expect(mod!.uniqueName).toBe("/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/SupraCorpusArenaMod");
+            expect(mod!.fusionLimit).toBe(3);
+            expect(mod!.statsTextByRank).toEqual(expectedRankText);
+            expect(mod!.hasDamageEffect).toBe(false);
+            expect(mod!.effectsByRank.every((effect) => effect.magneticBonus === 0 && effect.blastBonus === 0)).toBe(true);
+            expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe("https://wiki.warframe.com/w/Thermagnetic_Shells");
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+            }
+        }
+
+        const braton = catalog.find((weapon) => weapon.name === "Braton Prime");
+        expect(braton).toBeDefined();
+        expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Thermagnetic Shells")).toBe(false);
     });
 });
 
