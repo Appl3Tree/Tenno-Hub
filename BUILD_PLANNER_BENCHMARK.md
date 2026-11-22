@@ -2996,6 +2996,20 @@ This is an exact oracle only inside four seeded six-mod pools. It expands max-ra
 
 PR [#248](https://github.com/Appl3Tree/Tenno-Hub/pull/248) was squash-merged as `403d6093942b6fab46369d38168c6b21a447f563`. This test/docs-only change has no app deployment.
 
+## D3-OPT-FIXED-WINDOW-SIX-MOD-FOUR-SLOT-ORACLE-001 — seeded six-mod, four-slot max-rank 5s Avg DPS oracle (2026-11-22; bounded)
+
+Reproduce with:
+
+```sh
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded six-mod, four-slot max-rank 5s Avg DPS oracle"
+```
+
+The deterministic LCG seed is `20261130`. Four fixtures draw one supported attack and six fully scoreable, compatible damage mods from the full pool for Braton Prime / Grineer (1,000,000 Health / 2,700 Armor / Realistic), Lex Prime / shielded Corpus (1,000,000 Health + 1,000,000 Shields / Initial), Cedo / Grineer (1,000,000 Health / 2,100 Armor / Realistic), and Broken War / Infested (1,000,000 Health / 300 Armor / Fully Stacked). Candidates are evaluated at maximum rank. The oracle enumerates legal ordered subsets through four slots with Catalyst capacity, weapon-default polarities, and alternating zero-/one-Forma budgets; no Arcane is optimized. The large health pools keep the 5s window below target defeat.
+
+All four optimizer outputs match the exact sampled-pool 5s Avg DPS and total-window-damage winners. Returned builds are capacity-valid, within their Forma budgets, and max rank. Focused Vitest passes 1/1 in 0.99s test time (4.23s total process); focused ESLint and `git diff --check` pass. `npx tsc -p tsconfig.test.json --noEmit` exits 2 on 57 existing repository diagnostics, none in the new test block. The full optimizer file and serial suite were not rerun after this test-only change; no production build or deployment applies.
+
+This exact check spans four seeded six-mod pools, not each weapon's full catalog. It adds the 5s Avg DPS objective at four slots with a limited Forma budget; it does not combine rank choice or Arcane optimization in this pass, establish global quality, reproduce Underframe's native simulator, model stochastic proc histories, or validate live gameplay.
+
 ## D3-ATTACK-MODEL-LARKSPUR-KNOCKDOWN-BOUNDARY-001 — charged single-target score boundary (2026-11-22; released)
 
 The current [Larkspur](https://wiki.warframe.com/w/Larkspur) source describes a forced Knockdown on charged Alt-Fire. Current [Condition Overload](https://wiki.warframe.com/w/Condition_Overload) and [Galvanized Aptitude](https://wiki.warframe.com/w/Galvanized_Aptitude) pages say Knockdown contributes to unique status-count damage for later hits when the enemy accepts the effect; target conditions that prevent Knockdown also prevent this contribution. These pages do not provide a general encounter expiry model. The current catalog returns 38 compatible Arch-Gun mods for each Larkspur profile; none has a positive directDamagePerStatusBonus or conditionOverloadDamagePerStatusBonus at any rank, and none of the attacks has intrinsic per-status direct damage. The charged Alt-Fire score therefore now includes the directly hit projectile and its linked explosion while explicitly leaving Knockdown control, susceptibility/expiry, collateral, and status priming for a different weapon outside the selected-weapon damage score. Larkspur Prime's page remains marked under active revision.
@@ -3011,3 +3025,9 @@ Read-only IAB inspection covered 5 of 11 public Featured Arch-Gun builds: Mausol
 The public Beast Companion filter returned three featured pages; Pharaoh Predasite Mecha and Huras were inspected. Both companion configurations showed -18/60 capacity, and their claw builds showed -24/60, all at zero Forma. The visible Stats/Target Dummy view exposed no usable objective-scored result in the pages inspected.
 
 This search produced no legal, on-page objective-scored comparison fixture. Build Details and Copy & Edit/Test controls were left untouched; no saved build was edited. The matched Underframe corpus remains open. These counts describe the inspected sample, not every Featured Build page.
+
+## Mausolon Archwing Auto range-source recheck (2026-11-22)
+
+The current [Mausolon](https://wiki.warframe.com/w/Mausolon) page lists Auto as hit-scan with a 300m Range and a separate 1,400–2,800m falloff profile. The general [Range](https://wiki.warframe.com/w/Range) page names Archguns as exceptions to the default 300m hit-scan range, while [Damage Falloff](https://wiki.warframe.com/w/Damage_Falloff) states a universal 300m hit-scan shot limit except for Sniper Rifles and does not give Archguns a corresponding exception. These Wiki statements do not resolve whether Mausolon Archwing Auto can register hits between 300m and 2,800m.
+
+The existing profile-specific model remains in place: Mausolon Atmosphere Auto enforces 300m; Archwing Auto uses its sourced falloff and displays the conflicting 300m maximum as informational. This source review does not establish game behavior, so direct gameplay verification remains open. No app scoring change was made.
