@@ -124,10 +124,18 @@ describe("weapon catalog stance inference", () => {
                 attachedToDirectTarget: true,
             });
             expect(explosion.modelLimitation?.reason).toContain("Select Alt-Fire Projectile Impact");
-            expect(impact.modelLimitation?.reason).toContain("Knockdown eligibility");
+            expect(impact.modelLimitation).toBeUndefined();
+            expect(impact.scoreBoundaryNote?.reason).toContain("directly struck projectile and its linked explosion");
+            expect(impact.scoreBoundaryNote?.reason).toContain("independent of Knockdown");
             expect(withSelectedAttack(weapon, weapon.attacks.indexOf(impact)).selectedAttackModelLimitation).toEqual(
-                impact.modelLimitation,
+                undefined,
             );
+            const compatibleMods = getModsForWeapon(weapon);
+            expect(compatibleMods.length).toBeGreaterThan(0);
+            expect(compatibleMods.some((mod) => mod.effectsByRank.some((effect) =>
+                effect.directDamagePerStatusBonus > 0 || effect.conditionOverloadDamagePerStatusBonus > 0,
+            ))).toBe(false);
+            expect(weapon.attacks.every((attack) => (attack.intrinsicDamagePerStatusBonus ?? 0) === 0)).toBe(true);
             const uncharged = weapon.attacks.find((attack) => attack.trigger !== "Charge");
             expect(uncharged).toBeDefined();
         }

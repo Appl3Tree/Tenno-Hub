@@ -1875,19 +1875,11 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
             sourceUrl: "https://wiki.warframe.com/w/Larkspur",
             reason: "This is the linked explosion component of Larkspur's charged Alt-Fire. Select Alt-Fire Projectile Impact to score the full single-target release.",
         },
-        "alt-fire projectile impact": {
-            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
-            reason: "Larkspur's charged projectile forces Knockdown, which can increase status-count damage bonuses on susceptible targets. The planner does not model Knockdown eligibility or its active window, so this attack remains reference-only and cannot be scored or Auto Optimized.",
-        },
     }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
         "explosion": {
             sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
             reason: "This is the linked explosion component of Larkspur Prime's charged Alt-Fire. Select Alt-Fire Projectile Impact to score the full single-target release.",
-        },
-        "alt-fire projectile impact": {
-            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
-            reason: "Larkspur Prime's charged projectile forces Knockdown, which can increase status-count damage bonuses on susceptible targets. The planner does not model Knockdown eligibility or its active window, so this attack remains reference-only and cannot be scored or Auto Optimized. The Wiki page says its data is under active revision.",
         },
     }),
     // Alt-Fire launches a mite that can latch onto multiple enemies and apply
@@ -1931,11 +1923,19 @@ const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
             sourceUrl: "https://wiki.warframe.com/w/Larkspur",
             reason: "The score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The attack table lists 160m in Archwing, while the overview describes a 320m beam with a 160m lock-on limit; range is informational and misses are not modeled.",
         }),
+        "alt-fire projectile impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+            reason: "The single-target score includes the directly struck projectile and its linked explosion. The current Arch-Gun mod pool and intrinsic attack stats have no direct damage-per-status bonus, so this weapon's own damage score is independent of Knockdown. Knockdown's crowd-control value, target immunity, expiry, and use to prime a different weapon are not modeled.",
+        }),
     }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
         "normal attack": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
             reason: "The score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The attack table lists 180m in Archwing while the overview says 320m; the page is under active revision and range is informational.",
+        }),
+        "alt-fire projectile impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+            reason: "The single-target score includes the directly struck projectile and its linked explosion. The current Arch-Gun mod pool and intrinsic attack stats have no direct damage-per-status bonus, so this weapon's own damage score is independent of Knockdown. Knockdown's crowd-control value, target immunity, expiry, and use to prime a different weapon are not modeled. The Wiki page says its data is under active revision.",
         }),
     }),
 });

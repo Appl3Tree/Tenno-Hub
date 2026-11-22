@@ -2548,6 +2548,33 @@ describe("build optimizer scoring", () => {
         expect(() => optimizeBuild(selectedAltFire, [], "timeToKill", 8)).toThrow(/Optimization is unavailable for Alt-Fire/);
     });
 
+    it("scores Larkspur charged single-target damage while disclosing unscored Knockdown control", () => {
+        for (const name of ["Larkspur", "Larkspur Prime"]) {
+            const weapon = getWeaponCatalog().find((entry) =>
+                entry.name === name && !entry.uniqueName.includes("::Atmosphere"),
+            );
+            expect(weapon, name).toBeTruthy();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Alt-Fire Projectile Impact");
+            expect(attackIndex).toBeGreaterThanOrEqual(0);
+            const attack = weapon!.attacks[attackIndex]!;
+            const selected = withSelectedAttack(weapon!, attackIndex);
+            const candidateMods = getModsForWeapon(weapon!);
+
+            expect(candidateMods.length).toBeGreaterThan(0);
+            expect(attack.modelLimitation).toBeUndefined();
+            expect(attack.scoreBoundaryNote?.reason).toContain("independent of Knockdown");
+            for (const goal of ["burst", "timeToKill"] as const) {
+                const optimized = optimizeBuild(selected, candidateMods, goal, 1, {
+                    buildForAttack: attack,
+                    targetFaction: "Grineer",
+                    optimizeArcane: false,
+                    optimizeExilus: false,
+                });
+                expect(optimized.slots.some(Boolean), `${name} ${goal} should return a mod`).toBe(true);
+            }
+        }
+    });
+
     it("models Wiki-backed Auto-Spool pellet, status, rate, and fresh-magazine ramps", () => {
         const catalog = getWeaponCatalog();
         const cases = [
