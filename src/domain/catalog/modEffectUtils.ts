@@ -26,13 +26,21 @@ function hasUnparsedTruthSyndicateStat(lines: string[] | undefined): boolean {
     return (lines ?? []).some((line) => /[+-]?\d+(?:\.\d+)?\s+['"]Truth['"]/i.test(line));
 }
 
+export interface ScoringEffectContext {
+    /** True only when the selected target profile confirms its head is a weak point. */
+    headIsWeakPoint?: boolean;
+}
+
 const UNSCORED_HIT_LOCATION_EFFECTS = [
     ["weakPointDamageBonus", "Weak-point damage bonus"],
     ["weakPointCritChanceBonus", "Weak-point critical chance bonus"],
 ] as const;
 
-/** Parsed effects that the current damage and optimizer models cannot safely apply. */
-export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | null): string[] {
+/** Parsed effects that remain unscored for the current target context. */
+export function getUnmodeledScoringEffectLines(
+    effect?: Partial<ModEffect> | null,
+    context?: ScoringEffectContext,
+): string[] {
     if (!effect) return [];
     const lines: string[] = [];
     const sources: Array<{ label: string; stats: Record<string, unknown> }> = [
@@ -59,10 +67,15 @@ export function getUnmodeledScoringEffectLines(effect?: Partial<ModEffect> | nul
                 "Bell Ringer's knockdown contribution to Condition Overload/Galvanized per-status counts is not modeled because target susceptibility and knockdown duration are unknown; Auto Optimize skips this mod.",
             );
         }
-        for (const [key, label] of UNSCORED_HIT_LOCATION_EFFECTS) {
-            const value = source.stats[key];
-            if (typeof value === "number" && Number.isFinite(value) && value !== 0) {
-                lines.push(`${source.label}: ${label} is not scored because the target's weak-point rules are not modeled.`);
+        if (context?.headIsWeakPoint !== true) {
+            for (const [key, label] of UNSCORED_HIT_LOCATION_EFFECTS) {
+                const value = source.stats[key];
+                if (typeof value === "number" && Number.isFinite(value) && value !== 0) {
+                    const reason = context?.headIsWeakPoint === false
+                        ? "the selected target's head is not a modeled weak point"
+                        : "the target's weak-point rules are not modeled";
+                    lines.push(`${source.label}: ${label} is not scored because ${reason}.`);
+                }
             }
         }
     }
@@ -79,6 +92,7 @@ export function getUnmodeledDamageEffectLines(
         effect?: Partial<ModEffect>;
     },
     rank: number,
+    context?: ScoringEffectContext,
 ): string[] {
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
         .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH && DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
@@ -138,7 +152,7 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Entropy syndicate side effect is not modeled.");
     }
     const effect = mod.effectsByRank?.[rank] ?? mod.effect;
-    return [...new Set([...lines, ...getUnmodeledScoringEffectLines(effect)])];
+    return [...new Set([...lines, ...getUnmodeledScoringEffectLines(effect, context)])];
 }
 
 /** Current-source links for unmodeled effects called out in the builder. */

@@ -84,6 +84,7 @@ describe("curated Build Planner enemy baselines", () => {
         expect(getEnemyProfile("grineer-lancer")).toMatchObject({
             headshotMultiplier: 3,
             criticalHeadshotMultiplier: 2,
+            headIsWeakPoint: true,
         });
         expect(getEnemyProfile("corpus-crewman")).toMatchObject({
             headshotMultiplier: 3,
@@ -92,22 +93,27 @@ describe("curated Build Planner enemy baselines", () => {
         expect(getEnemyProfile("corpus-moa")).toMatchObject({
             headshotMultiplier: 1,
             criticalHeadshotMultiplier: 1,
+            headIsWeakPoint: false,
         });
         expect(getEnemyProfile("infested-charger")).toMatchObject({
             headshotMultiplier: 1,
             criticalHeadshotMultiplier: 1,
+            headIsWeakPoint: true,
         });
         expect(getFactionHitLocationProfile("Grineer")).toEqual({
             headshotMultiplier: 3,
             criticalHeadshotMultiplier: 2,
+            headIsWeakPoint: true,
         });
         expect(getFactionHitLocationProfile("Corpus")).toEqual({
             headshotMultiplier: 3,
             criticalHeadshotMultiplier: 1,
+            headIsWeakPoint: true,
         });
         expect(getFactionHitLocationProfile("The Murmur")).toEqual({
             headshotMultiplier: 1.5,
             criticalHeadshotMultiplier: 1,
+            headIsWeakPoint: false,
         });
     });
 });

@@ -1,3 +1,21 @@
+## D3-MOD-WEAKPOINT-BONUS-HEAD-PROFILE-001 — bounded head weakpoint bonus support (validated locally; release pending)
+
+### Source behavior and selected scope
+
+The current [Enemy Body Parts Wiki page](https://wiki.warframe.com/w/Enemy_Body_Parts) says weakpoint and headshot hitbox flags are distinct but often overlap. For a weakpoint that is also a head, Weak-point Damage bonuses add to the hitbox multiplier at 1.5× rate; Weak-point Critical Chance adds to the shot's Critical Chance. Non-head weakpoints do not use that 1.5× rate, and some weakpoint hits promote critical tier, which the planner does not model. The Wiki's [Damage Calculation page](https://wiki.warframe.com/w/Damage/Calculation) gives DoT seeds the separate weakpoint multiplier × (1 + Weak-point Damage bonus) formula.
+
+Per the bounded implementation decision, the planner reuses the configured headshot hit share as the estimated share of direct hits on a confirmed head weakpoint. Faction-only synthetic profiles mark only established representative heads. Named MOA/Amalgam MOA and ambiguous Murmur/Techrot faction profiles do not treat non-head or uncertain locations as head weakpoints. The Charger page reports an additional weak point on the Grineer head at 1×; the profile retains no critical-headshot bonus.
+
+### Implementation and validation
+
+- `EnemyProfile`, faction hit-location data, target overrides, and target assumptions now carry `headIsWeakPoint`. Direct hit multipliers add 1.5 × Weak-point Damage bonus to a confirmed head's multiplier before ordinary headshot multiplier bonuses. Weak-point Critical Chance increases crit probability only for that head-hit share. The separate DoT branch uses 1 + Weak-point Damage bonus and preserves hit-location crit effects. AoE/radial attacks and melee remain ineligible under the existing headshot model.
+- Auto Optimize admits weakpoint-only effects only when the selected target profile marks its head as a weakpoint; otherwise it keeps the conservative exclusion. Mod/Arcane picker warnings and Why This Build use the same target context. The help text discloses the head-share assumption and excludes non-head weakpoints and critical-tier promotion.
+- Focused enemy-profile and damage-calculator suites pass 156/156; the optimizer regression (`scores Wiki-backed headshot bonuses at the configured hit share and keeps weak-point-only bonuses unscored`) passes 1/1, covering head-weakpoint, zero-headshare, and non-weakpoint filtering. App and test-project TypeScript checks pass (`npx tsc -p tsconfig.app.json --noEmit --incremental false`; `npx tsc -p tsconfig.test.json --noEmit --incremental false`). `npm run build` passes in 10.16s with the existing >500 KB chunk advisory. Focused ESLint and `git diff --check` pass.
+
+- `npm run audit:mod-effect-coverage` still conservatively reports 697 weapon profiles, 600 eligible mod records, 495 parsed effects, 105 with no parsed effect at max rank, 69 review candidates (20 partial, 49 fully unparsed), and zero empty weapon pools. Because that audit has no target context, weakpoint-only effects remain in its review list; selected-target scoring is separately covered by the optimizer regression. The local production IAB at `http://127.0.0.1:4174/Tenno-Hub/?version=201eef65` rendered Braton Prime with Faction Focus / Lancer, and changing estimated headshot share to 50% changed Average Shot from 39 to 91. This was an unsaved transient build.
+
+Known limits: the configured share remains a player estimate; faction profiles are synthetic; other weakpoint regions, weakpoint hit-location distributions, weakpoint critical-tier promotion, radial weakpoint behavior, and in-game hitbox variability remain unmodeled. This does not establish Underframe parity or gameplay accuracy.
+
 ## D3-MOD-STINGING-TRUTH-FLAT-MAGAZINE-001 — flat capacity and Truth proc boundary (released in PR [#276](https://github.com/Appl3Tree/Tenno-Hub/pull/276), squash merge `31bbbff4f26c930445900f06108a8025bbf4d03c`)
 
 ### Source-backed behavior

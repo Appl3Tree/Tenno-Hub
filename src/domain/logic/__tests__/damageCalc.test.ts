@@ -2972,6 +2972,52 @@ describe("damage calculation status eligibility", () => {
         );
     });
 
+    it("applies weak-point bonuses only to the configured head weakpoint and uses the separate DoT rule", () => {
+        const target = {
+            headshotRate: 0.5,
+            headshotMultiplier: 3,
+            criticalHeadshotMultiplier: 2,
+            headIsWeakPoint: true,
+            weakPointDamageBonus: 0.2,
+            weakPointCritChanceBonus: 0.1,
+        } as const;
+        const weakPointMultiplier = avgHitDamageMultiplier(0.1, 2, [], target);
+        expect(weakPointMultiplier).toBeCloseTo(3.19, 10);
+        expect(avgHitDamageMultiplier(0.1, 2, [], { ...target, headIsWeakPoint: false })).toBeCloseTo(2.5, 10);
+        expect(avgHitDamageMultiplier(0.1, 2, [], { ...target, headshotRate: 0 })).toBeCloseTo(1.1, 10);
+        expect(avgHitDamageMultiplier(0.1, 2, [], { ...target, canHeadshot: false })).toBeCloseTo(1.1, 10);
+
+        // Direct weakpoint damage adds 1.5× WPD to the 3× multiplier (3.3×),
+        // while the DoT seed follows the Wiki's separate 1 + WPD multiplier.
+        expect(getHitLocationDotDamageMultiplier(0.1, 2, target, "electricity"))
+            .toBeCloseTo(3.118181818181818, 10);
+
+        const effect = { ...emptyEffect(), weakPointDamageBonus: 0.2, weakPointCritChanceBonus: 0.1 };
+        const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0.1, critMultiplier: 2 };
+        const direct = calculateBuild(weapon, [effect], "", { hitLocation: target }).modded;
+        const bodyOnly = calculateBuild(weapon, [effect], "", { hitLocation: { ...target, headshotRate: 0 } }).modded;
+        const radialWeapon = { ...weapon, selectedAttackIsAreaDamage: true };
+        const radial = calculateBuild(radialWeapon, [effect], "", { hitLocation: target }).modded;
+        const radialBaseline = calculateBuild(radialWeapon, [], "", { hitLocation: target }).modded;
+        expect(direct.hitLocation.weakPointDamageBonus).toBeCloseTo(0.2, 10);
+        expect(direct.hitLocation.weakPointCritChanceBonus).toBeCloseTo(0.1, 10);
+        expect(direct.expectedHitDamageMultiplier).toBeCloseTo(avgHitDamageMultiplier(
+            direct.critChance,
+            direct.critMultiplier,
+            direct.nonCriticalHitDamageProcs,
+            direct.hitLocation,
+            direct.vigilanteCritTierEnhancementChance,
+        ), 10);
+        expect(bodyOnly.expectedHitDamageMultiplier).toBeCloseTo(avgHitDamageMultiplier(
+            bodyOnly.critChance,
+            bodyOnly.critMultiplier,
+            bodyOnly.nonCriticalHitDamageProcs,
+            bodyOnly.hitLocation,
+            bodyOnly.vigilanteCritTierEnhancementChance,
+        ), 10);
+        expect(radial.expectedHitDamageMultiplier).toBeCloseTo(radialBaseline.expectedHitDamageMultiplier, 10);
+    });
+
     it("uses the configured headshot share for on-headshot triggers and excludes radial hits", () => {
         const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0.1, critMultiplier: 2 };
         const onHeadshot = {

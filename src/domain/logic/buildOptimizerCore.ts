@@ -271,6 +271,8 @@ interface TargetProfile {
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
     /** Wiki-typical weak-point multiplier for this named/faction-representative target. */
     headshotMultiplier?: number;
+    /** Whether the head hitbox itself is a Wiki-listed weak point. */
+    headIsWeakPoint?: boolean;
     /** Wiki critical-headshot factor; 1 means this representative does not receive headcrits. */
     criticalHeadshotMultiplier?: number;
     /** Player's assumed share of direct hits on a headshot location. */
@@ -310,6 +312,7 @@ export interface TargetProfileOverride {
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
     headshotMultiplier?: number;
     criticalHeadshotMultiplier?: number;
+    headIsWeakPoint?: boolean;
     headshotHitRate?: number;
     /** Whether this custom target is a standard Eximus. */
     isEximusTarget?: boolean;
@@ -331,6 +334,7 @@ export interface TargetProfileAssumptions {
     crowdControlImmune: boolean;
     headshotMultiplier: number;
     criticalHeadshotMultiplier: number;
+    headIsWeakPoint: boolean;
     headshotHitRate: number;
     isEximusTarget: boolean;
 }
@@ -665,6 +669,7 @@ export function getTargetProfileAssumptions(
         criticalHeadshotMultiplier: Number.isFinite(target.criticalHeadshotMultiplier) && (target.criticalHeadshotMultiplier ?? -1) >= 0
             ? target.criticalHeadshotMultiplier ?? 1
             : 1,
+        headIsWeakPoint: target.headIsWeakPoint === true,
         headshotHitRate: Number.isFinite(target.headshotHitRate)
             ? Math.max(0, Math.min(1, target.headshotHitRate ?? 0))
             : 0,
@@ -886,6 +891,7 @@ function scoreEffectsCore(
             headshotRate: scoringTarget.pools.headshotHitRate,
             headshotMultiplier: scoringTarget.pools.headshotMultiplier,
             criticalHeadshotMultiplier: scoringTarget.pools.criticalHeadshotMultiplier,
+            headIsWeakPoint: scoringTarget.pools.headIsWeakPoint,
         } satisfies HitLocationDamageProfile,
         isEximusTarget: scoringTarget.pools.isEximusTarget,
         conditionalState,
@@ -1411,6 +1417,9 @@ function getOptimizerVariantTier(path: string): "flawed" | "standard" {
 
 function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate[] {
     const { ownedModUniqueNames, ownedModMaxRankByUniqueName, excludedModUniqueNames, allowNonMaxRank, targetFaction = "", lockedIncompatibilityGroups, lockedUniqueNames } = opts;
+    const scoringEffectContext = {
+        headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
+    };
     const allowedRanks = (mod: ModEntry): number[] => {
         const maxRank = Math.max(0, Math.min(
             mod.fusionLimit,
@@ -1421,7 +1430,7 @@ function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate
             : [maxRank];
     };
     const hasSupportedDamageRank = (mod: ModEntry): boolean =>
-        mod.hasDamageEffect && allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank).length === 0);
+        mod.hasDamageEffect && allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
     for (const mod of allMods) {
         if (!hasSupportedDamageRank(mod)) continue;
@@ -1452,7 +1461,7 @@ function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate
         const familyKey = normalizeOptimizerVariantPath(mod.path);
         if (getOptimizerVariantTier(mod.path) === "flawed" && familyHasStandard.has(familyKey)) continue;
         for (const rank of allowedRanks(mod).sort((a, b) => b - a)) {
-            if (getUnmodeledDamageEffectLines(mod, rank).length > 0) continue;
+            if (getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length > 0) continue;
             out.push({ mod, rank });
         }
     }
@@ -2616,7 +2625,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "finalCritMultiplierBonus", "weakPointCritChanceBonus")) {
+    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "chargeRateBonus", "attackSpeedBonus")) families.push("fire-rate");
@@ -4041,7 +4050,9 @@ function optimizeExilusSlot(
     for (const mod of eligibleExilus) {
         const minRank = opts.allowNonMaxRank ? 0 : mod.fusionLimit;
         for (let r = mod.fusionLimit; r >= minRank; r--) {
-            if (getUnmodeledDamageEffectLines(mod, r).length > 0) continue;
+            if (getUnmodeledDamageEffectLines(mod, r, {
+                headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
+            }).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
             let selectedPolarity = candidatePolarity;
             if (opts.capacityConfig) {
@@ -4131,7 +4142,9 @@ function optimizeArcaneSlot(
                     warframeEnergyPercent: opts.warframeEnergyPercent,
                 });
                 if (!effect || !Object.keys(effect).length) continue;
-                if (getUnmodeledScoringEffectLines(effect).length > 0) continue;
+                if (getUnmodeledScoringEffectLines(effect, {
+                    headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
+                }).length > 0) continue;
                 finiteEncounterCandidates.push({ arcane: arc, rank, effect });
             }
         }
@@ -4150,7 +4163,9 @@ function optimizeArcaneSlot(
                 warframeEnergyPercent: opts.warframeEnergyPercent,
             });
             if (!e || !Object.keys(e).length) continue;
-            if (getUnmodeledScoringEffectLines(e).length > 0) continue;
+            if (getUnmodeledScoringEffectLines(e, {
+                headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
+            }).length > 0) continue;
             const s = scoreEffects(weapon, mainBuildEffects, goal, targetFaction, e, opts.targetProfileOverride, opts.conditionalState, opts.meleeStanceCombo);
             // An arcane slot is optional. Keep it empty when its parsed effect
             // is unsupported or inactive under the selected conditional state;
@@ -5175,6 +5190,7 @@ export function explainBuild(
             headshotRate: targetAssumptions.headshotHitRate,
             headshotMultiplier: targetAssumptions.headshotMultiplier,
             criticalHeadshotMultiplier: targetAssumptions.criticalHeadshotMultiplier,
+            headIsWeakPoint: targetAssumptions.headIsWeakPoint,
         } satisfies HitLocationDamageProfile,
         isEximusTarget: targetAssumptions.isEximusTarget,
         conditionalState: statsConditionalState,
@@ -5190,6 +5206,13 @@ export function explainBuild(
     const selectedStats = calculateBuild(scoringWeapon, selectedEffects, targetFaction, statsOptions).modded;
     const changed = (before: number, after: number) => Math.abs(before - after) > 1e-9;
     const buildHighlights: string[] = [];
+    const headWeakPointHitShare = selectedStats.hitLocation.canHeadshot === false
+        ? 0
+        : selectedStats.hitLocation.headshotRate ?? 0;
+    if (selectedStats.hitLocation.headIsWeakPoint && headWeakPointHitShare > 0 &&
+        (selectedStats.hitLocation.weakPointDamageBonus !== 0 || selectedStats.hitLocation.weakPointCritChanceBonus !== 0)) {
+        buildHighlights.push(`Weak-point bonuses apply to the selected head at the configured ${(headWeakPointHitShare * 100).toFixed(1)}% hit share. Direct hits add 1.5× the Weak-point Damage bonus to the head multiplier; DoT seeds use the Wiki multiplier × (1 + bonus) rule, and Weak-point Critical Chance applies on those hits. Non-head weakpoints and critical-tier promotion are not modeled.`);
+    }
     if (changed(baselineStats.critChance, selectedStats.critChance) ||
         changed(baselineStats.critMultiplier, selectedStats.critMultiplier)) {
         buildHighlights.push(`Critical stats for this attack: Critical Chance ${formatExplanationPercent(selectedStats.critChance)} (configured baseline ${formatExplanationPercent(baselineStats.critChance)}); Critical Damage ${formatExplanationNumber(selectedStats.critMultiplier)}× (configured baseline ${formatExplanationNumber(baselineStats.critMultiplier)}×).`);
@@ -5234,7 +5257,9 @@ export function explainBuild(
         for (const conditional of e.conditionalEffects ?? []) {
             parts.push(summarizeConditionalEffect(conditional));
         }
-        const unmodeledLines = getUnmodeledDamageEffectLines(mod, rank);
+        const unmodeledLines = getUnmodeledDamageEffectLines(mod, rank, {
+            headIsWeakPoint: targetAssumptions.headIsWeakPoint,
+        });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
         const effectSummary = parts.length > 0
             ? `Provides ${joinExplanationList(parts)}.`

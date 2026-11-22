@@ -1133,16 +1133,19 @@ describe("build optimizer scoring", () => {
         expect(grineer).toMatchObject({
             headshotMultiplier: 3,
             criticalHeadshotMultiplier: 2,
+            headIsWeakPoint: true,
             headshotHitRate: 0.35,
         });
         expect(corpus).toMatchObject({
             headshotMultiplier: 3,
             criticalHeadshotMultiplier: 1,
+            headIsWeakPoint: true,
             headshotHitRate: 0.8,
         });
         expect(charger).toMatchObject({
             headshotMultiplier: 1,
             criticalHeadshotMultiplier: 1,
+            headIsWeakPoint: true,
             headshotHitRate: 0.5,
         });
         expect(getTargetProfileAssumptions("Grineer", { headshotHitRate: Number.NaN }).headshotHitRate).toBe(0);
@@ -1281,7 +1284,13 @@ describe("build optimizer scoring", () => {
             "Effect: Weak-point critical chance bonus is not scored because the target's weak-point rules are not modeled.",
         ]));
 
-        const target = { headshotHitRate: 1 };
+        expect(getUnmodeledDamageEffectLines(primaryAcuity!, primaryAcuity!.fusionLimit, { headIsWeakPoint: true })).toEqual([]);
+        expect(getUnmodeledDamageEffectLines(primaryAcuity!, primaryAcuity!.fusionLimit, { headIsWeakPoint: false })).toEqual(expect.arrayContaining([
+            "Effect: Weak-point damage bonus is not scored because the selected target's head is not a modeled weak point.",
+            "Effect: Weak-point critical chance bonus is not scored because the selected target's head is not a modeled weak point.",
+        ]));
+
+        const target = { headshotHitRate: 1, headIsWeakPoint: true };
         const baseline = debugScoreBuild(weapon!, [], "burst", "Grineer", null, target, { mode: "initial" });
         const headshotScore = debugScoreBuild(
             weapon!,
@@ -1293,6 +1302,25 @@ describe("build optimizer scoring", () => {
             { mode: "initial" },
         );
         expect(headshotScore).toBeGreaterThan(baseline);
+
+        const optimizedHeadWeakpoint = optimizeBuild(weapon!, [primaryAcuity!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride: { headshotHitRate: 1, headIsWeakPoint: true },
+        });
+        expect(optimizedHeadWeakpoint.slots[0]?.uniqueName).toBe(primaryAcuity!.uniqueName);
+        const optimizedBodyOnly = optimizeBuild(weapon!, [primaryAcuity!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride: { headshotHitRate: 0, headIsWeakPoint: true },
+        });
+        expect(optimizedBodyOnly.slots).toEqual([null]);
+        const optimizedNonWeakpoint = optimizeBuild(weapon!, [primaryAcuity!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride: { headshotHitRate: 1, headIsWeakPoint: false },
+        });
+        expect(optimizedNonWeakpoint.slots).toEqual([null]);
 
         const result = optimizeBuild(weapon!, [primaryAcuity!], "burst", 1, { allowForma: false });
         expect(result.slots).toEqual([null]);
