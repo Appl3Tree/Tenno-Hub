@@ -3196,6 +3196,52 @@ describe("build optimizer scoring", () => {
         expect(selectedFinalListArcaneScore).toBeCloseTo(bestFinalListArcaneScore, 12);
     });
 
+    it("keeps a finite-TTK elemental and fire-rate pair with an alternate outgoing slot choice", { timeout: 60000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const target = { health: 100000, shields: 0, overguard: 0, armor: 3000 };
+        const conditionalState = { mode: "fullyStacked" as const };
+        const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon!));
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", 8, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig: {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            },
+            slotPolarities: weapon!.polarities,
+            defaultSlotPolarities: weapon!.polarities,
+            allowForma: true,
+            maxFormaCount: 3,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            buildForAttack: weapon!.attacks[0] ?? null,
+        });
+        const selectedNames = result.mods.map((mod) => mod.name);
+        const effects = result.slots.map((mod, index) => mod
+            ? mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+            : null);
+        const independentlyScored = debugScoreExpectedEncounter(
+            withSelectedAttack(weapon!, 0),
+            effects,
+            "Grineer",
+            target,
+            conditionalState,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(countPolarityChanges(weapon!.polarities, result.slotPolarities)).toBeLessThanOrEqual(3);
+        expect(selectedNames).toContain("Rime Rounds");
+        expect(selectedNames).toContain("Vile Acceleration");
+        expect(selectedNames).not.toContain("Thermite Rounds");
+        expect(selectedNames).not.toContain("Bladed Rounds");
+        expect(result.encounterTimeToKillSeconds).toBe(independentlyScored.timeToKillSeconds);
+        expect(independentlyScored.timeToKillSeconds).toBeCloseTo(1.49682908575255, 8);
+    });
+
     it("keeps an on-reload fire-rate candidate in full-pool finite-TTK refinement", { timeout: 45000 }, () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
         expect(weapon).toBeTruthy();
