@@ -1,4 +1,4 @@
-## D3-OPT-RANK-OWNED-FIVE-SLOT-ORACLE-001 — seeded R1-owned five-slot Expected TTK oracle (2026-11-22; locally validated, pending release)
+## D3-OPT-RANK-OWNED-FIVE-SLOT-ORACLE-001 — seeded R1-owned five-slot Expected TTK oracle (2026-11-22; released in PR [#264](https://github.com/Appl3Tree/Tenno-Hub/pull/264), squash merge `62caa31492ca6544a847d7249882aef8b3ef708f`)
 
 Seed `20261136` randomly selects five fully modeled, mutually compatible damage mods and one supported attack from each Braton Prime / Grineer, Lex Prime / shielded Corpus, Cedo / Grineer, and Broken War / Infested pool. Each sampled mod is capped at owned Rank 1, and the oracle enumerates every legal ordered subset and rank tuple (0–1) through five slots. Builds use a Catalyst, weapon-default polarities, and alternating zero/one-Forma budgets. The score is finite Expected TTK; Exilus and Arcane selection are disabled. The sampled target profiles are 70,000 Health / 2,400 Armor (Braton), 36,000 Health + 44,000 Shields (Lex), 140,000 Health / 1,800 Armor (Cedo), and 95,000 Health / 300 Armor (Broken War).
 
@@ -12,7 +12,7 @@ Reproduce with:
 npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded five-mod, five-slot R1-owned Expected TTK" --reporter=dot --configLoader runner
 ```
 
-This is four randomized sampled pools, not full-catalog optimization, exhaustive high-rank search, joint Arcane search, Underframe parity, or gameplay validation.
+PR [#264](https://github.com/Appl3Tree/Tenno-Hub/pull/264) squash-merged as `62caa31492ca6544a847d7249882aef8b3ef708f`; GitHub reported no status checks or PR-triggered workflow runs. This is four randomized sampled pools, not full-catalog optimization, exhaustive high-rank search, joint Arcane search, Underframe parity, or gameplay validation.
 
 ## D3-MOD-MOTUS-SETUP-ACTIVE-SNAPSHOT-001 — allow the explicitly active conditional in Auto Optimize (2026-11-22; released in PR [#259](https://github.com/Appl3Tree/Tenno-Hub/pull/259), squash merge `fcc04cd22a01bb1390383b999a4cf7f6ed81d9d7`)
 
