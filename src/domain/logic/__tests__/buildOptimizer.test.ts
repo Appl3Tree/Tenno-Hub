@@ -364,7 +364,12 @@ describe("attack falloff optimizer propagation", () => {
 });
 
 describe("fixed-window DPS objective", () => {
-    function optimizeCatalogWindowFixture(weaponName: string, attackName: string) {
+    function optimizeCatalogWindowFixture(
+        weaponName: string,
+        attackName: string,
+        targetFaction = "Grineer",
+        targetProfileOverride = { health: 2_000_000, shields: 0, overguard: 0, armor: 3_000 },
+    ) {
         const catalogWeapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
         expect(catalogWeapon).toBeDefined();
         const attackIndex = catalogWeapon!.attacks.findIndex((attack) => attack.name === attackName);
@@ -379,8 +384,8 @@ describe("fixed-window DPS objective", () => {
             "windowDps",
             slotCount,
             {
-                targetFaction: "Grineer",
-                targetProfileOverride: { health: 2_000_000, shields: 0, overguard: 0, armor: 3_000 },
+                targetFaction,
+                targetProfileOverride,
                 conditionalState: { mode: "realistic" },
                 buildForAttack: attack,
                 slotPolarities,
@@ -418,6 +423,36 @@ describe("fixed-window DPS objective", () => {
         expect(result.mods.some((mod) => mod.name === "Primed Target Cracker")).toBe(true);
         expect(result.mods.some((mod) => mod.name === "Hornet Strike")).toBe(false);
         expect(result.windowDpsScore).toBeCloseTo(56_869.970342600674, 6);
+    });
+
+    it("reserves melee attack-speed alternatives for a shielded Corpus heavy slam", { timeout: 15000 }, () => {
+        const { result } = optimizeCatalogWindowFixture(
+            "Arca Titron",
+            "Heavy Slam Attack",
+            "Corpus",
+            { health: 2_000_000, shields: 2_000_000, overguard: 0, armor: 0 },
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Primed Fury")).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Shocking Touch")).toBe(false);
+        expect(result.mods.some((mod) => mod.name === "Melee Elementalist")).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Galvanized Elementalist")).toBe(false);
+        expect(result.windowDpsScore).toBeGreaterThan(317_000);
+    });
+
+    it("reserves a second heat option for a high-health Infested Kuva Ogris window", { timeout: 15000 }, () => {
+        const { result } = optimizeCatalogWindowFixture(
+            "Kuva Ogris",
+            "Rocket Explosion",
+            "Infested",
+            { health: 10_000_000, shields: 0, overguard: 0, armor: 0 },
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Hellfire")).toBe(true);
+        expect(result.mods.some((mod) => mod.name === "Nightwatch Napalm")).toBe(false);
+        expect(result.windowDpsScore).toBeGreaterThan(198_203);
     });
 
     it("scores Mausolon's linked Auto radial hit on the directly struck target", () => {
