@@ -1,4 +1,4 @@
-## D3-MOD-STINGING-TRUTH-FLAT-MAGAZINE-001 — flat capacity and Truth proc boundary (2026-11-22; local validation complete, release pending)
+## D3-MOD-STINGING-TRUTH-FLAT-MAGAZINE-001 — flat capacity and Truth proc boundary (released in PR [#276](https://github.com/Appl3Tree/Tenno-Hub/pull/276), squash merge `31bbbff4f26c930445900f06108a8025bbf4d03c`)
 
 ### Source-backed behavior
 
@@ -14,7 +14,7 @@ The [Syndicates page](https://wiki.warframe.com/w/Syndicates) and [Weapon Augmen
 - `npm run build` passes app TypeScript and Vite production bundling; Vite reports the repository's existing large-chunk advisory. Focused ESLint and `git diff --check` pass. `npm run audit:mod-effect-coverage` reports 697 weapon profiles, 600 unique eligible mod records, 495 records with parsed effects, 105 with no parsed effect at max rank, 69 conservative review candidates (20 partial / 49 fully unparsed and excluded), and zero weapon pools without a parsed damage effect.
 - Reproduce with `npx vitest run src/domain/logic/__tests__/damageCalc.test.ts --reporter=dot` and `npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "models Stinging Truth" --reporter=dot`.
 
-The full suite was not rerun. A local production preview was built, but the in-app browser could not connect to the temp checkout preview on port 4182; hosted visual verification remains pending. No saved build was edited, and this does not establish Underframe parity or live-game accuracy beyond the cited stat rows. Release and hosted IAB evidence will be added after merge.
+The local production preview at port 4182 timed out. After merge, Pages run [#356](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45054715475) completed successfully. Hosted production IAB at `version=31bbbff` verified the Build Planner with Viper selected: max-rank Stinging Truth displays `+40 Magazine Capacity`, the calculated Magazine stat is 54 (14 base + 40), and the mod card shows the Wiki-linked unscored Truth-effect warning and states that Auto Optimize skips it. The transient build was not saved and no saved build was edited. No full-suite, Underframe parity, or live-game claim; reopen only if source evidence or a reproducible calculation/UI regression contradicts these results.
 
 ## D3-OPT-UNDERFRAME-BRATON-COORDINATED-PAIR-001 — finite Expected TTK pair refinement (released in PR [#271](https://github.com/Appl3Tree/Tenno-Hub/pull/271), squash merge `1fdad3d962ae24ed1a4f820cefc13ffbd4494f88`)
 
