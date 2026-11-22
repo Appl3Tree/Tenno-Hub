@@ -331,6 +331,7 @@ export interface ConditionalEffect {
         | "finalCritChanceBonus"
         | "critMultBonus"
         | "finalCritMultiplierBonus"
+        | "weakPointCritChanceBonus"
         | "statusChanceBonus"
         | "finalStatusChanceBonus"
         | "multishotBonus"
@@ -430,7 +431,7 @@ function normalizeStatDescriptor(rest: string): string {
 
 const CONDITIONAL_STAT_KEYS: (keyof ConditionalEffect["stats"])[] = [
     "damageBonus", "critChanceBonus", "heavyAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus",
-    "finalCritMultiplierBonus", "statusChanceBonus", "finalStatusChanceBonus",
+    "finalCritMultiplierBonus", "weakPointCritChanceBonus", "statusChanceBonus", "finalStatusChanceBonus",
     "multishotBonus", "multishotDamageBonus", "fireRateBonus", "chargeRateBonus", "attackSpeedBonus", "magazineBonus",
     "reloadSpeedBonus", "projectileSpeedBonus", "beamRangeBonus", "accuracyBonus",
     "statusDamageBonus", "punchThrough", "headshotMultiplierBonus", "bodyshotDamageBonus", "weakPointDamageBonus",

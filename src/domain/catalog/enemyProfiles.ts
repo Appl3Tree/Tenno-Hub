@@ -20,6 +20,8 @@ export interface EnemyProfile {
     headshotMultiplier: number;
     /** Wiki critical-headshot bonus factor; 1 means this target's head does not receive a headcrit. */
     criticalHeadshotMultiplier: number;
+    /** Whether this profile identifies the head hitbox itself as a weak point. */
+    headIsWeakPoint: boolean;
     sourceUrl: string;
     notes?: string;
 }
@@ -39,6 +41,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Lancer",
         headshotMultiplier: 3,
         criticalHeadshotMultiplier: 2,
+        headIsWeakPoint: true,
         notes: "Regular Lancer baseline; its head is 3× and receives the standard critical-headshot bonus. Armored spawn values use the current 200 minimum.",
     },
     {
@@ -55,6 +58,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Butcher",
         headshotMultiplier: 3,
         criticalHeadshotMultiplier: 2,
+        headIsWeakPoint: true,
         notes: "Regular Butcher baseline; its head is 3× and receives the standard critical-headshot bonus. Armored spawn values use the current 200 minimum.",
     },
     {
@@ -71,6 +75,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Heavy_Gunner",
         headshotMultiplier: 3,
         criticalHeadshotMultiplier: 2,
+        headIsWeakPoint: true,
         notes: "Regular Heavy Gunner baseline; its head is 3× and receives the standard critical-headshot bonus. Demolisher Heavy Gunner is a separate unsupported target.",
     },
     {
@@ -87,6 +92,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Corrupted_Heavy_Gunner",
         headshotMultiplier: 3,
         criticalHeadshotMultiplier: 2,
+        headIsWeakPoint: true,
         notes: "Orokin-controlled Grineer heavy unit; its head is 3× and receives the standard critical-headshot bonus.",
     },
     {
@@ -103,6 +109,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Crewman",
         headshotMultiplier: 3,
         criticalHeadshotMultiplier: 1,
+        headIsWeakPoint: true,
         notes: "Regular Crewman baseline; its head is 3× but Corpus humanoids do not receive critical-headshot bonus. Osprey shield links and leader variants are not modeled.",
     },
     {
@@ -119,6 +126,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/MOA",
         headshotMultiplier: 1,
         criticalHeadshotMultiplier: 1,
+        headIsWeakPoint: false,
         notes: "Standard MOA head is 1× and does not receive a critical-headshot bonus; its 3× Fanny Pack is a separate hit location. Turret body-part reduction and special variants are not modeled.",
     },
     {
@@ -135,6 +143,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Corpus_Tech",
         headshotMultiplier: 3,
         criticalHeadshotMultiplier: 1,
+        headIsWeakPoint: true,
         notes: "Static baseline; its head is 3×, but Corpus humanoids do not receive critical-headshot bonus. Shield Osprey deployment and its shared shield link are not simulated.",
     },
     {
@@ -151,6 +160,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Bombard",
         headshotMultiplier: 3,
         criticalHeadshotMultiplier: 2,
+        headIsWeakPoint: true,
         notes: "Standard Bombard baseline; its head is 3× and receives the standard critical-headshot bonus. Special unit damage reduction and target-specific exceptions are not modeled.",
     },
     {
@@ -167,6 +177,7 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Amalgam_Moa",
         headshotMultiplier: 1,
         criticalHeadshotMultiplier: 1,
+        headIsWeakPoint: false,
         notes: "Static baseline; the Wiki lists a 3× Fanny Pack but no head multiplier. Phase healing and its out-of-phase damage reduction are not modeled.",
     },
     {
@@ -183,7 +194,8 @@ export const ENEMY_PROFILES: readonly EnemyProfile[] = Object.freeze([
         sourceUrl: "https://wiki.warframe.com/w/Charger",
         headshotMultiplier: 1,
         criticalHeadshotMultiplier: 1,
-        notes: "The Wiki lists the Charger mouth as a 1× weak point, so it gets neither a headshot multiplier nor critical-headshot bonus. Deimos and special mission variants use different mechanics or baselines.",
+        headIsWeakPoint: true,
+        notes: "The current Charger page reports an additional weak point on the Grineer head. The curated profile uses a 1× weak-point/head location with no critical-headshot bonus; its separate mouth weak point and Deimos variants are not distinguished here.",
     },
 ]);
 
@@ -196,6 +208,8 @@ export function getEnemyProfile(id: string): EnemyProfile | undefined {
 export interface FactionHitLocationProfile {
     headshotMultiplier: number;
     criticalHeadshotMultiplier: number;
+    /** True only when the faction representative uses its head as a weak point. */
+    headIsWeakPoint: boolean;
 }
 
 /** Current Wiki-typical headshot defaults for faction-only synthetic targets. */
@@ -211,20 +225,21 @@ export function getFactionHitLocationProfile(faction: string): FactionHitLocatio
         case "narmer":
         case "anarchs":
         case "scaldra (1999)":
-            return { headshotMultiplier: 3, criticalHeadshotMultiplier: 2 };
+            return { headshotMultiplier: 3, criticalHeadshotMultiplier: 2, headIsWeakPoint: true };
         case "corpus":
             // Faction-only Corpus estimate uses a humanoid representative; named MOAs override this.
-            return { headshotMultiplier: 3, criticalHeadshotMultiplier: 1 };
+            return { headshotMultiplier: 3, criticalHeadshotMultiplier: 1, headIsWeakPoint: true };
         case "the murmur":
         case "techrot (1999)":
             // Their anatomy varies by enemy; common weak points are 1.5× and most lack headcrits.
-            return { headshotMultiplier: 1.5, criticalHeadshotMultiplier: 1 };
+            // These factions mix head and non-head weakpoints; the 1.5× estimate is not proof that the head is weak.
+            return { headshotMultiplier: 1.5, criticalHeadshotMultiplier: 1, headIsWeakPoint: false };
         case "corpus amalgam":
         case "zariman":
         case "tenno":
-            return { headshotMultiplier: 1, criticalHeadshotMultiplier: 1 };
+            return { headshotMultiplier: 1, criticalHeadshotMultiplier: 1, headIsWeakPoint: false };
         default:
             // Unknown factions stay at body multiplier until a current Wiki profile is curated.
-            return { headshotMultiplier: 1, criticalHeadshotMultiplier: 1 };
+            return { headshotMultiplier: 1, criticalHeadshotMultiplier: 1, headIsWeakPoint: false };
     }
 }

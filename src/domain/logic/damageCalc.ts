@@ -505,6 +505,12 @@ export interface HitLocationDamageProfile {
     headshotMultiplierBonus?: number;
     /** Signed bodyshot damage bonus; e.g. Meticulous Aim's -45% is -0.45. */
     bodyshotDamageBonus?: number;
+    /** Whether the modeled head hitbox is also a weak point. */
+    headIsWeakPoint?: boolean;
+    /** Weak-point damage bonus fraction applied under the Wiki head/body-part rule. */
+    weakPointDamageBonus?: number;
+    /** Critical Chance bonus fraction that applies only to weak-point hits. */
+    weakPointCritChanceBonus?: number;
     /** False for area attacks, melee, and weapon classes outside this headshot model. */
     canHeadshot?: boolean;
 }
@@ -673,7 +679,10 @@ export function avgHitDamageMultiplier(
     // Vigilante upgrades a landed Primary crit by one tier. The expected tier
     // increment is weighted by both the set chance and the chance to crit.
     // https://wiki.warframe.com/w/Set_Mod
-    const expectedCritTier = normalizedCritChance + Math.min(1, normalizedCritChance) * normalizedEnhancementChance;
+    // https://wiki.warframe.com/w/Enemy_Body_Parts
+    const expectedCritTierForChance = (chance: number) =>
+        chance + Math.min(1, chance) * normalizedEnhancementChance;
+    const expectedCritTier = expectedCritTierForChance(normalizedCritChance);
     const critDamage = avgCritMultiplier(expectedCritTier, critMult);
     const nonCriticalChance = Math.max(0, 1 - Math.min(1, normalizedCritChance));
     const expectedProcMultiplier = nonCriticalHitDamageProcs.reduce((multiplier, proc) => {
@@ -694,15 +703,26 @@ export function avgHitDamageMultiplier(
         ? hitLocation.headshotMultiplierBonus ?? 0
         : 0;
     const bodyshotMultiplier = Math.max(0, 1 + bodyshotDamageBonus);
-    const headshotMultiplier = Math.max(0, Number.isFinite(hitLocation.headshotMultiplier) ? hitLocation.headshotMultiplier ?? 1 : 1) *
+    const baseHeadshotMultiplier = Math.max(0, Number.isFinite(hitLocation.headshotMultiplier) ? hitLocation.headshotMultiplier ?? 1 : 1);
+    const weakPointDamageBonus = hitLocation.headIsWeakPoint && Number.isFinite(hitLocation.weakPointDamageBonus)
+        ? hitLocation.weakPointDamageBonus ?? 0
+        : 0;
+    const weakPointCritChanceBonus = hitLocation.headIsWeakPoint && Number.isFinite(hitLocation.weakPointCritChanceBonus)
+        ? hitLocation.weakPointCritChanceBonus ?? 0
+        : 0;
+    const headshotMultiplier = Math.max(0, baseHeadshotMultiplier + 1.5 * weakPointDamageBonus) *
         Math.max(0, 1 + headshotMultiplierBonus);
+    const headshotCritChance = Math.max(0, normalizedCritChance + weakPointCritChanceBonus);
+    const headshotCritTier = expectedCritTierForChance(headshotCritChance);
+    const headshotNonCriticalChance = Math.max(0, 1 - Math.min(1, headshotCritChance));
     const criticalHeadshotMultiplier = Math.max(0, Number.isFinite(hitLocation.criticalHeadshotMultiplier)
         ? hitLocation.criticalHeadshotMultiplier ?? 2
         : 2);
-    const headshotCritDamage = 1 + expectedCritTier * (criticalHeadshotMultiplier * Math.max(0, critMult) - 1);
+    const headshotCritDamage = 1 + headshotCritTier * (criticalHeadshotMultiplier * Math.max(0, critMult) - 1);
     const ordinaryNonCritProcBonus = nonCriticalChance * (expectedProcMultiplier - 1);
+    const headshotNonCritProcBonus = headshotNonCriticalChance * (expectedProcMultiplier - 1);
     const bodyshotDamage = bodyshotMultiplier * (critDamage + ordinaryNonCritProcBonus);
-    const headshotDamage = headshotMultiplier * (headshotCritDamage + ordinaryNonCritProcBonus);
+    const headshotDamage = headshotMultiplier * (headshotCritDamage + headshotNonCritProcBonus);
     return bodyshotDamage * (1 - headshotRate) + headshotDamage * headshotRate;
 }
 
@@ -736,13 +756,31 @@ export function getHitLocationDotDamageMultiplier(
             ? bodyshotDamageFactor * bodyshotDamageFactor - 1
             : bodyshotDamageBonus,
     };
-    return avgHitDamageMultiplier(
+    const headshotRate = hitLocation.canHeadshot === false
+        ? 0
+        : Math.max(0, Math.min(1, Number.isFinite(hitLocation.headshotRate) ? hitLocation.headshotRate ?? 0 : 0));
+    const bodyshotMultiplier = avgHitDamageMultiplier(
         critChance,
         critMultiplier,
         [],
-        dotHitLocation,
+        { ...dotHitLocation, headshotRate: 0, headIsWeakPoint: false, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0 },
         critTierEnhancementChance,
     ) / baseline;
+    const headshotMultiplier = avgHitDamageMultiplier(
+        critChance,
+        critMultiplier,
+        [],
+        { ...dotHitLocation, headshotRate: 1, weakPointDamageBonus: 0 },
+        critTierEnhancementChance,
+    ) / baseline;
+    // The Wiki DoT rule uses Weak Point Multiplier × (1 + Weak Point Damage Bonus).
+    // The direct-hit rule instead adds 1.5× the bonus to a head weakpoint multiplier.
+    // https://wiki.warframe.com/w/Damage/Calculation
+    const weakPointDotMultiplier = hitLocation.headIsWeakPoint
+        ? Math.max(0, 1 + (Number.isFinite(hitLocation.weakPointDamageBonus) ? hitLocation.weakPointDamageBonus ?? 0 : 0))
+        : 1;
+    return bodyshotMultiplier * (1 - headshotRate) +
+        headshotMultiplier * weakPointDotMultiplier * headshotRate;
 }
 
 /**
@@ -1277,6 +1315,8 @@ export function calculateBuild(
     let finalCritMultiplierBonus = 0;
     let headshotMultiplierBonus = 0;
     let bodyshotDamageBonus = 0;
+    let weakPointDamageBonus = 0;
+    let weakPointCritChanceBonus = 0;
     const nonCriticalHitDamageProcs: NonCriticalHitDamageProc[] = [];
     let statusChanceBonus = 0;
     let areaDamageStatusChanceBonus = 0;
@@ -1342,6 +1382,8 @@ export function calculateBuild(
         damageBonus += e.damageBonus ?? 0;
         headshotMultiplierBonus += e.headshotMultiplierBonus ?? 0;
         bodyshotDamageBonus += e.bodyshotDamageBonus ?? 0;
+        weakPointDamageBonus += e.weakPointDamageBonus ?? 0;
+        weakPointCritChanceBonus += e.weakPointCritChanceBonus ?? 0;
         physicalDamageConversion ??= e.physicalDamageConversion;
         elementalDamageConversion ??= e.elementalDamageConversion;
         if (weapon.category === "Companion" && weapon.uniqueName.includes("/BeastWeapons/")) {
@@ -1638,6 +1680,8 @@ export function calculateBuild(
     let conditionalFinalCritMultiplierBonus = 0;
     let conditionalHeadshotMultiplierBonus = 0;
     let conditionalBodyshotDamageBonus = 0;
+    let conditionalWeakPointDamageBonus = 0;
+    let conditionalWeakPointCritChanceBonus = 0;
     let conditionalStatusChanceBonus = 0;
     let conditionalFinalStatusChanceBonus = 0;
     let conditionalStatusDamageBonus = 0;
@@ -1719,6 +1763,8 @@ export function calculateBuild(
         conditionalFinalCritMultiplierBonus += (conditional.stats.finalCritMultiplierBonus ?? 0) * factor;
         conditionalHeadshotMultiplierBonus += (conditional.stats.headshotMultiplierBonus ?? 0) * factor;
         conditionalBodyshotDamageBonus += (conditional.stats.bodyshotDamageBonus ?? 0) * factor;
+        conditionalWeakPointDamageBonus += (conditional.stats.weakPointDamageBonus ?? 0) * factor;
+        conditionalWeakPointCritChanceBonus += (conditional.stats.weakPointCritChanceBonus ?? 0) * factor;
         conditionalStatusChanceBonus += (conditional.stats.statusChanceBonus ?? 0) * factor;
         conditionalFinalStatusChanceBonus += (conditional.stats.finalStatusChanceBonus ?? 0) * factor;
         conditionalStatusDamageBonus += (conditional.stats.statusDamageBonus ?? 0) * factor;
@@ -1762,6 +1808,8 @@ export function calculateBuild(
     finalCritMultiplierBonus += conditionalFinalCritMultiplierBonus;
     headshotMultiplierBonus += conditionalHeadshotMultiplierBonus;
     bodyshotDamageBonus += conditionalBodyshotDamageBonus;
+    weakPointDamageBonus += conditionalWeakPointDamageBonus;
+    weakPointCritChanceBonus += conditionalWeakPointCritChanceBonus;
     statusChanceBonus += conditionalStatusChanceBonus;
     finalStatusChanceBonus += conditionalFinalStatusChanceBonus;
     multishotBonus += conditionalMultishotBonus;
@@ -2297,6 +2345,9 @@ export function calculateBuild(
             : 2,
         headshotMultiplierBonus,
         bodyshotDamageBonus,
+        headIsWeakPoint: options.hitLocation?.headIsWeakPoint === true,
+        weakPointDamageBonus,
+        weakPointCritChanceBonus,
         canHeadshot: headshotEligibleCategory && weapon.selectedAttackIsAreaDamage !== true &&
             options.hitLocation?.canHeadshot !== false,
     };

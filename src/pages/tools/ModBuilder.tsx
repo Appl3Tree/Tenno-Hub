@@ -57,6 +57,7 @@ function getTargetHitLocationProfile(
         headshotRate: target.headshotHitRate,
         headshotMultiplier: target.headshotMultiplier,
         criticalHeadshotMultiplier: target.criticalHeadshotMultiplier,
+        headIsWeakPoint: target.headIsWeakPoint,
     };
 }
 
@@ -2541,6 +2542,7 @@ function CapBar({ used, total, over }: { used: number; total: number; over: bool
 
 interface SlotProps {
     index: number; label?: string;
+    headIsWeakPoint?: boolean;
     mod: ModEntry | null; rank: number; slotPolarity: string;
     compatMods: ModEntry[]; usedGroups: Set<string>;
     ownedUniqueNames: Set<string>; onlyOwned: boolean; isExilusSlot?: boolean;
@@ -2560,7 +2562,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2590,7 +2592,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank) : [];
+    const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, { headIsWeakPoint }) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
     const polMatch    = !!(mod && slotPolarity && slotPolarity === mod.polarity);
@@ -2775,7 +2777,7 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
                             const match    = !!(slotPolarity && slotPolarity === m.polarity);
                             const mismatch = !!(slotPolarity && slotPolarity !== m.polarity && slotPolarity !== "");
                             const owned    = ownedUniqueNames.size === 0 || ownedUniqueNames.has(m.uniqueName);
-                            const unmodeledDamageLines = getUnmodeledDamageEffectLines(m, m.fusionLimit);
+                            const unmodeledDamageLines = getUnmodeledDamageEffectLines(m, m.fusionLimit, { headIsWeakPoint });
                             return (
                                 <button key={m.uniqueName}
                                     className={["w-full px-3 py-2 text-left hover:bg-slate-800/50 transition-colors",
@@ -2831,8 +2833,9 @@ function ModSlot({ index, label, mod, rank, slotPolarity, compatMods, usedGroups
 
 // ── Arcane Slot ───────────────────────────────────────────────────────────────
 
-function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArcanes }: {
+function ArcaneSlot({ label, headIsWeakPoint, arcane, rank, onChange, onRankChange, availableArcanes }: {
     label: string;
+    headIsWeakPoint?: boolean;
     arcane: ArcaneEntry | null;
     rank: number;
     onChange: (a: ArcaneEntry | null) => void;
@@ -2862,7 +2865,7 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
     // Current stats at rank
     const statAtRank = arcane ? normalizeArcaneDisplayText(arcane.statsByRank[rank] ?? arcane.statsLabel) : null;
     const unmodeledSelectedEffectLines = arcane
-        ? getUnmodeledScoringEffectLines(arcane.optimizerEffectByRank[rank] ?? arcane.permanentEffectByRank[rank])
+        ? getUnmodeledScoringEffectLines(arcane.optimizerEffectByRank[rank] ?? arcane.permanentEffectByRank[rank], { headIsWeakPoint })
         : [];
 
     return (
@@ -2963,7 +2966,7 @@ function ArcaneSlot({ label, arcane, rank, onChange, onRankChange, availableArca
                                     <span className="text-[9px] px-1 rounded border border-violet-700/50 bg-violet-950/30 text-violet-400 shrink-0">{a.rarity}</span>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-0.5 truncate">{a.statsLabel}</div>
-                                {getUnmodeledScoringEffectLines(a.optimizerEffectByRank[a.maxRank] ?? a.permanentEffectByRank[a.maxRank]).length > 0 && (
+                                {getUnmodeledScoringEffectLines(a.optimizerEffectByRank[a.maxRank] ?? a.permanentEffectByRank[a.maxRank], { headIsWeakPoint }).length > 0 && (
                                     <div className="text-[9px] text-amber-300 mt-0.5">
                                         Not all effects are included in scoring; Auto Optimize skips this Arcane for unsupported effects.
                                     </div>
@@ -3859,6 +3862,7 @@ export default function ModBuilder() {
                 ...(selectedProfile ? {
                     headshotMultiplier: selectedProfile.headshotMultiplier,
                     criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
+                    headIsWeakPoint: selectedProfile.headIsWeakPoint,
                 } : {}),
             };
         }
@@ -3874,6 +3878,7 @@ export default function ModBuilder() {
             ...(selectedProfile ? {
                 headshotMultiplier: selectedProfile.headshotMultiplier,
                 criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
+                headIsWeakPoint: selectedProfile.headIsWeakPoint,
             } : {}),
             armorBaseValue: customTargetStats.armor,
             armorLevelMultiplier: scaleCustomTargetByLevel
@@ -3900,6 +3905,7 @@ export default function ModBuilder() {
             statusStackCaps,
         };
     }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel, isEximus]);
+    const targetHeadIsWeakPoint = getTargetProfileAssumptions(faction, targetProfileOverride).headIsWeakPoint;
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
     const [maxFormaAllowed, setMaxFormaAllowed] = useState(9);
@@ -6637,8 +6643,9 @@ export default function ModBuilder() {
                                                                     className="w-full accent-sky-400"
                                                                 />
                                                                 <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                    Tenno-Hub fills the selected target's headshot multiplier and critical-headshot rule from the WARFRAME Wiki; this control is only your estimated headshot share. Area/radial attacks do not headshot. General faction values are typical estimates, while a named enemy uses its listed hit location. Weak-point-only damage and critical bonuses remain outside this model. Sources: {" "}
+                                                                    Tenno-Hub fills the selected target's headshot multiplier and critical-headshot rule from the WARFRAME Wiki; this control is only your estimated headshot share. Area/radial attacks do not headshot. General faction values are typical estimates, while a named enemy uses its listed hit location. Weak-point damage and Critical Chance bonuses apply to the configured headshot share only when the selected profile marks its head as a weak point; non-head weakpoints are not modeled. Sources: {" "}
                                                                     <a href="https://wiki.warframe.com/w/Enemy_Body_Parts" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Enemy Body Parts</a>, {" "}
+                                                                    <a href="https://wiki.warframe.com/w/Damage/Calculation" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Damage Calculation</a>, {" "}
                                                                     <a href="https://wiki.warframe.com/w/Critical_Multiplier" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Critical Multiplier</a>, {" "}
                                                                     <a href="https://wiki.warframe.com/w/Meticulous_Aim" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Meticulous Aim</a>.
                                                                 </p>
@@ -7411,7 +7418,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -7442,7 +7449,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -7469,7 +7476,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -7503,7 +7510,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             )}
                                                         </div>
-                                                        <ArcaneSlot label="Arcane Enhancement" arcane={arcane1} rank={arcane1Rank}
+                                                        <ArcaneSlot headIsWeakPoint={targetHeadIsWeakPoint} label="Arcane Enhancement" arcane={arcane1} rank={arcane1Rank}
                                                             onChange={setArcane1} onRankChange={setArcane1Rank}
                                                             availableArcanes={weaponArcanes} />
                                                         {weaponArcanes.some((arcane) => !!arcane.armorScaledWeaponDamage) && (
@@ -7538,7 +7545,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -7573,7 +7580,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                            <ArcaneSlot label="Arcane Enhancement" arcane={arcane1} rank={arcane1Rank}
+                                                            <ArcaneSlot headIsWeakPoint={targetHeadIsWeakPoint} label="Arcane Enhancement" arcane={arcane1} rank={arcane1Rank}
                                                                 onChange={setArcane1} onRankChange={setArcane1Rank}
                                                                 availableArcanes={weaponArcanes} />
                                                             {weaponArcanes.some((arcane) => !!arcane.armorScaledWeaponDamage) && (
@@ -7611,7 +7618,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}
