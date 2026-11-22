@@ -130,6 +130,11 @@ describe("Tennokai mod catalog coverage", () => {
                 "Tennokai opportunity timing and attack-chain cadence are not modeled or scored.",
             );
         }
+        const truthsFlame = tennokaiMods[6]!;
+        expect(getUnmodeledDamageEffectLines(truthsFlame, truthsFlame.fusionLimit)).toContain(
+            "Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled, so Auto Optimize skips this mod.",
+        );
+        expect(getUnmodeledDamageEffectSourceUrl(truthsFlame)).toBe("https://wiki.warframe.com/w/Syndicates");
     });
 });
 
@@ -4917,5 +4922,50 @@ describe("Strain Infection Burst critical damage", () => {
         expect(exalted.critMultiplier).toBeCloseTo(exalted.quantizedBaseCritMultiplier, 10);
         expect(primary.strainInfectionCritDamageBonus).toBe(0);
         expect(primary.critMultiplier).toBeCloseTo(primary.quantizedBaseCritMultiplier, 10);
+    });
+});
+
+describe("Stinging Truth flat magazine capacity", () => {
+    it("adds its rank-scaled rounds after percentage Magazine Capacity for Viper variants", () => {
+        const weapons = getWeaponCatalog();
+        const viper = weapons.find((candidate) => candidate.name === "Viper");
+        const viperWraith = weapons.find((candidate) => candidate.name === "Viper Wraith");
+        const twinVipers = weapons.find((candidate) => candidate.name === "Twin Vipers");
+        expect(viper).toBeDefined();
+        expect(viperWraith).toBeDefined();
+        expect(twinVipers).toBeDefined();
+
+        const stingingTruth = getModsForWeapon(viper!).find((mod) => mod.name === "Stinging Truth");
+        const stingingTruthWraith = getModsForWeapon(viperWraith!).find((mod) => mod.name === "Stinging Truth");
+        const slipMagazine = getModsForWeapon(viper!).find((mod) => mod.name === "Slip Magazine");
+        const slipMagazineWraith = getModsForWeapon(viperWraith!).find((mod) => mod.name === "Slip Magazine");
+        expect(stingingTruth).toBeDefined();
+        expect(stingingTruthWraith).toBeDefined();
+        expect(slipMagazine).toBeDefined();
+        expect(slipMagazineWraith).toBeDefined();
+        expect(getModsForWeapon(twinVipers!).some((mod) => mod.name === "Stinging Truth")).toBe(false);
+        expect(stingingTruth!.effectsByRank.map((effect) => effect.magazineCapacityFlatBonus)).toEqual([10, 20, 30, 40]);
+        expect(stingingTruth!.effectsByRank.map((effect) => effect.magazineBonus)).toEqual([0, 0, 0, 0]);
+        expect(slipMagazine!.effectsByRank[slipMagazine!.fusionLimit].magazineBonus).toBeCloseTo(0.1, 12);
+
+        const viperMagazines = stingingTruth!.effectsByRank.map((effect) =>
+            calculateBuild(viper!, [effect]).modded.magazineSize,
+        );
+        const wraithMagazines = stingingTruthWraith!.effectsByRank.map((effect) =>
+            calculateBuild(viperWraith!, [effect]).modded.magazineSize,
+        );
+        expect(viperMagazines).toEqual([24, 34, 44, 54]);
+        expect(wraithMagazines).toEqual([30, 40, 50, 60]);
+
+        const combinedViper = calculateBuild(viper!, [
+            stingingTruth!.effectsByRank[stingingTruth!.fusionLimit],
+            slipMagazine!.effectsByRank[slipMagazine!.fusionLimit],
+        ]).modded;
+        const combinedWraith = calculateBuild(viperWraith!, [
+            stingingTruthWraith!.effectsByRank[stingingTruthWraith!.fusionLimit],
+            slipMagazineWraith!.effectsByRank[slipMagazineWraith!.fusionLimit],
+        ]).modded;
+        expect(combinedViper.magazineSize).toBe(55); // round(14 × 1.10 + 40)
+        expect(combinedWraith.magazineSize).toBe(62); // round(20 × 1.10 + 40)
     });
 });

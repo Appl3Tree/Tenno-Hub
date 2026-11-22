@@ -188,6 +188,8 @@ export interface ModEffect {
     chargeRateBonus: number;
     /** Cannonade mods lock ranged Fire Rate to the weapon's unmodified value. */
     fireRateLocked: boolean;
+    /** Flat Magazine Capacity added after percentage capacity bonuses. */
+    magazineCapacityFlatBonus: number;
     magazineBonus: number;
     reloadSpeedBonus: number;
     attackSpeedBonus: number;
@@ -677,10 +679,17 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
         : (stackMatch ? Math.max(1, Number(stackMatch[1])) : 1);
     const withoutPrefix = clean.replace(/^[^+-\d]*([+-]?\d)/, "$1");
     const value = extractPercent(withoutPrefix);
+    // Stinging Truth is a flat Magazine Capacity bonus, not a percentage.
+    // https://wiki.warframe.com/w/Stinging_Truth
+    const flatMagazineCapacity = withoutPrefix.match(/^([+-]?\d+(?:\.\d+)?)\s+(?:magazine capacity|clip size)\.?$/i);
     // Entropy Burst and Napalm Grenades publish their additive final Status
     // Chance as percentage points without a % sign (+20 means +0.20 chance).
     const flatFinalStatusChance = withoutPrefix.match(/^([+-]?\d+(?:\.\d+)?)\s+Final Status Chance\.?$/i);
-    if (value === null && !flatFinalStatusChance) return {};
+    if (value === null && !flatFinalStatusChance && !flatMagazineCapacity) return {};
+
+    if (flatMagazineCapacity) {
+        return { magazineCapacityFlatBonus: Number(flatMagazineCapacity[1]) * stackMult };
+    }
 
     const scaled = (value ?? Number(flatFinalStatusChance![1]) / 100) * stackMult;
     const doublesCriticalChanceOnHeavyAttack = /\(\s*x\s*2\s+for\s+heavy attacks?\s*\)/i.test(withoutPrefix);

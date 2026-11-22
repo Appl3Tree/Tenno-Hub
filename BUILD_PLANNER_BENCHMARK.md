@@ -1,3 +1,21 @@
+## D3-MOD-STINGING-TRUTH-FLAT-MAGAZINE-001 — flat capacity and Truth proc boundary (2026-11-22; local validation complete, release pending)
+
+### Source-backed behavior
+
+The current [Stinging Truth page](https://wiki.warframe.com/w/Stinging_Truth) lists rank 0–3 flat Magazine Capacity bonuses of +10/+20/+30/+40. It is exclusive to Viper and Viper Wraith and does not apply to Twin Vipers variants. The Wiki says the max-rank +40 changes their base magazines from 14/20 to 54/60. The [Upgrade page](https://wiki.warframe.com/w/Upgrade) says percentage Magazine Capacity is applied to the base value before flat bonuses and gives the example `14 × (1 + 0.3) + 40`. The [Primed Slip Magazine page](https://wiki.warframe.com/w/Primed_Slip_Magazine) documents nearest-whole-number rounding for non-integer magazine values.
+
+The [Syndicates page](https://wiki.warframe.com/w/Syndicates) and [Weapon Augment page](https://wiki.warframe.com/w/Weapon_Augment) describe the separate Affinity-earned gauge and Truth effect. Truth adds radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff. The planner still has no Affinity/gauge timeline or multi-target radial resolution, so these effects are not scored.
+
+### Implementation and test evidence
+
+- Added `magazineCapacityFlatBonus` independently from percentage `magazineBonus`. Rank parsing covers flat Magazine Capacity/Clip Size source lines; calculation applies percentage bonuses first, then flat rounds, then nearest-integer rounding in baseline magazine size, charged ammo-scaling, and final displayed magazine size.
+- Manual Viper/Viper Wraith builds now include the supported capacity effect and the explanation lists `+N Magazine Capacity`. The unsupported Truth proc is disclosed at every affected rank, links to the Wiki, and blocks that mod rank from Auto Optimize while preserving supported manual stats. The same Truth warning covers Stinging Truth, Gilded Truth, Avenging Truth, and Truth's Flame raw `+N 'Truth'` lines.
+- The focused damage calculator file passes 150/150, covering all four rank values, Viper and Viper Wraith totals, Twin Vipers exclusion, and percentage-plus-flat combinations (max-rank Slip Magazine gives modeled 55 and 62 magazines under the current sourced rounding rule). The focused optimizer test passes 1/1, verifies Stinging Truth and Gilded Truth are skipped at all ranks, and checks the Wiki-linked Truth warning. The Tennokai catalog test confirms Truth's Flame also exposes that distinct warning.
+- `npm run build` passes app TypeScript and Vite production bundling; Vite reports the repository's existing large-chunk advisory. Focused ESLint and `git diff --check` pass. `npm run audit:mod-effect-coverage` reports 697 weapon profiles, 600 unique eligible mod records, 495 records with parsed effects, 105 with no parsed effect at max rank, 69 conservative review candidates (20 partial / 49 fully unparsed and excluded), and zero weapon pools without a parsed damage effect.
+- Reproduce with `npx vitest run src/domain/logic/__tests__/damageCalc.test.ts --reporter=dot` and `npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "models Stinging Truth" --reporter=dot`.
+
+The full suite was not rerun. A local production preview was built, but the in-app browser could not connect to the temp checkout preview on port 4182; hosted visual verification remains pending. No saved build was edited, and this does not establish Underframe parity or live-game accuracy beyond the cited stat rows. Release and hosted IAB evidence will be added after merge.
+
 ## D3-OPT-UNDERFRAME-BRATON-COORDINATED-PAIR-001 — finite Expected TTK pair refinement (released in PR [#271](https://github.com/Appl3Tree/Tenno-Hub/pull/271), squash merge `1fdad3d962ae24ed1a4f820cefc13ffbd4494f88`)
 
 The state-matched replay in PR #270 found the Braton Prime / Normal Attack / Grineer / 100,000 Health / 3,000 Armor Fully Stacked optimizer at 1.610498s, 1.1% slower than the captured Underframe list at 1.593232s. The exact legal one-mod neighborhood had 216 candidates and no improvement. Exhaustive two-mod review then found a coordinated move: remove Thermite Rounds R3 + Bladed Rounds R5, add Rime Rounds R3 + Vile Acceleration R5. This lowers modeled finite Expected TTK to 1.496829s (66,807.89 modeled DPS).

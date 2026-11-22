@@ -1208,6 +1208,14 @@ function estimateConditionalStackFactor(
 
 export { estimateConditionalStackFactor };
 
+function moddedMagazineSize(baseMagazineSize: number, percentageBonus: number, flatBonus: number): number {
+    // The Wiki applies percentage capacity to the base before flat rounds and
+    // rounds non-integer magazines to the nearest whole number.
+    // https://wiki.warframe.com/w/Upgrade
+    // https://wiki.warframe.com/w/Primed_Slip_Magazine
+    return Math.max(1, Math.round(baseMagazineSize * (1 + percentageBonus) + flatBonus));
+}
+
 export function calculateBuild(
     weapon: WeaponEntry,
     mods: (ModEffect | null)[],
@@ -1280,6 +1288,7 @@ export function calculateBuild(
     let chargeRateBonus = 0;
     let fireRateLocked = false;
     let magazineBonus = 0;
+    let magazineCapacityFlatBonus = 0;
     let reloadSpeedBonus = 0;
     let ammoEfficiencyBonus = 0;
     let attackSpeedBonus = 0;
@@ -1387,6 +1396,7 @@ export function calculateBuild(
         fireRateLocked ||= e.fireRateLocked === true;
         if (!ignoresReloadAndMagazine) {
             magazineBonus += e.magazineBonus ?? 0;
+            magazineCapacityFlatBonus += e.magazineCapacityFlatBonus ?? 0;
             reloadSpeedBonus += e.reloadSpeedBonus ?? 0;
         }
         if (supportsAmmoEfficiency) {
@@ -1494,7 +1504,11 @@ export function calculateBuild(
         includeBowReload,
         chargeRateBonus,
     );
-    const baselineMagazineSize = Math.max(1, Math.round(weapon.magazineSize * (1 + magazineBonus)));
+    const baselineMagazineSize = moddedMagazineSize(
+        weapon.magazineSize,
+        magazineBonus,
+        magazineCapacityFlatBonus,
+    );
     let qualifyingHitGroupProbability = 0;
     let qualifyingHitRatePerSecond = 0;
     if (
@@ -1792,7 +1806,10 @@ export function calculateBuild(
     const chargeDamageBaseAmmoCost = weapon.selectedAttackChargeDamageBaseAmmoCost;
     const chargeAmmoPerShot = chargeDamageBaseAmmoCost !== undefined
         ? Math.min(
-            Math.max(chargeDamageBaseAmmoCost, Math.round(weapon.magazineSize * (1 + magazineBonus))),
+            Math.max(
+                chargeDamageBaseAmmoCost,
+                moddedMagazineSize(weapon.magazineSize, magazineBonus, magazineCapacityFlatBonus),
+            ),
             Math.max(
                 chargeDamageBaseAmmoCost,
                 Math.round(Number.isFinite(conditionalState.phantasmaChargeAmmo)
@@ -1967,7 +1984,7 @@ export function calculateBuild(
         ? Math.max(1, weapon.selectedAttackIsIncarnon
             ? weapon.selectedAttackIncarnonAmmoCapacity ?? weapon.magazineSize
             : weapon.magazineSize)
-        : Math.max(1, Math.round(weapon.magazineSize * (1 + magazineBonus)));
+        : moddedMagazineSize(weapon.magazineSize, magazineBonus, magazineCapacityFlatBonus);
     const reloadTime = ignoresReloadAndMagazine
         ? weapon.reloadTime
         : weapon.reloadTime / (1 + reloadSpeedBonus);

@@ -1234,6 +1234,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         acc.fireRateBonus += effect.fireRateBonus ?? 0;
         acc.chargeRateBonus += effect.chargeRateBonus ?? 0;
         acc.attackSpeedBonus += effect.attackSpeedBonus ?? 0;
+        acc.magazineCapacityFlatBonus += effect.magazineCapacityFlatBonus ?? 0;
         acc.magazineBonus += effect.magazineBonus ?? 0;
         acc.reloadSpeedBonus += effect.reloadSpeedBonus ?? 0;
         acc.statusDamageBonus += effect.statusDamageBonus ?? 0;
@@ -1275,6 +1276,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         fireRateBonus: 0,
         chargeRateBonus: 0,
         attackSpeedBonus: 0,
+        magazineCapacityFlatBonus: 0,
         magazineBonus: 0,
         reloadSpeedBonus: 0,
         statusDamageBonus: 0,
