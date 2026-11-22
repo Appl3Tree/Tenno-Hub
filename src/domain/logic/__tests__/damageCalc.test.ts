@@ -1142,9 +1142,7 @@ describe("Motus Setup Wiki modeling", () => {
 
         for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
             expect(mod!.unparsedStatsByRank?.[rank] ?? []).toEqual([]);
-            expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(
-                "Jump-landing activation and its rank-specific 1–4 second expiration/refresh timing are not simulated; Auto Optimize skips this conditional effect.",
-            );
+            expect(getUnmodeledDamageEffectLines(mod!, rank)).toEqual([]);
         }
 
         const weapon = { ...makeWeapon({ impact: 100 }), critChance: 0.2, statusChance: 0.3 };
