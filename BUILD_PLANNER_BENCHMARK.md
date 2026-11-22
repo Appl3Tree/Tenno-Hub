@@ -3199,6 +3199,8 @@ All four optimizer outputs match the independently scored sampled-pool winner fo
 
 This adds four-slot rank-limited evidence alongside the separate five-slot R1 and four-slot max-rank oracles. It remains exact only within four seeded four-mod pools; it does not establish full-catalog/global quality, joint Arcane search, Underframe native objective/simulator parity, stochastic proc histories, or gameplay accuracy.
 
+PR [#283](https://github.com/Appl3Tree/Tenno-Hub/pull/283) squash-merged as `9fd335942d577b8ba1e25b98635e1449bc83cff2`. GitHub reported no status check contexts. This test/docs-only merge has no application build or deployment.
+
 ## D3-OPT-EXPECTED-TTK-SIX-MOD-FOUR-SLOT-ORACLE-001 — seeded six-mod, four-slot max-rank Expected TTK oracle (2026-11-22; bounded)
 
 Reproduce with:
