@@ -3185,6 +3185,20 @@ This is exact only within four seeded five-mod pools. It is not full-catalog or 
 
 PR #240 was squash-merged as caaa7d805cb334f57a22bd7ddb408345777042ff. This adds a deterministic test only; no application bundle or Pages deployment applies.
 
+## D3-OPT-RANK-LIMITED-FOUR-SLOT-DUAL-OBJECTIVE-ORACLE-001 — seeded four-mod owned-rank four-slot oracle (2026-11-22; bounded)
+
+Reproduce with:
+
+```sh
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded four-mod, four-slot owned-rank" --reporter=dot --configLoader runner
+```
+
+The deterministic LCG seed is `20261149`. Four fixtures draw one supported attack and four compatible, fully scoreable damage mods from each full pool: Braton Prime / Grineer / 82,000 Health / 2,700 Armor / Realistic; Lex Prime / shielded Corpus / 42,000 Health + 58,000 Shields / Initial; Cedo / Grineer / 155,000 Health / 2,100 Armor / Realistic; and Broken War / Infested / 108,000 Health / 300 Armor / Fully Stacked. Each mod has a seeded owned-rank cap from R1–R3; the exact oracle evaluates every rank from R0 through the cap and every legal ordered subset through four slots. Builds use rank-30 uncatalyzed capacity, weapon-default polarities, alternating zero-/one-Forma limits, and no Arcane. Expected TTK uses each fixture's listed target; the `[0,5s)` score uses a separate 1,000,000-Health target (plus 1,000,000 Shields for Corpus) to avoid target defeat clipping.
+
+All four optimizer outputs match the independently scored sampled-pool winner for both Expected TTK and five-second Avg DPS, including TTK/DPS or total-window-damage values. Returned lists remain legal for capacity, Forma, and owned ranks. The focused Vitest test passes 1/1 in 192.86s test time (196.26s total process); `npx tsc -p tsconfig.test.json --noEmit --pretty false --tsBuildInfoFile "$env:TEMP\tenno-hub-underframe-owned-rank.tsbuildinfo"`, focused ESLint, and `git diff --check` pass. The full suite was not rerun after this test-only change; no application build or deployment applies.
+
+This adds four-slot rank-limited evidence alongside the separate five-slot R1 and four-slot max-rank oracles. It remains exact only within four seeded four-mod pools; it does not establish full-catalog/global quality, joint Arcane search, Underframe native objective/simulator parity, stochastic proc histories, or gameplay accuracy.
+
 ## D3-OPT-EXPECTED-TTK-SIX-MOD-FOUR-SLOT-ORACLE-001 — seeded six-mod, four-slot max-rank Expected TTK oracle (2026-11-22; bounded)
 
 Reproduce with:
