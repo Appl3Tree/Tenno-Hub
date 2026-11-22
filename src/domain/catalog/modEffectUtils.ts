@@ -15,6 +15,7 @@ export const CHILLING_CLAWS_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/Bea
 export const SEPSIS_CLAWS_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/KubrowToxicConversionMod";
 export const SHOCKING_CLAWS_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/KubrowElectricConversionMod";
 export const BELL_RINGER_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastKnockdownWeaponMod";
+export const BLOODTHIRST_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastDrainingBiteMod";
 export const VILE_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveEmbolistAugmentMod";
 export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveVenatoAugmentMod";
 
@@ -84,7 +85,7 @@ export function getUnmodeledDamageEffectLines(
     rank: number,
 ): string[] {
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
-        .filter((line) => DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+        .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH && DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
     if (mod.path === VOLATILE_VARIANT_MOD_PATH) {
         lines.push("Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.");
     }
@@ -115,6 +116,12 @@ export function getUnmodeledDamageEffectLines(
         // https://wiki.warframe.com/w/Sentient_Incision
         lines.push("Sentient Incision's faction weakness mapping, Overguard-specific element selection, Slam exclusion, and non-scaling elemental status DoT are not modeled, so Auto Optimize skips this mod.");
     }
+    if (mod.path === BLOODTHIRST_MOD_PATH) {
+        // The Slash keyword appears in the stat line because it determines
+        // companion healing; this is not a weapon damage modifier.
+        // https://wiki.warframe.com/w/Bloodthirst
+        lines.push("Bloodthirst heals the companion for each active Slash stack per hit; companion healing is outside the damage score, so Auto Optimize skips this mod.");
+    }
     if (lines.some((line) => /\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b/i.test(line))) {
         lines.push("Tennokai opportunity timing and attack-chain cadence are not modeled or scored.");
     }
@@ -132,6 +139,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: { path?: string }): strin
     }
     if (mod.path === AMALGAM_FURAX_BODY_COUNT_MOD_PATH) {
         return "https://wiki.warframe.com/w/Amalgam_Furax_Body_Count";
+    }
+    if (mod.path === BLOODTHIRST_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Bloodthirst";
     }
     return undefined;
 }
