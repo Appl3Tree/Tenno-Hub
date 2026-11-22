@@ -135,6 +135,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         fireRate: useBurstModel ? weapon.fireRate : (attack.speed || weapon.fireRate),
         trigger,
         chargeTime: attack.chargeTime ?? null,
+        selectedAttackChargeTimeAffectedByFireRate: attack.chargeTimeAffectedByFireRate !== false,
         selectedAttackDamageFalloff: attack.damageFalloff,
         selectedAttackMaximumRangeMeters: attack.maximumRangeMeters,
         selectedAttackMaximumRangeBehavior: attack.maximumRangeBehavior,

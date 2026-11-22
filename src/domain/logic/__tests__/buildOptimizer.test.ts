@@ -100,6 +100,43 @@ describe("Shell Rush charged-attack optimization", () => {
     });
 });
 
+describe("source-backed charged-mode optimizer coverage", () => {
+    it("scores the verified charged attack rows in finite Expected TTK", () => {
+        const catalog = getWeaponCatalog();
+        const cases = [
+            ["Aeolak", "Alt-Fire", 0.3],
+            ["Quellor", "Alt-Fire", 1.2],
+            ["Stahlta", "Alt-Fire", 1.6],
+            ["Tenora", "Charged Attack", 0.8],
+            ["Tenora Prime", "Charged Attack", 0.8],
+        ] as const;
+
+        for (const [weaponName, attackName, chargeTime] of cases) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            const attackIndex = weapon!.attacks.findIndex((candidate) => candidate.name === attackName);
+            expect(attackIndex, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(0);
+            const attack = weapon!.attacks[attackIndex]!;
+            const selected = withSelectedAttack(weapon!, attackIndex);
+
+            expect(attack.trigger, `${weaponName} / ${attackName}`).toBe("Charge");
+            expect(attack.chargeTime, `${weaponName} / ${attackName}`).toBeCloseTo(chargeTime, 8);
+            expect(attack.modelLimitation, `${weaponName} / ${attackName}`).toBeUndefined();
+
+            const optimized = optimizeBuild(selected, [], "timeToKill", 0, {
+                buildForAttack: attack,
+                targetFaction: "Grineer",
+                targetProfileOverride: { health: 1, shields: 0, overguard: 0, armor: 0 },
+                allowForma: false,
+                optimizeArcane: false,
+                optimizeExilus: false,
+            });
+            expect(optimized.encounterTimeToKillSeconds, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(chargeTime);
+            expect(optimized.capacityValid, `${weaponName} / ${attackName}`).toBe(true);
+        }
+    });
+});
+
 describe("Beast Claw elemental conversion optimizer legality", () => {
     it("never selects more than one of the mutually exclusive elemental conversion mods", () => {
         const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));

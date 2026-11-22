@@ -78,7 +78,8 @@ function isBowWeapon(weapon: WeaponEntry): boolean {
 
 function moddedChargeTimeSeconds(weapon: WeaponEntry, rateBonus: number, chargeRateBonus = 0): number {
     if (weapon.trigger !== "Charge" || weapon.chargeTime === null || weapon.chargeTime <= 0) return 0;
-    return weapon.chargeTime / Math.max(0.1, 1 + rateBonus + chargeRateBonus);
+    const applicableFireRateBonus = weapon.selectedAttackChargeTimeAffectedByFireRate === false ? 0 : rateBonus;
+    return weapon.chargeTime / Math.max(0.1, 1 + applicableFireRateBonus + chargeRateBonus);
 }
 
 function effectiveFireRate(

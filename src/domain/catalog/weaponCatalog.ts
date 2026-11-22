@@ -167,6 +167,8 @@ export interface WeaponAttack {
     isAreaDamage?: boolean;
     /** Per-attack trigger, when a weapon has distinct fire-mode attacks. */
     trigger?: string;
+    /** Whether Fire Rate bonuses also shorten this attack's charge time (default true). */
+    chargeTimeAffectedByFireRate?: boolean;
     /** Burst timing metadata for this attack, where verified. */
     burstCount?: number;
     burstDelay?: number;
@@ -285,6 +287,8 @@ export interface WeaponEntry {
     hasGaleForceAmmoPassive?: boolean;
     /** Selected attack context carried into calculator/optimizer scoring. */
     selectedAttackName?: string;
+    /** Whether the selected attack's charge time scales with Fire Rate bonuses. */
+    selectedAttackChargeTimeAffectedByFireRate?: boolean;
     /** Source-listed falloff profile carried from the selected attack row. */
     selectedAttackDamageFalloff?: WeaponAttackDamageFalloff;
     /** Source-listed range limit carried from the selected attack row. */
@@ -457,6 +461,16 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|normal attack": "Burst",
     "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|secondary fire": "Charge",
     "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|secondary fire aoe": "Charge",
+    // These generated rows have charge times but inherit the primary Auto
+    // trigger. Restore their Wiki-listed charged mode for finite timing.
+    // Verified 2026-11-22: weapon pages below and https://wiki.warframe.com/w/Trigger_Type
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon|alt-fire": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon|alt-fire explosion": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/TnRailjackRifle/RailjackRifleGun|alt-fire": "Charge",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle|alt-fire": "Charge",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle|alt-fire aoe": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/TnBardRifle/TnBardRifle|charged attack": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeTenora/TenoraPrimeWeapon|charged attack": "Charge",
     // Morgha's launcher burst and semi-automatic charged-shot rows share a
     // weapon-level Auto-Burst label in the source export.
     // Verified 2026-11-22: https://wiki.warframe.com/w/Morgha
@@ -489,6 +503,15 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol|incarnon form": "Burst",
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on mode": "Special",
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on radial attack": "Special",
+});
+
+/** Explicit Wiki exceptions to the standard Fire Rate → charge-time formula. */
+const ATTACK_CHARGE_TIME_FIRE_RATE_OVERRIDES: Readonly<Record<string, boolean>> = Object.freeze({
+    // Aeolak's charge time is explicitly unchanged by Fire Rate mods; the
+    // post-charge attack interval still scales with its listed Fire Rate.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Aeolak
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon|alt-fire": false,
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon|alt-fire explosion": false,
 });
 
 const autoSpoolCadence = (
@@ -690,6 +713,11 @@ const ATTACK_CHARGE_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.fr
     // Verified 2026-11-21: https://wiki.warframe.com/w/Mausolon
     "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun|charged shot laser": 0.8,
     "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun|charged shot explosion": 0.8,
+    // These damage rows describe the same charged release as their direct row.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Aeolak and
+    // https://wiki.warframe.com/w/Stahlta
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon|alt-fire explosion": 0.3,
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle|alt-fire aoe": 1.6,
 });
 
 const VERIFIED_WEAPON_RELOAD_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
@@ -731,6 +759,28 @@ const VERIFIED_ATTACK_AMMO_COST_OVERRIDES: Readonly<Record<string, Readonly<Reco
     "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
         "normal attack": 0.5,
         "alt-fire projectile impact": 10,
+    }),
+    // Wiki attack tables list the per-trigger ammo costs; the generated
+    // attack rows omit these mode-specific values.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Aeolak,
+    // https://wiki.warframe.com/w/Quellor, https://wiki.warframe.com/w/Stahlta,
+    // https://wiki.warframe.com/w/Tenora, and https://wiki.warframe.com/w/Tenora_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon": Object.freeze({
+        "alt-fire": 10,
+        "alt-fire explosion": 10,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/TnRailjackRifle/RailjackRifleGun": Object.freeze({
+        "alt-fire": 50,
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle": Object.freeze({
+        "alt-fire": 20,
+        "alt-fire aoe": 20,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/TnBardRifle/TnBardRifle": Object.freeze({
+        "charged attack": 10,
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/PrimeTenora/TenoraPrimeWeapon": Object.freeze({
+        "charged attack": 10,
     }),
     // The Onos' fully charged Heat release spends 50 Incarnon rounds after
     // the charge-beam ticks. These two attack rows are separate direct/radial
@@ -854,6 +904,36 @@ const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
             minimumDamageMultiplier: 0.2666666667,
             scaleBy: Object.freeze(["projectileSpeed"] as const),
             sourceUrl: "https://wiki.warframe.com/w/Vaykor_Hek",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon": Object.freeze({
+        "alt-fire explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 7,
+            minimumDamageMultiplier: 0.5,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Aeolak",
+        }),
+    }),
+    // Quellor Alt-Fire's direct hit has linear falloff whose endpoints extend
+    // with Projectile Speed.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Quellor
+    "/Lotus/Weapons/Tenno/LongGuns/TnRailjackRifle/RailjackRifleGun": Object.freeze({
+        "alt-fire": Object.freeze({
+            startDistanceMeters: 9,
+            endDistanceMeters: 18,
+            minimumDamageMultiplier: 0.3343,
+            scaleBy: Object.freeze(["projectileSpeed"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Quellor",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle": Object.freeze({
+        "alt-fire aoe": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 7.2,
+            minimumDamageMultiplier: 0.3,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Stahlta",
         }),
     }),
 });
@@ -1877,6 +1957,32 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
             sourceUrl: "https://wiki.warframe.com/w/Mausolon",
         }),
     }),
+    // Aeolak Alt-Fire detonates on impact; Stahlta's explosion follows after
+    // a 0.36s fuse. Score each only against the directly struck target.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Aeolak and
+    // https://wiki.warframe.com/w/Stahlta
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon": Object.freeze({
+        "alt-fire": Object.freeze({
+            componentAttackName: "Alt-Fire Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Aeolak",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle": Object.freeze({
+        "alt-fire": Object.freeze({
+            componentAttackName: "Alt-Fire AoE",
+            firstTickDelaySeconds: 0.36,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Stahlta",
+        }),
+    }),
 });
 
 const VERIFIED_ATTACK_ATTACHED_TARGET_OVERRIDES: Readonly<Record<string, readonly string[]>> = Object.freeze({
@@ -1951,6 +2057,18 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
             reason: "Charged Shot Explosion is a linked blast component of Mausolon's charged release, which also requires five primary-fire kills to charge and more kills after each use. Select Charged Shot Laser for a per-shot preview; Auto Optimize cannot score a repeatable charged-shot cadence.",
         }),
     }),
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon": Object.freeze({
+        "alt-fire explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Aeolak",
+            reason: "Alt-Fire Explosion is the on-impact component of Aeolak's charged projectile. Select Alt-Fire to score the bounded single-target projectile-plus-explosion sequence; other targets are not scored.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle": Object.freeze({
+        "alt-fire aoe": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Stahlta",
+            reason: "Alt-Fire AoE is the delayed explosion component of Stahlta's charged projectile. Select Alt-Fire to score the bounded single-target sequence; the 0.36s fuse assumes the target remains at the impact point.",
+        }),
+    }),
 });
 
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
@@ -1974,6 +2092,24 @@ const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
         "alt-fire projectile impact": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
             reason: "The single-target score includes the directly struck projectile and its linked explosion. The current Arch-Gun mod pool and intrinsic attack stats have no direct damage-per-status bonus, so this weapon's own damage score is independent of Knockdown. Knockdown's crowd-control value, target immunity, expiry, and use to prime a different weapon are not modeled. The Wiki page says its data is under active revision.",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/TnRifleErsatz/TnRifleErsatzWeapon": Object.freeze({
+        "alt-fire": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Aeolak",
+            reason: "The score includes Aeolak's direct projectile and on-impact explosion against the directly struck target. Other enemies inside the explosion radius are not scored; the target is assumed to be hit.",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/LongGuns/TnRailjackRifle/RailjackRifleGun": Object.freeze({
+        "alt-fire": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Quellor",
+            reason: "The charged direct hit uses the Wiki-listed 100%→33.43% linear falloff from 9m to 18m, extended by Projectile Speed. The selected target is assumed to be hit; spread and misses are not modeled.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpRubanRifle/CrpRubanRifle": Object.freeze({
+        "alt-fire": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Stahlta",
+            reason: "The score includes Stahlta's direct projectile and its delayed explosion against the directly struck target. The 0.36s fuse assumes the target remains at the impact point; other enemies inside the 7.2m radius are not scored.",
         }),
     }),
 });
@@ -2340,10 +2476,14 @@ export function getWeaponCatalog(): WeaponEntry[] {
             const normalizedAttackName = attack.name.trim().toLowerCase();
             const chargeTime = ATTACK_CHARGE_TIME_OVERRIDES[`${uniqueName}|${normalizedAttackName}`]
                 ?? attack.chargeTime;
+                const chargeTimeAffectedByFireRate = ATTACK_CHARGE_TIME_FIRE_RATE_OVERRIDES[
+                    `${uniqueName}|${normalizedAttackName}`
+                ];
             return {
                 ...attack,
                 trigger: burst ? "Burst" : attackTrigger,
                 chargeTime,
+                ...(chargeTimeAffectedByFireRate === undefined ? {} : { chargeTimeAffectedByFireRate }),
                 ...(autoSpoolCadence ? { autoSpoolCadence } : {}),
                 ...(autoSpoolShotSequence ? { autoSpoolShotSequence } : {}),
                 ...(autoSpoolTimingLimitation ? { autoSpoolTimingLimitation } : {}),
