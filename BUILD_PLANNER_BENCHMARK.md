@@ -3074,3 +3074,5 @@ The deterministic LCG seed is `20261132`. For each of four weapon classes—Brat
 Focused Vitest passes 1/1 in 158.36s test time. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, focused ESLint, and `git diff --check` pass. The default Vite config bundler failed before test startup because it could not write its temp bundle under the shared `node_modules` path; the supported runner config loader avoids that write. No application source, full suite, or production build changed.
 
 This is exact only inside four seeded seven-mod pools. It expands both tested objectives from six sampled mods/four slots to seven/five; it does not establish full-catalog/global optimality, joint rank/Arcane optimization at this pool size, Underframe's private simulator, or live-game accuracy.
+
+PR [#255](https://github.com/Appl3Tree/Tenno-Hub/pull/255) squash-merged this test/documentation change as `b820526ca016fb4ea4d61f660fbf63ed157bac50`. GitHub reported no status checks or PR-triggered workflow runs; no application deployment applies.
