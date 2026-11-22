@@ -6444,6 +6444,279 @@ describe("build optimizer scoring", () => {
         }
     });
 
+    it("drops a rank-zero Cedo mod when its removal improves finite Expected TTK", { timeout: 60000 }, () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Cedo");
+        expect(weapon).toBeTruthy();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Alt-Fire Glaive");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const scoringWeapon = withSelectedAttack(weapon!, attackIndex);
+        const candidateCatalog = [...new Map(
+            filterBuilderExpertVariants(getModsForWeapon(weapon!))
+                .filter((mod) => mod.isPveEligible !== false && mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                    getUnmodeledDamageEffectLines(mod, rank).length === 0 &&
+                    getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                ))
+                .map((mod) => [mod.uniqueName, mod] as const),
+        ).values()];
+        const candidates = ["Contagious Spread", "Incendiary Coat", "Shredder", "Blaze"].map((name) => {
+            const mod = candidateCatalog.find((entry) => entry.name === name);
+            expect(mod, name).toBeTruthy();
+            return mod!;
+        });
+        const ownedModMaxRankByUniqueName = Object.fromEntries(candidates.map((mod) => [
+            mod.uniqueName,
+            mod.name === "Blaze" ? 2 : 1,
+        ]));
+        const slotCount = 3;
+        const slotPolarities = weapon!.polarities.slice(0, slotCount);
+        const target = { health: 155_000, shields: 0, overguard: 0, armor: 1_800 };
+        const energyContext = { warframeMaxEnergy: 1_000, warframeEnergyPercent: 50 };
+        const arcaneCandidates = getArcanesForWeapon(weapon!);
+        const result = optimizeBuild(weapon!, candidates, "timeToKill", slotCount, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState: { mode: "realistic" },
+            capacityConfig: {
+                weaponRank: 10,
+                hasCatalyst: false,
+                masteryRank: 10,
+                canOverLevel: weapon!.canOverLevel,
+            },
+            slotPolarities,
+            defaultSlotPolarities: slotPolarities,
+            allowForma: true,
+            maxFormaCount: 1,
+            allowNonMaxRank: true,
+            ownedModUniqueNames: new Set(candidates.map((mod) => mod.uniqueName)),
+            ownedModMaxRankByUniqueName,
+            optimizeExilus: false,
+            optimizeArcane: true,
+            arcaneCandidates,
+            warframeArmor: 1_500,
+            ...energyContext,
+            buildForAttack: scoringWeapon.attacks[attackIndex],
+        });
+        const effects = result.slots.map((mod, index) => {
+            if (!mod) return null;
+            const rank = result.slotRanks[index] ?? mod.fusionLimit;
+            return mod.effectsByRank[rank] ?? mod.effect;
+        });
+        const arcaneEffect = result.arcane
+            ? getArcaneEffectAtRank(result.arcane, result.arcaneRank, 1_500, true, energyContext)
+            : null;
+        const exact = debugScoreExpectedEncounter(
+            scoringWeapon,
+            effects,
+            "Grineer",
+            target,
+            { mode: "realistic" },
+            arcaneEffect,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(countPolarityChanges(slotPolarities, result.slotPolarities.slice(0, slotCount))).toBeLessThanOrEqual(1);
+        expect(result.arcane?.name).toBe("Primary Bulwark");
+        expect(exact.timeToKillSeconds).toBe(142);
+        expect(result.slots.some((mod) => mod?.name === "Shredder")).toBe(false);
+        expect(result.slots.some((mod) => mod?.name === "Blaze")).toBe(true);
+        expect(result.slots.some((mod) => mod?.name === "Incendiary Coat")).toBe(true);
+    });
+
+    it("matches a seeded four-mod, three-slot ranked Expected TTK oracle with an empty Arcane slot", { timeout: 300000 }, () => {
+        let seed = 20261126;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+            }
+            return result;
+        };
+        const scenarios = [
+            { weaponName: "Lex Prime", faction: "Corpus", target: { health: 15_000, shields: 15_000, overguard: 0, armor: 0 }, mode: "realistic" as const, warframeArmor: 1_500, energyPercent: 75 },
+        ];
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeTruthy();
+            const attacks = weapon!.attacks.filter((attack) =>
+                !attack.modelLimitation && !attack.autoSpoolTimingLimitation,
+            );
+            expect(attacks.length, `${scenario.weaponName} supported attack profiles`).toBeGreaterThan(0);
+            const attack = attacks[Math.floor(random() * attacks.length)]!;
+            const scoringWeapon = withSelectedAttack(weapon!, weapon!.attacks.indexOf(attack));
+            const candidatePool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(weapon!))
+                    .filter((mod) => mod.isPveEligible !== false && mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const candidates = shuffled(candidatePool).slice(0, 4);
+            expect(candidates.length, `${scenario.weaponName} seed ${scenarioIndex} candidate pool`).toBe(4);
+            const ownedModMaxRankByUniqueName = Object.fromEntries(candidates.map((mod) => [
+                mod.uniqueName,
+                1 + Math.floor(random() * Math.min(2, mod.fusionLimit)),
+            ]));
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const capacityConfig = {
+                weaponRank: 10,
+                hasCatalyst: false,
+                masteryRank: 10,
+                canOverLevel: weapon!.canOverLevel,
+            };
+            const slotCount = 3;
+            const slotPolarities = weapon!.polarities.slice(0, slotCount);
+            const maxFormaCount = 1;
+            const conditionalState: ConditionalState = { mode: scenario.mode };
+            const energyContext = {
+                warframeMaxEnergy: 1_000,
+                warframeEnergyPercent: scenario.energyPercent,
+            };
+            const arcaneOptions = [{ arcane: null, rank: 0, effect: null }];
+            const score = (effects: (ModEffect | null)[], arcaneEffect: Partial<ModEffect> | null) =>
+                debugScoreExpectedEncounter(
+                    scoringWeapon,
+                    effects,
+                    scenario.faction,
+                    scenario.target,
+                    conditionalState,
+                    arcaneEffect,
+                );
+            let exhaustiveBest = score([], null);
+            let bestRank = rankExpectedEncounter(exhaustiveBest.timeToKillSeconds, exhaustiveBest.damagePerSecond);
+            let legalRankedLoadoutCount = 0;
+            let maximumLegalSlotCount = 0;
+            let exactScoreCount = 0;
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const maxRank = ownedModMaxRankByUniqueName[ordered[index].uniqueName];
+                    for (let rank = 0; rank <= maxRank; rank++) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+
+                const placement = assignModsToSlots(
+                    ordered,
+                    ranks,
+                    slotPolarities,
+                    slotCount,
+                    true,
+                    maxFormaCount,
+                );
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+
+                legalRankedLoadoutCount++;
+                maximumLegalSlotCount = Math.max(maximumLegalSlotCount, ordered.length);
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                for (const option of arcaneOptions) {
+                    exactScoreCount++;
+                    const candidate = score(effects, option.effect);
+                    const candidateRank = rankExpectedEncounter(
+                        candidate.timeToKillSeconds,
+                        candidate.damagePerSecond,
+                    );
+                    if (candidateRank > bestRank) {
+                        exhaustiveBest = candidate;
+                        bestRank = candidateRank;
+                    }
+                }
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index];
+                    if (ordered.some((mod) =>
+                        mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                    )) continue;
+                    enumerate(
+                        [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                        [...ordered, candidate],
+                    );
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `${scenario.weaponName} seed ${scenarioIndex} legal ranked subsets`)
+                .toBeGreaterThan(0);
+            expect(maximumLegalSlotCount, `${scenario.weaponName} seed ${scenarioIndex} legal three-mod loadout`)
+                .toBe(3);
+            expect(exactScoreCount, `${scenario.weaponName} seed ${scenarioIndex} exact legal loadout scores`)
+                .toBe(legalRankedLoadoutCount);
+
+            const result = optimizeBuild(weapon!, candidates, "timeToKill", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride: scenario.target,
+                conditionalState,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: maxFormaCount > 0,
+                maxFormaCount,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModMaxRankByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+                warframeArmor: scenario.warframeArmor,
+                ...energyContext,
+                buildForAttack: attack,
+            });
+            const resultEffects = result.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = result.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            const resultArcaneEffect = result.arcane
+                ? getArcaneEffectAtRank(result.arcane, result.arcaneRank, scenario.warframeArmor, true, energyContext)
+                : null;
+            const optimizedScore = score(resultEffects, resultArcaneEffect);
+            const optimizedRank = rankExpectedEncounter(
+                optimizedScore.timeToKillSeconds,
+                optimizedScore.damagePerSecond,
+            );
+            const formaUsed = countPolarityChanges(slotPolarities, result.slotPolarities.slice(0, slotCount));
+
+            expect(result.capacityValid, `${scenario.weaponName} seed ${scenarioIndex} capacity`).toBe(true);
+            expect(formaUsed, `${scenario.weaponName} seed ${scenarioIndex} Forma budget`).toBeLessThanOrEqual(maxFormaCount);
+            for (const [slotIndex, mod] of result.slots.entries()) {
+                if (!mod) continue;
+                expect(result.slotRanks[slotIndex], `${scenario.weaponName} seed ${scenarioIndex} owned rank`)
+                    .toBeLessThanOrEqual(ownedModMaxRankByUniqueName[mod.uniqueName]);
+            }
+            expect(optimizedRank, `${scenario.weaponName} seed ${scenarioIndex} exact ranked three-slot TTK`)
+                .toBeCloseTo(bestRank, 8);
+            expect(optimizedScore.timeToKillSeconds, `${scenario.weaponName} seed ${scenarioIndex} TTK`)
+                .toBe(exhaustiveBest.timeToKillSeconds);
+            expect(optimizedScore.damagePerSecond, `${scenario.weaponName} seed ${scenarioIndex} DPS`)
+                .toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
+        }
+    });
+
     it("matches a seeded exhaustive three-slot joint mod-and-Arcane oracle for 5s Avg DPS", { timeout: 300000 }, () => {
         let seed = 20261123;
         const random = () => {
