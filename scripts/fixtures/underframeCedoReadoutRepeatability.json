@@ -1,0 +1,157 @@
+{
+  "issueId": "D3-OPT-UNDERFRAME-CEDO-READOUT-REPEATABILITY-001",
+  "observedDate": "2026-11-22",
+  "page": "https://www.underframe.site/Codex-Matched-Corpus-Cedo",
+  "readOnly": true,
+  "weapon": {
+    "name": "Cedo",
+    "profile": "Shotgun",
+    "attack": "Normal Attack",
+    "mods": [
+      {
+        "name": "Primed Charged Shell",
+        "rank": 10
+      },
+      {
+        "name": "Toxic Barrage",
+        "rank": 3
+      },
+      {
+        "name": "Galvanized Hell",
+        "rank": 10
+      },
+      {
+        "name": "Primed Point Blank",
+        "rank": 10
+      },
+      {
+        "name": "Amalgam Shotgun Barrage",
+        "rank": 5
+      },
+      {
+        "name": "Accelerated Blast",
+        "rank": 3
+      },
+      {
+        "name": "Galvanized Savvy",
+        "rank": 10
+      },
+      {
+        "name": "Frail Momentum",
+        "rank": 5
+      }
+    ]
+  },
+  "target": {
+    "faction": "Grineer",
+    "health": 100000,
+    "armor": 3000,
+    "shields": 0,
+    "overguard": 0
+  },
+  "simulationTimeSeconds": 5,
+  "visibleState": {
+    "potatoInstalled": true,
+    "exilusSlotEnabled": false,
+    "arcanesEnabled": false,
+    "headshotsEnabled": false,
+    "externalStatuses": [],
+    "externalBuffs": [],
+    "galvanizedHellStacks": {
+      "selected": 4,
+      "maximum": 4
+    },
+    "galvanizedSavvyStacks": {
+      "selected": 2,
+      "maximum": 2
+    },
+    "cedoConditionalEnabled": false,
+    "distanceControlMeters": {
+      "selected": 26,
+      "minimum": 26,
+      "maximum": 52
+    }
+  },
+  "standardCalculateDps": {
+    "recordedReadCount": 4,
+    "additionalUnrecordedCalculationCount": 1,
+    "results": [
+      {
+        "averageDps": 37500,
+        "ttk": "2.67s",
+        "rawDamagePerShot": 2857,
+        "dotDamagePerShot": 0
+      },
+      {
+        "averageDps": 32787,
+        "ttk": "3.05s",
+        "rawDamagePerShot": 2500,
+        "dotDamagePerShot": 0
+      },
+      {
+        "averageDps": 42553,
+        "ttk": "2.35s",
+        "rawDamagePerShot": 3226,
+        "dotDamagePerShot": 0
+      },
+      {
+        "averageDps": 40000,
+        "ttk": "2.50s"
+      }
+    ]
+  },
+  "luckAveragedDps": {
+    "replayRead": {
+      "averageDps": 38091,
+      "ttk": "2.74s",
+      "rawDamagePerShot": 2893,
+      "dotDamagePerShot": 0
+    },
+    "priorAutoBuildReadouts": {
+      "repeatedRuns": 3,
+      "averageDps": [
+        38091,
+        38091,
+        38091
+      ],
+      "ttk": [
+        "2.74s",
+        "2.74s",
+        "2.74s"
+      ]
+    }
+  },
+  "notes": [
+    "The five-second simulator, visible target, mod list, and conditional sliders were read from the existing page. No Save, Auto Build, or Auto Polarize action was used.",
+    "One additional standard calculation occurred during result extraction but its structured value was not retained; it is excluded from the four recorded values.",
+    "The page does not expose readout seeds. This sample does not establish a distribution or explain the Luck Averaged denominator."
+  ],
+  "dpsTtkCheck": {
+    "targetHealth": 100000,
+    "products": [
+      {
+        "averageDps": 37500,
+        "displayedTtkSeconds": 2.67,
+        "productDamage": 100125.0
+      },
+      {
+        "averageDps": 32787,
+        "displayedTtkSeconds": 3.05,
+        "productDamage": 100000.35
+      },
+      {
+        "averageDps": 42553,
+        "displayedTtkSeconds": 2.35,
+        "productDamage": 99999.55
+      },
+      {
+        "averageDps": 40000,
+        "displayedTtkSeconds": 2.5,
+        "productDamage": 100000.0
+      }
+    ],
+    "minimumProductDamage": 99999.55,
+    "maximumProductDamage": 100125.0,
+    "interpretation": "The four standard displayed DPS × TTK products are within 125 damage of the target pool. This is consistent with a kill-time-normalized readout, but is an inference from rounded UI values and does not establish Auto Build scoring semantics."
+  }
+}
