@@ -861,15 +861,25 @@ const VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES: Readonly<
             behavior: "hardHitCap",
         }),
     }),
-    // The attack tables list 160m / 180m Normal Attack ranges in Archwing.
-    // Atmospheric ranges are set on the separate cloned profiles below.
+    // The attack tables list 160m / 180m Normal Attack ranges in Archwing,
+    // while the overview describes a 320m beam and matching lock-on limits.
+    // Keep those conflicting Archwing rows informational. Atmospheric ranges
+    // are set on the separate cloned profiles below.
     // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
     // https://wiki.warframe.com/w/Larkspur_Prime
     "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
-        "normal attack": Object.freeze({ meters: 160, sourceUrl: "https://wiki.warframe.com/w/Larkspur" }),
+        "normal attack": Object.freeze({
+            meters: 160,
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur",
+            behavior: "informational",
+        }),
     }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon": Object.freeze({
-        "normal attack": Object.freeze({ meters: 180, sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime" }),
+        "normal attack": Object.freeze({
+            meters: 180,
+            sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
+            behavior: "informational",
+        }),
     }),
 });
 
@@ -2417,16 +2427,18 @@ export function getWeaponCatalog(): WeaponEntry[] {
         {
             uniqueName: "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun",
             normalAttackRangeMeters: 40,
+            normalAttackRangeBehavior: "hardHitCap",
             chargedAttackRangeMeters: 100,
             sourceUrl: "https://wiki.warframe.com/w/Larkspur",
-            normalAttackNote: "This score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The Wiki lists 40m for this Atmosphere profile; range is informational and out-of-range misses are not modeled.",
+            normalAttackNote: "This score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. The Wiki table and overview both list a 40m Atmosphere beam limit, so this profile treats attacks beyond 40m as misses. Automatic lock-on reaches 20m, but target-lock acquisition is not modeled. Chained hits on up to three nearby enemies are not scored.",
         },
         {
             uniqueName: "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon",
             normalAttackRangeMeters: 50,
+            normalAttackRangeBehavior: "informational",
             chargedAttackRangeMeters: 100,
             sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
-            normalAttackNote: "This score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. Chained hits on up to three nearby enemies and automatic target-lock acquisition are not scored. The Wiki table lists 50m for Atmosphere, while its overview says 40m; range is informational and out-of-range misses are not modeled. The Wiki page says its data is under active revision.",
+            normalAttackNote: "This score includes the documented 20%→100% beam damage ramp, but models only the directly hit target. The Wiki table lists 50m for this Atmosphere profile, while its overview says 40m; the page is under active revision, so this range remains informational. Automatic lock-on reaches 30m, but target-lock acquisition is not modeled. Chained hits on up to three nearby enemies are not scored.",
         },
     ] as const;
     for (const profile of larkspurProfiles) {
@@ -2472,6 +2484,9 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     : attackName === "alt-fire projectile impact"
                         ? profile.chargedAttackRangeMeters
                         : attack.maximumRangeMeters;
+                const maximumRangeBehavior = attackName === "normal attack"
+                    ? profile.normalAttackRangeBehavior
+                    : attack.maximumRangeBehavior;
                 const maximumRangeSourceUrl = attackName === "normal attack" || attackName === "alt-fire projectile impact"
                     ? profile.sourceUrl
                     : attack.maximumRangeSourceUrl;
@@ -2486,6 +2501,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     damage,
                     damageTotal,
                     ...(maximumRangeMeters !== undefined ? { maximumRangeMeters } : {}),
+                    ...(maximumRangeBehavior ? { maximumRangeBehavior } : {}),
                     ...(maximumRangeSourceUrl ? { maximumRangeSourceUrl } : {}),
                     ...(forcedProcs ? { forcedProcs } : {}),
                     ...(scoreBoundaryNote ? { scoreBoundaryNote } : {}),

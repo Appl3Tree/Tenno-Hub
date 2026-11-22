@@ -140,6 +140,7 @@ describe("weapon catalog stance inference", () => {
                 name: "Larkspur",
                 archwingNormalRange: 160,
                 atmosphereNormalRange: 40,
+                atmosphereNormalRangeBehavior: "hardHitCap",
                 archwingAltFireRate: 1,
                 sourceUrl: "https://wiki.warframe.com/w/Larkspur",
             },
@@ -147,6 +148,7 @@ describe("weapon catalog stance inference", () => {
                 name: "Larkspur Prime",
                 archwingNormalRange: 180,
                 atmosphereNormalRange: 50,
+                atmosphereNormalRangeBehavior: "informational",
                 archwingAltFireRate: 2,
                 sourceUrl: "https://wiki.warframe.com/w/Larkspur_Prime",
             },
@@ -191,9 +193,15 @@ describe("weapon catalog stance inference", () => {
             expect(atmosphereBeam.damage.total).toBe(180);
             expect(archwingBeam.maximumRangeMeters).toBe(expected.archwingNormalRange);
             expect(atmosphereBeam.maximumRangeMeters).toBe(expected.atmosphereNormalRange);
+            expect(archwingBeam.maximumRangeBehavior).toBe("informational");
+            expect(atmosphereBeam.maximumRangeBehavior).toBe(expected.atmosphereNormalRangeBehavior);
             expect(atmosphereBeam.maximumRangeSourceUrl).toBe(expected.sourceUrl);
             expect(archwingBeam.scoreBoundaryNote?.reason).toContain("range is informational");
-            expect(atmosphereBeam.scoreBoundaryNote?.reason).toContain("range is informational");
+            if (expected.atmosphereNormalRangeBehavior === "hardHitCap") {
+                expect(atmosphereBeam.scoreBoundaryNote?.reason).toContain("beyond 40m as misses");
+            } else {
+                expect(atmosphereBeam.scoreBoundaryNote?.reason).toContain("range remains informational");
+            }
 
             const archwingImpact = attack(archwing!, "Alt-Fire Projectile Impact")!;
             const atmosphereImpact = attack(atmosphere!, "Alt-Fire Projectile Impact")!;

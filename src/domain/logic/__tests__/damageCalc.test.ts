@@ -694,14 +694,24 @@ describe("source-backed weapon attack falloff", () => {
         expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Charged Shot Explosion")?.damageFalloff).toBeUndefined();
     });
 
-    it("applies Larkspur beam ramps and profile-specific listed ranges without treating them as hit caps", () => {
+    it("applies Larkspur beam ramps and only enforces the unambiguous Atmosphere range", () => {
         const larkspurProfiles = catalog.filter((weapon) => weapon.name === "Larkspur" || weapon.name === "Larkspur Prime");
         expect(larkspurProfiles).toHaveLength(4);
 
         for (const weapon of larkspurProfiles) {
             const beamIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            const attackRow = weapon.attacks[beamIndex]!;
             const beam = withSelectedAttack(weapon, beamIndex);
             const baseline = calculateBuild(beam, []).modded;
+            const isAtmosphere = weapon.variantLabel === "Atmosphere";
+            const expectedRange = weapon.name === "Larkspur Prime"
+                ? isAtmosphere ? 50 : 180
+                : isAtmosphere ? 40 : 160;
+            const expectedBehavior = weapon.name === "Larkspur" && isAtmosphere
+                ? "hardHitCap"
+                : "informational";
+            expect(attackRow.maximumRangeMeters).toBe(expectedRange);
+            expect(attackRow.maximumRangeBehavior).toBe(expectedBehavior);
             expect(beam.selectedAttackDamageRamp).toEqual({
                 minimumDamageMultiplier: 0.2,
                 rampToFullSeconds: 0.6,
@@ -710,14 +720,31 @@ describe("source-backed weapon attack falloff", () => {
             });
             expect(baseline.firstAttackDamageMultiplier).toBe(0.2);
 
+            const atListedRange = calculateBuild(beam, [], "", {
+                conditionalState: {
+                    mode: "initial",
+                    attackFalloffDistanceMeters: expectedRange,
+                },
+            }).modded;
+            expect(atListedRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(false);
+
             const beyondListedRange = calculateBuild(beam, [], "", {
                 conditionalState: {
                     mode: "initial",
-                    attackFalloffDistanceMeters: (weapon.attacks[beamIndex]!.maximumRangeMeters ?? 0) + 1,
+                    attackFalloffDistanceMeters: expectedRange + 1,
                 },
             }).modded;
             expect(beyondListedRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
-            expect(beyondListedRange.totalDamage).toBeCloseTo(baseline.totalDamage, 8);
+            if (expectedBehavior === "hardHitCap") {
+                expect(beyondListedRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(true);
+                expect(beyondListedRange.attackDamageFalloff?.damageMultiplier).toBe(0);
+                expect(beyondListedRange.totalDamage).toBe(0);
+                expect(beyondListedRange.averageProcsPerShot).toBe(0);
+            } else {
+                expect(beyondListedRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(false);
+                expect(beyondListedRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+                expect(beyondListedRange.totalDamage).toBeCloseTo(baseline.totalDamage, 8);
+            }
 
             const explosionIndex = weapon.attacks.findIndex((attack) => attack.name === "Explosion");
             const explosion = withSelectedAttack(weapon, explosionIndex);
