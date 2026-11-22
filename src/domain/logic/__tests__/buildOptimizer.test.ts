@@ -6275,7 +6275,7 @@ describe("build optimizer scoring", () => {
                     .filter((mod) => Array.from({ length: Math.min(3, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
                         getUnmodeledDamageEffectLines(mod, rank).length === 0 &&
                         getUnmodeledScoringEffectLines(
-                            mod.optimizerEffectByRank?.[rank] ?? mod.effectsByRank[rank] ?? mod.effect,
+                            mod.effectsByRank[rank] ?? mod.effect,
                         ).length === 0
                     ))
                     .map((mod) => [mod.uniqueName, mod] as const),
