@@ -2,13 +2,13 @@
 
 PR [#185](https://github.com/Appl3Tree/Tenno-Hub/pull/185) merged these local changes as `d90c0aedcee3d0c8fd50da9ad041bb0f83963986` on 2026-11-21. The GitHub connector returned no combined checks or PR-triggered workflow runs for that merge commit; Pages deployment and production availability are not independently verified. The current-branch IAB preview timed out, while port 80 served an older build, so rendered QA for this scoring-only change remains unverified.
 
-## D3-MOD-THERMAGNETIC-SHELLS-SCORE-BOUNDARY-001 — corrected source record and explicit exclusion (2026-11-22; local)
+## D3-MOD-THERMAGNETIC-SHELLS-SCORE-BOUNDARY-001 — corrected source record and explicit exclusion (2026-11-22; merged, deployment pending)
 
 The [current Wiki page](https://wiki.warframe.com/w/Thermagnetic_Shells) lists the proper item name as **Thermagnetic Shells** and says it is compatible with Detron, Mara Detron, and Tenet Detron. Its four ranks provide 20/40/60/80 flat Magnetic damage plus 10/20/30/40% of the triggering enemy's max Health as Blast damage, with a 6m radius at every rank. The notes specify linear 100%-to-0% falloff and line of sight. Hotfix 44.1.3 prevents Elemental Ammo status effects from recursively retriggering death explosions while retaining their damage/status benefit.
 
 The previous 2026-11-16 checkpoint incorrectly listed a rank-scaled 1.5/3/4.5/6m radius and said the mod lacked an import identity. The generated sources already contain `/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/SupraCorpusArenaMod`, and runtime lookup exposes it on all three compatible Detron variants. The app now displays the source-backed rank rows and links an explicit warning; every rank remains excluded from scoring and Auto Optimize because on-kill area damage, adjacent-target deaths, and mission-specific max-Health scaling are not modeled.
 
-Focused validation passes: rank/source/compatibility regression 1/1, Auto Optimize exclusion regression 1/1, focused ESLint, `git diff --check`, and production build. The IAB timed out on both `localhost:82` and `10.0.0.40:82`; hosted rendered QA after release remains pending. No damage result, optimizer-quality claim, or release is associated with this checkpoint.
+Focused validation passes: rank/source/compatibility regression 1/1, Auto Optimize exclusion regression 1/1, focused ESLint, `git diff --check`, and production build. PR [#244](https://github.com/Appl3Tree/Tenno-Hub/pull/244) merged as `73b4772e55e70cb38f9e96de527dcc04e08b3814`. Pages run [#324](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45003358154) completed the build and upload, then failed deployment: its first attempt saw no artifact and its retry saw two `github-pages` artifacts for the same workflow run. A docs-only checkpoint will trigger a fresh Pages run; the IAB timed out on both `localhost:82` and `10.0.0.40:82`, so hosted rendered QA remains pending. No damage result or optimizer-quality claim is associated with this checkpoint.
 
 ## D3-OPT-EXPECTED-TTK-REMOVAL-001 — bounded single-mod removal refinement and ranked oracle (2026-11-22; released)
 
