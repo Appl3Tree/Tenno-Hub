@@ -1,8 +1,8 @@
 # Build Planner Optimizer Benchmark
 
-## D3-OPT-MAUSOLON-DUAL-PROFILE-WINDOW-ORACLE-001 — seeded profile-specific fixed-window oracle (2026-11-22; validated, committed locally)
+## D3-OPT-MAUSOLON-DUAL-PROFILE-WINDOW-ORACLE-001 — seeded profile-specific fixed-window oracle (2026-11-22; released in PR #252)
 
-Implementation commit: `011a81b1`; PR publication and merge are pending.
+Implementation commit: 011a81b1; PR #252 squash-merged as e6ff7b20304ae075411cbe35f5350f4c0fa56421. GitHub reported no status checks or PR-triggered workflows; no deployment applies.
 
 The four-weapon six-mod/four-slot `5s Avg DPS` oracle covers Primary, Secondary, Shotgun, and Melee, while existing Mausolon checks cover linked damage and profile range boundaries but not an exact sampled-pool optimizer oracle for both selectable Arch-Gun profiles. Seed `20261131` draws one shared six-mod sample that is fully modeled and compatible with both Mausolon profiles: Magazine Extension R5, Primed Deadly Efficiency R10, Primed Rubedo-Lined Barrel R10, Rubedo-Lined Barrel R5, Critical Focus R5, and Hollowed Bullets R3.
 
@@ -14,6 +14,12 @@ Both profiles use Auto at 250m against a synthetic Grineer profile with 10,000,0
 | Mausolon (Atmosphere) | Primed Rubedo-Lined Barrel R10, Critical Focus R5, Hollowed Bullets R3, Primed Deadly Efficiency R10 | 5,925.9509 | 29,629.7547 | 347 |
 
 The Atmosphere result is 1.5× the Archwing result with the same sampled mods, consistent with the two sourced Auto damage profiles in this fixture. Focused test passes 1/1 (0.90s Vitest time); the full test TypeScript project, focused ESLint, and `git diff --check` pass. The full test suite was not rerun. This is model-local sampled-pool evidence, not full-catalog/global optimization, a resolution of the Archwing range conflict, Underframe parity, or live-game validation. Reopen on a reproducible exact-oracle mismatch, changed profile data, or new source/gameplay evidence.
+
+## D3-MOD-ARGONAK-DAGGER-ARMOR-001 — cross-weapon armor-strip boundary (source audit; implementation decision pending)
+
+The mod-effect coverage audit identifies Amalgam Argonak Metal Auger as partially parsed. The generated inventory marks it Argonak-compatible, and the raw mod record exposes the WEAPON_MELEE_ARMOR_REDUCTION upgrade type. Official [Warframe Update 25.0.8](https://www.warframe.com/en/patch-notes/switch/25-0-8) lists “Damage from Daggers reduces Armor by +6.” The current [WARFRAME Wiki mod page](https://wiki.warframe.com/w/Amalgam_Argonak_Metal_Auger) says the effect works like Shattering Impact and that all Dagger damage, including Slash, Heat, Toxin, Electricity, Gas, and Blast status damage, can reduce Armor. Electricity chains, Gas clouds, Blast AoE, and status damage transferred through Melee Influence can also trigger it; lingering Gas damage after an enemy dies does not. The current [Armor page](https://wiki.warframe.com/w/Armor) classifies this as removing 6 base Armor when attacking with single Daggers. The mod’s listed compatibility is Argonak, so the armor effect requires an external Argonak-plus-mod setup while the scored weapon is a separate Dagger.
+
+The current planner builds and scores one selected weapon at a time. It has no saved cross-weapon loadout state, so the effect cannot be enabled from the Argonak mod row while planning a Dagger. No implementation change is made in this checkpoint. The product decision is whether to add a saved external Argonak/mod-rank condition to single-Dagger builds (then score sourced base-Armor reduction through qualifying direct hits and supported status ticks, with target-neighbor effects still bounded by existing single-target limits) or retain a clear source-linked exclusion until cross-weapon equipment assumptions are supported. No score or optimizer benefit is claimed; user direction is pending.
 
 ## D3-TEST-TS-CLEANUP-001 — test-project TypeScript diagnostics cleared (2026-11-22)
 
