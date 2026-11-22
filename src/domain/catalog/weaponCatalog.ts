@@ -430,6 +430,11 @@ interface BurstRuleOverride {
  * the current Wiki burst count/delay/cycle values are used for those attacks.
  */
 const BURST_RULE_OVERRIDES: Readonly<Record<string, BurstRuleOverride>> = Object.freeze({
+    // Battacor primary fire is a fully automatic two-round burst. WFCD exposes
+    // the weapon-level Auto Burst trigger, but its attack rate and burst timing
+    // belong to the individual Normal Attack row.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Battacor
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|normal attack": { count: 2, delay: 0.08 },
     "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper|normal attack": { count: 4, delay: 0.04 },
     "/Lotus/Weapons/Grineer/LongGuns/GrnHarpoonGun/GrnHarpoonGun|normal attack": { count: 3, delay: 0.1 },
     "/Lotus/Weapons/Grineer/LongGuns/GrnFourBarrelRifle/GrnFourBarrelRifleWeapon|burst-fire": { count: 4, delay: 0 },
@@ -444,6 +449,19 @@ const BURST_RULE_OVERRIDES: Readonly<Record<string, BurstRuleOverride>> = Object
 });
 
 const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
+    // WFCD keeps Battacor's combined Auto-Burst / Auto-Charge weapon trigger
+    // on each mode row. Restore the Wiki's per-mode burst and charge triggers.
+    // The Alt-Fire rows remain reference-only until their kill-earned charge
+    // count and damage multiplier can be represented.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Battacor
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|normal attack": "Burst",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|secondary fire": "Charge",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|secondary fire aoe": "Charge",
+    // Morgha's launcher burst and semi-automatic charged-shot rows share a
+    // weapon-level Auto-Burst label in the source export.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Morgha
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechGrenadeLaunch/ThanoTechGrenadeLauncher|charged shot": "Semi",
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechGrenadeLaunch/ThanoTechGrenadeLauncher|charged shot explosion": "Semi",
     "/Lotus/Weapons/Grineer/LongGuns/GrnHarpoonGun/GrnHarpoonGun|harpoon": "Semi",
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon": "Charge",
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon contact": "Charge",
@@ -652,6 +670,12 @@ function getAutoSpoolTimingLimitation(uniqueName: string, attackName: string): W
 }
 
 const ATTACK_CHARGE_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
+    // Battacor's direct beam and its linked explosion are released by the same
+    // Wiki-listed 0.4s Auto-Charge trigger. Kill-gated charge stacks are tracked
+    // separately as a score limitation below.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Battacor
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|secondary fire": 0.4,
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|secondary fire aoe": 0.4,
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon": 0.25,
     "/Lotus/Weapons/Infested/LongGuns/QuantaFullyInfested/InfQuantaRifle|infested harpoon contact": 0.25,
     // Larkspur's charged grenade impact and its linked explosion are one
@@ -1866,6 +1890,20 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // Battacor Alt-Fire consumes one to three charges earned by primary-fire
+    // kills, with each stored charge multiplying damage. The single-weapon
+    // encounter model does not track that primary-fire kill history.
+    // Verified 2026-11-22: https://wiki.warframe.com/w/Battacor
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle": Object.freeze({
+        "secondary fire": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Battacor",
+            reason: "Battacor Alt-Fire consumes one to three charges earned by primary-fire kills, and stored charges multiply its damage. Charge count and kill history are not modeled, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+        "secondary fire aoe": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Battacor",
+            reason: "Battacor Alt-Fire's explosion shares the beam's one-to-three kill-earned charges and charge-scaled damage. Charge count and kill history are not modeled, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+    }),
     // Larkspur's explosion is the linked component of its charged Alt-Fire.
     // Select the projectile impact row to score its full single-target release.
     // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur

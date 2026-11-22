@@ -1,5 +1,23 @@
 # Build Planner Optimizer Benchmark
 
+## D3-MECH-BATTACOR-MORGHA-TRIGGERS-001 — source-backed trigger profiles (2026-11-22; bounded)
+
+Current [Battacor](https://wiki.warframe.com/w/Battacor) data lists the primary as a fully automatic two-round burst with a 2.5 trigger-pull rate and 0.08s between rounds. WFCD supplies a combined weapon-level Auto-Burst / Charge label to the individual rows, so the catalog now gives Normal Attack explicit Burst timing. The resulting base effective projectile rate is `2 / (1 / 2.5 + 0.08)` (4.1667/s), with Fire Rate scaling both the burst cycle and intra-burst delay.
+
+Battacor Alt-Fire is an Auto-Charge shot with a 0.4s charge time, but the Wiki says it consumes one to three charges earned through primary-fire kills and damage scales with the stored charge count. Since the finite model has no cross-mode kill/charge history, both direct and explosion rows preserve the Charge trigger and charge-time metadata for reference, then block damage scoring and Auto Optimize with a source-linked explanation. This prevents a single Alt-Fire shot from being modeled as freely repeatable at a fixed, unstated charge count.
+
+The current [Morgha](https://wiki.warframe.com/w/Morgha) table lists its launcher attack as a two-round Auto-Burst and its Charged Shot rows as Semi-Auto at 0.83 attacks/s. The generated weapon-level Auto-Burst label was incorrectly inherited by those charged rows; they now use the Semi trigger with their listed rate, while the launcher burst rows retain their existing two-round timing.
+
+Focused reproduction:
+
+```sh
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "covers instantaneous, simultaneous, and attack-specific burst modes|uses Wiki Auto-Burst, Auto-Charge, and Semi-Auto triggers for Battacor and Morgha" --reporter=dot --configLoader runner
+```
+
+The focused burst group passes 3/3. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, `npx tsc -p tsconfig.app.json --noEmit --incremental false --pretty false`, `npm run validate:sources`, focused ESLint, and `git -c core.whitespace=cr-at-eol diff --check` pass. The standard `npx tsc -b` could not write the configured build-info cache under shared `node_modules/.tmp` (`EPERM`); the non-incremental app TypeScript check passed. Vite's CLI config loader also hit `.vite-temp` `EPERM`, but the production bundle completed in 10.44s after importing the same config programmatically. The full test suite was not run. The supplied IAB URL still served stale `2bf6faea`; the current-branch port-5173 preview timed out, so the new note was not visually verified.
+
+This closes only the identified Battacor and Morgha trigger-label errors. Other attack-specific charge, spool, burst, duplex, held, and active-trigger sequences remain subject to source audit; the open trigger checklist is not complete. References: [Battacor](https://wiki.warframe.com/w/Battacor), [Morgha](https://wiki.warframe.com/w/Morgha), [Fire Rate](https://wiki.warframe.com/w/Fire_Rate).
+
 ## D3-OPT-MAUSOLON-DUAL-PROFILE-WINDOW-ORACLE-001 — seeded profile-specific fixed-window oracle (2026-11-22; released in PR #252)
 
 Implementation commit: 011a81b1; PR #252 squash-merged as e6ff7b20304ae075411cbe35f5350f4c0fa56421. GitHub reported no status checks or PR-triggered workflows; no deployment applies.
