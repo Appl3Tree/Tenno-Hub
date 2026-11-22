@@ -5112,6 +5112,7 @@ function summarizeConditionalEffect(
     const qualifiers = [
         conditional.durationSeconds > 0 ? `${conditional.durationSeconds}s` : "",
         conditional.requiresAiming ? "while aiming" : "",
+        conditional.requiresPrimaryFire ? "Primary Fire only" : "",
         conditional.maxStacks > 1 ? `up to ${conditional.maxStacks} stacks` : "",
         conditional.requiredStatusType ? `requires ${conditional.requiredStatusType} status` : "",
         conditional.requiredTargetStatusType ? `requires ${conditional.requiredTargetStatusType} target status` : "",
@@ -5212,6 +5213,29 @@ export function explainBuild(
     if (selectedStats.hitLocation.headIsWeakPoint && headWeakPointHitShare > 0 &&
         (selectedStats.hitLocation.weakPointDamageBonus !== 0 || selectedStats.hitLocation.weakPointCritChanceBonus !== 0)) {
         buildHighlights.push(`Weak-point bonuses apply to the selected head at the configured ${(headWeakPointHitShare * 100).toFixed(1)}% hit share. Direct hits add 1.5× the Weak-point Damage bonus to the head multiplier; DoT seeds use the Wiki multiplier × (1 + bonus) rule, and Weak-point Critical Chance applies on those hits. Non-head weakpoints and critical-tier promotion are not modeled.`);
+    }
+    const primaryFireWeakPointConditional = selectedEffects
+        .flatMap((effect) => effect?.conditionalEffects ?? [])
+        .find((conditional) => conditional.trigger === "onWeakPointHit" && conditional.requiresPrimaryFire === true);
+    if (primaryFireWeakPointConditional) {
+        const conditionalMode = conditionalState?.mode ?? DEFAULT_CONDITIONAL_STATE.mode;
+        const isAltFire = /\balt[- ]?fire\b/i.test(scoringWeapon.selectedAttackName ?? "");
+        const maxStacks = Math.max(1, primaryFireWeakPointConditional.maxStacks ?? 1);
+        if (conditionalMode === "initial") {
+            buildHighlights.push("The initial state starts with no Pain Points stacks; this score does not assume a weak-point hit history.");
+        } else if (conditionalMode === "fullyStacked" || conditionalMode === "custom") {
+            const assumedStacks = conditionalMode === "fullyStacked"
+                ? maxStacks
+                : Math.max(0, Math.min(maxStacks, conditionalState?.externalStacks ?? 0));
+            const stateLabel = conditionalMode === "fullyStacked" ? "fully stacked" : "custom";
+            buildHighlights.push(`The ${stateLabel} scenario assumes ${assumedStacks} Pain Points stack${assumedStacks === 1 ? "" : "s"} without replaying weak-point hits. Primary Fire is the live trigger; this selected state supplies the stacks as a scenario override, including on Alt-Fire. Area coverage is not scored.`);
+        } else if (isAltFire) {
+            buildHighlights.push("Pain Points' Primary Fire weak-point trigger is inactive for this Alt-Fire attack row.");
+        } else if (!selectedStats.hitLocation.headIsWeakPoint || headWeakPointHitShare <= 0) {
+            buildHighlights.push("Pain Points has no modeled activations because the selected target and configured head-hit share produce no weak-point hits.");
+        } else {
+            buildHighlights.push(`Pain Points uses a steady-state single-target estimate from the configured head-hit share, attack rate, and projectile count. Qualifying projectile hits are treated as independent arrivals; the active count is capped at ${maxStacks} over the preceding ${primaryFireWeakPointConditional.durationSeconds} seconds, and all stacks expire ${primaryFireWeakPointConditional.durationSeconds} seconds after the latest hit. Only Primary Fire qualifies; area coverage is not scored.`);
+        }
     }
     if (changed(baselineStats.critChance, selectedStats.critChance) ||
         changed(baselineStats.critMultiplier, selectedStats.critMultiplier)) {

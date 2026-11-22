@@ -312,6 +312,8 @@ export type ConditionalTrigger =
 export interface ConditionalEffect {
     trigger: ConditionalTrigger;
     durationSeconds: number;
+    /** The source limits this trigger to the weapon's Primary Fire mode. */
+    requiresPrimaryFire?: boolean;
     /** Effect can activate only while the scored target is an Eximus. */
     requiresEximusTarget?: boolean;
     /** Strict player-to-target range threshold for distance-gated effects. */
@@ -517,6 +519,7 @@ function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
     const stackMatch = body.match(/\bstacks?\s+up\s+to\s+(\d+)x\b/i);
     const maxStacks = stackMatch ? Math.max(1, Number(stackMatch[1])) : 1;
     const requiresAiming = /\bwhen aiming\b|\bwhile aiming\b/i.test(body);
+    const requiresPrimaryFire = triggerRaw === "on weak point hits with primary fire";
     const bodyForParsing = body
         .replace(/\bstacks?\s+up\s+to\s+\d+x\b\.?/ig, " ")
         .replace(/\s+for\s+\d+(?:\.\d+)?s\b\.?/ig, " ")
@@ -563,6 +566,7 @@ function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
             {
                 trigger,
                 durationSeconds,
+                ...(requiresPrimaryFire ? { requiresPrimaryFire: true } : {}),
                 requiresAiming,
                 maxStacks,
                 stats: extractedStats,
