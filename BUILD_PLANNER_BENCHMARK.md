@@ -19,7 +19,7 @@ npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts 
 
 PR [#235](https://github.com/Appl3Tree/Tenno-Hub/pull/235) squash-merged as `f4cefa9cd9725404d47d1fb6cc1f08335584a08b`; Pages deployment [run #315](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/44986057689) succeeded. The hosted IAB at `version=f4cefa9` shows “Why This Build” explaining that finite refinement tests bounded one-mod additions/replacements and removals, followed by a bounded two-mod search and explicit model limitations. Resetting the transient Braton test build returned the planner to 0/30 capacity; no saved build was modified. This validates the deployed explanation and workflow, not optimizer parity with Underframe or gameplay behavior.
 
-The remaining release validation at this checkpoint is remote review/deployment and hosted explanation verification. These fixtures establish a reproducible model-local removal correction and one small ranked sample, not full-catalog optimality, broad Arcane/Forma search, Underframe parity, stochastic history, or gameplay accuracy.
+The release and hosted explanation check are complete. These fixtures establish a reproducible model-local removal correction and one small ranked sample, not full-catalog optimality, broad Arcane/Forma search, Underframe parity, stochastic history, or gameplay accuracy.
 
 ## D3-OPT-JOINT-ARCANE-FULLPOOL-001 — coordinated mod/Arcane finite Expected TTK refinement (2026-11-21; PR #199 merged)
 
