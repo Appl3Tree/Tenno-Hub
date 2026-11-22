@@ -21,6 +21,35 @@ PR [#235](https://github.com/Appl3Tree/Tenno-Hub/pull/235) squash-merged as `f4c
 
 The release and hosted explanation check are complete. These fixtures establish a reproducible model-local removal correction and one small ranked sample, not full-catalog optimality, broad Arcane/Forma search, Underframe parity, stochastic history, or gameplay accuracy.
 
+## D3-OPT-EXPECTED-TTK-POST-REMOVAL-CORPUS-001 — seeded post-fix neighborhood audit (2026-11-22; bounded)
+
+After PR #235, `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261127` ran the eight fixed anchors and four seed-selected fixtures against Grineer / 100,000 Health / 3,000 Armor, Realistic state, eight standard slots, Catalyst, MR 30, up to three Forma, no Exilus or Arcane optimization. The independent scorer enumerated legal one-mod additions, removals, and replacements from each optimizer result and exact-scored 3,890 candidates total; no fixture had an improving neighbor.
+
+| Weapon / attack | Selection | Optimizer and best-neighbor Expected TTK | Legal neighbors | One-case harness wall time |
+| --- | --- | ---: | ---: | ---: |
+| Braton Prime / Normal Attack | fixed | 2.1195s | 234 | 27.16s |
+| Cedo / Normal Attack | fixed | 2.9840s | 412 | 10.72s |
+| Laetum / Normal Attack | fixed | 1.8000s | 276 | 9.11s |
+| Soma Prime / Fully Spooled | fixed | 1.7542s | 420 | 29.22s |
+| Broken War / Normal Attack | fixed | 8.8065s | 351 | 8.56s |
+| Kuva Nukor / Normal Attack | fixed | 1.4400s | 359 | 42.59s |
+| Nataruk / Perfect Shot | fixed | 2.0000s | 396 | 7.14s |
+| Torid / Grenade Impact | fixed | 4.7544s | 238 | 17.58s |
+| Acceltra Prime / Rocket Explosion | seeded | 1.3158s | 385 | 8.22s |
+| Corvas Prime / Charged Shot | seeded | 1.5625s | 196 | 5.20s |
+| Helstrum / Explosion | seeded | 52.0000s | 317 | 7.62s |
+| Arca Titron / Heavy Slam Attack | seeded | 1.5592s | 306 | 7.08s |
+
+The one-case harness wall-time median is 8.84s and maximum 42.59s (Kuva Nukor). The script starts a separate Node process per fixture, so this duration includes subprocess startup and is not an isolated optimizer measurement; it is not Worker or browser latency evidence. The seeded four include explosive primary, Archgun, Companion weapon, and heavy melee categories. This demonstrates bounded one-mod local stability across varied weapon families, not pair/global optimality, Arcane joint optimality, Underframe parity, or gameplay accuracy.
+
+Reproduce with `npx tsx scripts/auditExpectedTtkCorpus.ts --seed=20261127`.
+
+## D3-OPT-EXPECTED-TTK-REMOVAL-IAB-LATENCY-001 — hosted Worker repeatability sample (2026-11-22; bounded)
+
+On the deployed planner at [`version=f4cefa9`](https://appl3tree.github.io/Tenno-Hub/?probe=removal-review-20261122&version=f4cefa9), three clean IAB runs used Kuva Nukor / Normal Attack, Expected TTK, Grineer damage modifiers, custom current-level target pools of 100,000 Health / 3,000 Armor, Realistic state, eight standard slots, Catalyst enabled, MR 30, up to three Forma, and Exilus/Arcane optimization disabled. Each click-to-result run returned the same legal 60/60 build with three Forma and 1.93s modeled Expected TTK (51,785.7 modeled damage/s): Pistol Pestilence R3, Convulsion R5, Anemic Agility R5, Magnetic Might R3, Accelerated Isotope R3, Lethal Torrent R5, Galvanized Diffusion R10, and Galvanized Shot R10.
+
+The three click-to-result readings were 8.9s, 8.2s, and 8.3s. “Why This Build” visibly disclosed the bounded finite-search stages, including up to eight single-mod removals per pass. This is a three-repeat, same-tab IAB sample on one environment, not cold-start, p95, mobile, or population-tail latency evidence. The transient test build was reset to Braton Prime at 0/30 uncatalyzed capacity, MR 0, with Balanced synthetic target and temporary options cleared; no saved build was changed.
+
 ## D3-OPT-JOINT-ARCANE-FULLPOOL-001 — coordinated mod/Arcane finite Expected TTK refinement (2026-11-21; PR #199 merged)
 
 The exact full-pool audit exposed a coordination miss on Braton Prime / Normal Attack against Grineer (100,000 Health / 3,000 Armor), Realistic state, two slots, zero Forma, 1,500 Warframe Armor, and 1,000 maximum Energy at 100%. Before the change, the optimizer selected Thermite Rounds + Heavy Caliber with Primary Overcharge R5 at 20.703236s / 4,830.16 DPS. Exact joint scoring found Thermite Rounds + Galvanized Chamber with Primary Bulwark R5 at 17.005950s / 5,880.29 DPS, a 17.9% lower modeled Expected TTK.
