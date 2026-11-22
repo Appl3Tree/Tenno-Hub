@@ -2,6 +2,23 @@
 
 PR [#185](https://github.com/Appl3Tree/Tenno-Hub/pull/185) merged these local changes as `d90c0aedcee3d0c8fd50da9ad041bb0f83963986` on 2026-11-21. The GitHub connector returned no combined checks or PR-triggered workflow runs for that merge commit; Pages deployment and production availability are not independently verified. The current-branch IAB preview timed out, while port 80 served an older build, so rendered QA for this scoring-only change remains unverified.
 
+## D3-OPT-EXPECTED-TTK-REMOVAL-001 — bounded single-mod removal refinement and ranked oracle (2026-11-22; local optimizer validation passes)
+
+A bounded exhaustive test found a finite Expected TTK miss on Cedo / Alt-Fire Glaive against Grineer (155,000 Health / 1,800 Armor), Realistic state, three uncatalyzed rank-10 slots, up to one Forma, 1,500 Warframe Armor, and 1,000 maximum Energy at 50%. The sampled pool is Contagious Spread R0–R1, Incendiary Coat R0–R1, Shredder R0–R1, and Blaze R0–R2. The optimizer's pre-fix build retained rank-zero Shredder and scored 145s; exact scoring of the legal removal proposal produces Blaze R2 + Incendiary Coat R1 with Primary Bulwark R5 at 142s. The change proposes legal one-mod removals during finite-encounter refinement and reserves up to eight such proposals inside the existing exact-scoring candidate cap of 40. Proposal capacity, slot assignment, and Forma accounting use the existing legality helpers.
+
+The focused Cedo regression passes 1/1 in 8.88s. A second seeded oracle (seed `20261126`) samples four compatible, fully scoreable Lex Prime damage mods, varies owned rank caps through R1–R2, and exhaustively compares legal ordered subsets/rank tuples through three slots under uncatalyzed rank-10 capacity and up to one Forma. It passes 1/1 in 2.52s with an empty Arcane slot; it checks the sampled three-mod/rank neighborhood, not the Arcane dimension. An initial two-fixture exhaustive oracle with every compatible Arcane rank took 579s and exposed the Cedo removal miss. Because that broad run was expensive, coverage was split into the targeted Cedo regression and this smaller seeded ranked oracle. This does not add multi-fixture joint Arcane/FORMA oracle evidence.
+
+The first removal implementation tried to stay within the existing add/replace candidate cap by evicting the last replacement proposals. The complete optimizer file then reported four regressions (166 passed, 4 failed, 883.02s), including established melee slot-family, Braton fire-rate, Cedo elemental, and Laetum critical neighborhoods. The fix now leaves that shortlist intact and gives removal alternatives a separate allowance of up to eight exact scores per pass (up to 48 total Expected TTK proposals; fixed-window has its existing four extra add/replace candidates, for up to 52). The four existing cases and both new regressions pass together (6/6, 32.94s); the complete optimizer file passes 170/170 in 867.14s after the correction. Focused ESLint, `npx tsc -b`, `git diff --check`, and a production Vite build with output redirected to system temp pass. The ordinary build command reached Vite but the sandbox denied creation of `dist` inside this registered worktree; the source build itself completed successfully with the temp output. The standard large-chunk warning remains.
+
+Reproduce the focused checks with:
+
+```sh
+npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts -t "drops a rank-zero Cedo mod when its removal improves finite Expected TTK" --reporter=dot
+npx vitest run --maxWorkers=1 src/domain/logic/__tests__/buildOptimizer.test.ts -t "matches a seeded four-mod, three-slot ranked Expected TTK oracle with an empty Arcane slot" --reporter=dot
+```
+
+The remaining release validation at this checkpoint is remote review/deployment and hosted explanation verification. These fixtures establish a reproducible model-local removal correction and one small ranked sample, not full-catalog optimality, broad Arcane/Forma search, Underframe parity, stochastic history, or gameplay accuracy.
+
 ## D3-OPT-JOINT-ARCANE-FULLPOOL-001 — coordinated mod/Arcane finite Expected TTK refinement (2026-11-21; PR #199 merged)
 
 The exact full-pool audit exposed a coordination miss on Braton Prime / Normal Attack against Grineer (100,000 Health / 3,000 Armor), Realistic state, two slots, zero Forma, 1,500 Warframe Armor, and 1,000 maximum Energy at 100%. Before the change, the optimizer selected Thermite Rounds + Heavy Caliber with Primary Overcharge R5 at 20.703236s / 4,830.16 DPS. Exact joint scoring found Thermite Rounds + Galvanized Chamber with Primary Bulwark R5 at 17.005950s / 5,880.29 DPS, a 17.9% lower modeled Expected TTK.

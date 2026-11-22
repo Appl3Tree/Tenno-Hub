@@ -2435,6 +2435,7 @@ function fillEmptySlots(
 
 const ENCOUNTER_REFINE_CANDIDATE_LIMIT = 40;
 const WINDOW_DPS_EXTRA_CANDIDATE_LIMIT = 4;
+const ENCOUNTER_REFINE_REMOVAL_LIMIT = 8;
 const ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT = 8;
 const ENCOUNTER_REFINE_PROXY_SHORTLIST = 10;
 const ENCOUNTER_REFINE_ELEMENT_TRANSITION_LIMIT = 4;
@@ -3253,6 +3254,71 @@ function refineBuildByExpectedEncounter(
             }
         }
 
+        // Removing a selected mod can improve a finite encounter even when its
+        // rank-zero stats look positive to the proxy. Keep legal one-mod removals
+        // in the same bounded exact-scoring budget as additions and replacements.
+        for (const removed of existing) {
+            const trialMods = existing.filter((entry) => entry !== removed).map((entry) => entry.mod);
+            const trialRanks = existing.filter((entry) => entry !== removed).map((entry) => entry.rank);
+            const assigned = assignModsToSlots(
+                trialMods,
+                trialRanks,
+                assignmentPolarities,
+                slots.length,
+                allowForma,
+                opts.maxFormaCount,
+            );
+            const trialPolarities = allowForma
+                ? minimizePolaritiesByCapacity(
+                    defaultPolarities,
+                    assigned.slotMods,
+                    assigned.slotRanks,
+                    capacityConfig,
+                    capacitySlots,
+                    undefined,
+                    opts.maxFormaCount,
+                    opts.lockedSlotMask ?? [],
+                ).mainPolarities
+                : assigned.resultPolarities;
+            if (capacityConfig && !fitsCapacity(
+                assigned.slotMods,
+                assigned.slotRanks,
+                capacityConfig,
+                trialPolarities,
+                capacitySlots,
+            )) continue;
+
+            const signature = getBeamStateSignature(
+                assigned.slotMods.filter((mod): mod is ModEntry => !!mod),
+                assigned.slotMods.flatMap((mod, index) => mod ? [assigned.slotRanks[index]] : []),
+                true,
+            );
+            if (proposals.has(signature)) continue;
+            proposals.set(signature, {
+                slots: assigned.slotMods,
+                ranks: assigned.slotRanks,
+                polarities: trialPolarities,
+                arcaneEffect: currentArcaneEffect,
+                proxyScore: scoreSlots(
+                    weapon,
+                    assigned.slotMods,
+                    assigned.slotRanks,
+                    goal === "timeToKill" ? "scaling" : goal,
+                    targetFaction,
+                    currentArcaneEffect,
+                    [...preEquippedEffects, ...extraEffects],
+                    opts.conditionalState,
+                    opts.targetProfileOverride,
+                    undefined,
+                    opts.meleeStanceCombo,
+                ),
+                elementTheme: expectedEncounterElementTheme(weapon, assigned.slotMods, assigned.slotRanks),
+                elementTransition: "",
+                replacedModUniqueName: removed.mod.uniqueName,
+                candidates: [],
+            });
+        }
+
         const sortedProposals = [...proposals.values()]
             .sort((left, right) => right.proxyScore - left.proxyScore);
         const shortlist = sortedProposals.slice(0, ENCOUNTER_REFINE_PROXY_SHORTLIST);
@@ -3459,6 +3525,19 @@ function refineBuildByExpectedEncounter(
                 familySlotExtras++;
             }
             if (familySlotExtras >= ENCOUNTER_FAMILY_SLOT_EXTRA_LIMIT) break;
+        }
+        let removalProposalsAdded = 0;
+        for (const proposal of sortedProposals) {
+            if (removalProposalsAdded >= ENCOUNTER_REFINE_REMOVAL_LIMIT || proposal.candidates.length ||
+                !proposal.replacedModUniqueName) continue;
+            if (!shortlist.includes(proposal)) {
+                // Removal alternatives have a separate small budget. Evicting a
+                // replacement here can discard a family/slot alternative that
+                // the existing exact-TTK regressions rely on.
+                if (shortlist.length >= candidateLimit + ENCOUNTER_REFINE_REMOVAL_LIMIT) break;
+                shortlist.push(proposal);
+            }
+            removalProposalsAdded++;
         }
         if (!shortlist.length) break;
         refreshJointArcaneProxies(shortlist, singleCandidateFamilies);
@@ -5209,9 +5288,9 @@ export function explainBuild(
         comparisonNote: goal === "meleeDps"
             ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
             : goal === "timeToKill"
-            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod replacements. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls—or when an Arcane-dependent move improves the exact score—the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is exact-scored against the current mod list. For up to ${ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT} varied legal mod changes per pass, a fast Arcane estimate chooses a candidate effect and the complete finite-encounter score evaluates the combined move; small mod/Arcane pools are scored exactly. The Arcane is rechecked as the build changes, for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
+            ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod additions or replacements plus up to ${ENCOUNTER_REFINE_REMOVAL_LIMIT} legal single-mod removals. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls—or when an Arcane-dependent move improves the exact score—the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is exact-scored against the current mod list. For up to ${ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT} varied legal mod changes per pass, a fast Arcane estimate chooses a candidate effect and the complete finite-encounter score evaluates the combined move; small mod/Arcane pools are scored exactly. The Arcane is rechecked as the build changes, for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
             : goal === "windowDps"
-                ? `The optimizer screens builds with a fast sustained-damage proxy, then exact-scores legal effect-diverse finalists and bounded one-/two-mod replacements in a single-target, half-open ${FIXED_WINDOW_DPS_SECONDS}s simulation. It ranks applied damage divided by ${FIXED_WINDOW_DPS_SECONDS}s, clips damage to remaining target pools, counts attacks and DoT ticks with timestamps below ${FIXED_WINDOW_DPS_SECONDS}s, and stops damage after the target dies. Realistic on-kill stacks start at zero because this objective does not reset targets; configured non-kill conditionals remain in effect. Damage/status outcomes are deterministic mean-field estimates, not Underframe's seeded sample mean. This bounded search does not prove global optimality or simulator/gameplay parity.`
+                ? `The optimizer screens builds with a fast sustained-damage proxy, then exact-scores legal effect-diverse finalists and bounded one-/two-mod additions, replacements, and single-mod removals in a single-target, half-open ${FIXED_WINDOW_DPS_SECONDS}s simulation. It ranks applied damage divided by ${FIXED_WINDOW_DPS_SECONDS}s, clips damage to remaining target pools, counts attacks and DoT ticks with timestamps below ${FIXED_WINDOW_DPS_SECONDS}s, and stops damage after the target dies. Realistic on-kill stacks start at zero because this objective does not reset targets; configured non-kill conditionals remain in effect. Damage/status outcomes are deterministic mean-field estimates, not Underframe's seeded sample mean. This bounded search does not prove global optimality or simulator/gameplay parity.`
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, the optimizer checks a small, varied set of legal mod changes together with their Arcane effects, then rechecks the Arcane on the returned list. Small Arcane pools receive exact finite-encounter scoring. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
