@@ -2444,8 +2444,9 @@ const ENCOUNTER_SLOT_ALTERNATIVE_LIMIT = 8;
 const ENCOUNTER_REFINE_PASSES = 6;
 // The Laetum fixed-window fixture reaches its best one-mod neighborhood on pass seven.
 const ENCOUNTER_WINDOW_DPS_REFINE_PASSES = 7;
-const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 13;
+const ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT = 14;
 const ENCOUNTER_PAIR_CANDIDATES_PER_FAMILY = 2;
+const ENCOUNTER_PAIR_INCOMING_VARIANT_GROUP_LIMIT = 12;
 const ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT = 24;
 const ARCANE_MOD_JOINT_REFINE_PASSES = 3;
 const ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT = 8;
@@ -3608,7 +3609,7 @@ function refineBuildByExpectedEncounter(
                 "elemental-electricity-status", "elemental-cold", "elemental-toxin",
                 "elemental-heat", "elemental-electricity",
                 "elemental", "multishot", "critical", "reload-fire-rate", "fire-rate", "base-damage",
-                "faction-damage", "status", "weapon-tempo", "other",
+                "faction-damage", "status", "weapon-tempo", "tempo-damage-tradeoff", "other",
             ];
             for (const family of familyOrder) {
                 let addedForFamily = 0;
@@ -3726,24 +3727,65 @@ function refineBuildByExpectedEncounter(
 
                 const sortedPairProposals = [...pairProposals.values()]
                     .sort((left, right) => right.proxyScore - left.proxyScore);
-                const pairShortlist = sortedPairProposals.slice(0, ENCOUNTER_REFINE_PROXY_SHORTLIST);
-                const pairThemes = new Set(pairShortlist.map((proposal) => proposal.elementTheme));
-                const pairFamilies = new Set(pairShortlist.map((proposal) => proposal.candidates
-                    .flatMap(expectedEncounterCandidateFamilies)
+                const incomingPairSignature = (proposal: EncounterReplacementProposal) => proposal.candidates
+                    .map((candidate) => `${candidate.mod.uniqueName}@${candidate.rank}`)
                     .sort()
-                    .join("+"),
-                ));
+                    .join("::");
+                const pairFamilySignature = (proposal: EncounterReplacementProposal) => {
+                    const incomingFamilies = proposal.candidates
+                        .map((candidate) => expectedEncounterCandidateFamilies(candidate).sort().join("+"))
+                        .sort()
+                        .join("::");
+                    const retainedNames = new Set(proposal.slots.flatMap((mod) => mod ? [mod.uniqueName] : []));
+                    const outgoingFamilies = slots.flatMap((mod, index) => mod && !retainedNames.has(mod.uniqueName)
+                        ? [expectedEncounterCandidateFamilies({ mod, rank: ranks[index] ?? mod.fusionLimit }).sort().join("+")]
+                        : [],
+                    ).sort().join("::");
+                    return `${incomingFamilies}=>${outgoingFamilies}`;
+                };
+                const proposalGroups = new Map<string, EncounterReplacementProposal[]>();
+                for (const proposal of sortedPairProposals) {
+                    const key = incomingPairSignature(proposal);
+                    const group = proposalGroups.get(key) ?? [];
+                    group.push(proposal);
+                    proposalGroups.set(key, group);
+                }
+                const pairShortlist = sortedPairProposals.slice(0, ENCOUNTER_REFINE_PROXY_SHORTLIST);
+                // Preserve an outgoing-slot alternative for the strongest incoming
+                // pairs. One incoming pair can have very different finite damage after
+                // replacing different installed mods. Keeping only its proxy-best slot
+                // pairing misses coordinated element/tempo swaps around nonlinear
+                // status thresholds.
+                for (const group of [...proposalGroups.values()].slice(0, ENCOUNTER_PAIR_INCOMING_VARIANT_GROUP_LIMIT)) {
+                    if (pairShortlist.length >= ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) break;
+                    const primary = group.find((proposal) => pairShortlist.includes(proposal)) ?? group[0];
+                    if (!primary) continue;
+                    if (!pairShortlist.includes(primary)) pairShortlist.push(primary);
+                    const primaryFamily = pairFamilySignature(primary);
+                    const alternative = group.find((proposal) => proposal.elementTheme !== primary.elementTheme) ??
+                        group.find((proposal) => pairFamilySignature(proposal) !== primaryFamily);
+                    if (alternative && !pairShortlist.includes(alternative) &&
+                        pairShortlist.length < ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) {
+                        pairShortlist.push(alternative);
+                    }
+                }
+                const pairThemes = new Set(pairShortlist.map((proposal) => proposal.elementTheme));
+                const pairFamilies = new Set(pairShortlist.map(pairFamilySignature));
+                // Reserve distinct incoming-effect mixes before adding more
+                // elemental themes. Theme diversity can otherwise consume the
+                // whole exact-score budget before a low-proxy tempo/element pair
+                // reaches finite-TTK scoring.
                 for (const proposal of sortedPairProposals) {
                     if (pairShortlist.length >= ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) break;
-                    if (!proposal.elementTheme || pairThemes.has(proposal.elementTheme)) continue;
-                    pairThemes.add(proposal.elementTheme);
+                    const family = pairFamilySignature(proposal);
+                    if (!family || pairFamilies.has(family)) continue;
+                    pairFamilies.add(family);
                     pairShortlist.push(proposal);
                 }
                 for (const proposal of sortedPairProposals) {
                     if (pairShortlist.length >= ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) break;
-                    const family = proposal.candidates.flatMap(expectedEncounterCandidateFamilies).sort().join("+");
-                    if (!family || pairFamilies.has(family)) continue;
-                    pairFamilies.add(family);
+                    if (!proposal.elementTheme || pairThemes.has(proposal.elementTheme)) continue;
+                    pairThemes.add(proposal.elementTheme);
                     pairShortlist.push(proposal);
                 }
                 if (pairShortlist.length < ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT) {
