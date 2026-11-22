@@ -1,6 +1,6 @@
 # Build Planner Optimizer Benchmark
 
-## D3-MECH-BATTACOR-MORGHA-TRIGGERS-001 — source-backed trigger profiles (2026-11-22; bounded)
+## D3-MECH-BATTACOR-MORGHA-TRIGGERS-001 — source-backed trigger profiles (2026-11-22; bounded; released in PR [#257](https://github.com/Appl3Tree/Tenno-Hub/pull/257), squash merge `4103392dd9abab3db476e7d22eb3c51c2d7d18d6`)
 
 Current [Battacor](https://wiki.warframe.com/w/Battacor) data lists the primary as a fully automatic two-round burst with a 2.5 trigger-pull rate and 0.08s between rounds. WFCD supplies a combined weapon-level Auto-Burst / Charge label to the individual rows, so the catalog now gives Normal Attack explicit Burst timing. The resulting base effective projectile rate is `2 / (1 / 2.5 + 0.08)` (4.1667/s), with Fire Rate scaling both the burst cycle and intra-burst delay.
 
@@ -14,7 +14,7 @@ Focused reproduction:
 npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "covers instantaneous, simultaneous, and attack-specific burst modes|uses Wiki Auto-Burst, Auto-Charge, and Semi-Auto triggers for Battacor and Morgha" --reporter=dot --configLoader runner
 ```
 
-The focused burst group passes 3/3. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, `npx tsc -p tsconfig.app.json --noEmit --incremental false --pretty false`, `npm run validate:sources`, focused ESLint, and `git -c core.whitespace=cr-at-eol diff --check` pass. The standard `npx tsc -b` could not write the configured build-info cache under shared `node_modules/.tmp` (`EPERM`); the non-incremental app TypeScript check passed. Vite's CLI config loader also hit `.vite-temp` `EPERM`, but the production bundle completed in 10.44s after importing the same config programmatically. The full test suite was not run. The supplied IAB URL still served stale `2bf6faea`; the current-branch port-5173 preview timed out, so the new note was not visually verified.
+The focused burst group passes 3/3. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, `npx tsc -p tsconfig.app.json --noEmit --incremental false --pretty false`, `npm run validate:sources`, focused ESLint, and `git -c core.whitespace=cr-at-eol diff --check` pass. The standard `npx tsc -b` could not write the configured build-info cache under shared `node_modules/.tmp` (`EPERM`); the non-incremental app TypeScript check passed. Vite's CLI config loader also hit `.vite-temp` `EPERM`, but the production bundle completed in 10.44s after importing the same config programmatically. The full test suite was not run. The supplied IAB URL still served stale `2bf6faea`; the current-branch port-5173 preview timed out, so the new note was not visually verified. GitHub reported no status checks or PR-triggered workflow runs for the merge; deployment was not independently verified.
 
 This closes only the identified Battacor and Morgha trigger-label errors. Other attack-specific charge, spool, burst, duplex, held, and active-trigger sequences remain subject to source audit; the open trigger checklist is not complete. References: [Battacor](https://wiki.warframe.com/w/Battacor), [Morgha](https://wiki.warframe.com/w/Morgha), [Fire Rate](https://wiki.warframe.com/w/Fire_Rate).
 
