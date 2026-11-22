@@ -26,7 +26,12 @@ const TARGET = {
     armor: 3_000,
     toxinBypassesShields: true,
 };
-const CONDITIONAL_STATE: ConditionalState = { mode: "realistic" };
+const conditionalStateArg = process.argv.find((arg) => arg.startsWith("--state="))?.slice("--state=".length);
+const conditionalStateMode = conditionalStateArg ?? "realistic";
+if (conditionalStateMode !== "realistic" && conditionalStateMode !== "fullyStacked") {
+    throw new Error(`Unsupported --state=${conditionalStateMode}; choose realistic or fullyStacked.`);
+}
+const CONDITIONAL_STATE: ConditionalState = { mode: conditionalStateMode };
 const MAX_FORMA = 3;
 const CAPACITY_CONFIG: CapacityConfig = {
     weaponRank: 30,
