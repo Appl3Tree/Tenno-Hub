@@ -1928,12 +1928,14 @@ function buildMathBreakdown(
                     : []),
                 ...(stats.attackDamageFalloff ? [
                     stats.attackDamageFalloff.distanceMeters === null
-                        ? `Attack falloff distance is unset; the score assumes full damage (×${fmt(stats.attackDamageFalloff.damageMultiplier, 4)}).`
-                        : `Attack falloff at ${fmt(stats.attackDamageFalloff.distanceMeters, 2)}m = ×${fmt(stats.attackDamageFalloff.damageMultiplier, 5)}${stats.attackDamageFalloff.startDistanceMeters !== null && stats.attackDamageFalloff.endDistanceMeters !== null
+                        ? `Attack distance is unset; the score assumes full damage (×${fmt(stats.attackDamageFalloff.damageMultiplier, 4)}) and does not evaluate a hit-range cap.`
+                        : `Attack distance ${fmt(stats.attackDamageFalloff.distanceMeters, 2)}m applies a ×${fmt(stats.attackDamageFalloff.damageMultiplier, 5)} damage multiplier${stats.attackDamageFalloff.startDistanceMeters !== null && stats.attackDamageFalloff.endDistanceMeters !== null
                             ? ` across ${fmt(stats.attackDamageFalloff.startDistanceMeters, 2)}–${fmt(stats.attackDamageFalloff.endDistanceMeters, 2)}m after ×${fmt(stats.attackDamageFalloff.falloffDistanceMultiplier, 4)} falloff-range scaling`
                             : " (no direct falloff profile listed)"}.`,
                     ...(stats.attackDamageFalloff.maximumRangeMeters !== null
-                        ? [`Wiki-listed maximum range = ${fmt(stats.attackDamageFalloff.maximumRangeMeters, 2)}m; this calculator does not turn farther attacks into misses.${stats.attackDamageFalloff.exceedsListedMaximumRange ? " The entered distance exceeds that listed range." : ""}`]
+                        ? [stats.attackDamageFalloff.maximumRangeBehavior === "hardHitCap"
+                            ? `Wiki-listed ${fmt(stats.attackDamageFalloff.maximumRangeMeters, 2)}m hit cap is enforced.${stats.attackDamageFalloff.isOutOfRangeMiss ? " The entered attack is a miss; it applies no hit or linked-component effects." : stats.attackDamageFalloff.exceedsListedMaximumRange ? " The entered distance exceeds the listed range, but this profile's range remains informational." : ""}`
+                            : `Wiki-listed maximum range = ${fmt(stats.attackDamageFalloff.maximumRangeMeters, 2)}m; this calculator does not treat farther attacks as misses.${stats.attackDamageFalloff.exceedsListedMaximumRange ? " The entered distance exceeds that listed range." : ""}`]
                         : []),
                     ...(stats.attackDamageFalloff.sourceUrl ? [`Falloff source = ${stats.attackDamageFalloff.sourceUrl}`] : []),
                     ...(stats.attackDamageFalloff.maximumRangeSourceUrl ? [`Range source = ${stats.attackDamageFalloff.maximumRangeSourceUrl}`] : []),
@@ -3723,11 +3725,15 @@ export default function ModBuilder() {
     const falloffRelevantAttacks = [selectedFalloffAttack, linkedFalloffAttack].filter((attack) =>
         Boolean(attack?.damageFalloff || attack?.maximumRangeMeters !== undefined),
     );
-    const mausolonRangeNote = weapon?.name === "Mausolon" && selectedFalloffAttack?.name === "Auto"
-        ? weapon.variantLabel === "Archwing"
-            ? "The Wiki lists 300 m range plus 1,400–2,800 m falloff for this profile. The hit limit is unverified; this calculator applies that falloff without treating 300 m as a miss cap."
-            : weapon.variantLabel === "Atmosphere"
-                ? "The Wiki lists 300 m range but no Atmosphere Auto falloff curve. The hit limit is unverified; range is informational and farther shots are not counted as misses."
+    const mausolonRangeNote = weapon?.name === "Mausolon" && selectedFalloffAttack
+        ? selectedFalloffAttack.name === "Auto"
+            ? weapon.variantLabel === "Archwing"
+                ? "Archwing Auto lists both a 300 m hit-scan range and a 1,400–2,800 m falloff curve. These Wiki values conflict; this calculator applies the falloff curve and leaves 300 m informational pending direct verification."
+                : weapon.variantLabel === "Atmosphere"
+                    ? "Atmosphere Auto lists a 300 m hit-scan range and no direct falloff curve. Following the Wiki Range and Hitscan definitions, this profile treats attacks beyond 300 m as misses."
+                    : undefined
+            : selectedFalloffAttack.name === "Charged Shot Laser"
+                ? "Both Mausolon profiles list a 300 m hit-scan range for this Laser and no direct falloff curve; the planner treats attacks beyond 300 m as misses."
                 : undefined
         : undefined;
     const supportsKineticKiller = Boolean(getIncarnonRecordForWeapon(weapon)?.tiers.some((tier) =>
@@ -5031,6 +5037,7 @@ export default function ModBuilder() {
         });
     }, [encounterTargetMetrics, activeCalcWeapon, factionOn, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat]);
     const activeAttackEventLabel = activeCalcWeapon?.trigger.toLowerCase() === "burst" ? "rounds" : "attacks";
+    const selectedAttackOutOfRange = activeMetrics?.modded.attackDamageFalloff?.isOutOfRangeMiss === true;
     const activeEncounterStatusSummary = activeTargetEncounter
         ? Object.entries(activeTargetEncounter.statusApplicationsByType)
             .filter(([, count]) => (count ?? 0) >= 0.01)
@@ -5064,6 +5071,10 @@ export default function ModBuilder() {
 
     async function handleOptimize() {
         if (!weapon) return;
+        if (selectedAttackOutOfRange) {
+            setOptimizerNotice("The selected attack misses at the configured distance. Move the target inside its hit limit before optimizing.");
+            return;
+        }
         if (onlyOwned && ownedSet.size === 0) return;
         const selectedAttackAutoSpoolLimitation = weapon.attacks[selectedAttackIdx]?.autoSpoolTimingLimitation;
         if ((goal === "timeToKill" || goal === "windowDps") && selectedAttackAutoSpoolLimitation) {
@@ -5885,7 +5896,7 @@ export default function ModBuilder() {
                                             <div className="flex items-stretch overflow-hidden rounded-xl border border-amber-600/60 bg-amber-950/30">
                                                 <button
                                                     onClick={optimizing ? cancelOptimization : handleOptimize}
-                                                    disabled={!optimizing && (!weapon || !!weapon.attacks[selectedAttackIdx]?.modelLimitation)}
+                                                    disabled={!optimizing && (!weapon || !!weapon.attacks[selectedAttackIdx]?.modelLimitation || selectedAttackOutOfRange)}
                                                     className={[
                                                         "px-4 py-2 text-sm transition-colors font-semibold disabled:opacity-50",
                                                         optimizing ? "text-rose-300 hover:bg-rose-950/50" : "text-amber-300 hover:bg-amber-900/40",
@@ -6244,10 +6255,10 @@ export default function ModBuilder() {
                                                 {falloffRelevantAttacks.length > 0 && (
                                                     <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 px-2 py-2">
                                                         <label htmlFor="planner-attack-falloff-distance" className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2 text-[10px] text-slate-300">
-                                                            <span>Attack falloff distance (m)</span>
+                                                            <span>Attack distance (m)</span>
                                                             <input
                                                                 id="planner-attack-falloff-distance"
-                                                                aria-label="Attack falloff distance in meters"
+                                                                aria-label="Attack distance in meters"
                                                                 type="number"
                                                                 min={0}
                                                                 step={0.1}
@@ -6262,11 +6273,16 @@ export default function ModBuilder() {
                                                             <span className="text-slate-500">meters</span>
                                                         </label>
                                                         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                                                            Direct falloff measures player-to-target distance; area falloff measures from the blast center to the target. A linked component attached to the struck enemy uses 0m. Leave blank to preview full damage. Wiki-listed maximum ranges appear in the math trace, but out-of-range misses are not modeled; unverified limits remain informational.
+                                                            Direct attacks use player-to-target distance; area falloff uses distance from the blast center. A linked component attached to a struck enemy uses 0m. Leave blank to assume full damage without evaluating a range cap. Sourced hard caps count farther attacks as misses; unresolved ranges remain informational.
                                                         </p>
                                                         {mausolonRangeNote && (
                                                             <p role="note" className="mt-1.5 text-[10px] leading-relaxed text-amber-300">
                                                                 {mausolonRangeNote}
+                                                            </p>
+                                                        )}
+                                                        {selectedAttackOutOfRange && (
+                                                            <p role="status" className="mt-1.5 text-[10px] leading-relaxed text-rose-300">
+                                                                This attack is a miss at the entered distance. Auto Optimize is disabled until the target is within range.
                                                             </p>
                                                         )}
                                                         {falloffRelevantAttacks.map((attack) => attack && (
@@ -6276,7 +6292,9 @@ export default function ModBuilder() {
                                                                     ? `100% damage through ${attack.damageFalloff.startDistanceMeters}m, then linear falloff to ${Math.round(attack.damageFalloff.minimumDamageMultiplier * 100)}% at ${attack.damageFalloff.endDistanceMeters}m.`
                                                                     : "No direct-damage falloff value is listed for this attack."}
                                                                 {attack.maximumRangeMeters !== undefined
-                                                                    ? ` Wiki lists ${attack.maximumRangeMeters}m maximum range; the calculator does not reject hits beyond it.`
+                                                                    ? attack.maximumRangeBehavior === "hardHitCap"
+                                                                        ? ` Wiki lists a ${attack.maximumRangeMeters}m hit cap; attacks beyond it are misses.`
+                                                                        : ` Wiki lists a ${attack.maximumRangeMeters}m range; this profile does not reject hits beyond it.`
                                                                     : ""}
                                                             </p>
                                                         ))}
@@ -6291,9 +6309,19 @@ export default function ModBuilder() {
                                                             : attack?.maximumRangeSourceUrl ? [attack.maximumRangeSourceUrl] : [],
                                                         ).filter((sourceUrl, index, sources) => sources.indexOf(sourceUrl) === index).map((sourceUrl) => (
                                                             <a key={sourceUrl} href={sourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">
-                                                                WARFRAME Wiki: Attack range and falloff
+                                                                WARFRAME Wiki: weapon data
                                                             </a>
                                                         ))}
+                                                        {falloffRelevantAttacks.some((attack) => attack?.maximumRangeBehavior === "hardHitCap") && (
+                                                            <span className="mt-1 flex gap-2 text-[10px]">
+                                                                <a href="https://wiki.warframe.com/w/Range" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">
+                                                                    WARFRAME Wiki: Range
+                                                                </a>
+                                                                <a href="https://wiki.warframe.com/w/Hitscan" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">
+                                                                    Hitscan
+                                                                </a>
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 )}
                                                 {supportsKineticKiller && incarnonRecord && (

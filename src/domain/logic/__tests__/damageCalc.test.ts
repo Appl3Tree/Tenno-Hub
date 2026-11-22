@@ -684,6 +684,10 @@ describe("source-backed weapon attack falloff", () => {
         expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Auto")?.damageFalloff).toBeUndefined();
         expect(archwingMausolon!.attacks.find((attack) => attack.name === "Auto")?.maximumRangeMeters).toBe(300);
         expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Auto")?.maximumRangeMeters).toBe(300);
+        expect(archwingMausolon!.attacks.find((attack) => attack.name === "Auto")?.maximumRangeBehavior).toBe("informational");
+        expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Auto")?.maximumRangeBehavior).toBe("hardHitCap");
+        expect(archwingMausolon!.attacks.find((attack) => attack.name === "Charged Shot Laser")?.maximumRangeBehavior).toBe("hardHitCap");
+        expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Charged Shot Laser")?.maximumRangeBehavior).toBe("hardHitCap");
         expect(archwingMausolon!.attacks.find((attack) => attack.name === "Auto Radial Attack")?.damageFalloff?.minimumDamageMultiplier).toBe(0.9);
         expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Auto Radial Attack")?.damageFalloff?.minimumDamageMultiplier).toBe(0.8);
         expect(archwingMausolon!.attacks.find((attack) => attack.name === "Charged Shot Explosion")?.damageFalloff?.minimumDamageMultiplier).toBe(0.6);
@@ -748,7 +752,7 @@ describe("source-backed weapon attack falloff", () => {
         expect(maxRank.totalDamage).toBeCloseTo(fullDamage * 0.75, 6);
     });
 
-    it("keeps the 300m listing informational for each profile while preserving its falloff", () => {
+    it("enforces the unconflicted Atmosphere hit cap and keeps Archwing Auto's conflict explicit", () => {
         const archwing = archwingMausolon!;
         const auto = withSelectedAttack(archwing, archwing.attacks.findIndex((attack) => attack.name === "Auto"));
         const linked = calculateBuild(auto, [], "", {
@@ -756,6 +760,7 @@ describe("source-backed weapon attack falloff", () => {
         }).modded;
         expect(linked.attackDamageFalloff?.damageMultiplier).toBe(0);
         expect(linked.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
+        expect(linked.attackDamageFalloff?.isOutOfRangeMiss).toBe(false);
         expect(linked.attachedAttackDamageSequence?.profile.attackDamageFalloff?.distanceMeters).toBe(0);
         expect(linked.attachedAttackDamageSequence?.profile.attackDamageFalloff?.damageMultiplier).toBe(1);
         expect(linked.attachedAttackDamageSequence?.profile.damageByType.heat).toBeCloseTo(48, 8);
@@ -764,26 +769,39 @@ describe("source-backed weapon attack falloff", () => {
             atmosphereMausolon!,
             atmosphereMausolon!.attacks.findIndex((attack) => attack.name === "Auto"),
         );
-        for (const profile of [auto, atmosphereAuto]) {
-            const inRange = calculateBuild(profile, [], "", {
-                conditionalState: { mode: "initial", attackFalloffDistanceMeters: 250 },
-            }).modded;
-            const justBeyondListedRange = calculateBuild(profile, [], "", {
-                conditionalState: { mode: "initial", attackFalloffDistanceMeters: 301 },
-            }).modded;
-            expect(inRange.attackDamageFalloff?.damageMultiplier).toBe(1);
-            expect(inRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(false);
-            expect(justBeyondListedRange.attackDamageFalloff?.damageMultiplier).toBe(1);
-            expect(justBeyondListedRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
-            expect(justBeyondListedRange.totalDamage).toBeCloseTo(inRange.totalDamage, 8);
-        }
-        const atmosphere = calculateBuild(atmosphereAuto, [], "", {
-            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 1400 },
+        const archwingInRange = calculateBuild(auto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 250 },
         }).modded;
-        expect(atmosphere.attackDamageFalloff?.damageMultiplier).toBe(1);
+        const archwingBeyondListedRange = calculateBuild(auto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 301 },
+        }).modded;
+        expect(archwingInRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(archwingInRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(false);
+        expect(archwingBeyondListedRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(archwingBeyondListedRange.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
+        expect(archwingBeyondListedRange.totalDamage).toBeCloseTo(archwingInRange.totalDamage, 8);
+
+        const atmosphereInRange = calculateBuild(atmosphereAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 300 },
+        }).modded;
+        const atmosphereBeyondRange = calculateBuild(atmosphereAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 300.1 },
+        }).modded;
+        expect(atmosphereInRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(atmosphereInRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(false);
+        expect(atmosphereBeyondRange.attackDamageFalloff?.damageMultiplier).toBe(0);
+        expect(atmosphereBeyondRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(true);
+        expect(atmosphereBeyondRange.totalDamage).toBe(0);
+        expect(atmosphereBeyondRange.averageProcsPerShot).toBe(0);
+        expect(atmosphereBeyondRange.forcedProcsPerShot.impact).toBeUndefined();
+        expect(atmosphereBeyondRange.attachedAttackDamageSequence).toBeUndefined();
+        const atmosphere = calculateBuild(atmosphereAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 300.1 },
+        }).modded;
+        expect(atmosphere.attackDamageFalloff?.damageMultiplier).toBe(0);
         expect(atmosphere.attackDamageFalloff?.exceedsListedMaximumRange).toBe(true);
-        expect(atmosphere.attachedAttackDamageSequence?.profile.attackDamageFalloff?.distanceMeters).toBe(0);
-        expect(atmosphere.attachedAttackDamageSequence?.profile.attackDamageFalloff?.minimumDamageMultiplier).toBe(0.8);
+        expect(atmosphere.attackDamageFalloff?.isOutOfRangeMiss).toBe(true);
+        expect(atmosphere.attachedAttackDamageSequence).toBeUndefined();
 
         const atmosphericRadial = withSelectedAttack(
             atmosphereMausolon!,

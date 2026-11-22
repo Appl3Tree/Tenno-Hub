@@ -1,7 +1,7 @@
 // src/domain/logic/damageCalc.ts
 // Damage + status calculations for the mod builder / optimizer.
 
-import type { IntrinsicDamagePerStatusMode, WeaponAttackDamageFalloff, WeaponAttackLingeringDamageRule, WeaponEntry, WeaponForcedProcType, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
+import type { IntrinsicDamagePerStatusMode, WeaponAttackDamageFalloff, WeaponAttackLingeringDamageRule, WeaponAttackMaximumRangeBehavior, WeaponEntry, WeaponForcedProcType, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
 import {
     clampMeleeComboMultiplier,
     getHeavyAttackRetainedComboPoints,
@@ -570,9 +570,11 @@ export interface AttackDamageFalloffResult {
     minimumDamageMultiplier: number | null;
     /** Multiplier applied to both falloff endpoints from compatible range/speed/radius effects. */
     falloffDistanceMultiplier: number;
-    /** Wiki-listed maximum range. It is disclosed but not yet enforced as a no-hit cap. */
+    /** Wiki-listed maximum range and whether its hit cap is enforced for this profile. */
     maximumRangeMeters: number | null;
+    maximumRangeBehavior: WeaponAttackMaximumRangeBehavior | null;
     exceedsListedMaximumRange: boolean;
+    isOutOfRangeMiss: boolean;
     sourceUrl: string | null;
     maximumRangeSourceUrl: string | null;
 }
@@ -586,6 +588,7 @@ function calculateAttackDamageFalloff(
     const maximumRangeMeters = Number.isFinite(weapon.selectedAttackMaximumRangeMeters)
         ? Math.max(0, weapon.selectedAttackMaximumRangeMeters ?? 0)
         : null;
+    const maximumRangeBehavior = weapon.selectedAttackMaximumRangeBehavior ?? null;
     if (!profile && maximumRangeMeters === null) return null;
 
     const distanceMeters = Number.isFinite(distanceInput)
@@ -619,6 +622,11 @@ function calculateAttackDamageFalloff(
         }
     }
 
+    const exceedsListedMaximumRange = maximumRangeMeters !== null && distanceMeters !== null &&
+        distanceMeters > maximumRangeMeters;
+    const isOutOfRangeMiss = maximumRangeBehavior === "hardHitCap" && exceedsListedMaximumRange;
+    if (isOutOfRangeMiss) damageMultiplier = 0;
+
     return {
         distanceMeters,
         damageMultiplier,
@@ -627,8 +635,9 @@ function calculateAttackDamageFalloff(
         minimumDamageMultiplier: profile?.minimumDamageMultiplier ?? null,
         falloffDistanceMultiplier,
         maximumRangeMeters,
-        exceedsListedMaximumRange: maximumRangeMeters !== null && distanceMeters !== null &&
-            distanceMeters > maximumRangeMeters,
+        maximumRangeBehavior,
+        exceedsListedMaximumRange,
+        isOutOfRangeMiss,
         sourceUrl: profile?.sourceUrl ?? null,
         maximumRangeSourceUrl: weapon.selectedAttackMaximumRangeSourceUrl ?? null,
     };
@@ -1217,6 +1226,7 @@ export function calculateBuild(
         conditionalState.attackFalloffDistanceMeters,
     );
     const attackDamageFalloffMultiplier = attackDamageFalloff?.damageMultiplier ?? 1;
+    const attackCanHitTarget = attackDamageFalloff?.isOutOfRangeMiss !== true;
     const killStackContext = Number.isFinite(options.expectedKillRatePerSecond)
         ? { expectedKillRatePerSecond: Math.max(0, options.expectedKillRatePerSecond ?? 0) }
         : undefined;
@@ -2075,20 +2085,22 @@ export function calculateBuild(
     );
     const externalStatusTypeSet = new Set(externalStatusTypes);
     const addExtraProc = (key: DamageKey, value: number) => {
-        if (value <= 0) return;
+        if (!attackCanHitTarget || value <= 0) return;
         unfilteredExtraProcsPerShot[key] = (unfilteredExtraProcsPerShot[key] ?? 0) + value;
         if (key !== "true" && statusImmuneTypes.has(key)) return;
         extraProcsPerShot[key] = (extraProcsPerShot[key] ?? 0) + value;
     };
     for (const [type, countPerHit] of Object.entries(weapon.forcedProcs ?? {}) as Array<[WeaponForcedProcType, number]>) {
         if (!Number.isFinite(countPerHit)) continue;
-        const countPerShot = Math.max(0, moddedMultishot) * Math.max(0, countPerHit);
+        const countPerShot = attackCanHitTarget
+            ? Math.max(0, moddedMultishot) * Math.max(0, countPerHit)
+            : 0;
         if (countPerShot <= 0 || statusImmuneTypes.has(type)) continue;
         forcedProcsPerShot[type] = countPerShot;
         addExtraProc(type, countPerShot);
     }
     const addExpectedForcedProc = (type: WeaponForcedProcType, countPerShot: number) => {
-        if (countPerShot <= 0) return;
+        if (!attackCanHitTarget || countPerShot <= 0) return;
         if (!statusImmuneTypes.has(type)) {
             forcedProcsPerShot[type] = (forcedProcsPerShot[type] ?? 0) + countPerShot;
         }
@@ -2104,6 +2116,7 @@ export function calculateBuild(
             .filter((distribution) => meleeComboMultiplier >= distribution.minimumComboMultiplier))
         : [];
     for (const distribution of [...(weapon.forcedProcDistributions ?? []), ...comboTriggeredProcDistributions]) {
+        if (!attackCanHitTarget) continue;
         const countPerShot = Math.max(0, moddedMultishot) * Math.max(0, distribution.count);
         if (!Number.isFinite(countPerShot) || countPerShot <= 0) continue;
         if (distribution.mode === "damageWeighted") {
@@ -2155,6 +2168,7 @@ export function calculateBuild(
     // Its base chance is scaled by the same additive and final Status Chance
     // bonuses as ordinary rolls, but it does not use damage-type weighting.
     for (const effect of mods) {
+        if (!attackCanHitTarget) break;
         for (const [type, baseChance] of Object.entries(effect?.independentStatusProcChanceByType ?? {}) as Array<[StatusDamageType, number]>) {
             if (!Number.isFinite(baseChance) || baseChance <= 0) continue;
             const chanceWithMods = baseChance * (
@@ -2222,7 +2236,7 @@ export function calculateBuild(
         }
     }
     const activeUniqueStatusTypes = unionUniqueStatusTypes(
-        options.targetStatusState === "initial" ? [] : weapon.uniqueStatusProcs ?? [],
+        options.targetStatusState === "initial" || !attackCanHitTarget ? [] : weapon.uniqueStatusProcs ?? [],
         externalStatusTypes.filter(isUniqueStatusType),
     );
     conditionOverloadStatusTypes = Math.min(16, conditionOverloadStatusTypes + activeUniqueStatusTypes.size);
@@ -2833,7 +2847,7 @@ export function calculateBuild(
     };
 
     const linkedSequenceRule = weapon.selectedAttackLingeringDamageRule;
-    if (linkedSequenceRule) {
+    if (linkedSequenceRule && attackCanHitTarget) {
         const componentIndex = weapon.attacks.findIndex((attack) =>
             attack.name.trim().toLowerCase() === linkedSequenceRule.componentAttackName.trim().toLowerCase(),
         );
