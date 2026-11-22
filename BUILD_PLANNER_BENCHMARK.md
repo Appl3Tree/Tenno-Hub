@@ -1,6 +1,8 @@
 # Build Planner Optimizer Benchmark
 
-## D3-OPT-MAUSOLON-DUAL-PROFILE-WINDOW-ORACLE-001 — seeded profile-specific fixed-window oracle (2026-11-22; validated, uncommitted)
+## D3-OPT-MAUSOLON-DUAL-PROFILE-WINDOW-ORACLE-001 — seeded profile-specific fixed-window oracle (2026-11-22; validated, committed locally)
+
+Implementation commit: `011a81b1`; PR publication and merge are pending.
 
 The four-weapon six-mod/four-slot `5s Avg DPS` oracle covers Primary, Secondary, Shotgun, and Melee, while existing Mausolon checks cover linked damage and profile range boundaries but not an exact sampled-pool optimizer oracle for both selectable Arch-Gun profiles. Seed `20261131` draws one shared six-mod sample that is fully modeled and compatible with both Mausolon profiles: Magazine Extension R5, Primed Deadly Efficiency R10, Primed Rubedo-Lined Barrel R10, Rubedo-Lined Barrel R5, Critical Focus R5, and Hollowed Bullets R3.
 
