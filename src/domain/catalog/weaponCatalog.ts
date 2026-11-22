@@ -118,6 +118,8 @@ export interface WeaponAttackDamageFalloff {
     sourceUrl: string;
 }
 
+export type WeaponAttackMaximumRangeBehavior = "hardHitCap" | "informational";
+
 export interface WeaponAttackLingeringDamageRule {
     /** Attack row whose damage values describe the linked component event. */
     componentAttackName: string;
@@ -194,8 +196,9 @@ export interface WeaponAttack {
     scoreBoundaryNote?: WeaponAttackScoreBoundaryNote;
     /** Wiki-listed falloff for this attack. AoE profiles measure target offset from the explosion center. */
     damageFalloff?: WeaponAttackDamageFalloff;
-    /** Wiki-listed maximum hit range. Current scoring reports this limit but does not reject out-of-range hits. */
+    /** Wiki-listed maximum hit range and how the planner treats targets beyond it. */
     maximumRangeMeters?: number;
+    maximumRangeBehavior?: WeaponAttackMaximumRangeBehavior;
     maximumRangeSourceUrl?: string;
     /** A separately catalogued damage component linked to each projectile from this attack. */
     lingeringDamageRule?: WeaponAttackLingeringDamageRule;
@@ -284,8 +287,9 @@ export interface WeaponEntry {
     selectedAttackName?: string;
     /** Source-listed falloff profile carried from the selected attack row. */
     selectedAttackDamageFalloff?: WeaponAttackDamageFalloff;
-    /** Source-listed range limit carried from the selected attack row; currently informational. */
+    /** Source-listed range limit carried from the selected attack row. */
     selectedAttackMaximumRangeMeters?: number;
+    selectedAttackMaximumRangeBehavior?: WeaponAttackMaximumRangeBehavior;
     selectedAttackMaximumRangeSourceUrl?: string;
     /** True when the selected attack is part of the weapon's Incarnon form. */
     selectedAttackIsIncarnon?: boolean;
@@ -831,16 +835,31 @@ const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
 });
 
 const VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES: Readonly<
-    Record<string, Readonly<Record<string, { meters: number; sourceUrl: string }>>>
+    Record<string, Readonly<Record<string, {
+        meters: number;
+        sourceUrl: string;
+        behavior?: WeaponAttackMaximumRangeBehavior;
+    }>>>
 > = Object.freeze({
-    // Both Wiki Auto rows list a 300m range. Archwing Auto separately lists
-    // 1,400–2,800m direct falloff, while Atmosphere Auto has no direct falloff
-    // entry. Keep each profile's source facts; treat 300m as informational
-    // until its effective limit is reconciled for each Archgun context.
-    // Verified 2026-11-21: https://wiki.warframe.com/w/Mausolon
+    // Archwing Auto's listed 300m Range conflicts with its 1,400–2,800m
+    // falloff curve, so that row remains informational. Its charged laser has
+    // no direct-falloff conflict and uses the listed 300m as a hit cap.
+    // Atmosphere Auto and Charged Shot Laser both list 300m, are hit-scan, and
+    // have no direct falloff; use the Wiki's Range/Hitscan definitions as caps.
+    // Sources: https://wiki.warframe.com/w/Mausolon
+    // https://wiki.warframe.com/w/Range
+    // https://wiki.warframe.com/w/Hitscan
     "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun": Object.freeze({
-        "auto": Object.freeze({ meters: 300, sourceUrl: "https://wiki.warframe.com/w/Mausolon" }),
-        "charged shot laser": Object.freeze({ meters: 300, sourceUrl: "https://wiki.warframe.com/w/Mausolon" }),
+        "auto": Object.freeze({
+            meters: 300,
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+            behavior: "informational",
+        }),
+        "charged shot laser": Object.freeze({
+            meters: 300,
+            sourceUrl: "https://wiki.warframe.com/w/Mausolon",
+            behavior: "hardHitCap",
+        }),
     }),
     // The attack tables list 160m / 180m Normal Attack ranges in Archwing.
     // Atmospheric ranges are set on the separate cloned profiles below.
@@ -2225,6 +2244,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     ...(damageFalloff ? { damageFalloff } : {}),
                     ...(maximumRange ? {
                         maximumRangeMeters: maximumRange.meters,
+                        maximumRangeBehavior: maximumRange.behavior,
                         maximumRangeSourceUrl: maximumRange.sourceUrl,
                     } : {}),
                     ...(modelLimitation ? { modelLimitation } : {}),
@@ -2375,7 +2395,16 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     damage.gas, damage.magnetic, damage.viral, damage.corrosive,
                     damage.void, damage.tau, damage.true,
                 ].reduce((sum, value) => sum + value, 0);
-                return { ...attack, damage: { ...damage, total: damageTotal }, damageTotal, damageFalloff };
+                const maximumRangeBehavior = attackName === "auto"
+                    ? "hardHitCap"
+                    : attack.maximumRangeBehavior;
+                return {
+                    ...attack,
+                    damage: { ...damage, total: damageTotal },
+                    damageTotal,
+                    damageFalloff,
+                    ...(maximumRangeBehavior ? { maximumRangeBehavior } : {}),
+                };
             }),
         });
     }

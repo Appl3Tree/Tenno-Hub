@@ -400,6 +400,24 @@ describe("fixed-window DPS objective", () => {
 
         expect(linked.damageInWindow).toBeGreaterThan(directOnly.damageInWindow);
         expect(linked.encounter?.timeToKillSeconds).toBeNull();
+
+        const atmosphereMausolon = getWeaponCatalog().find((entry) =>
+            entry.name === "Mausolon" && entry.variantLabel === "Atmosphere",
+        );
+        expect(atmosphereMausolon).toBeDefined();
+        const atmosphereAutoIndex = atmosphereMausolon!.attacks.findIndex((attack) => attack.name === "Auto");
+        const atmosphereAuto = withSelectedAttack(atmosphereMausolon!, atmosphereAutoIndex);
+        const archwingAt301m = debugEvaluateFixedWindowDps(auto, [], "", target, {
+            mode: "initial",
+            attackFalloffDistanceMeters: 301,
+        });
+        const atmosphereAt301m = debugEvaluateFixedWindowDps(atmosphereAuto, [], "", target, {
+            mode: "initial",
+            attackFalloffDistanceMeters: 301,
+        });
+        expect(archwingAt301m.damageInWindow).toBeGreaterThan(0);
+        expect(atmosphereAt301m.damageInWindow).toBe(0);
+        expect(atmosphereAt301m.damagePerSecond).toBe(0);
     });
 
     it("divides applied single-target damage by five seconds and clips overkill", () => {

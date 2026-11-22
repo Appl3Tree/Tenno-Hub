@@ -137,6 +137,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         chargeTime: attack.chargeTime ?? null,
         selectedAttackDamageFalloff: attack.damageFalloff,
         selectedAttackMaximumRangeMeters: attack.maximumRangeMeters,
+        selectedAttackMaximumRangeBehavior: attack.maximumRangeBehavior,
         selectedAttackMaximumRangeSourceUrl: attack.maximumRangeSourceUrl,
         ammoCostPerShot: attack.ammoCostPerShot ?? weapon.ammoCostPerShot,
         selectedAttackAmmoCostModelNote: attack.ammoCostModelNote,
