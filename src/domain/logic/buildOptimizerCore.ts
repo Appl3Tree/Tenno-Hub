@@ -2629,7 +2629,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
         "impactStatusAppliesMagneticChance", "impactStatusAppliesSlashChance", "critAppliesSlashChance",
     )) families.push("status");
-    if (has("magazineBonus", "reloadSpeedBonus", "ammoEfficiencyBonus", "nextMagazineMultishotPerShot")) {
+    if (has("magazineBonus", "magazineCapacityFlatBonus", "reloadSpeedBonus", "ammoEfficiencyBonus", "nextMagazineMultishotPerShot")) {
         families.push("weapon-tempo");
     }
     if (!families.length) families.push("other");
@@ -4972,6 +4972,10 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     addPercent("chargeRateBonus", "Charge Rate on eligible charged attacks");
     addPercent("attackSpeedBonus", "Melee Attack Speed");
     addPercent("magazineBonus", "magazine capacity");
+    if (value("magazineCapacityFlatBonus") !== 0) {
+        const flatMagazineCapacity = value("magazineCapacityFlatBonus");
+        parts.push(`${flatMagazineCapacity > 0 ? "+" : "−"}${formatExplanationNumber(Math.abs(flatMagazineCapacity), 0)} Magazine Capacity`);
+    }
     addPercent("reloadSpeedBonus", "reload speed");
     addPercent("statusDurationBonus", "Status Duration");
     addPercent("statusDamageBonus", "Status Damage");

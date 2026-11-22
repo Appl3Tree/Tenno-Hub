@@ -1309,6 +1309,34 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("models Stinging Truth's flat magazine bonus but keeps Truth's unmodeled radial effect out of Auto Optimize", () => {
+        const weapons = getWeaponCatalog();
+        const viper = weapons.find((candidate) => candidate.name === "Viper");
+        const burstonPrime = weapons.find((candidate) => candidate.name === "Burston Prime");
+        expect(viper).toBeDefined();
+        expect(burstonPrime).toBeDefined();
+
+        const stingingTruth = getModsForWeapon(viper!).find((mod) => mod.name === "Stinging Truth");
+        const gildedTruth = getModsForWeapon(burstonPrime!).find((mod) => mod.name === "Gilded Truth");
+        expect(stingingTruth).toBeDefined();
+        expect(gildedTruth).toBeDefined();
+        expect(stingingTruth!.hasDamageEffect).toBe(true);
+        expect(stingingTruth!.effectsByRank[stingingTruth!.fusionLimit].magazineCapacityFlatBonus).toBe(40);
+        expect(gildedTruth!.effectsByRank[gildedTruth!.fusionLimit].fireRateBonus).toBeCloseTo(0.8, 12);
+
+        for (const mod of [stingingTruth!, gildedTruth!]) {
+            for (let rank = 0; rank <= mod.fusionLimit; rank++) {
+                expect(getUnmodeledDamageEffectLines(mod, rank)).toContain(
+                    "Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled, so Auto Optimize skips this mod.",
+                );
+            }
+            expect(getUnmodeledDamageEffectSourceUrl(mod)).toBe("https://wiki.warframe.com/w/Syndicates");
+        }
+
+        expect(optimizeBuild(viper!, [stingingTruth!], "burst", 1, { allowForma: false }).slots).toEqual([null]);
+        expect(optimizeBuild(burstonPrime!, [gildedTruth!], "burst", 1, { allowForma: false }).slots).toEqual([null]);
+    });
+
     it("keeps Vulcan Blitz out of Auto Optimize until its kill explosion is modeled", () => {
         const jatKittag = getWeaponCatalog().find((candidate) => candidate.name === "Jat Kittag");
         expect(jatKittag).toBeDefined();

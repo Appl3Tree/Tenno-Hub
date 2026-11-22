@@ -22,6 +22,10 @@ export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nigh
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
+function hasUnparsedTruthSyndicateStat(lines: string[] | undefined): boolean {
+    return (lines ?? []).some((line) => /[+-]?\d+(?:\.\d+)?\s+['"]Truth['"]/i.test(line));
+}
+
 const UNSCORED_HIT_LOCATION_EFFECTS = [
     ["weakPointDamageBonus", "Weak-point damage bonus"],
     ["weakPointCritChanceBonus", "Weak-point critical chance bonus"],
@@ -78,6 +82,13 @@ export function getUnmodeledDamageEffectLines(
 ): string[] {
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
         .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH && DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    if (hasUnparsedTruthSyndicateStat(mod.unparsedStatsByRank?.[rank])) {
+        // Syndicate augments gain this combat effect from weapon-earned Affinity.
+        // Its radial damage and encounter timing are not represented by the single-target score.
+        // https://wiki.warframe.com/w/Syndicates
+        // https://wiki.warframe.com/w/Weapon_Augment
+        lines.push("Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled, so Auto Optimize skips this mod.");
+    }
     if (mod.path === VOLATILE_VARIANT_MOD_PATH) {
         lines.push("Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.");
     }
@@ -130,8 +141,11 @@ export function getUnmodeledDamageEffectLines(
     return [...new Set([...lines, ...getUnmodeledScoringEffectLines(effect)])];
 }
 
-/** Current-source links for the on-kill area effects called out in the builder. */
-export function getUnmodeledDamageEffectSourceUrl(mod: { path?: string }): string | undefined {
+/** Current-source links for unmodeled effects called out in the builder. */
+export function getUnmodeledDamageEffectSourceUrl(mod: {
+    path?: string;
+    unparsedStatsByRank?: string[][];
+}): string | undefined {
     if (mod.path === THERMAGNETIC_SHELLS_MOD_PATH) {
         return "https://wiki.warframe.com/w/Thermagnetic_Shells";
     }
@@ -143,6 +157,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: { path?: string }): strin
     }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         return "https://wiki.warframe.com/w/Bloodthirst";
+    }
+    if (mod.unparsedStatsByRank?.some((rank) => hasUnparsedTruthSyndicateStat(rank))) {
+        return "https://wiki.warframe.com/w/Syndicates";
     }
     return undefined;
 }
@@ -166,7 +183,8 @@ export function emptyEffect(): ModEffect {
         strainInfectionCritDamagePerCyst: 0, finalCritMultiplierBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
-        multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false, magazineBonus: 0,
+        multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false,
+        magazineCapacityFlatBonus: 0, magazineBonus: 0,
         reloadSpeedBonus: 0, attackSpeedBonus: 0,
         statusDurationBonus: 0, statusDamageBonus: 0, targetStatusDamageVulnerabilityBonus: 0,
         nightwatchNapalmEffect: 0,
