@@ -1,5 +1,11 @@
 # Build Planner Optimizer Benchmark
 
+## D3-TEST-TS-CLEANUP-001 — test-project TypeScript diagnostics cleared (2026-11-22)
+
+The test TypeScript project had 57 diagnostics across eight test files. `tsconfig.test.json` now includes the already-installed Node types; registry tests explicitly use string-keyed maps/sets and normalize branded source IDs; test fixtures now satisfy complete public shapes; and stale properties, goal aliases, and widened literals use the APIs' actual types. Two direct-hit per-status optimizer tests also now use a valid nested 200-damage weapon fixture instead of silently passing ignored top-level `impact` / `heat` fields.
+
+Validation: `npx tsc -p tsconfig.test.json --noEmit --pretty false` exits successfully with no diagnostics. Focused Vitest checks pass 56/56 across six files (4 optimizer, 2 damage calculator, and 50 prerequisite/quest/source/AlecaFrame cases), ESLint passes across the six edited test files, and `git diff --check` passes. Production code and the full optimizer search behavior are unchanged; the full repository test suite was not rerun. This is type-check coverage and targeted regression evidence, not a full-suite or gameplay-accuracy claim.
+
 PR [#185](https://github.com/Appl3Tree/Tenno-Hub/pull/185) merged these local changes as `d90c0aedcee3d0c8fd50da9ad041bb0f83963986` on 2026-11-21. The GitHub connector returned no combined checks or PR-triggered workflow runs for that merge commit; Pages deployment and production availability are not independently verified. The current-branch IAB preview timed out, while port 80 served an older build, so rendered QA for this scoring-only change remains unverified.
 
 ## D3-MOD-THERMAGNETIC-SHELLS-SCORE-BOUNDARY-001 — corrected source record and explicit exclusion (2026-11-22; released, hosted IAB verified)
