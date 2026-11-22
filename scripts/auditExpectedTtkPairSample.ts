@@ -36,6 +36,14 @@ function integerOption(name: string, fallback: number, maximum: number): number 
     return value;
 }
 
+function conditionalStateOption(): ConditionalState["mode"] {
+    const state = option("state", "realistic");
+    if (state !== "initial" && state !== "realistic" && state !== "fullyStacked") {
+        throw new Error("--state must be initial, realistic, or fullyStacked");
+    }
+    return state;
+}
+
 function mulberry32(seed: number): () => number {
     let state = seed >>> 0;
     return () => {
@@ -76,6 +84,7 @@ function formatBuild(mods: (ModEntry | null)[], ranks: number[]) {
 function runCorpus(): void {
     const seed = integerOption("seed", 20261117, 0xffffffff);
     const sampleCount = integerOption("samples", 1024, 100000);
+    const stateMode = conditionalStateOption();
     if (sampleCount < 1) throw new Error("--samples must be at least 1");
     const corpusRunner = resolve("scripts/auditExpectedTtkCorpus.ts");
     const listed = spawnSync(process.execPath, [
@@ -100,6 +109,7 @@ function runCorpus(): void {
             `--attack=${fixture.attack}`,
             `--samples=${sampleCount}`,
             `--seed=${fixtureSeed}`,
+            `--state=${stateMode}`,
         ], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
         if (child.error) throw child.error;
         if (child.status !== 0) {
@@ -122,7 +132,7 @@ function runCorpus(): void {
         assumptions: {
             faction: "Grineer",
             target: { health: 100000, shields: 0, overguard: 0, armor: 3000 },
-            state: "realistic",
+            state: stateMode,
             mainSlots: 8,
             catalyst: true,
             masteryRank: 30,
@@ -143,7 +153,7 @@ function runFixture(): void {
     const weaponName = option("weapon", "");
     const attackName = option("attack", "");
     const faction = "Grineer";
-    const stateMode: ConditionalState["mode"] = "realistic";
+    const stateMode = conditionalStateOption();
     const seed = integerOption("seed", 0, 0xffffffff);
     const sampleCount = integerOption("samples", 1024, 100000);
     if (sampleCount < 1) throw new Error("--samples must be at least 1");
@@ -300,6 +310,7 @@ function runFixture(): void {
     console.log(JSON.stringify({
         weapon: getWeaponDisplayName(weapon),
         attack: attack.name,
+        conditionalState: stateMode,
         seed,
         candidatePool: candidates.length,
         eligibleFullPoolCandidates: eligibleCandidates.length,
