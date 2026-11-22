@@ -785,6 +785,35 @@ describe("source-backed weapon attack falloff", () => {
         expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Charged Shot Explosion")?.damageFalloff).toBeUndefined();
     });
 
+    it("models Quellor Alt-Fire linear falloff and Projectile Speed scaling", () => {
+        const quellor = catalog.find((candidate) => candidate.name === "Quellor");
+        expect(quellor).toBeDefined();
+        const altFireIndex = quellor!.attacks.findIndex((attack) => attack.name === "Alt-Fire");
+        expect(altFireIndex).toBeGreaterThanOrEqual(0);
+        const attack = quellor!.attacks[altFireIndex]!;
+        expect(attack.damageFalloff).toMatchObject({
+            startDistanceMeters: 9,
+            endDistanceMeters: 18,
+            minimumDamageMultiplier: 0.3343,
+            scaleBy: ["projectileSpeed"],
+            sourceUrl: "https://wiki.warframe.com/w/Quellor",
+        });
+        expect(attack.scoreBoundaryNote?.reason).toContain("100%→33.43% linear falloff");
+
+        const selected = withSelectedAttack(quellor!, altFireIndex);
+        const midpoint = calculateBuild(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 13.5 },
+        }).modded;
+        expect(midpoint.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.66715, 8);
+
+        const fasterProjectile = calculateBuild(selected, [{ ...emptyEffect(), projectileSpeedBonus: 1 }], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 13.5 },
+        }).modded;
+        expect(fasterProjectile.attackDamageFalloff?.startDistanceMeters).toBeCloseTo(18, 8);
+        expect(fasterProjectile.attackDamageFalloff?.endDistanceMeters).toBeCloseTo(36, 8);
+        expect(fasterProjectile.attackDamageFalloff?.damageMultiplier).toBe(1);
+    });
+
     it("applies Larkspur beam ramps and only enforces the unambiguous Atmosphere range", () => {
         const larkspurProfiles = catalog.filter((weapon) => weapon.name === "Larkspur" || weapon.name === "Larkspur Prime");
         expect(larkspurProfiles).toHaveLength(4);
@@ -1045,6 +1074,66 @@ describe("source-backed Arch-Gun charge-rate mechanics", () => {
                 calculateBuild(auto, []).modded.fireRate,
                 10,
             );
+        }
+    });
+});
+
+describe("source-backed per-attack Auto-Charge profiles", () => {
+    const catalog = getWeaponCatalog();
+
+    it("uses each charged attack's trigger, ammo cost, and modded charge cycle", () => {
+        const cases = [
+            ["Aeolak", "Alt-Fire", 0.3, 10, false],
+            ["Aeolak", "Alt-Fire Explosion", 0.3, 10, false],
+            ["Quellor", "Alt-Fire", 1.2, 50, true],
+            ["Stahlta", "Alt-Fire", 1.6, 20, true],
+            ["Stahlta", "Alt-Fire AoE", 1.6, 20, true],
+            ["Tenora", "Charged Attack", 0.8, 10, true],
+            ["Tenora Prime", "Charged Attack", 0.8, 10, true],
+        ] as const;
+        const fireRateEffect = { ...emptyEffect(), fireRateBonus: 1 };
+
+        for (const [weaponName, attackName, chargeTime, ammoCost, chargeScalesWithFireRate] of cases) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+            expect(attackIndex, `${weaponName} ${attackName}`).toBeGreaterThanOrEqual(0);
+            const attack = weapon!.attacks[attackIndex]!;
+            expect(attack.trigger, `${weaponName} ${attackName}`).toBe("Charge");
+            expect(attack.chargeTime, `${weaponName} ${attackName}`).toBeCloseTo(chargeTime, 8);
+            expect(attack.ammoCostPerShot, `${weaponName} ${attackName}`).toBe(ammoCost);
+
+            const selected = withSelectedAttack(weapon!, attackIndex);
+            const baseline = calculateBuild(selected, []).modded;
+            const modded = calculateBuild(selected, [fireRateEffect]).modded;
+            const expectedModdedChargeTime = chargeScalesWithFireRate ? chargeTime / 2 : chargeTime;
+            expect(baseline.initialAttackDelaySeconds, `${weaponName} ${attackName}`).toBeCloseTo(chargeTime, 8);
+            expect(modded.initialAttackDelaySeconds, `${weaponName} ${attackName}`)
+                .toBeCloseTo(expectedModdedChargeTime, 8);
+            expect(modded.fireRate, `${weaponName} ${attackName}`).toBeCloseTo(
+                1 / (expectedModdedChargeTime + 1 / (selected.fireRate * 2)),
+                8,
+            );
+        }
+    });
+
+    it("scores Aeolak and Stahlta single-target impact-plus-explosion sequences", () => {
+        const sequenceCases = [
+            ["Aeolak", "Alt-Fire", "Alt-Fire Explosion", 0],
+            ["Stahlta", "Alt-Fire", "Alt-Fire AoE", 0.36],
+        ] as const;
+
+        for (const [weaponName, directName, componentName, delay] of sequenceCases) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName)!;
+            const directIndex = weapon.attacks.findIndex((attack) => attack.name === directName);
+            const componentIndex = weapon.attacks.findIndex((attack) => attack.name === componentName);
+            const directStats = calculateBuild(withSelectedAttack(weapon, directIndex), []).modded;
+            expect(directStats.attachedAttackDamageSequence?.rule.componentAttackName).toBe(componentName);
+            expect(directStats.attachedAttackDamageSequence?.rule.firstTickDelaySeconds).toBe(delay);
+            expect(directStats.attachedAttackDamageSequence?.rule.attachedToDirectTarget).toBe(true);
+            expect(weapon.attacks[directIndex]?.scoreBoundaryNote?.reason).toMatch(/other enemies/i);
+            expect(withSelectedAttack(weapon, componentIndex).selectedAttackModelLimitation?.reason)
+                .toContain(`Select ${directName}`);
         }
     });
 });
