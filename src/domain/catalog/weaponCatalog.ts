@@ -552,6 +552,83 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol|incarnon form": "Burst",
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on mode": "Special",
     "/Lotus/Weapons/Thanotech/ThanoPistol/ThanotechPistol|lock-on radial attack": "Special",
+    // The item feed inherits the primary trigger for these additional modes.
+    // Keep beam, projectile, and charged releases on their Wiki-listed trigger.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Basmu
+    "/Lotus/Weapons/Sentients/SentRifleNewWar/SentRifleNewWarGun|held": "Held",
+    // Incarnon continuous beams remain Held on the base and Prime weapons.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Boar
+    // https://wiki.warframe.com/w/Boar_Prime
+    "/Lotus/Weapons/Tenno/Shotgun/FullAutoShotgun|incarnon form": "Held",
+    "/Lotus/Weapons/Tenno/Shotgun/PrimeBoar|incarnon form": "Held",
+    // The Furis Incarnon Form is a short-range continuous beam.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Furis
+    "/Lotus/Weapons/Tenno/Pistol/AutoPistol|incarnon form": "Held",
+    "/Lotus/Weapons/MK1Series/MK1Furis|incarnon form": "Held",
+    // Panthera Alt-Fire continuously damages targets touched by its sawblade.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Panthera
+    // https://wiki.warframe.com/w/Panthera_Prime
+    "/Lotus/Weapons/Tenno/LongGuns/Miter/TnoMiter|alt-fire": "Held",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePanthera/PrimePanthera|alt-fire": "Held",
+    // These fire-mode rows are distinct from the inherited primary Held mode.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Enkaus
+    "/Lotus/Weapons/Tenno/LongGuns/TnInkRifle/TnInkRifleWeapon|alt-fire": "Semi",
+    "/Lotus/Weapons/Tenno/LongGuns/TnInkRifle/TnInkRifleWeapon|alt-fire radial attack": "Semi",
+    // Quanta's cubes are launched with the Semi alternate-fire trigger.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Quanta
+    // https://wiki.warframe.com/w/Quanta_Vandal
+    // https://wiki.warframe.com/w/Tenet_Quanta
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle|cube (direct hit)": "Semi",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal|cube (direct hit)": "Semi",
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta|cube (direct hit)": "Semi",
+    // A cube's contact explosion follows the Semi alt-fire projectile. The
+    // larger blast row instead requires another weapon to shoot a deployed cube.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Quanta
+    // https://wiki.warframe.com/w/Quanta_Vandal
+    // https://wiki.warframe.com/w/Tenet_Quanta
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle|cube explosion": "Semi",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal|cube explosion": "Semi",
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta|cube explosion": "Semi",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle|cube (shot by player)": "Special",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal|cube (shot by player)": "Special",
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta|cube (shot by player)": "Special",
+    // The Incarnon modes of Atomos and Gammacor are semi-automatic grenades,
+    // not held beams; their area components share the same trigger.
+    // Verified 2026-11-23: weapon pages and https://wiki.warframe.com/w/Trigger_Type
+    "/Lotus/Weapons/Grineer/Pistols/HeatGun/GrnHeatGun|incarnon form": "Semi",
+    "/Lotus/Weapons/Grineer/Pistols/HeatGun/GrnHeatGun|incarnon form radial attack": "Semi",
+    "/Lotus/Weapons/Syndicates/CephalonSuda/Pistols/CSDroidArray|incarnon form": "Semi",
+    "/Lotus/Weapons/Syndicates/CephalonSuda/Pistols/CSDroidArray|incarnon form radial attack": "Semi",
+    "/Lotus/Weapons/Syndicates/CephalonSuda/Pistols/CSSynoidGammacor|incarnon form": "Semi",
+    "/Lotus/Weapons/Syndicates/CephalonSuda/Pistols/CSSynoidGammacor|incarnon form radial attack": "Semi",
+    // Onos has a held Radiation charge beam followed by separate Charge rows
+    // for its full Heat release; the timeline itself remains reference-only.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Onos
+    "/Lotus/Weapons/Thanotech/EntratiWristGun/EntratiWristGunWeapon|incarnon form held damage": "Held",
+    "/Lotus/Weapons/Thanotech/EntratiWristGun/EntratiWristGunWeapon|incarnon form charge attack": "Charge",
+    "/Lotus/Weapons/Thanotech/EntratiWristGun/EntratiWristGunWeapon|incarnon form charge radial attack": "Charge",
+    // Phantasma's alternate-fire components are all released by its Charge mode.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Phantasma
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun|plasma bomb impact": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun|plasma bomb explosion": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun|cluster bombs impact": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun|cluster bombs explosion": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun|plasma bomb impact": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun|plasma bomb explosion": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun|cluster bombs impact": "Charge",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePhantasma/PhantasmaPrimeShotgun|cluster bombs explosion": "Charge",
+    // Catabolyst reload grenades are conditional reload events, not Held beam
+    // attacks; their magazine and reload state is gated below.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Catabolyst
+    // https://wiki.warframe.com/w/Coda_Catabolyst
+    "/Lotus/Weapons/Infested/Pistols/InfBeamPistol/InfBeamPistol|partial reload impact": "Special",
+    "/Lotus/Weapons/Infested/Pistols/InfBeamPistol/InfBeamPistol|partial reload explosion": "Special",
+    "/Lotus/Weapons/Infested/Pistols/InfBeamPistol/InfBeamPistol|reload from empty impact": "Special",
+    "/Lotus/Weapons/Infested/Pistols/InfBeamPistol/InfBeamPistol|reload from empty explosion": "Special",
+    "/Lotus/Weapons/Infested/InfestedLich/Pistols/CodaCatabolyst|partial reload impact": "Special",
+    "/Lotus/Weapons/Infested/InfestedLich/Pistols/CodaCatabolyst|partial reload explosion": "Special",
+    "/Lotus/Weapons/Infested/InfestedLich/Pistols/CodaCatabolyst|reload from empty impact": "Special",
+    "/Lotus/Weapons/Infested/InfestedLich/Pistols/CodaCatabolyst|reload from empty explosion": "Special",
 });
 
 /** Explicit Wiki exceptions to the standard Fire Rate → charge-time formula. */
@@ -871,9 +948,101 @@ const LARKSPUR_BEAM_DAMAGE_RAMP: WeaponDamageRampRule = Object.freeze({
     decayToMinimumSeconds: 2,
 });
 
+const STANDARD_HELD_BEAM_DAMAGE_RAMP: WeaponDamageRampRule = Object.freeze({
+    minimumDamageMultiplier: 0.2,
+    rampToFullSeconds: 0.6,
+    idleBeforeDecaySeconds: 0.8,
+    decayToMinimumSeconds: 2,
+});
+
+const heldBeamDamageRamp = (minimumDamageMultiplier: number): WeaponDamageRampRule => Object.freeze({
+    ...STANDARD_HELD_BEAM_DAMAGE_RAMP,
+    minimumDamageMultiplier,
+});
+
 const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Record<string, WeaponDamageRampRule>>>> = Object.freeze({
-    // Both Beam rows share the Wiki-documented 15%→100% ramp and 0.8s/2s
-    // idle decay. The alternate-fire damage rows do not use this rule.
+    // Per-weapon Wiki values take precedence over the common 20% start.
+    // Sources: https://wiki.warframe.com/w/Amprex
+    // https://wiki.warframe.com/w/Atomos
+    // https://wiki.warframe.com/w/Convectrix
+    // https://wiki.warframe.com/w/Cycron
+    // https://wiki.warframe.com/w/Embolist
+    // https://wiki.warframe.com/w/Flux_Rifle
+    // https://wiki.warframe.com/w/Gammacor
+    // https://wiki.warframe.com/w/Kuva_Nukor
+    // https://wiki.warframe.com/w/Nukor
+    // https://wiki.warframe.com/w/Phage
+    // https://wiki.warframe.com/w/Quanta
+    // https://wiki.warframe.com/w/Synoid_Gammacor
+    // https://wiki.warframe.com/w/Tenet_Cycron
+    // https://wiki.warframe.com/w/Tenet_Quanta
+    // https://wiki.warframe.com/w/Quanta_Vandal
+    // Verified 2026-11-23.
+    "/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/HeatGun/GrnHeatGun": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.35),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSplitLaser/CrpSplitLaser": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.6),
+        "alt-fire": heldBeamDamageRamp(0.8),
+    }),
+    "/Lotus/Weapons/Corpus/Pistols/CrpChargeGun/CrpChargeGun": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Corpus/BoardExec/Secondary/CrpBECycron/CrpBECycron": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Grineer/Pistols/GrineerMicrowavegun/GrnMicrowavePistol": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/Secondaries/Nukor/KuvaNukor": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Infested/LongGuns/Tentacluster/InfestedShotgun": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.7),
+    }),
+    "/Lotus/Weapons/ClanTech/Energy/CrpLaserRifle": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.25),
+    }),
+    "/Lotus/Weapons/Syndicates/CephalonSuda/Pistols/CSDroidArray": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.25),
+    }),
+    "/Lotus/Weapons/Syndicates/CephalonSuda/Pistols/CSSynoidGammacor": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle": Object.freeze({
+        "beam": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal": Object.freeze({
+        "beam": heldBeamDamageRamp(0.3),
+    }),
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta": Object.freeze({
+        "beam": heldBeamDamageRamp(0.3),
+    }),
+    // The current Embolist page reports 45%; its patch-history note records an
+    // earlier 30% value, so the current characteristics are used here.
+    "/Lotus/Weapons/Infested/Pistols/InfestedPistol": Object.freeze({
+        "normal attack": heldBeamDamageRamp(0.45),
+    }),
+    // Basmu's alternate fire is 20%→100% over 0.5s (not the common 0.6s).
+    // It spends one battery unit per damage tick and chains are not included.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Basmu
+    "/Lotus/Weapons/Sentients/SentRifleNewWar/SentRifleNewWarGun": Object.freeze({
+        "held": Object.freeze({
+            minimumDamageMultiplier: 0.2,
+            rampToFullSeconds: 0.5,
+            idleBeforeDecaySeconds: 0.8,
+            decayToMinimumSeconds: 2,
+        }),
+    }),
+    // Cortege's beam has a 33% ramp start. Its grenade rows do not use this.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Cortege
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchGun/ThanoTechArchGun": Object.freeze({
+        "held": heldBeamDamageRamp(0.33),
+    }),
+    // Phantasma beam rows use a 15% start; alternate-fire attacks do not.
     // Verified 2026-11-11: https://wiki.warframe.com/w/Phantasma
     // https://wiki.warframe.com/w/Phantasma_Prime
     "/Lotus/Weapons/Tenno/LongGuns/RevenantShotgun/RevenantShotgun": Object.freeze({
@@ -894,6 +1063,46 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
         "normal attack": LARKSPUR_BEAM_DAMAGE_RAMP,
     }),
 });
+
+// These Incarnon attacks are continuous beams. Other Held-inherited Incarnon
+// rows (notably projectile and radial rows) do not receive a beam ramp.
+const VERIFIED_HELD_INCARNON_ATTACKS = new Set([
+    "/Lotus/Weapons/Tenno/Shotgun/FullAutoShotgun|incarnon form",
+    "/Lotus/Weapons/Tenno/Shotgun/PrimeBoar|incarnon form",
+    "/Lotus/Weapons/Tenno/Pistol/AutoPistol|incarnon form",
+    "/Lotus/Weapons/MK1Series/MK1Furis|incarnon form",
+    "/Lotus/Weapons/ClanTech/Bio/BioWeapon|incarnon form",
+]);
+
+const VERIFIED_HELD_ALTERNATE_BEAMS = new Set([
+    "/Lotus/Weapons/Tenno/LongGuns/Miter/TnoMiter|alt-fire",
+    "/Lotus/Weapons/Tenno/LongGuns/PrimePanthera/PrimePanthera|alt-fire",
+]);
+
+function resolveAttackDamageRamp(
+    uniqueName: string,
+    attackName: string,
+    trigger: string,
+    isAreaDamage: boolean | undefined,
+): WeaponDamageRampRule | undefined {
+    const normalizedName = attackName.trim().toLowerCase();
+    const explicit = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[normalizedName];
+    if (explicit) return explicit;
+    if (trigger.trim().toLowerCase() !== "held" || isAreaDamage === true) return undefined;
+
+    // These names denote the direct attack row for ordinary held beams. The
+    // current Wiki says most continuous weapons start at 20%, with the exact
+    // weapon-specific exceptions above. Component rows are intentionally not
+    // inferred from the weapon-level Held label.
+    if (["normal attack", "primary", "beam", "held"].includes(normalizedName)) {
+        return STANDARD_HELD_BEAM_DAMAGE_RAMP;
+    }
+    if (VERIFIED_HELD_INCARNON_ATTACKS.has(`${uniqueName}|${normalizedName}`) ||
+        VERIFIED_HELD_ALTERNATE_BEAMS.has(`${uniqueName}|${normalizedName}`)) {
+        return STANDARD_HELD_BEAM_DAMAGE_RAMP;
+    }
+    return undefined;
+}
 
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
@@ -2152,6 +2361,46 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
             sourceUrl: "https://wiki.warframe.com/w/Penta",
         }),
     }),
+    // Bound one Quanta-family cube that directly contacts the selected target
+    // as an immediate impact plus its 0.5m contact explosion. Projectile
+    // travel, waiting for the cube timer, and the separate player-shot blast
+    // are not part of this single-cube event.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Quanta
+    // https://wiki.warframe.com/w/Quanta_Vandal
+    // https://wiki.warframe.com/w/Tenet_Quanta
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle": Object.freeze({
+        "cube (direct hit)": Object.freeze({
+            componentAttackName: "Cube Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Quanta",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal": Object.freeze({
+        "cube (direct hit)": Object.freeze({
+            componentAttackName: "Cube Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Quanta_Vandal",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta": Object.freeze({
+        "cube (direct hit)": Object.freeze({
+            componentAttackName: "Cube Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Tenet_Quanta",
+        }),
+    }),
     "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/CarminePenta": Object.freeze({
         "grenade impact": Object.freeze({
             componentAttackName: "Grenade Detonation",
@@ -2284,6 +2533,37 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // Onos Incarnon is one changing Radiation beam followed by a 50-round Heat
+    // release. The source rows do not describe a self-contained repeatable
+    // attack cadence, so none is eligible for scoring or optimization.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Onos
+    "/Lotus/Weapons/Thanotech/EntratiWristGun/EntratiWristGunWeapon": Object.freeze({
+        "incarnon form held damage": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Onos",
+            reason: "This row is one Radiation tick from Onos's charging Incarnon beam. Its damage increases as the beam focuses, then transitions to a separate 50-round Heat release; the evolving beam, charge timing, and release history are not simulated, so this row is reference-only and excluded from scoring and Auto Optimize.",
+        }),
+        "incarnon form charge attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Onos",
+            reason: "This is the final Heat component of Onos's Incarnon beam charge and consumes 50 rounds after the earlier Radiation ticks. The preceding ticks, charge timing, and transition are not simulated, so this component is reference-only and excluded from scoring and Auto Optimize.",
+        }),
+        "incarnon form charge radial attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Onos",
+            reason: "This is the radial component of Onos's final 50-round Heat release after its charging Radiation beam. The preceding ticks, charge timing, and transition are not simulated, so this component is reference-only and excluded from scoring and Auto Optimize.",
+        }),
+    }),
+    // Cortege's three-grenade Alt-Fire requires five primary-fire kills and
+    // has no modeled kill-earned gauge or projectile overlap.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Cortege
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchGun/ThanoTechArchGun": Object.freeze({
+        "grenade impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Cortege",
+            reason: "Cortege Alt-Fire is available after five primary-fire kills and launches three spread grenades. The planner does not track the kill-earned gauge or determine which projectiles hit this target, so the grenade row is reference-only and excluded from scoring and Auto Optimize.",
+        }),
+        "radial attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Cortege",
+            reason: "Cortege Alt-Fire is available after five primary-fire kills and launches three spread grenades. The planner does not track the kill-earned gauge or determine which blast centers hit this target; lingering flames are also not simulated, so the radial row is reference-only and excluded from scoring and Auto Optimize.",
+        }),
+    }),
     // The main blast and cluster attacks are components of one rocket release.
     // Only the direct-hit rocket blast has a bounded single-target assumption;
     // the three bomblets spread in a loose arc and are not independently scored.
@@ -2421,6 +2701,46 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
             reason: "Alt-Fire launches a mite that can latch onto up to six enemies and applies Impact/Magnetic damage and status effects each second for 10 seconds; the Mercy-finisher branch and delayed multi-target tick history are not represented by the calculator.",
         }),
     }),
+    // Reload grenades require a manual reload and their damage changes with
+    // remaining magazine ammo. The Coda variant throws three spread grenades.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Catabolyst
+    // https://wiki.warframe.com/w/Coda_Catabolyst
+    "/Lotus/Weapons/Infested/Pistols/InfBeamPistol/InfBeamPistol": Object.freeze({
+        "partial reload impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Catabolyst",
+            reason: "This grenade impact occurs during a manual reload and its damage depends on the magazine state. The planner does not simulate that reload event or its remaining-ammo damage, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+        "partial reload explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Catabolyst",
+            reason: "This blast is a component of the Catabolyst manual-reload grenade. Reload timing, remaining-ammo damage, and projectile contact are not simulated, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+        "reload from empty impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Catabolyst",
+            reason: "This grenade impact requires the magazine to be empty before a manual reload. The planner does not track magazine depletion, reload timing, or the stronger empty-magazine damage state, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+        "reload from empty explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Catabolyst",
+            reason: "This blast is a component of the Catabolyst empty-magazine manual-reload grenade. The planner does not track magazine depletion, reload timing, projectile contact, or the stronger empty-magazine damage state, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+    }),
+    "/Lotus/Weapons/Infested/InfestedLich/Pistols/CodaCatabolyst": Object.freeze({
+        "partial reload impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Catabolyst",
+            reason: "This grenade impact occurs during a manual reload and its damage depends on the magazine state. The planner does not simulate that reload event or its remaining-ammo damage, so this row is reference-only and excluded from damage scoring and Auto Optimize. Coda's three-grenade spread also has uncertain target overlap.",
+        }),
+        "partial reload explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Catabolyst",
+            reason: "This blast is a component of the Coda Catabolyst manual-reload grenade. Reload timing, remaining-ammo damage, and overlap among three spread grenades are not simulated, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+        "reload from empty impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Catabolyst",
+            reason: "This grenade impact requires an empty magazine before manual reload and launches three spread grenades. The planner does not track magazine depletion, reload timing, the stronger empty-magazine damage state, or target overlap, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+        "reload from empty explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Catabolyst",
+            reason: "This blast is a component of the Coda Catabolyst's three-grenade empty-magazine reload event. The planner does not track magazine depletion, reload timing, or target overlap, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+    }),
     // Simulor damage depends on deployed-orb merge state and detonation or
     // expiry history; four merged orbs also create a separate damage-over-time
     // singularity. None of those event sequences is represented by one attack row.
@@ -2487,6 +2807,36 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
         "alt-fire aoe": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Stahlta",
             reason: "Alt-Fire AoE is the delayed explosion component of Stahlta's charged projectile. Select Alt-Fire to score the bounded single-target sequence; the 0.36s fuse assumes the target remains at the impact point.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle": Object.freeze({
+        "cube explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Quanta",
+            reason: "Cube Explosion is the 0.5m contact blast linked to one Cube (direct hit), not a separate firing mode. Select Cube (direct hit) to score its bounded single-target impact-plus-explosion sequence.",
+        }),
+        "cube (shot by player)": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Quanta",
+            reason: "This 6m blast requires a player to shoot a deployed Quanta cube with a weapon. The planner has no linked-weapon or deployed-cube state, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal": Object.freeze({
+        "cube explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Quanta_Vandal",
+            reason: "Cube Explosion is the 0.5m contact blast linked to one Cube (direct hit), not a separate firing mode. Select Cube (direct hit) to score its bounded single-target impact-plus-explosion sequence.",
+        }),
+        "cube (shot by player)": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Quanta_Vandal",
+            reason: "This 6m blast requires a player to shoot a deployed Quanta cube with a weapon. The planner has no linked-weapon or deployed-cube state, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta": Object.freeze({
+        "cube explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Tenet_Quanta",
+            reason: "Cube Explosion is the 0.5m contact blast linked to one Cube (direct hit), not a separate firing mode. Select Cube (direct hit) to score its bounded single-target impact-plus-explosion sequence.",
+        }),
+        "cube (shot by player)": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Tenet_Quanta",
+            reason: "This 6m blast requires a player to shoot a deployed Quanta cube with a weapon. The planner has no linked-weapon or deployed-cube state, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
         }),
     }),
 });
@@ -2566,6 +2916,24 @@ const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
         "grenade impact": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Secura_Penta",
             reason: "The single-target sequence includes one Grenade Impact and its immediately triggered Grenade Detonation when the target is hit. It assumes the hit and immediate detonation, omits grenade flight and preloaded multiple-grenade bursts, and scores no other targets in the blast radius.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/CrpShockRifle": Object.freeze({
+        "cube (direct hit)": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Quanta",
+            reason: "This score assumes one Semi alt-fire cube directly contacts the selected target and immediately includes its linked 0.5m contact explosion. It ignores projectile travel, cubes that stop and detonate after 9 seconds, extra cube trajectories, other blast targets, and the separate 6m blast from shooting a deployed cube.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/CrpShockRifle/QuantaVandal": Object.freeze({
+        "cube (direct hit)": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Quanta_Vandal",
+            reason: "This score assumes one Semi alt-fire cube directly contacts the selected target and immediately includes its linked 0.5m contact explosion. It ignores projectile travel, cubes that stop and detonate after 9 seconds, extra cube trajectories, other blast targets, and the separate 6m blast from shooting a deployed cube.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta": Object.freeze({
+        "cube (direct hit)": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Tenet_Quanta",
+            reason: "This score assumes one Semi alt-fire cube directly contacts the selected target and immediately includes its linked 0.5m contact explosion. It ignores projectile travel, cubes that stop and detonate after 9 seconds, extra cube trajectories, other blast targets, and the separate 6m blast from shooting a deployed cube.",
         }),
     }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
@@ -2919,7 +3287,6 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const intrinsicPerStatus = VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES[uniqueName]?.[attackName];
                 const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
                 const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
-                const damageRamp = VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES[uniqueName]?.[attackName];
                 const damageFalloff = VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES[uniqueName]?.[attackName];
                 const maximumRange = VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES[uniqueName]?.[attackName];
                 const modelLimitation = VERIFIED_ATTACK_MODEL_LIMITATIONS[uniqueName]?.[attackName];
@@ -2957,7 +3324,6 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     ammoCostModelNote,
                     chargeAmmoPerSecond: ammoChargeRule?.ammoPerSecond,
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
-                    damageRamp,
                     ...(damageFalloff ? { damageFalloff } : {}),
                     ...(maximumRange ? {
                         maximumRangeMeters: maximumRange.meters,
@@ -2992,6 +3358,12 @@ export function getWeaponCatalog(): WeaponEntry[] {
             const autoSpoolShotSequence = getAutoSpoolShotSequence(uniqueName, attack.name);
             const autoSpoolTimingLimitation = getAutoSpoolTimingLimitation(uniqueName, attack.name);
             const resolvedAttackTrigger = resolveAttackTrigger(uniqueName, attack.name, attackIndex, trigger);
+            const damageRamp = resolveAttackDamageRamp(
+                uniqueName,
+                attack.name,
+                resolvedAttackTrigger,
+                attack.isAreaDamage,
+            );
             const isCodaBubonicoAutoAttack = uniqueName === "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon" &&
                 attack.name.trim().toLowerCase() === "auto";
             const attackTrigger = isCodaBubonicoAutoAttack
@@ -3023,6 +3395,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 ...(autoSpoolShotSequence ? { autoSpoolShotSequence } : {}),
                 ...(autoSpoolTimingLimitation ? { autoSpoolTimingLimitation } : {}),
                 ...(burst ? { burstCount: burst.count, burstDelay: burst.delay } : {}),
+                ...(damageRamp ? { damageRamp } : {}),
             };
         });
         const firstAttack = attacks[0];

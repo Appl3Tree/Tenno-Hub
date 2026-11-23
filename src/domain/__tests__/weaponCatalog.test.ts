@@ -898,6 +898,206 @@ describe("weapon catalog stance inference", () => {
     });
 });
 
+describe("source-backed held-fire profiles", () => {
+    it("applies current Wiki damage ramps only to direct held-beam rows", () => {
+        const catalog = getWeaponCatalog();
+        const cases: Array<[string, string, number, number?]> = [
+            ["Amprex", "Normal Attack", 0.3],
+            ["Atomos", "Normal Attack", 0.35],
+            ["Basmu", "Held", 0.2, 0.5],
+            ["Boar", "Incarnon Form", 0.2],
+            ["Boar Prime", "Incarnon Form", 0.2],
+            ["Convectrix", "Normal Attack", 0.6],
+            ["Convectrix", "Alt-Fire", 0.8],
+            ["Cortege", "Held", 0.33],
+            ["Cycron", "Normal Attack", 0.3],
+            ["Tenet Cycron", "Normal Attack", 0.3],
+            ["Embolist", "Normal Attack", 0.45],
+            ["Flux Rifle", "Normal Attack", 0.25],
+            ["Furis", "Incarnon Form", 0.2],
+            ["Mk1-Furis", "Incarnon Form", 0.2],
+            ["Gammacor", "Normal Attack", 0.25],
+            ["Synoid Gammacor", "Normal Attack", 0.3],
+            ["Kuva Nukor", "Normal Attack", 0.3],
+            ["Nukor", "Normal Attack", 0.3],
+            ["Panthera", "Alt-Fire", 0.2],
+            ["Panthera Prime", "Alt-Fire", 0.2],
+            ["Phage", "Normal Attack", 0.7],
+            ["Phantasma", "Beam", 0.15],
+            ["Phantasma Prime", "Beam", 0.15],
+            ["Quanta", "Beam", 0.3],
+            ["Quanta Vandal", "Beam", 0.3],
+            ["Tenet Quanta", "Beam", 0.3],
+            ["Synapse", "Normal Attack", 0.2],
+            ["Coda Synapse", "Normal Attack", 0.2],
+            ["Catabolyst", "Primary", 0.2],
+            ["Coda Catabolyst", "Primary", 0.2],
+            ["Torid", "Incarnon Form", 0.2],
+            ["Larkspur", "Normal Attack", 0.2],
+            ["Larkspur Prime", "Normal Attack", 0.2],
+        ];
+
+        for (const [weaponName, attackName, minimum, rampSeconds = 0.6] of cases) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            const attack = weapon!.attacks.find((candidate) => candidate.name === attackName);
+            expect(attack, `${weaponName} / ${attackName}`).toMatchObject({
+                trigger: "Held",
+                damageRamp: {
+                    minimumDamageMultiplier: minimum,
+                    rampToFullSeconds: rampSeconds,
+                    idleBeforeDecaySeconds: 0.8,
+                    decayToMinimumSeconds: 2,
+                },
+            });
+        }
+
+        const noRampRows: Array<[string, string]> = [
+            ["Basmu", "Radial Attack"],
+            ["Catabolyst", "Partial Reload Impact"],
+            ["Coda Catabolyst", "Reload From Empty Impact"],
+            ["Cortege", "Grenade Impact"],
+            ["Cortege", "Radial Attack"],
+            ["Phantasma", "Plasma Bomb Impact"],
+            ["Phantasma Prime", "Cluster Bombs Explosion"],
+            ["Quanta", "Cube (direct hit)"],
+            ["Quanta", "Cube Explosion"],
+        ];
+        for (const [weaponName, attackName] of noRampRows) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName);
+            const attack = weapon?.attacks.find((candidate) => candidate.name === attackName);
+            expect(attack, `${weaponName} / ${attackName}`).toBeDefined();
+            expect(attack!.damageRamp, `${weaponName} / ${attackName}`).toBeUndefined();
+        }
+    });
+
+    it("restores per-mode triggers and gates Onos's changing Incarnon sequence", () => {
+        const catalog = getWeaponCatalog();
+        const triggerCases: Array<[string, string, string]> = [
+            ["Basmu", "Held", "Held"],
+            ["Boar", "Incarnon Form", "Held"],
+            ["Boar Prime", "Incarnon Form", "Held"],
+            ["Furis", "Incarnon Form", "Held"],
+            ["Mk1-Furis", "Incarnon Form", "Held"],
+            ["Panthera", "Alt-Fire", "Held"],
+            ["Panthera Prime", "Alt-Fire", "Held"],
+            ["Enkaus", "Primary", "Held"],
+            ["Enkaus", "Alt-Fire", "Semi"],
+            ["Enkaus", "Alt-Fire Radial Attack", "Semi"],
+            ["Quanta", "Cube (direct hit)", "Semi"],
+            ["Quanta", "Cube Explosion", "Semi"],
+            ["Quanta", "Cube (shot by player)", "Special"],
+            ["Quanta Vandal", "Cube (direct hit)", "Semi"],
+            ["Quanta Vandal", "Cube Explosion", "Semi"],
+            ["Quanta Vandal", "Cube (shot by player)", "Special"],
+            ["Tenet Quanta", "Cube (direct hit)", "Semi"],
+            ["Tenet Quanta", "Cube Explosion", "Semi"],
+            ["Tenet Quanta", "Cube (shot by player)", "Special"],
+            ["Atomos", "Incarnon Form", "Semi"],
+            ["Gammacor", "Incarnon Form", "Semi"],
+            ["Synoid Gammacor", "Incarnon Form", "Semi"],
+            ["Onos", "Incarnon Form Held Damage", "Held"],
+            ["Onos", "Incarnon Form Charge Attack", "Charge"],
+            ["Onos", "Incarnon Form Charge Radial Attack", "Charge"],
+            ["Phantasma", "Plasma Bomb Impact", "Charge"],
+            ["Phantasma Prime", "Cluster Bombs Explosion", "Charge"],
+            ["Catabolyst", "Partial Reload Impact", "Special"],
+            ["Catabolyst", "Partial Reload Explosion", "Special"],
+            ["Catabolyst", "Reload From Empty Impact", "Special"],
+            ["Catabolyst", "Reload From Empty Explosion", "Special"],
+            ["Coda Catabolyst", "Partial Reload Impact", "Special"],
+            ["Coda Catabolyst", "Partial Reload Explosion", "Special"],
+            ["Coda Catabolyst", "Reload From Empty Impact", "Special"],
+            ["Coda Catabolyst", "Reload From Empty Explosion", "Special"],
+        ];
+        for (const [weaponName, attackName, trigger] of triggerCases) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName);
+            const attack = weapon?.attacks.find((candidate) => candidate.name === attackName);
+            expect(attack, `${weaponName} / ${attackName}`).toBeDefined();
+            expect(attack!.trigger, `${weaponName} / ${attackName}`).toBe(trigger);
+        }
+
+        for (const [weaponName, sourceUrl] of [
+            ["Quanta", "https://wiki.warframe.com/w/Quanta"],
+            ["Quanta Vandal", "https://wiki.warframe.com/w/Quanta_Vandal"],
+            ["Tenet Quanta", "https://wiki.warframe.com/w/Tenet_Quanta"],
+        ] as const) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName)!;
+            const direct = weapon.attacks.find((attack) => attack.name === "Cube (direct hit)")!;
+            const explosion = weapon.attacks.find((attack) => attack.name === "Cube Explosion")!;
+            const playerShot = weapon.attacks.find((attack) => attack.name === "Cube (shot by player)")!;
+            expect(direct.lingeringDamageRule).toMatchObject({
+                componentAttackName: "Cube Explosion",
+                firstTickDelaySeconds: 0,
+                tickCount: 1,
+                attachedToDirectTarget: true,
+                sourceUrl,
+            });
+            expect(direct.scoreBoundaryNote?.reason).toContain("immediately includes its linked 0.5m contact explosion");
+            expect(explosion.modelLimitation?.sourceUrl).toBe(sourceUrl);
+            expect(explosion.modelLimitation?.reason).toContain("Select Cube (direct hit)");
+            expect(playerShot.modelLimitation?.sourceUrl).toBe(sourceUrl);
+            expect(playerShot.modelLimitation?.reason).toContain("linked-weapon or deployed-cube state");
+            expect(withSelectedAttack(weapon, weapon.attacks.indexOf(direct)).selectedAttackModelLimitation).toBeUndefined();
+            expect(withSelectedAttack(weapon, weapon.attacks.indexOf(explosion)).selectedAttackModelLimitation).toEqual(
+                explosion.modelLimitation,
+            );
+            expect(withSelectedAttack(weapon, weapon.attacks.indexOf(playerShot)).selectedAttackModelLimitation).toEqual(
+                playerShot.modelLimitation,
+            );
+        }
+
+        for (const [weaponName, sourceUrl] of [
+            ["Catabolyst", "https://wiki.warframe.com/w/Catabolyst"],
+            ["Coda Catabolyst", "https://wiki.warframe.com/w/Coda_Catabolyst"],
+        ] as const) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName)!;
+            for (const name of [
+                "Partial Reload Impact",
+                "Partial Reload Explosion",
+                "Reload From Empty Impact",
+                "Reload From Empty Explosion",
+            ]) {
+                const attack = weapon.attacks.find((candidate) => candidate.name === name)!;
+                expect(attack.trigger).toBe("Special");
+                expect(attack.modelLimitation?.sourceUrl).toBe(sourceUrl);
+                expect(attack.modelLimitation?.reason).toMatch(/reference-only.*Auto Optimize/i);
+                expect(withSelectedAttack(weapon, weapon.attacks.indexOf(attack)).selectedAttackModelLimitation)
+                    .toEqual(attack.modelLimitation);
+            }
+        }
+
+        const onos = catalog.find((candidate) => candidate.name === "Onos");
+        expect(onos).toBeDefined();
+        for (const name of [
+            "Incarnon Form Held Damage",
+            "Incarnon Form Charge Attack",
+            "Incarnon Form Charge Radial Attack",
+        ]) {
+            const attack = onos!.attacks.find((candidate) => candidate.name === name);
+            expect(attack?.modelLimitation?.sourceUrl).toBe("https://wiki.warframe.com/w/Onos");
+            expect(attack?.modelLimitation?.reason).toMatch(/reference-only/i);
+            expect(withSelectedAttack(onos!, onos!.attacks.indexOf(attack!)).selectedAttackModelLimitation)
+                .toEqual(attack!.modelLimitation);
+        }
+
+        const cortege = catalog.find((candidate) => candidate.name === "Cortege");
+        expect(cortege?.attacks.find((attack) => attack.name === "Grenade Impact")?.modelLimitation?.reason)
+            .toMatch(/five primary-fire kills/i);
+
+        const unhandledHeldRows = catalog.flatMap((weapon) => weapon.attacks
+            .filter((attack) => attack.trigger === "Held" && !attack.damageRamp && !attack.modelLimitation)
+            .map((attack) => `${weapon.name} / ${attack.name}`));
+        expect(unhandledHeldRows).toEqual([]);
+
+        const unhandledAutoSpoolRows = catalog.flatMap((weapon) => weapon.attacks
+            .filter((attack) => attack.trigger === "Auto-Spool" &&
+                !attack.autoSpoolCadence && !attack.autoSpoolShotSequence && !attack.autoSpoolTimingLimitation)
+            .map((attack) => `${weapon.name} / ${attack.name}`));
+        expect(unhandledAutoSpoolRows).toEqual([]);
+    });
+});
+
 describe("Dreadful Killshot rank data", () => {
     it("parses the Basmu rank values and keeps the sourced mechanic out of unparsed-effect warnings", () => {
         const basmu = getWeaponCatalog().find((weapon) => weapon.name === "Basmu");

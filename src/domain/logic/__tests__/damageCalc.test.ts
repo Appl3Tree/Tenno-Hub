@@ -4519,6 +4519,49 @@ describe("damage calculation status eligibility", () => {
         }
     });
 
+    it("applies sourced non-Phantasma ramps to first-hit and finite beam damage", () => {
+        const catalog = getWeaponCatalog();
+        const amprex = catalog.find((candidate) => candidate.name === "Amprex")!;
+        const amprexSelected = withSelectedAttack(
+            amprex,
+            amprex.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+        );
+        const amprexMetrics = calculateBuild(amprexSelected, []);
+        expect(amprexMetrics.modded.firstAttackDamageMultiplier).toBe(0.3);
+        expect(amprexMetrics.modded.freshMagazineDamageMultiplier).toBeLessThan(1);
+
+        const basmu = catalog.find((candidate) => candidate.name === "Basmu")!;
+        const basmuSelected = withSelectedAttack(
+            basmu,
+            basmu.attacks.findIndex((attack) => attack.name === "Held"),
+        );
+        const basmuMetrics = calculateBuild(basmuSelected, []);
+        expect(basmuSelected.trigger).toBe("Held");
+        expect(basmuMetrics.modded.ammoCostPerShot).toBe(1);
+        expect(basmuMetrics.modded.firstAttackDamageMultiplier).toBe(0.2);
+        expect(basmuMetrics.modded.freshMagazineDamageMultiplier).toBeCloseTo(0.8666666666667, 10);
+    });
+
+    it("links one Quanta-family cube contact blast to its Semi direct hit", () => {
+        const catalog = getWeaponCatalog();
+        for (const weaponName of ["Quanta", "Quanta Vandal", "Tenet Quanta"]) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName)!;
+            const selected = withSelectedAttack(
+                weapon,
+                weapon.attacks.findIndex((attack) => attack.name === "Cube (direct hit)"),
+            );
+            const metrics = calculateBuild(selected, []);
+
+            expect(selected.trigger).toBe("Semi");
+            expect(selected.selectedAttackLingeringDamageRule).toMatchObject({
+                componentAttackName: "Cube Explosion",
+                firstTickDelaySeconds: 0,
+                tickCount: 1,
+            });
+            expect(metrics.modded.attachedAttackDamageSequence?.profile.damageByType?.blast).toBeGreaterThan(0);
+        }
+    });
+
     it("scales Phantasma alternate-fire rows by selected ammo at the fixed Wiki charge rate", () => {
         const phantasma = getWeaponCatalog().find((candidate) => candidate.name === "Phantasma Prime");
         expect(phantasma).toBeDefined();

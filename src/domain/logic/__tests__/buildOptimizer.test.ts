@@ -4960,6 +4960,33 @@ describe("build optimizer scoring", () => {
         expect(scalingWithRamp).toBeCloseTo(scalingWithoutRamp, 7);
     });
 
+    it("uses a sourced Held beam ramp for Burst and sustained Scaling", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Amprex");
+        expect(weapon).toBeTruthy();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const selected = withSelectedAttack(weapon!, attackIndex);
+        const noRamp = { ...selected, selectedAttackDamageRamp: undefined };
+
+        const burstWithRamp = debugScoreBuild(selected, [], "burst", "Grineer");
+        const burstWithoutRamp = debugScoreBuild(noRamp, [], "burst", "Grineer");
+        const scalingWithRamp = debugScoreBuild(selected, [], "scaling", "Grineer");
+        const scalingWithoutRamp = debugScoreBuild(noRamp, [], "scaling", "Grineer");
+
+        expect(burstWithRamp).toBeLessThan(burstWithoutRamp);
+        expect(scalingWithRamp).toBeLessThan(scalingWithoutRamp);
+    });
+
+    it("scores Quanta direct-hit cubes with the linked contact explosion", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Quanta");
+        expect(weapon).toBeTruthy();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Cube (direct hit)");
+        const selected = withSelectedAttack(weapon!, attackIndex);
+        const directOnly = { ...selected, selectedAttackLingeringDamageRule: undefined };
+
+        expect(debugScoreBuild(selected, [], "burst", "Grineer"))
+            .toBeGreaterThan(debugScoreBuild(directOnly, [], "burst", "Grineer"));
+    });
+
     it("uses named single-attack exalted stats instead of the stale top-level weapon record", () => {
         const dexPixia = getWeaponCatalog().find((entry) => entry.uniqueName === "/Lotus/Powersuits/Fairy/FlightPistols");
 
