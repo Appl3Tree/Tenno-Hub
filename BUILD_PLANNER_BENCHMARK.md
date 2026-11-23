@@ -3470,3 +3470,49 @@ The Kuva Ogris / Rocket Explosion optimizer baseline scores 42,749.00 DPS (213,7
 Reproduce with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Kuva Ogris" --attack="Rocket Explosion" --samples=100000 --seed=2435346591 --faction=Grineer --health=2000000 --armor=3000`.
 
 Together with the Corvas Prime, Gram Prime, and Helstrum results above, all four seeded weapon-stratum picks now have exhaustive max-rank two-mod neighborhoods. Braton Prime is a separate fixed control. This is bounded Tenno-Hub model evidence only, without Arcane/rank/FORMA search, Underframe parity, global optimizer, or gameplay claims.
+
+## D3-OPT-WINDOWDPS-FACTION-PAIR-SAMPLE-001 — seeded shielded-Corpus and unarmored-Infested pair samples (2026-11-23; bounded)
+
+Both runs use the same eight fixed controls plus one seeded explosive-primary, Archgun, companion-weapon, and heavy-melee pick. Each fixture samples 1,024 legal max-rank two-out/two-in replacements without replacement and exact-scores accepted pairs under Realistic state, `[0,5s)`, eight slots, Catalyst, MR30, up to three Forma, no Exilus, and no Arcane optimization.
+
+The shielded-Corpus run uses `npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261151 --samples=1024 --faction=Corpus --health=2000000 --shields=2000000 --armor=0`.
+
+| Fixture | Raw tuples examined for 1,024 legal pairs | Improvements |
+| --- | ---: | --- |
+| Braton Prime / Normal Attack | 2,794 | None |
+| Cedo / Normal Attack | 1,698 | None |
+| Laetum / Normal Attack | 2,275 | None |
+| Soma Prime / Fully Spooled | 1,805 | None |
+| Broken War / Normal Attack | 1,653 | None |
+| Kuva Nukor / Normal Attack | 1,563 | None |
+| Nataruk / Perfect Shot | 1,573 | None |
+| Torid / Grenade Impact | 2,727 | None |
+| Acceltra Prime / Rocket Explosion (seeded) | 1,691 | None |
+| Mausolon (Archwing) / Auto (seeded, 250m) | 2,440 | None |
+| Verglas Prime / Normal Attack (seeded) | 1,909 | None |
+| Arca Titron / Heavy Slam Attack (seeded) | 1,488 | None |
+| **Total** | **23,616** | **None** |
+
+The target pool is 2,000,000 Health + 2,000,000 Shields / zero Armor and Overguard. A focused worker replay of the Mausolon (Archwing) fixture at 250m confirms a legal 59/60, three-Forma baseline at 795,564.84 DPS / 3,977,824.21 applied damage; it survives the window by about 22,176 damage. This row is close to the clipping boundary, so do not infer survival for every other Corpus baseline from this check alone.
+
+The unarmored-Infested run uses `npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261152 --samples=1024 --faction=Infested --health=10000000 --shields=0 --armor=0`.
+
+| Fixture | Raw tuples examined for 1,024 legal pairs | Improvements |
+| --- | ---: | --- |
+| Braton Prime / Normal Attack | 1,609 | None |
+| Cedo / Normal Attack | 1,667 | None |
+| Laetum / Normal Attack | 2,170 | None |
+| Soma Prime / Fully Spooled | 1,763 | None |
+| Broken War / Normal Attack | 1,536 | None |
+| Kuva Nukor / Normal Attack | 1,442 | None |
+| Nataruk / Perfect Shot | 1,560 | None |
+| Torid / Grenade Impact | 2,739 | None |
+| Acceltra Prime / Rocket Explosion (seeded) | 2,020 | None |
+| Mausolon (Archwing) / Auto (seeded, 250m) | 2,410 | None |
+| Verglas Prime / Normal Attack (seeded) | 2,214 | None |
+| Arca Titron / Heavy Slam Attack (seeded) | 1,566 | None |
+| **Total** | **22,696** | **None** |
+
+The Infested target has 10,000,000 Health / zero Shields, Armor, and Overguard. The highest optimizer baseline is Mausolon (Archwing) at 945,066.68 DPS, or 4,725,333.38 applied damage; all 12 targets survive this window. Across the two factions, 24,576 legal pairs were sampled from 46,312 raw proposals with no improving sampled pair. This does not establish exhaustive pair optimality, global quality, Underframe parity, or gameplay accuracy.
+
+The first 1,024-pair Corpus run emitted a stale inherited `assumptions.faction: Grineer` field from the Grineer corpus definition, even though the root target profile and all worker arguments were Corpus. The report builder now overwrites `assumptions.faction` and `assumptions.target` from the pair-run arguments. ESLint, node-project TypeScript, and diff check pass; a 1-pair-per-fixture Corpus smoke reports Corpus / 2,000,000 Health + 2,000,000 Shields / zero Armor. The scoring run itself was unchanged; its worker commands already received the requested Corpus target.
