@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     getWeaponCatalog,
     getWeaponDisplayName,
+    isBurstTriggerType,
     clampMeleeComboMultiplier,
     getMeleeComboRules,
     isGroundMeleeCategory,
@@ -123,7 +124,7 @@ function effectiveBurstTiming(weapon: WeaponEntry | null | undefined, effectiveF
     const burstCycleRate = weapon?.burstCycleRate;
     const burstDelay = weapon?.burstDelay;
     if (
-        weapon?.trigger.toLowerCase() !== "burst" ||
+        !weapon || !isBurstTriggerType(weapon.trigger) ||
         !Number.isFinite(burstCount) || !Number.isFinite(burstCycleRate) ||
         !Number.isFinite(burstDelay) || (burstCount ?? 0) <= 1 ||
         (burstCycleRate ?? 0) <= 0 || (burstDelay ?? 0) < 0 || effectiveFireRate <= 0
@@ -5064,7 +5065,7 @@ export default function ModBuilder() {
             timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
     }, [encounterTargetMetrics, activeCalcWeapon, factionOn, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat]);
-    const activeAttackEventLabel = activeCalcWeapon?.trigger.toLowerCase() === "burst" ? "rounds" : "attacks";
+    const activeAttackEventLabel = activeCalcWeapon && isBurstTriggerType(activeCalcWeapon.trigger) ? "rounds" : "attacks";
     const selectedAttackOutOfRange = activeMetrics?.modded.attackDamageFalloff?.isOutOfRangeMiss === true;
     const activeEncounterStatusSummary = activeTargetEncounter
         ? Object.entries(activeTargetEncounter.statusApplicationsByType)

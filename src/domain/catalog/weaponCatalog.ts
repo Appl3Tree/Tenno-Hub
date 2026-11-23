@@ -367,6 +367,7 @@ export {
     clampMeleeComboMultiplier,
     getInitialMeleeComboMultiplier,
     getMeleeComboRules,
+    isBurstTriggerType,
     selectedAttackUsesIncarnonForm,
     usesMeleeDamageModel,
     withSelectedAttack,
@@ -434,6 +435,10 @@ interface BurstRuleOverride {
  * the current Wiki burst count/delay/cycle values are used for those attacks.
  */
 const BURST_RULE_OVERRIDES: Readonly<Record<string, BurstRuleOverride>> = Object.freeze({
+    // Cyngas uses a Wiki-listed 3-round, 0.06s burst in both modes. The
+    // Archwing form is Auto-Burst; the Atmosphere clone restores regular Burst.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Cyngas
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun|normal attack": { count: 3, delay: 0.06 },
     // Battacor primary fire is a fully automatic two-round burst. WFCD exposes
     // the weapon-level Auto Burst trigger, but its attack rate and burst timing
     // belong to the individual Normal Attack row.
@@ -453,11 +458,22 @@ const BURST_RULE_OVERRIDES: Readonly<Record<string, BurstRuleOverride>> = Object
 });
 
 const VERIFIED_WEAPON_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
+    // WFCD's weapon row labels Cyngas Burst, but the current Wiki distinguishes
+    // its automatic Archwing trigger from regular Atmosphere Burst.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Cyngas
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun": "Auto-Burst",
     // The upstream feed labels Kulstar Active, but the current Wiki classifies
     // the primary trigger as Semi-Auto. Correct the weapon and attack-row
     // trigger so fire-rate and UI logic use the Wiki-listed mode.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
     "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": "Semi-Auto",
+});
+
+const VERIFIED_WEAPON_FIRE_RATE_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
+    // The feed's 9.09091 value is a derived projectile rate, while the Wiki's
+    // source-listed burst-cycle Fire Rate is 6.67 in both Cyngas profiles.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Cyngas
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun": 6.67,
 });
 
 const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
@@ -882,6 +898,19 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // Cyngas Archwing Auto-Burst uses a 100%→20% projectile falloff from
+    // 1,500m to 3,000m. The current Wiki attributes falloff-distance changes
+    // to Projectile Speed.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Cyngas
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun": Object.freeze({
+        "normal attack": Object.freeze({
+            startDistanceMeters: 1500,
+            endDistanceMeters: 3000,
+            minimumDamageMultiplier: 0.2,
+            scaleBy: Object.freeze(["projectileSpeed"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Cyngas",
+        }),
+    }),
     // EFV-5 Jupiter's Buckshot falls from full damage at 5m to 0.79% at 10m;
     // projectile-speed bonuses extend the listed distances.
     // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
@@ -1222,7 +1251,7 @@ function resolveAttackBurstRule(
     if (override) return override;
     if (/^lock-on\b/i.test(attackName)) return undefined;
 
-    const isBurstAttack = attackTrigger.toLowerCase() === "burst" || /\bburst\b/i.test(attackName);
+    const isBurstAttack = /^(?:auto[- ]?)?burst$/i.test(attackTrigger.trim()) || /\bburst\b/i.test(attackName);
     if (!isBurstAttack) return undefined;
 
     const behavior = resolveBurstBehavior(uniqueName);
@@ -2465,6 +2494,12 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun": Object.freeze({
+        "normal attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Cyngas",
+            reason: "This Archwing profile scores direct hits against one selected target and applies the sourced 1,500–3,000m falloff. It assumes each projectile hits; projectile travel time, leading/misses, recoil, accuracy, the listed 0.25s reload delay, and other targets are not simulated.",
+        }),
+    }),
     // Each row is one alternative single-charge detonation. Do not combine
     // Mid-Flight and Embedded Detonation. Extra Multishot charges are widely
     // spread; flight, manual detonation timing, stacked charges, and other
@@ -2951,7 +2986,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
             : inferMainPolaritiesFromItems(uniqueName);
 
         const stanceClasses = inferStanceClasses(item, exaltedType);
-        const fireRate = n(item.fireRate) || 1;
+        const fireRate = VERIFIED_WEAPON_FIRE_RATE_OVERRIDES[uniqueName] ?? (n(item.fireRate) || 1);
         const attacks = parsedAttacks.map((attack, attackIndex) => {
             const autoSpoolCadence = getAutoSpoolCadence(uniqueName, attack.name);
             const autoSpoolShotSequence = getAutoSpoolShotSequence(uniqueName, attack.name);
@@ -2979,7 +3014,9 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 ];
             return {
                 ...attack,
-                trigger: burst ? "Burst" : attackTrigger,
+                trigger: burst
+                    ? (/^auto[- ]?burst$/i.test(attackTrigger.trim()) ? "Auto-Burst" : "Burst")
+                    : attackTrigger,
                 chargeTime,
                 ...(chargeTimeAffectedByFireRate === undefined ? {} : { chargeTimeAffectedByFireRate }),
                 ...(autoSpoolCadence ? { autoSpoolCadence } : {}),
@@ -3090,6 +3127,55 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     damageTotal,
                     damageFalloff,
                     ...(maximumRangeBehavior ? { maximumRangeBehavior } : {}),
+                };
+            }),
+        });
+    }
+
+    // WFCD publishes Cyngas as a single Archwing row. The Wiki lists distinct
+    // Archwing and Atmosphere profiles with different triggers, damage, range,
+    // falloff, and reload values. Keep both selectable under the same Archgun
+    // mod compatibility family.
+    const cyngas = entries.find((entry) => entry.uniqueName ===
+        "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun");
+    if (cyngas) {
+        cyngas.variantLabel = "Archwing";
+        const atmosphereDamage: WeaponDamage = {
+            ...cyngas.damage,
+            total: 240,
+            impact: 80,
+            puncture: 80,
+            slash: 80,
+        };
+        entries.push({
+            ...cyngas,
+            uniqueName: `${cyngas.uniqueName}::Atmosphere`,
+            sourceUniqueName: cyngas.uniqueName,
+            variantLabel: "Atmosphere",
+            trigger: "Burst",
+            reloadTime: 1.2,
+            damage: atmosphereDamage,
+            attacks: cyngas.attacks.map((attack) => {
+                const attackName = attack.name.trim().toLowerCase();
+                const isNormalAttack = attackName === "normal attack";
+                const damage: WeaponDamage = isNormalAttack
+                    ? { ...attack.damage, total: 240, impact: 80, puncture: 80, slash: 80 }
+                    : { ...attack.damage };
+                return {
+                    ...attack,
+                    trigger: "Burst",
+                    damage,
+                    damageTotal: damage.total,
+                    damageFalloff: undefined,
+                    ...(isNormalAttack ? {
+                        maximumRangeMeters: 300,
+                        maximumRangeBehavior: "hardHitCap" as const,
+                        maximumRangeSourceUrl: "https://wiki.warframe.com/w/Cyngas",
+                        scoreBoundaryNote: {
+                            sourceUrl: "https://wiki.warframe.com/w/Cyngas",
+                            reason: "This Atmosphere profile scores one direct hitscan hit against a single target and enforces the listed 300m range. It excludes punch-through hits on additional enemies, reserve-ammo depletion, Archgun Deployer cooldown, and multi-target coverage.",
+                        },
+                    } : {}),
                 };
             }),
         });

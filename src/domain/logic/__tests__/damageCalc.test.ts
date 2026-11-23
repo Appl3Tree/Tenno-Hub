@@ -790,6 +790,50 @@ describe("source-backed weapon attack falloff", () => {
         expect(atmosphereMausolon!.attacks.find((attack) => attack.name === "Charged Shot Explosion")?.damageFalloff).toBeUndefined();
     });
 
+    it("applies Cyngas Auto-Burst cadence and profile-specific distance rules", () => {
+        const cyngasProfiles = catalog.filter((candidate) => candidate.name === "Cyngas");
+        const archwing = cyngasProfiles.find((candidate) => candidate.variantLabel === "Archwing");
+        const atmosphere = cyngasProfiles.find((candidate) => candidate.variantLabel === "Atmosphere");
+        expect(archwing).toBeDefined();
+        expect(atmosphere).toBeDefined();
+
+        const archwingAuto = withSelectedAttack(archwing!, archwing!.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+        const archwingStats = calculateBuild(archwingAuto, []).modded;
+        expect(archwingStats.fireRate).toBeCloseTo(3 / (1 / 6.67 + 2 * 0.06), 8);
+        const fullDamage = archwingStats.totalDamage;
+        const midpoint = calculateBuild(archwingAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 2250 },
+        }).modded;
+        const minimum = calculateBuild(archwingAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 3000 },
+        }).modded;
+        expect(midpoint.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.6, 8);
+        expect(midpoint.totalDamage).toBeCloseTo(fullDamage * 0.6, 7);
+        expect(minimum.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.2, 8);
+        expect(minimum.totalDamage).toBeCloseTo(fullDamage * 0.2, 7);
+
+        const fasterProjectile = calculateBuild(archwingAuto, [{ ...emptyEffect(), projectileSpeedBonus: 1 }], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 2250 },
+        }).modded;
+        expect(fasterProjectile.attackDamageFalloff?.startDistanceMeters).toBeCloseTo(3000, 8);
+        expect(fasterProjectile.attackDamageFalloff?.endDistanceMeters).toBeCloseTo(6000, 8);
+        expect(fasterProjectile.attackDamageFalloff?.damageMultiplier).toBe(1);
+
+        const atmosphereAuto = withSelectedAttack(atmosphere!, atmosphere!.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+        const atRange = calculateBuild(atmosphereAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 300 },
+        }).modded;
+        const beyondRange = calculateBuild(atmosphereAuto, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 300.1 },
+        }).modded;
+        expect(atRange.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(atRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(false);
+        expect(beyondRange.attackDamageFalloff?.damageMultiplier).toBe(0);
+        expect(beyondRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(true);
+        expect(beyondRange.totalDamage).toBe(0);
+        expect(beyondRange.averageProcsPerShot).toBe(0);
+    });
+
     it("models Quellor Alt-Fire linear falloff and Projectile Speed scaling", () => {
         const quellor = catalog.find((candidate) => candidate.name === "Quellor");
         expect(quellor).toBeDefined();

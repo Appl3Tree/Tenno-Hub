@@ -2834,6 +2834,23 @@ describe("build optimizer scoring", () => {
         expect(burstonPrime?.burstDelay).toBeCloseTo(0.06, 6);
     });
 
+    it("uses Cyngas Auto-Burst timing inside finite Expected TTK for both profiles", () => {
+        const profiles = getWeaponCatalog().filter((weapon) => weapon.name === "Cyngas");
+        for (const [variantLabel, health] of [["Archwing", 200], ["Atmosphere", 400]] as const) {
+            const weapon = profiles.find((candidate) => candidate.variantLabel === variantLabel);
+            expect(weapon, `Cyngas (${variantLabel})`).toBeDefined();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            const attack = weapon!.attacks[attackIndex]!;
+            const result = optimizeBuild(weapon!, [], "timeToKill", 0, {
+                buildForAttack: attack,
+                targetFaction: "",
+                targetProfileOverride: { health, armor: 0, shields: 0, overguard: 0 },
+                allowCatalyst: false,
+            });
+            expect(result.encounterTimeToKillSeconds, `Cyngas (${variantLabel}) second projectile`).toBeCloseTo(0.06, 8);
+        }
+    });
+
     it("covers instantaneous, simultaneous, and attack-specific burst modes", () => {
         const catalog = getWeaponCatalog();
         const quartakk = catalog.find((weapon) => weapon.name === "Quartakk");
