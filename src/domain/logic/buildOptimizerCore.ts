@@ -20,6 +20,7 @@ import {
     calculateMeleeAverageDps,
     avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
+    normalizeDeadlyManeuversShotsRemaining,
     withoutBurstOnlyConditionalAssumptions,
     type ConditionalState,
     type HitLocationDamageProfile,
@@ -1439,6 +1440,10 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         targetFaction,
         targetHasOverguard: scoringTargetAssumptions.overguard > 0,
         selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
+        selectedWeaponName: weapon.name,
+        selectedAttackHeadshotRate: scoringTargetAssumptions.headshotHitRate,
+        deadlyManeuversShotsRemaining: normalizeDeadlyManeuversShotsRemaining(opts.conditionalState?.deadlyManeuversShotsRemaining),
+        selectedGoal: goal,
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
     const hasPrecisionStrikeEffect = (mod: ModEntry): boolean => mod.path === PRECISION_STRIKE_MOD_PATH;
@@ -1454,6 +1459,14 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     const isDreadfulKillshot = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.dreadfulKillshotDamageAndStatusPer75Health ?? 0) > 0,
     );
+    const isDeadlyManeuvers = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
+        (effect.deadlyManeuversHeadshotCritChanceBonus ?? 0) > 0,
+    );
+    const deadlyManeuversCanScore = goal === "burst" &&
+        (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
+        weapon.selectedAttackIsAreaDamage !== true &&
+        scoringTargetAssumptions.headshotHitRate > 0 &&
+        normalizeDeadlyManeuversShotsRemaining(opts.conditionalState?.deadlyManeuversShotsRemaining) > 0;
     const isSentientIncision = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.sentientIncisionDamageBonus ?? 0) > 0,
     );
@@ -1461,6 +1474,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         goal !== "burst" && scoringEffectContext.targetHasOverguard === true && isSentientIncision(mod);
     const hasSupportedDamageRank = (mod: ModEntry): boolean =>
         !sentientIncisionBlockedByOverguard(mod) && mod.hasDamageEffect && (goal === "burst" || !isDreadfulKillshot(mod)) &&
+        (!isDeadlyManeuvers(mod) || deadlyManeuversCanScore) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
         allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
@@ -1483,6 +1497,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         // catalog effect is unsupported, so scoring it would silently omit stats.
         if (!mod.hasDamageEffect) continue;
         if (goal !== "burst" && isDreadfulKillshot(mod)) continue;
+        if (isDeadlyManeuvers(mod) && !deadlyManeuversCanScore) continue;
         if (!precisionStrikeCanScore && hasPrecisionStrikeEffect(mod)) continue;
         if (mod.isAura) continue; // auras go in the aura slot, not regular slots
         if (sentientIncisionBlockedByOverguard(mod)) continue;
@@ -2661,7 +2676,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
+    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "deadlyManeuversHeadshotCritChanceBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "chargeRateBonus")) families.push("fire-rate");
@@ -4139,6 +4154,10 @@ function optimizeExilusSlot(
                 targetFaction,
                 targetHasOverguard: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).overguard > 0,
                 selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
+                selectedWeaponName: weapon.name,
+                selectedAttackHeadshotRate: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headshotHitRate,
+                deadlyManeuversShotsRemaining: normalizeDeadlyManeuversShotsRemaining(opts.conditionalState?.deadlyManeuversShotsRemaining),
+                selectedGoal: goal,
             }).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
             let selectedPolarity = candidatePolarity;
@@ -5060,6 +5079,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     addPercent("comboCritChanceBonus", "of base Critical Chance per combo tier above 1×");
     addPercent("finalCritChanceBonus", "percentage points of Critical Chance");
     addPercent("weakPointCritChanceBonus", "Critical Chance on weak-point hits");
+    addPercent("deadlyManeuversHeadshotCritChanceBonus", "headshot Critical Chance for the next two shots after a dodge (Burst snapshot only)");
     addPercent("critMultBonus", "Critical Damage");
     addPercent("strainInfectionCritDamagePerCyst", "Critical Damage per active Strain Infection cyst (Burst only)");
     if (value("finalCritMultiplierBonus") !== 0) {
@@ -5344,6 +5364,10 @@ export function explainBuild(
     if (selectedStats.dreadfulKillshotBonus > 0) {
         buildHighlights.push(`Basmu's Dreadful Killshot Burst score assumes ${formatExplanationNumber(selectedStats.dreadfulKillshotCurrentHealth, 0)} current Warframe Health and adds ${formatExplanationPercent(selectedStats.dreadfulKillshotBonus)} each to additive weapon Damage and Status Chance after rounding down to 20% increments (360% cap). Current Health is held static; health buffs and damage taken are not simulated. The assumption applies only to Burst scoring and Burst Auto Optimize; Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude it.`);
     }
+    if (selectedStats.deadlyManeuversHeadshotCritChanceBonus > 0) {
+        const shots = selectedStats.deadlyManeuversShotsRemaining;
+        buildHighlights.push(`Deadly Maneuvers Burst scoring assumes ${shots} buffed shot${shots === 1 ? "" : "s"} remain after a dodge. Its rank-listed +${formatExplanationPercent(selectedStats.deadlyManeuversHeadshotCritChanceBonus)} headshot Critical Chance is applied multiplicatively after other bonuses (×${formatExplanationNumber(1 + selectedStats.deadlyManeuversHeadshotCritChanceBonus, 0)} on each buffed headshot), and the score averages that state across the next two shots. The configured headshot share controls how often those shots use the bonus. Dodge timing and shot history are not simulated; Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this snapshot.`);
+    }
     if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
         buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);
     }
@@ -5388,6 +5412,10 @@ export function explainBuild(
             targetFaction,
             targetHasOverguard: targetAssumptions.overguard > 0,
             selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
+            selectedWeaponName: weapon.name,
+            selectedAttackHeadshotRate: targetAssumptions.headshotHitRate,
+            deadlyManeuversShotsRemaining: normalizeDeadlyManeuversShotsRemaining(conditionalState?.deadlyManeuversShotsRemaining),
+            selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
         const effectSummary = parts.length > 0

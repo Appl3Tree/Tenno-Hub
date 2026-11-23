@@ -274,6 +274,10 @@ export interface ModdedWeaponStats {
     dreadfulKillshotBonus: number;
     /** Current Warframe Health snapshot supplied for Dreadful Killshot, normalized to a nonnegative integer. */
     dreadfulKillshotCurrentHealth: number;
+    /** Active Deadly Maneuvers headshot Critical Chance bonus on Magnus/Magnus Prime. */
+    deadlyManeuversHeadshotCritChanceBonus: number;
+    /** Remaining buffed shots represented by this Burst snapshot (0–2). */
+    deadlyManeuversShotsRemaining: number;
     /** Count of selected and external Vigilante pieces, capped at six. */
     vigilanteSetModCount: number;
     /** Count of selected and external Gladiator pieces, capped at six. */
@@ -539,6 +543,10 @@ export interface HitLocationDamageProfile {
     weakPointDamageBonus?: number;
     /** Critical Chance bonus fraction that applies only to weak-point hits. */
     weakPointCritChanceBonus?: number;
+    /** Multiplicative Critical Chance factor for a buffed Deadly Maneuvers shot. */
+    headshotCritChanceMultiplier?: number;
+    /** Share of the next two shots that still have the Deadly Maneuvers buff. */
+    headshotCritChanceMultiplierActiveShotShare?: number;
     /** False for area attacks, melee, and weapon classes outside this headshot model. */
     canHeadshot?: boolean;
 }
@@ -563,6 +571,8 @@ export interface ConditionalState {
     strainInfectionCystsAtImpact?: number;
     /** Current Warframe Health for Basmu Dreadful Killshot; Burst snapshot only, ignored by finite/sustained objectives. */
     dreadfulKillshotCurrentHealth?: number;
+    /** Remaining Deadly Maneuvers shots after a dodge (0–2); Burst snapshot only. */
+    deadlyManeuversShotsRemaining?: number;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -686,6 +696,12 @@ export function normalizeDreadfulKillshotCurrentHealth(value: number | undefined
         : 0;
 }
 
+export function normalizeDeadlyManeuversShotsRemaining(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(2, Math.floor(value ?? 0)))
+        : 0;
+}
+
 /** Converts Dreadful Killshot's rank value and current-health snapshot to its capped, 20%-quantized bonus. */
 export function dreadfulKillshotBonusFromCurrentHealth(
     per75HealthBonus: number,
@@ -706,6 +722,7 @@ export function withoutBurstOnlyConditionalAssumptions(
     if (!state || (
         normalizeStrainInfectionCystCount(state.strainInfectionCystsAtImpact) === 0 &&
         normalizeDreadfulKillshotCurrentHealth(state.dreadfulKillshotCurrentHealth) === 0 &&
+        normalizeDeadlyManeuversShotsRemaining(state.deadlyManeuversShotsRemaining) === 0 &&
         normalizeOverpressuredRoundsSpreadSnapshot(
             state.overpressuredRoundsSpreadMinimumDegrees,
             state.overpressuredRoundsSpreadMaximumDegrees,
@@ -715,6 +732,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         ...state,
         strainInfectionCystsAtImpact: 0,
         dreadfulKillshotCurrentHealth: 0,
+        deadlyManeuversShotsRemaining: 0,
         overpressuredRoundsSpreadMinimumDegrees: undefined,
         overpressuredRoundsSpreadMaximumDegrees: undefined,
     };
@@ -872,17 +890,28 @@ export function avgHitDamageMultiplier(
         : 0;
     const headshotMultiplier = Math.max(0, baseHeadshotMultiplier + 1.5 * weakPointDamageBonus) *
         Math.max(0, 1 + headshotMultiplierBonus);
-    const headshotCritChance = Math.max(0, normalizedCritChance + weakPointCritChanceBonus);
-    const headshotCritTier = expectedCritTierForChance(headshotCritChance);
-    const headshotNonCriticalChance = Math.max(0, 1 - Math.min(1, headshotCritChance));
     const criticalHeadshotMultiplier = Math.max(0, Number.isFinite(hitLocation.criticalHeadshotMultiplier)
         ? hitLocation.criticalHeadshotMultiplier ?? 2
         : 2);
-    const headshotCritDamage = 1 + headshotCritTier * (criticalHeadshotMultiplier * Math.max(0, critMult) - 1);
     const ordinaryNonCritProcBonus = nonCriticalChance * (expectedProcMultiplier - 1);
-    const headshotNonCritProcBonus = headshotNonCriticalChance * (expectedProcMultiplier - 1);
     const bodyshotDamage = bodyshotMultiplier * (critDamage + ordinaryNonCritProcBonus);
-    const headshotDamage = headshotMultiplier * (headshotCritDamage + headshotNonCritProcBonus);
+    const baseHeadshotCritChance = Math.max(0, normalizedCritChance + weakPointCritChanceBonus);
+    const activeCritChanceMultiplier = Math.max(0, Number.isFinite(hitLocation.headshotCritChanceMultiplier)
+        ? hitLocation.headshotCritChanceMultiplier ?? 1
+        : 1);
+    const activeShotShare = Math.max(0, Math.min(1, Number.isFinite(hitLocation.headshotCritChanceMultiplierActiveShotShare)
+        ? hitLocation.headshotCritChanceMultiplierActiveShotShare ?? 1
+        : 1));
+    const headshotDamageForCritChance = (chance: number) => {
+        const tier = expectedCritTierForChance(chance);
+        const headshotCritDamage = 1 + tier * (criticalHeadshotMultiplier * Math.max(0, critMult) - 1);
+        const headshotNonCriticalChance = Math.max(0, 1 - Math.min(1, chance));
+        const headshotNonCritProcBonus = headshotNonCriticalChance * (expectedProcMultiplier - 1);
+        return headshotMultiplier * (headshotCritDamage + headshotNonCritProcBonus);
+    };
+    const baselineHeadshotDamage = headshotDamageForCritChance(baseHeadshotCritChance);
+    const activeHeadshotDamage = headshotDamageForCritChance(baseHeadshotCritChance * activeCritChanceMultiplier);
+    const headshotDamage = baselineHeadshotDamage * (1 - activeShotShare) + activeHeadshotDamage * activeShotShare;
     return bodyshotDamage * (1 - headshotRate) + headshotDamage * headshotRate;
 }
 
@@ -1471,6 +1500,9 @@ export function calculateBuild(
     const dreadfulKillshotCurrentHealth = normalizeDreadfulKillshotCurrentHealth(
         conditionalState.dreadfulKillshotCurrentHealth,
     );
+    const deadlyManeuversShotsRemaining = normalizeDeadlyManeuversShotsRemaining(
+        conditionalState.deadlyManeuversShotsRemaining,
+    );
     const attackDamageFalloff = calculateAttackDamageFalloff(
         weapon,
         mods,
@@ -1525,6 +1557,7 @@ export function calculateBuild(
     let critMultBonus = 0;
     let strainInfectionCritDamagePerCyst = 0;
     let dreadfulKillshotDamageAndStatusPer75Health = 0;
+    let deadlyManeuversHeadshotCritChanceBonus = 0;
     let finalCritMultiplierBonus = 0;
     let headshotMultiplierBonus = 0;
     let bodyshotDamageBonus = 0;
@@ -1646,6 +1679,7 @@ export function calculateBuild(
         critMultBonus += e.critMultBonus ?? 0;
         strainInfectionCritDamagePerCyst += e.strainInfectionCritDamagePerCyst ?? 0;
         dreadfulKillshotDamageAndStatusPer75Health += e.dreadfulKillshotDamageAndStatusPer75Health ?? 0;
+        deadlyManeuversHeadshotCritChanceBonus += e.deadlyManeuversHeadshotCritChanceBonus ?? 0;
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
         areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
@@ -2671,6 +2705,18 @@ export function calculateBuild(
         headIsWeakPoint: options.hitLocation?.headIsWeakPoint === true,
         weakPointDamageBonus,
         weakPointCritChanceBonus,
+        headshotCritChanceMultiplier: (
+            (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
+            canHeadshot && normalizeHitShare(options.hitLocation?.headshotRate) > 0 && deadlyManeuversShotsRemaining > 0
+        )
+            ? 1 + deadlyManeuversHeadshotCritChanceBonus
+            : 1,
+        headshotCritChanceMultiplierActiveShotShare: (
+            (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
+            canHeadshot && normalizeHitShare(options.hitLocation?.headshotRate) > 0 && deadlyManeuversShotsRemaining > 0
+        )
+            ? deadlyManeuversShotsRemaining / 2
+            : 1,
         canHeadshot: headshotEligibleCategory && weapon.selectedAttackIsAreaDamage !== true &&
             options.hitLocation?.canHeadshot !== false,
     };
@@ -2990,7 +3036,18 @@ export function calculateBuild(
         hitLocation,
         vigilanteCritTierEnhancementChance,
     );
+    const expectedHitDamageMultiplierWithoutDeadlyManeuvers = deadlyManeuversHeadshotCritChanceBonus > 0
+        ? avgHitDamageMultiplier(
+            critChance,
+            critMultiplier,
+            nonCriticalHitDamageProcs,
+            { ...hitLocation, headshotCritChanceMultiplier: 1, headshotCritChanceMultiplierActiveShotShare: 1 },
+            vigilanteCritTierEnhancementChance,
+        )
+        : expectedHitDamageMultiplier;
     const averageShotDamage = totalDamage * attackDamageEquivalent * expectedHitDamageMultiplier;
+    const averageShotDamageWithoutDeadlyManeuvers = totalDamage * attackDamageEquivalent *
+        expectedHitDamageMultiplierWithoutDeadlyManeuvers;
 
     const coldStacks = expectedStacksByType.cold ?? 0;
     const heatStacks = expectedStacksByType.heat ?? 0;
@@ -3143,6 +3200,14 @@ export function calculateBuild(
         strainInfectionCystsAtImpact,
         dreadfulKillshotBonus,
         dreadfulKillshotCurrentHealth,
+        deadlyManeuversHeadshotCritChanceBonus: (
+            (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
+            canHeadshot && normalizeHitShare(options.hitLocation?.headshotRate) > 0 && deadlyManeuversShotsRemaining > 0
+        ) ? deadlyManeuversHeadshotCritChanceBonus : 0,
+        deadlyManeuversShotsRemaining: (
+            (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
+            canHeadshot && deadlyManeuversHeadshotCritChanceBonus > 0
+        ) ? deadlyManeuversShotsRemaining : 0,
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
         sacrificialSetModCount,
@@ -3336,7 +3401,7 @@ export function calculateBuild(
         ? averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier
         : 0;
     const sustainedDPS = ammoGateSatisfied
-        ? averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier
+        ? averageShotDamageWithoutDeadlyManeuvers * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier
         : 0;
 
     return { modded, burstDPS, sustainedDPS };

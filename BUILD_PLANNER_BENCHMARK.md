@@ -1,3 +1,15 @@
+## D3-MOD-DEADLY-MANEUVER-BURST-SNAPSHOT-001 — Magnus headshot Critical Chance snapshot (implementation pending release; 2026-11-23)
+
+Deadly Maneuvers now parses the four rank values listed by the [current Wiki page](https://wiki.warframe.com/w/Deadly_Maneuvers): +100%, +200%, +300%, and +400% Headshot Critical Chance. Following the user's selected interpretation of the rank text, the bonus multiplies the existing headshot Critical Chance after other buffs, producing ×2/×3/×4/×5 on each buffed headshot at ranks 0–3. The selected effect is limited to Magnus and Magnus Prime direct attacks that can headshot.
+
+The Mod Builder exposes an editable 0–2 remaining-shot snapshot after a dodge. Burst calculates the configured direct headshot share for each of the next two shots and averages the one or two remaining buffed shots with the unbuffed remainder. Zero means the dodge buff is inactive. The value is saved/restored with build state and disclosed in the build explanation and attack math trace. Dodge timing and the actual shot sequence are not simulated.
+
+The augment can enter Burst Auto Optimize only when Magnus/Magnus Prime, a headshot-capable direct attack, a nonzero configured headshot share, and a positive remaining-shot snapshot are selected. Scaling, sustained DPS, finite Expected TTK, and fixed-window/5s DPS strip the snapshot and leave the augment unavailable. Area attacks and unsupported contexts fail closed.
+
+Focused regressions cover all rank values, 0/1/2 remaining shots, the ×2–×5 multiplier order, configured headshot share, Burst-only damage, and optimizer objective/weapon gates. The filtered catalog/calculator/optimizer run passes 5/5, and the additional optimizer scope assertion passes 1/1; the full affected catalog/calculator files pass 221/221. App/test TypeScript, focused ESLint, source validation, mod-effect coverage audit, CRLF-aware diff check, and a temporary 988-module Vite build pass. The audit reports 698 weapon profiles / 600 eligible mod records / 501 parsed / 99 with no parsed effect / 68 conservative candidates / zero empty pools.
+
+The local `http://localhost/Tenno-Hub/` endpoint timed out during this checkpoint, so no current-source rendered review is claimed. The full repository suite, full optimizer suite, live-game behavior, and Underframe parity were not validated. Reopen if a supported Magnus attack context or the rank-text interpretation changes.
+
 ## D3-MECH-VULCAX-SINGLE-SHOT-RADIAL-SEQUENCE-001 — charged Impact plus attached Radial Attack (released in PR #327; 2026-11-23)
 
 ### Source behavior and bounded model

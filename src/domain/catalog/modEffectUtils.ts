@@ -23,6 +23,7 @@ export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nigh
 export const OVERPRESSURED_ROUNDS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveLasGooAKAugmentMod";
 export const PRECISION_STRIKE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/GrnGrenadeLauncherArbitrationMod";
 export const COMBAT_RELOAD_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTigrisAugmentMod";
+export const DEADLY_MANEUVERS_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/MagnusNightwaveMod";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -43,6 +44,14 @@ export interface ScoringEffectContext {
     targetHasOverguard?: boolean;
     /** Whether the selected melee attack is a Slam, which Sentient Incision excludes. */
     selectedAttackUsesSlamDamageBonus?: boolean;
+    /** Selected weapon name for weapon-specific snapshot rules. */
+    selectedWeaponName?: string;
+    /** Configured fraction of direct hits expected to land on headshot locations. */
+    selectedAttackHeadshotRate?: number;
+    /** Current remaining Deadly Maneuvers shots, used only for Burst scoring. */
+    deadlyManeuversShotsRemaining?: number;
+    /** Current optimization objective; Deadly Maneuvers is Burst-only. */
+    selectedGoal?: string;
 }
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -174,6 +183,17 @@ export function getUnmodeledDamageEffectLines(
     if (mod.path === COMBAT_RELOAD_MOD_PATH) {
         lines.push("Combat Reload requires five Tigris pellets to land on headshot locations and grants rank-scaled Reload Speed for 3s. Per-pellet headshot probability and buff expiry/refresh timing are not modeled, so Realistic leaves the effect inactive. Custom/Fully Stacked can represent a manual active-buff snapshot; Auto Optimize skips this mod.");
     }
+    if (mod.path === DEADLY_MANEUVERS_MOD_PATH) {
+        const weaponSupportsSnapshot = context?.selectedWeaponName === "Magnus" || context?.selectedWeaponName === "Magnus Prime";
+        const hasHeadshotShare = Number.isFinite(context?.selectedAttackHeadshotRate) &&
+            (context?.selectedAttackHeadshotRate ?? 0) > 0;
+        const hasBurstSnapshot = context?.selectedGoal === "burst" &&
+            Number.isFinite(context?.deadlyManeuversShotsRemaining) &&
+            (context?.deadlyManeuversShotsRemaining ?? 0) > 0;
+        if (!weaponSupportsSnapshot || context?.selectedAttackIsAreaDamage === true || !hasHeadshotShare || !hasBurstSnapshot) {
+            lines.push("Deadly Maneuvers' dodge-triggered bonus applies to the next two Magnus/Magnus Prime shots. This planner uses an editable 0–2 remaining-shot snapshot for single-target Burst only; without a Burst snapshot and configured headshot share, the effect is unscored and Auto Optimize skips it. Dodge timing, shot history, and finite TTK / 5s DPS are not modeled.");
+        }
+    }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         // The Slash keyword appears in the stat line because it determines
         // companion healing; this is not a weapon damage modifier.
@@ -216,6 +236,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === COMBAT_RELOAD_MOD_PATH) {
         return "https://wiki.warframe.com/w/Combat_Reload";
     }
+    if (mod.path === DEADLY_MANEUVERS_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Deadly_Maneuvers";
+    }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Sentient_Incision";
     }
@@ -241,7 +264,8 @@ export function emptyEffect(): ModEffect {
         voidBonus: 0, tauBonus: 0, trueBonus: 0,
         critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0,
-        strainInfectionCritDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0, finalCritMultiplierBonus: 0,
+        strainInfectionCritDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
+        deadlyManeuversHeadshotCritChanceBonus: 0, finalCritMultiplierBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false,
