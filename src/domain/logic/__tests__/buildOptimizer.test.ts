@@ -1725,6 +1725,37 @@ describe("build optimizer scoring", () => {
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
+    it("keeps Overpressured Rounds unscored until EFV-5 mode history and pellet coverage are modeled", () => {
+        const efv5 = getWeaponCatalog().find((weapon) => weapon.name.toLowerCase() === "efv-5 jupiter");
+        expect(efv5).toBeDefined();
+        const overpressuredRounds = getModsForWeapon(efv5!).find((mod) => mod.name === "Overpressured Rounds");
+        expect(overpressuredRounds).toBeDefined();
+        expect(overpressuredRounds!.hasDamageEffect).toBe(false);
+        expect(getUnmodeledDamageEffectSourceUrl(overpressuredRounds!)).toBe(
+            "https://wiki.warframe.com/w/Overpressured_Rounds",
+        );
+
+        const expectedRankText = [
+            "Rifle kills add 20% Falloff Distance and decrease Spread for next attack with Buckshot. Buckshot kills restore 25% of the current Magazine.",
+            "Rifle kills add 40% Falloff Distance and decrease Spread for next attack with Buckshot. Buckshot kills restore 30% of the current Magazine.",
+            "Rifle kills add 60% Falloff Distance and decrease Spread for next attack with Buckshot. Buckshot kills restore 35% of the current Magazine.",
+            "Rifle kills add 80% Falloff Distance and decrease Spread for next attack with Buckshot. Buckshot kills restore 40% of the current Magazine.",
+            "Rifle kills add 100% Falloff Distance and decrease Spread for next attack with Buckshot. Buckshot kills restore 45% of the current Magazine.",
+            "Rifle kills add 120% Falloff Distance and decrease Spread for next attack with Buckshot. Buckshot kills restore 50% of the current Magazine.",
+        ];
+        expect(overpressuredRounds!.statsTextByRank).toEqual(expectedRankText);
+        for (let rank = 0; rank <= overpressuredRounds!.fusionLimit; rank++) {
+            expect(overpressuredRounds!.unparsedStatsByRank?.[rank]).toEqual([expectedRankText[rank]]);
+            expect(getUnmodeledDamageEffectLines(overpressuredRounds!, rank)).toContain(
+                "Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes. The Wiki does not specify the spread reduction, and EFV-5 Buckshot's 11-pellet spread has no target-size hit model here, so Auto Optimize skips this mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.",
+            );
+        }
+
+        const result = optimizeBuild(efv5!, [overpressuredRounds!], "burst", 1, { allowForma: false });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
     it("keeps Sentient Incision out of Auto Optimize until adaptive damage and status exceptions are modeled", () => {
         const venato = getWeaponCatalog().find((candidate) => candidate.name === "Venato");
         expect(venato).toBeDefined();
