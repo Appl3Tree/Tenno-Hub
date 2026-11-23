@@ -1,5 +1,7 @@
 # Warframe Progression Tracker — Codex Working Notes
 
+> **Deployment reconciliation (2026-11-23):** Pages run [#397](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45151075987) at `version=7faacf8` deploys the merged source changes from PRs #280, #281, #298, #300–305, #311, and #313. Earlier notes that say deployment was unverified describe the state at merge time; the later deployment is verified, while per-feature hosted visual review remains open unless recorded separately.
+
 > **Current continuation checkpoint:** Read [BUILD_PLANNER_WORK_STATUS.md](./BUILD_PLANNER_WORK_STATUS.md) before continuing Damage 3.0 / Build Planner work. This is the concise current state; the Working Queue below is the detailed history. Do not repeat completed work unless fresh evidence shows a regression.
 
 ## Task List
