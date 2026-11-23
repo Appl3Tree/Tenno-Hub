@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
 
@@ -117,6 +117,35 @@ describe("EFV-5 Buckshot experimental pellet coverage estimate", () => {
         expect(estimated.totalDamage).toBeCloseTo(unestimatedAtDistance.totalDamage, 8);
         expect(estimated.arsenalDamage).toBeLessThan(unestimated.arsenalDamage);
         expect(estimated.forcedProcsPerShot.corrosive).toBeCloseTo(estimated.multishot, 8);
+    });
+
+    it("uses user-entered post-kill spread bounds for Burst and removes them from finite scoring", () => {
+        expect(normalizeOverpressuredRoundsSpreadSnapshot(4, 8)).toEqual({
+            minimumSpreadDegrees: 4,
+            maximumSpreadDegrees: 8,
+        });
+        expect(normalizeOverpressuredRoundsSpreadSnapshot(8, 4)).toBeNull();
+        expect(normalizeOverpressuredRoundsSpreadSnapshot(4, 181)).toBeNull();
+
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name.toLowerCase() === "efv-5 jupiter");
+        expect(weapon).toBeDefined();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Buckshot");
+        const buckshot = withSelectedAttack(weapon!, attackIndex);
+        const manualSnapshotState: ConditionalState = {
+            mode: "initial",
+            targetRadiusMeters: 0.5,
+            attackFalloffDistanceMeters: 10,
+            overpressuredRoundsSpreadMinimumDegrees: 4,
+            overpressuredRoundsSpreadMaximumDegrees: 8,
+        };
+        const burst = calculateBuild(buckshot, [], "", { conditionalState: manualSnapshotState }).modded;
+        expect(burst.pelletHitEstimate?.nominalSpreadDegrees).toBe(6);
+
+        const finite = calculateBuildForExpectedEncounter(buckshot, [], "", {
+            conditionalState: manualSnapshotState,
+        }).modded;
+        expect(finite.pelletHitEstimate?.nominalSpreadDegrees).toBe(33);
+        expect(finite.multishot).toBeLessThan(burst.multishot);
     });
 
     it("enforces Buckshot's loaded-ammo gate in magazine cadence and finite scoring", () => {

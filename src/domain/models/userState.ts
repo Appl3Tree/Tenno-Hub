@@ -251,6 +251,10 @@ export interface SavedBuildPlannerConfig {
     attackFalloffDistanceMeters?: number;
     /** Editable target radius for the experimental single-target pellet-cone estimate. */
     targetRadiusMeters?: number;
+    /** Manual post-Rifle-kill Buckshot spread snapshot minimum (degrees); Burst only. */
+    overpressuredRoundsSpreadMinimumDegrees?: number;
+    /** Manual post-Rifle-kill Buckshot spread snapshot maximum (degrees); Burst only. */
+    overpressuredRoundsSpreadMaximumDegrees?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */
     meleeAverageComboDamageMultiplier?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */

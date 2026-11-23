@@ -135,11 +135,11 @@ export function getUnmodeledDamageEffectLines(
     }
     if (mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) {
         // This EFV-5 augment crosses attack modes and requires a kill-driven
-        // magazine timeline. Buckshot's spread reduction is still unspecified,
-        // and the planner has no target-size pellet-hit model.
+        // magazine timeline. Buckshot's numeric spread reduction is unknown;
+        // a manual effective cone snapshot is available for Burst only.
         // https://wiki.warframe.com/w/Overpressured_Rounds
         // https://wiki.warframe.com/w/EFV-5_Jupiter
-        lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify its spread reduction. Buckshot's experimental target-size estimate therefore disables itself when this mod is equipped; Auto Optimize skips the mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.");
+        lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify the spread reduction. An optional user-entered effective post-kill spread range can drive Buckshot's experimental single-target Burst estimate; this is a manual assumption, not a sourced stat or trigger simulation. The cone is applied to the scored attack event without simulating the prior Rifle kill, one-shot buff consumption, or a repeat-fire spread timeline. Finite TTK, 5s Avg DPS, rank-specific Falloff Distance, and Magazine Restore remain unscored, and Auto Optimize skips the mod.");
     }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
         // This augment chooses damage from the target weakness and special-cases

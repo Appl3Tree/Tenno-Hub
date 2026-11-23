@@ -32,7 +32,7 @@ import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, OVER
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, FIXED_WINDOW_DPS_SECONDS, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
@@ -693,6 +693,12 @@ interface BuildExportPayload {
         targetDamageAndDpsAvailable: boolean;
         reason?: string;
         sourceUrl?: string;
+        sustainedDpsAvailable?: boolean;
+        sustainedDpsReason?: string;
+        dotDpsAvailable?: boolean;
+        dotDpsReason?: string;
+        finiteTargetScoringAvailable?: boolean;
+        finiteTargetScoringReason?: string;
     };
     weapon: {
         name: string;
@@ -843,6 +849,8 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
     const burstDps = payload.calculated?.burstDPS ?? 0;
     const sustainedDps = payload.calculated?.sustainedDPS ?? 0;
     const scoreUnavailable = payload.scoreAvailability?.targetDamageAndDpsAvailable === false;
+    const sustainedDpsUnavailable = scoreUnavailable || payload.scoreAvailability?.sustainedDpsAvailable === false;
+    const dotDpsUnavailable = scoreUnavailable || payload.scoreAvailability?.dotDpsAvailable === false;
     const attackLabel = payload.weapon.selectedAttack ?? "Default Attack";
     const factionLabel = payload.assumptions.targetFaction ?? "General Use";
     const goalLabel = goalLabelForShare(payload.assumptions.goal);
@@ -851,7 +859,7 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
     const rateStatLabel = actionRateLabel(payload.weapon.category);
     const summaryStats = [
         ["Burst DPS", scoreUnavailable ? "Unavailable" : fmt(burstDps)],
-        ["Sustain DPS", scoreUnavailable ? "Unavailable" : fmt(sustainedDps)],
+        ["Sustain DPS", sustainedDpsUnavailable ? "Unavailable" : fmt(sustainedDps)],
         [scoreUnavailable ? `Reference ${avgDamageStatLabel}` : avgDamageStatLabel, fmt(stats?.averageShotDamage ?? 0)],
         [scoreUnavailable ? "Reference Direct" : "Quantized Direct", fmt(stats?.totalDamage ?? 0)],
         [scoreUnavailable ? "Reference Arsenal Total" : "Arsenal Total", fmt(stats?.arsenalDamage ?? 0)],
@@ -863,7 +871,7 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
         ["Magazine", stats ? fmt(stats.magazineSize, 0) : "0"],
         ["Shots / Mag", stats ? (stats.infiniteAmmoActive ? "∞" : fmt(stats.shotsPerMag, 0)) : "0"],
         ["Reload", stats?.infiniteAmmoActive ? "None" : `${fmt(stats?.reloadTime ?? 0, 2)}s`],
-        ["DoT DPS", scoreUnavailable ? "Unavailable" : fmt(stats?.dotDps ?? 0)],
+        ["DoT DPS", dotDpsUnavailable ? "Unavailable" : fmt(stats?.dotDps ?? 0)],
         ...(payload.calculated?.meleeAverageDps
             ? [["Stance Avg DPS", scoreUnavailable ? "Unavailable" : fmt(payload.calculated.meleeAverageDps.averageDps)]]
             : []),
@@ -874,6 +882,10 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
             : "",
         (stats?.dreadfulKillshotBonus ?? 0) > 0
             ? `Dreadful Killshot assumes ${fmt(stats?.dreadfulKillshotCurrentHealth ?? 0)} current Warframe Health for Burst scoring; health changes are not modeled.`
+            : "",
+        payload.scoreAvailability?.finiteTargetScoringAvailable === false &&
+            payload.scoreAvailability.finiteTargetScoringReason?.toLowerCase().includes("overpressured rounds")
+            ? "Overpressured Rounds uses a user-entered post-kill spread assumption for one scored Buckshot event in Burst only; kill timing, buff consumption, sustained/DoT DPS, and finite target scoring are unavailable."
             : "",
     ].filter(Boolean).join(" ");
     const damageRows = stats
@@ -3235,12 +3247,13 @@ function ExclusionList({ allMods, excluded, onToggle }: {
 
 // ── Saved Builds ──────────────────────────────────────────────────────────────
 
-function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, availableMods, currentSlots, currentRanks, currentPolarities, currentCfg,
+function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUnavailableReason, availableMods, currentSlots, currentRanks, currentPolarities, currentCfg,
     stanceMod, stanceRank, stancePol, exilusMod, exilusPol, arcane1, arcane1Rank, hasExilus,
     targetFaction, conditionalState, targetProfileOverride, plannerConfig, onLoad }: {
     weapon: WeaponEntry | null;
     selectedAttackIdx: number;
     scoreUnavailable: boolean;
+    scoreUnavailableReason?: string;
     availableMods: ModEntry[];
     currentSlots: (ModEntry | null)[]; currentRanks: number[]; currentPolarities: string[];
     currentCfg: BuildCfg;
@@ -3400,6 +3413,11 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, availab
                 <div className="text-sm font-semibold">Saved Builds</div>
                 {weapon && <button onClick={() => setSaving(v => !v)} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">{saving ? "Cancel" : "+ Save current"}</button>}
             </div>
+            {scoreUnavailable && scoreUnavailableReason && (
+                <p role="note" className="text-[10px] leading-relaxed text-amber-300">
+                    Saved-build comparison scores are unavailable: {scoreUnavailableReason}
+                </p>
+            )}
             {saving && (
                 <div className="flex gap-2">
                     <input type="text" placeholder="Build name…" value={saveName} onChange={e => setSaveName(e.target.value)}
@@ -3758,6 +3776,8 @@ export default function ModBuilder() {
     const [targetDistanceMeters, setTargetDistanceMeters] = useState<number | undefined>(undefined);
     const [attackFalloffDistanceMeters, setAttackFalloffDistanceMeters] = useState<number | undefined>(undefined);
     const [targetRadiusMeters, setTargetRadiusMeters] = useState<number | undefined>(undefined);
+    const [overpressuredRoundsSpreadMinimumDegrees, setOverpressuredRoundsSpreadMinimumDegrees] = useState<number | undefined>(undefined);
+    const [overpressuredRoundsSpreadMaximumDegrees, setOverpressuredRoundsSpreadMaximumDegrees] = useState<number | undefined>(undefined);
     const selectedFalloffAttack = weapon?.attacks[selectedAttackIdx];
     const linkedFalloffAttack = selectedFalloffAttack?.lingeringDamageRule
         ? weapon?.attacks.find((attack) => attack.name.trim().toLowerCase() ===
@@ -4040,6 +4060,8 @@ export default function ModBuilder() {
             targetDistanceMeters,
             attackFalloffDistanceMeters,
             targetRadiusMeters,
+            overpressuredRoundsSpreadMinimumDegrees,
+            overpressuredRoundsSpreadMaximumDegrees,
             warframeArmor,
             warframeMaxEnergy,
             warframeEnergyPercent,
@@ -4094,6 +4116,8 @@ export default function ModBuilder() {
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
+        overpressuredRoundsSpreadMinimumDegrees,
+        overpressuredRoundsSpreadMaximumDegrees,
         warframeArmor,
         warframeMaxEnergy,
         warframeEnergyPercent,
@@ -4750,9 +4774,25 @@ export default function ModBuilder() {
         return effects;
     }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
     const activeAccuracyAffectingEffect = hasAccuracyAffectingPelletEffect(activeBuildEffects);
+    const activeOverpressuredRoundsSelected = allSlotsForCap.some((mod) =>
+        mod?.path === OVERPRESSURED_ROUNDS_MOD_PATH,
+    );
+    const activeOverpressuredRoundsSpreadSnapshot = useMemo(
+        () => normalizeOverpressuredRoundsSpreadSnapshot(
+            overpressuredRoundsSpreadMinimumDegrees,
+            overpressuredRoundsSpreadMaximumDegrees,
+        ),
+        [overpressuredRoundsSpreadMinimumDegrees, overpressuredRoundsSpreadMaximumDegrees],
+    );
+    const activeOverpressuredBurstSnapshotApplies = Boolean(
+        goal === "burst" &&
+        activeOverpressuredRoundsSelected &&
+        activeCalcWeapon?.name === "EFV-5 Jupiter" &&
+        activeCalcWeapon.selectedAttackName === "Buckshot" &&
+        activeOverpressuredRoundsSpreadSnapshot,
+    );
     const activeUnsupportedSpreadModifier = allSlotsForCap.some((mod, index) => {
-        if (!mod) return false;
-        if (mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) return true;
+        if (!mod || mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) return false;
         const rank = allRanksForCap[index] ?? mod.fusionLimit;
         return (mod.unparsedStatsByRank?.[rank] ?? []).some((line) => /spread|accuracy/i.test(line));
     });
@@ -4765,16 +4805,28 @@ export default function ModBuilder() {
             attackFalloffDistanceMeters,
         ) &&
         !activeAccuracyAffectingEffect &&
-        !activeUnsupportedSpreadModifier,
+        !activeUnsupportedSpreadModifier &&
+        (!activeOverpressuredRoundsSelected || activeOverpressuredBurstSnapshotApplies),
     );
     const activeAttackModelLimitationBlocksScoring = Boolean(
         activeCalcWeapon?.selectedAttackModelLimitation && !activePelletHitEstimateEnabled,
     );
+    const activeFiniteAttackModelLimitationBlocksScoring = Boolean(
+        activeAttackModelLimitationBlocksScoring || activeOverpressuredBurstSnapshotApplies,
+    );
     const pelletEstimateConditionalState = useMemo(
         () => activePelletHitEstimateEnabled
-            ? conditionalState
+            ? {
+                ...conditionalState,
+                ...(activeOverpressuredBurstSnapshotApplies && activeOverpressuredRoundsSpreadSnapshot
+                    ? {
+                        overpressuredRoundsSpreadMinimumDegrees: activeOverpressuredRoundsSpreadSnapshot.minimumSpreadDegrees,
+                        overpressuredRoundsSpreadMaximumDegrees: activeOverpressuredRoundsSpreadSnapshot.maximumSpreadDegrees,
+                    }
+                    : {}),
+            }
             : { ...conditionalState, targetRadiusMeters: undefined },
-        [activePelletHitEstimateEnabled, conditionalState],
+        [activePelletHitEstimateEnabled, activeOverpressuredBurstSnapshotApplies, activeOverpressuredRoundsSpreadSnapshot, conditionalState],
     );
     const finitePelletEstimateConditionalState = useMemo(
         () => withoutBurstOnlyConditionalAssumptions(pelletEstimateConditionalState) ?? pelletEstimateConditionalState,
@@ -4849,7 +4901,8 @@ export default function ModBuilder() {
     const finiteMetrics = useMemo(() => {
         if (!activeCalcWeapon || !activeMetrics || (
             activeMetrics.modded.strainInfectionCritDamageBonus <= 0 &&
-            activeMetrics.modded.dreadfulKillshotBonus <= 0
+            activeMetrics.modded.dreadfulKillshotBonus <= 0 &&
+            !activeOverpressuredBurstSnapshotApplies
         )) {
             return activeMetrics;
         }
@@ -4861,9 +4914,13 @@ export default function ModBuilder() {
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         });
-    }, [activeCalcWeapon, activeMetrics, activeBuildEffects, factionOn, faction, finitePelletEstimateConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride]);
+    }, [activeCalcWeapon, activeMetrics, activeBuildEffects, factionOn, faction, finitePelletEstimateConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride, activeOverpressuredBurstSnapshotApplies]);
     const activeAttackDpsUnavailable = Boolean(
         activeAttackModelLimitationBlocksScoring && (activeMetrics?.modded.ammoGateSatisfied ?? true),
+    );
+    const activeSustainedDpsUnavailable = Boolean(
+        activeAttackDpsUnavailable ||
+        (activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"),
     );
     const currentBuildExportWithScoreContext = useMemo(() => {
         if (!currentBuildExport) return null;
@@ -4890,9 +4947,33 @@ export default function ModBuilder() {
                 ...(activeAttackDpsUnavailable && limitation
                     ? { reason: limitation.reason, sourceUrl: limitation.sourceUrl }
                     : {}),
+                sustainedDpsAvailable: !activeSustainedDpsUnavailable,
+                ...(activeSustainedDpsUnavailable
+                    ? {
+                        sustainedDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
+                            ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual cone snapshot is Burst-only."
+                            : limitation?.reason ?? "Sustained scoring is unavailable for this attack model.",
+                    }
+                    : {}),
+                dotDpsAvailable: !activeSustainedDpsUnavailable,
+                ...(activeSustainedDpsUnavailable
+                    ? {
+                        dotDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
+                            ? "Overpressured Rounds' next-shot and magazine effects need attack history; DoT DPS is unavailable."
+                            : limitation?.reason ?? "DoT DPS is unavailable for this attack model.",
+                    }
+                    : {}),
+                finiteTargetScoringAvailable: !activeFiniteAttackModelLimitationBlocksScoring,
+                ...(activeFiniteAttackModelLimitationBlocksScoring
+                    ? {
+                        finiteTargetScoringReason: activeOverpressuredBurstSnapshotApplies
+                            ? "The user-entered Overpressured Rounds spread snapshot applies only to Burst; cross-mode kill history is not simulated."
+                            : limitation?.reason ?? "This attack does not have a supported finite target-scoring model.",
+                    }
+                    : {}),
             },
         };
-    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeCalcWeapon]);
+    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeSustainedDpsUnavailable, activeOverpressuredRoundsSelected, activeFiniteAttackModelLimitationBlocksScoring, activeOverpressuredBurstSnapshotApplies, activeCalcWeapon]);
     const displayedMath = (reasoningContextAtOptimization === currentReasoningContextKey ? reasoningMath : null) ?? currentBuildExportWithScoreContext?.math ?? null;
     const attackDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
@@ -5008,7 +5089,7 @@ export default function ModBuilder() {
             !finiteTargetAttackInput ||
             !activeMetrics ||
             !finiteMetrics ||
-            activeAttackModelLimitationBlocksScoring ||
+            activeFiniteAttackModelLimitationBlocksScoring ||
             activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation
         ) return null;
         const stats = finiteMetrics.modded;
@@ -5048,11 +5129,11 @@ export default function ModBuilder() {
                 : {}),
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
         });
-    }, [finiteTargetAttackInput, activeMetrics, finiteMetrics, activeCalcWeapon, targetProfileOverride, activeAttackModelLimitationBlocksScoring]);
+    }, [finiteTargetAttackInput, activeMetrics, finiteMetrics, activeCalcWeapon, targetProfileOverride, activeFiniteAttackModelLimitationBlocksScoring]);
     const activeTargetEncounter = useMemo(() => {
         if (
             !encounterTargetMetrics ||
-            activeAttackModelLimitationBlocksScoring ||
+            activeFiniteAttackModelLimitationBlocksScoring ||
             activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation
         ) return null;
         const stats = encounterTargetMetrics.modded;
@@ -5151,7 +5232,7 @@ export default function ModBuilder() {
             totalDamageBonus: stats.totalDamageBonus,
             timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
-    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, activeAttackModelLimitationBlocksScoring]);
+    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, activeFiniteAttackModelLimitationBlocksScoring]);
     const activeAttackEventLabel = activeCalcWeapon && isBurstTriggerType(activeCalcWeapon.trigger) ? "rounds" : "attacks";
     const selectedAttackOutOfRange = activeMetrics?.modded.attackDamageFalloff?.isOutOfRangeMiss === true;
     const activeEncounterStatusSummary = activeTargetEncounter
@@ -5752,6 +5833,8 @@ export default function ModBuilder() {
         setExternalNiraSetModCount(0);
         setStrainInfectionCystsAtImpact(0);
         setDreadfulKillshotCurrentHealth(0);
+        setOverpressuredRoundsSpreadMinimumDegrees(undefined);
+        setOverpressuredRoundsSpreadMaximumDegrees(undefined);
         setExternalStatusTypes([]);
         setExternalStatusTypesOpen(false);
         setTargetStartsWithHeat(false);
@@ -5809,6 +5892,12 @@ export default function ModBuilder() {
                 : undefined);
             setTargetRadiusMeters(Number.isFinite(plannerConfig.targetRadiusMeters)
                 ? Math.max(0, plannerConfig.targetRadiusMeters ?? 0)
+                : undefined);
+            setOverpressuredRoundsSpreadMinimumDegrees(Number.isFinite(plannerConfig.overpressuredRoundsSpreadMinimumDegrees)
+                ? Math.max(0.1, Math.min(180, plannerConfig.overpressuredRoundsSpreadMinimumDegrees ?? 0.1))
+                : undefined);
+            setOverpressuredRoundsSpreadMaximumDegrees(Number.isFinite(plannerConfig.overpressuredRoundsSpreadMaximumDegrees)
+                ? Math.max(0.1, Math.min(180, plannerConfig.overpressuredRoundsSpreadMaximumDegrees ?? 0.1))
                 : undefined);
             const attackIndexByName = plannerConfig.attackName
                 ? weapon.attacks.findIndex((attack) => attack.name === plannerConfig.attackName)
@@ -5920,7 +6009,12 @@ export default function ModBuilder() {
 
             {weapon && tab === "owned"   && <OwnedModsPanel key={weapon.uniqueName} availableMods={trackableMods} />}
             {weapon && tab === "ownedArcanes" && <OwnedArcanesPanel weapon={weapon} />}
-            {weapon && tab === "saves"   && <SavedBuildsPanel weapon={weapon} selectedAttackIdx={selectedAttackIdx} scoreUnavailable={activeAttackDpsUnavailable} availableMods={compatMods} currentSlots={slots} currentRanks={ranks}
+            {weapon && tab === "saves"   && <SavedBuildsPanel weapon={weapon} selectedAttackIdx={selectedAttackIdx}
+                scoreUnavailable={activeAttackDpsUnavailable || Boolean(activeMetrics?.modded.pelletHitEstimate)}
+                scoreUnavailableReason={activeMetrics?.modded.pelletHitEstimate
+                    ? "the comparison panel does not apply the editable target-radius and spread assumptions needed for this single-target pellet estimate."
+                    : activeCalcWeapon?.selectedAttackModelLimitation?.reason}
+                availableMods={compatMods} currentSlots={slots} currentRanks={ranks}
                 currentPolarities={slotPols} currentCfg={buildCfg}
                 stanceMod={stanceMod} stanceRank={stanceRank} stancePol={stancePol}
                 exilusMod={exilusMod} exilusPol={exilusPol}
@@ -5989,7 +6083,7 @@ export default function ModBuilder() {
                                             {weapon?.attacks[selectedAttackIdx]?.modelLimitation && (
                                                 <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
                                                     {activePelletHitEstimateEnabled && activeMetrics?.modded.pelletHitEstimate
-                                                        ? `Experimental single-target estimate: ${fmt(activeMetrics.modded.pelletHitEstimate.nominalExpectedHits, 2)} expected pellet hits (${fmt(activeMetrics.modded.pelletHitEstimate.minimumExpectedHits, 2)}–${fmt(activeMetrics.modded.pelletHitEstimate.maximumExpectedHits, 2)} across the listed spread endpoints) from ${fmt(activeMetrics.modded.pelletHitEstimate.pelletsFired, 2)} pellets. The midpoint cone drives manual damage/TTK/DPS estimates; target overlap is not calibrated to gameplay. Area coverage remains unscored and Auto Optimize stays unavailable.`
+                                                        ? `Experimental single-target estimate: ${fmt(activeMetrics.modded.pelletHitEstimate.nominalExpectedHits, 2)} expected pellet hits (${fmt(activeMetrics.modded.pelletHitEstimate.minimumExpectedHits, 2)}–${fmt(activeMetrics.modded.pelletHitEstimate.maximumExpectedHits, 2)} across the entered spread endpoints) from ${fmt(activeMetrics.modded.pelletHitEstimate.pelletsFired, 2)} pellets. ${activeOverpressuredBurstSnapshotApplies ? "The user-entered post-Rifle-kill spread snapshot affects the scored attack event in manual Burst only; the prior Rifle kill, one-shot buff consumption, and repeat-fire spread timeline are not simulated, and finite TTK / 5s Avg DPS remain unavailable. " : "The midpoint cone drives manual damage/TTK/DPS estimates. "}Target overlap is not calibrated to gameplay. Area coverage remains unscored and Auto Optimize stays unavailable.`
                                                     : `${weapon.attacks[selectedAttackIdx].modelLimitation.reason} Component/source-row statistics below are reference values only; ${activeMetrics?.modded.ammoGateSatisfied === false ? "the magazine gate allows no release, so scored target damage and DPS are zero; finite TTK remains unavailable." : "target damage, DPS, and TTK scores are unavailable for this mode."} ${weapon.attacks[selectedAttackIdx].pelletSpreadCone
                                                             ? activeAccuracyAffectingEffect
                                                                 ? "An equipped accuracy-affecting effect disables the experimental pellet estimate. "
@@ -6458,8 +6552,61 @@ export default function ModBuilder() {
                                                                     <span className="text-slate-500">meters</span>
                                                                 </label>
                                                                 <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                                                                    Buckshot estimates one idealized centered pellet plus the remaining pellets sampled uniformly by solid angle inside the Wiki's {selectedFalloffAttack.pelletSpreadCone.minimumSpreadDegrees}°–{selectedFalloffAttack.pelletSpreadCone.maximumSpreadDegrees}° cone. Both radius and distance are required. Accuracy or spread modifiers disable this estimate; it is a single-target manual score and never enables Auto Optimize.
+                                                                    Buckshot estimates one idealized centered pellet plus the remaining pellets sampled uniformly by solid angle inside the Wiki's {selectedFalloffAttack.pelletSpreadCone.minimumSpreadDegrees}°–{selectedFalloffAttack.pelletSpreadCone.maximumSpreadDegrees}° cone. Both radius and distance are required. Accuracy changes and other unsupported spread modifiers disable this estimate; the manual estimate is single-target and never enables Auto Optimize.
                                                                 </p>
+                                                                {activeOverpressuredRoundsSelected && selectedFalloffAttack.name === "Buckshot" && (
+                                                                    <div className="mt-2 rounded border border-amber-900/60 bg-amber-950/20 p-2">
+                                                                        <p className="text-[10px] leading-relaxed text-amber-200">
+                                                                            Overpressured Rounds does not have a sourced numeric Spread Decrease. Enter the effective spread range you want to assume after a Rifle kill. These user-supplied angles affect the scored attack event in manual Burst only; the prior kill, one-shot buff consumption, and repeat-fire spread timeline are not simulated. Finite TTK / 5s Avg DPS remain unavailable.
+                                                                        </p>
+                                                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                                                            <label className="text-[10px] text-slate-300">
+                                                                                <span className="mb-1 block">Post-kill minimum spread (°)</span>
+                                                                                <input
+                                                                                    aria-label="Overpressured Rounds post-kill minimum spread degrees"
+                                                                                    type="number"
+                                                                                    min={0.1}
+                                                                                    max={180}
+                                                                                    step={0.1}
+                                                                                    value={overpressuredRoundsSpreadMinimumDegrees ?? ""}
+                                                                                    onChange={(event) => {
+                                                                                        const value = event.currentTarget.value;
+                                                                                        const next = value === "" ? Number.NaN : Number(value);
+                                                                                        setOverpressuredRoundsSpreadMinimumDegrees(Number.isFinite(next) && next >= 0.1
+                                                                                            ? Math.min(180, next)
+                                                                                            : undefined);
+                                                                                    }}
+                                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                                />
+                                                                            </label>
+                                                                            <label className="text-[10px] text-slate-300">
+                                                                                <span className="mb-1 block">Post-kill maximum spread (°)</span>
+                                                                                <input
+                                                                                    aria-label="Overpressured Rounds post-kill maximum spread degrees"
+                                                                                    type="number"
+                                                                                    min={0.1}
+                                                                                    max={180}
+                                                                                    step={0.1}
+                                                                                    value={overpressuredRoundsSpreadMaximumDegrees ?? ""}
+                                                                                    onChange={(event) => {
+                                                                                        const value = event.currentTarget.value;
+                                                                                        const next = value === "" ? Number.NaN : Number(value);
+                                                                                        setOverpressuredRoundsSpreadMaximumDegrees(Number.isFinite(next) && next >= 0.1
+                                                                                            ? Math.min(180, next)
+                                                                                            : undefined);
+                                                                                    }}
+                                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                                />
+                                                                            </label>
+                                                                        </div>
+                                                                        {overpressuredRoundsSpreadMinimumDegrees !== undefined &&
+                                                                            overpressuredRoundsSpreadMaximumDegrees !== undefined &&
+                                                                            overpressuredRoundsSpreadMaximumDegrees < overpressuredRoundsSpreadMinimumDegrees && (
+                                                                                <p role="alert" className="mt-1 text-[10px] text-rose-300">Maximum spread must be at least the minimum spread.</p>
+                                                                            )}
+                                                                        <a href="https://wiki.warframe.com/w/Overpressured_Rounds" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Overpressured Rounds</a>
+                                                                    </div>
+                                                                )}
                                                             </>
                                                         )}
                                                         {mausolonRangeNote && (
@@ -7270,9 +7417,11 @@ export default function ModBuilder() {
                                                                     },
                                                                     {
                                                                         label: "Sustained DPS",
-                                                                        value: activeAttackDpsUnavailable ? "Unavailable" : fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS),
-                                                                        tooltip: activeAttackDpsUnavailable
-                                                                            ? "This attack is reference-only with the current inputs. Target damage and DPS are unavailable; see the attack note for supported ways to enable a bounded single-target estimate."
+                                                                        value: activeSustainedDpsUnavailable ? "Unavailable" : fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS),
+                                                                        tooltip: activeSustainedDpsUnavailable
+                                                                            ? activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
+                                                                                ? "Overpressured Rounds' next-shot buff and kill-based magazine restore require attack history. Only the manually entered post-kill spread snapshot can affect Burst scoring; sustained DPS is unavailable."
+                                                                                : "This attack is reference-only with the current inputs. Target damage and DPS are unavailable; see the attack note for supported ways to enable a bounded single-target estimate."
                                                                             : `${BASIC_STAT_TOOLTIPS.sustainedDps}\n\nAt the current values, sustained DPS is ${fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS)}.${activeMetrics.modded.strainInfectionCritDamageBonus > 0 ? "\n\nThe Strain Infection Burst-at-impact cyst assumption is excluded because cyst timing and uptime are not modeled." : ""}${activeMetrics.modded.dreadfulKillshotBonus > 0 ? "\n\nThe Dreadful Killshot current-Health snapshot is excluded from sustained scoring." : ""}${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${attackDamageRampNote ? `\n\n${attackDamageRampNote}` : ""}`,
                                                                     },
                                                                 ].map((row) => (
@@ -7510,8 +7659,12 @@ export default function ModBuilder() {
                                                                         {activeTargetEncounter && (
                                                                             <div className="sm:col-span-2"><span className="text-slate-500">Expected status applications in encounter:</span> {activeEncounterStatusSummary}</div>
                                                                         )}
-                                                                        <div><span className="text-slate-500">{activeMetrics.modded.attachedAttackDamageSequence ? "Direct attack burst / sustained:" : "Burst / sustained:"}</span> {activeAttackDpsUnavailable ? "Unavailable" : `${fmt(activeMetrics.burstDPS)} / ${fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS)} DPS before target pools`}</div>
-                                                                        <div><span className="text-slate-500">DoT:</span> {activeAttackDpsUnavailable ? "Unavailable" : `${fmt(finiteMetrics?.modded.dotDps ?? activeMetrics.modded.dotDps)} DPS steady-state estimate`}</div>
+                                                                        <div><span className="text-slate-500">{activeMetrics.modded.attachedAttackDamageSequence ? "Direct attack burst / sustained:" : "Burst / sustained:"}</span> {activeAttackDpsUnavailable ? "Unavailable" : `${fmt(activeMetrics.burstDPS)} / ${activeSustainedDpsUnavailable ? "Unavailable" : fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS)} DPS before target pools`}</div>
+                                                                        <div><span className="text-slate-500">DoT:</span> {activeSustainedDpsUnavailable
+                                                                            ? activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
+                                                                                ? "Unavailable: kill and attack history not modeled"
+                                                                                : "Unavailable for this attack model"
+                                                                            : `${fmt(finiteMetrics?.modded.dotDps ?? activeMetrics.modded.dotDps)} DPS steady-state estimate`}</div>
                                                                         <div className="sm:col-span-2"><span className="text-slate-500">Proc mix after immunity:</span> {activeProcMixLabel}</div>
                                                                     </>
                                                                 )}
