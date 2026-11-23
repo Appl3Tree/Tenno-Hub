@@ -11377,3 +11377,159 @@ describe("Deadly Maneuvers optimizer scope", () => {
     });
 });
 
+describe("seeded Burst and Scaling optimizer oracles", () => {
+    it("matches four randomized, rank-limited three-slot pools for both objectives", { timeout: 300000 }, () => {
+        let seed = 20261156;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+            }
+            return result;
+        };
+        const scenarios = [
+            { weaponName: "Braton Prime", faction: "Grineer", mode: "realistic" as const },
+            { weaponName: "Lex Prime", faction: "Corpus", mode: "initial" as const },
+            { weaponName: "Cedo", faction: "Grineer", mode: "realistic" as const },
+            { weaponName: "Broken War", faction: "Infested", mode: "fullyStacked" as const },
+        ];
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeTruthy();
+            const attacks = weapon!.attacks.filter((attack) =>
+                !attack.modelLimitation && !attack.autoSpoolTimingLimitation,
+            );
+            expect(attacks.length, `${scenario.weaponName} supported attacks`).toBeGreaterThan(0);
+            const attack = attacks[Math.floor(random() * attacks.length)]!;
+            const scoringWeapon = withSelectedAttack(weapon!, weapon!.attacks.indexOf(attack));
+            const candidatePool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(weapon!))
+                    .filter((mod) => mod.isPveEligible !== false && mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const candidates = shuffled(candidatePool).slice(0, 4);
+            expect(candidates.length, `${scenario.weaponName} seed ${scenarioIndex} candidate pool`).toBe(4);
+            const ownedModMaxRankByUniqueName = Object.fromEntries(candidates.map((mod) => [
+                mod.uniqueName,
+                1 + Math.floor(random() * Math.min(2, mod.fusionLimit)),
+            ]));
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            };
+            const slotCount = 3;
+            const slotPolarities = weapon!.polarities.slice(0, slotCount);
+            const maxFormaCount = scenarioIndex % 2;
+            const conditionalState: ConditionalState = { mode: scenario.mode };
+            const score = (goal: "burst" | "scaling", effects: (ModEffect | null)[]) =>
+                debugScoreBuild(scoringWeapon, effects, goal, scenario.faction, null, undefined, conditionalState);
+            const bestScores = {
+                burst: score("burst", []),
+                scaling: score("scaling", []),
+            };
+            let legalRankedLoadoutCount = 0;
+            let maximumLegalSlotCount = 0;
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const maxRank = ownedModMaxRankByUniqueName[ordered[index].uniqueName];
+                    for (let rank = 0; rank <= maxRank; rank++) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, maxFormaCount);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+
+                legalRankedLoadoutCount++;
+                maximumLegalSlotCount = Math.max(maximumLegalSlotCount, ordered.length);
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScores.burst = Math.max(bestScores.burst, score("burst", effects));
+                bestScores.scaling = Math.max(bestScores.scaling, score("scaling", effects));
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index];
+                    if (ordered.some((mod) =>
+                        mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                    )) continue;
+                    enumerate(
+                        [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                        [...ordered, candidate],
+                    );
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `${scenario.weaponName} seed ${scenarioIndex} legal ranked loadouts`)
+                .toBeGreaterThan(0);
+            expect(maximumLegalSlotCount, `${scenario.weaponName} seed ${scenarioIndex} three-mod loadout`)
+                .toBe(slotCount);
+
+            for (const goal of ["burst", "scaling"] as const) {
+                const result = optimizeBuild(weapon!, candidates, goal, slotCount, {
+                    targetFaction: scenario.faction,
+                    conditionalState,
+                    capacityConfig,
+                    slotPolarities,
+                    defaultSlotPolarities: slotPolarities,
+                    allowForma: maxFormaCount > 0,
+                    maxFormaCount,
+                    allowNonMaxRank: true,
+                    ownedModUniqueNames,
+                    ownedModMaxRankByUniqueName,
+                    optimizeExilus: false,
+                    optimizeArcane: false,
+                    buildForAttack: attack,
+                });
+                const resultEffects = result.slots.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = result.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                const optimizedScore = score(goal, resultEffects);
+                const formaUsed = countPolarityChanges(slotPolarities, result.slotPolarities.slice(0, slotCount));
+
+                expect(result.capacityValid, `${scenario.weaponName} seed ${scenarioIndex} ${goal} capacity`).toBe(true);
+                expect(formaUsed, `${scenario.weaponName} seed ${scenarioIndex} ${goal} Forma budget`).toBeLessThanOrEqual(maxFormaCount);
+                for (const [slotIndex, mod] of result.slots.entries()) {
+                    if (!mod) continue;
+                    expect(result.slotRanks[slotIndex], `${scenario.weaponName} seed ${scenarioIndex} ${goal} owned rank`)
+                        .toBeLessThanOrEqual(ownedModMaxRankByUniqueName[mod.uniqueName]);
+                }
+                expect(optimizedScore, `${scenario.weaponName} seed ${scenarioIndex} exact ${goal} score`)
+                    .toBeCloseTo(bestScores[goal], 8);
+            }
+        }
+    });
+});
+
