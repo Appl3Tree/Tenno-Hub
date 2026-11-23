@@ -2796,6 +2796,49 @@ The source implements that boundary: [`metricOf`](https://github.com/NevermindNi
 
 Therefore the Cedo and Lex captures used Underframe's default mean-`avgDps` search metric with Luck Averaged enabled. Tenno-Hub's paired optimizer runs used finite Expected TTK. The shared Tenno-Hub rescores put both lists through one evaluator, but they do not compare optimizer rankings under the same objective. The public Desktop README identifies the damage/data `core/` as a private submodule, so this review cannot independently run or audit that engine. The current corpus remains useful for legal-build and common-model comparison; objective parity and gameplay validation remain open.
 
+## D3-OPT-UNDERFRAME-AVG-DPS-SEMANTICS-001 — surviving-target Gram readout probe (2026-11-23; bounded, read-only)
+
+On the existing `Codex Matched Corpus Gram Prime` page, I temporarily raised target Health from 100,000 to 2,000,000 so the target survived the five-second readout, then restored Health to 100,000. The page remained Gram Prime / Normal Attack / Lashing Tempest (Forward), Grineer / 3,000 Armor, with Galvanized Steel and Galvanized Elementalist each shown at 4/4. No build edit, Save, Auto Build, or Auto Polarize was used. The displayed weapon composition was Heat-heavy (60% Heat, 30% Slash, 7.5% Impact, 2.5% Puncture).
+
+| Readout mode | Sample | Raw avg/shot | DoT avg/shot | Sum shown | DPS | TTK |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Standard | 1 | 18,155 | 40,239 | 58,394 | 116,788 | >5 s |
+| Standard | 2 | 19,549 | 43,031 | 62,580 | 125,161 | >5 s |
+| Standard | 3 | 27,051 | 66,695 | 93,746 | 187,492 | >5 s |
+| Standard | 4 | 20,672 | 62,633 | 83,305 | 166,609 | >5 s |
+| Standard | 5 | 19,783 | 66,480 | 86,263 | 172,525 | >5 s |
+| Luck Averaged | 1–3 | 19,788 | 52,183 | 71,971 | 143,942 | `?` |
+
+The five Standard values vary substantially. The three Luck Averaged reads repeat exactly at the displayed precision. In all eight reads, displayed DPS is the displayed Raw + DoT sum multiplied by about two (within 1 DPS after rounding), which is consistent with a 2/s display conversion for this page and build. The page's Weapon Stats showed attack speed 1.86, so the UI alone does not identify whether the conversion uses a separate stance cadence, rounded/hidden values, or another internal rate. Treat this as a readout-arithmetic observation only; it does not identify the private damage engine's raw/DoT aggregation, status-tick timing, general DPS denominator, seed policy, or Auto Build ranking semantics. The private `core/` remains unavailable, and Gram's Lashing Tempest sequence is not represented by Tenno-Hub's generic Normal Attack scorer. No simulator parity or gameplay conclusion follows.
+
+Next, use a supported non-melee build with a surviving target and a materially different attack cadence to test whether the same UI conversion appears, while preserving separate Standard and Luck Averaged results. Keep native optimizer parity open until a legal comparator and comparable objective/state are observable.
+
+### Braton Prime magazine-limited cadence cross-check (2026-11-23; bounded, read-only)
+
+The existing `Codex Matched Corpus Braton Prime` page was read with its captured eight-mod list unchanged: Braton Prime / Normal Attack / Grineer / 3,000 Armor / five seconds, Galvanized Chamber 5/5, Galvanized Aptitude 2/2, no external statuses, and Accurate Ammo enabled. Target Health was temporarily set to 2,000,000 and restored to 100,000 after the reads. Weapon Stats showed 18.20 Attack Speed, 3.30 Multishot, a 75-round Magazine, and 2.15s Reload. No build edit, Save, Auto Build, or Auto Polarize was used.
+
+| Readout mode | Sample | Raw avg/shot | DoT avg/shot | Sum shown | DPS | TTK |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Standard | 1 | 3,550 | 660 | 4,210 | 62,939 | >5 s |
+| Standard | 2 | 4,012 | 868 | 4,880 | 72,957 | >5 s |
+| Standard | 3 | 3,928 | 567 | 4,495 | 67,203 | >5 s |
+| Standard | 4 | 4,113 | 592 | 4,705 | 70,336 | >5 s |
+| Standard | 5 | 3,841 | 740 | 4,581 | 68,479 | >5 s |
+| Standard, combat-log check | 6 | 4,305 | 458 | 4,763 | 71,209 | >5 s |
+| Luck Averaged | 1–3 | 3,929 | 600 | 4,529 | 67,699 | `?` |
+
+The six Standard values vary from 62,939 to 72,957 DPS; the three Luck Averaged reads repeat at the displayed precision. For each result, DPS divided by the displayed Raw + DoT per shot is approximately 14.95. In the Standard combat log, projectile hits begin at 0.02s and recur at about 0.05–0.07s intervals; ammo decreases once per volley despite multiple projectile-hit entries. The log's visible first volleys reduce ammo 75 → 74 → 73. These observations fit a short-window magazine limit: at 18.20 attacks/s, 75 rounds are consumed in about 4.1s, and a 2.15s reload cannot complete before the five-second endpoint, yielding about 15 fired volleys per five-second window. The readout arithmetic therefore appears to use the realized short-window attack count for this ammo-limited build instead of multiplying by the displayed attack speed alone.
+
+This interpretation is supported by visible stats and a partial combat log, not by an independently runnable Underframe engine. The 5,073-item log was virtualized to its first 500 entries, and Luck Averaged mode explicitly says it does not generate a combat log. Do not generalize the ≈14.95 conversion to other weapons, ammo settings, fire modes, or denominators, and do not infer how status ticks, residual DoTs, kills, or the private Auto Build objective are aggregated. The page remains a different weapon class from Gram, but it still does not establish native score parity.
+
+The next slower single-shot probe was unavailable in the current saved-build session; see the availability check below. Preserve Standard and Luck Averaged reads separately and leave the private-engine boundary open.
+
+### Slower-profile availability check (2026-11-23; read-only, not scored)
+
+The saved Lex Prime route `/Codex-Matched-Corpus-Lex-Prime` redirected to Underframe's build list; the current session's saved-build inventory contains no Lex page. The existing Mausolon page exposes a Charged Shot Laser row with 0.57 effective fire rate and a listed 300.2m range, but its shared distance slider is locked to 1,400–2,800m for the page's Auto falloff controls. Attempting to set 250m was rejected by the slider, so no charged-shot result was run. The transient target Health change was restored to 100,000; the slider remained at its original 1,400m, and no build was saved or edited.
+
+The saved Mausolon page therefore cannot supply an in-range slower-shot denominator probe, and the Lex route is unavailable in this browser session. Keep the Underframe readout-semantics gap open. Resume this branch of the probe only with an accessible profile whose distance control permits a source-backed in-range single-target comparison; continue independent planner mechanics, optimizer, and performance work in the meantime.
+
 ## D3-OPT-UNDERFRAME-CEDO-READOUT-001 — Tenno-Hub result in Underframe's Luck Averaged scorer (2026-11-18; bounded)
 
 The integrated in-app browser duplicated `/Codex-Matched-Corpus-Cedo` as `/Codex-Matched-Corpus-Cedo-Copy` so the captured Auto Build result stayed intact. The duplicate retained Cedo / Shotgun / Normal Attack, the Grineer 100,000 Health / 3,000 Armor target, five-second simulation, Catalyst, no headshots, and no external statuses/buffs. Its eight mods were set to Tenno-Hub's returned Expected TTK list: Frail Momentum R5, Galvanized Hell R10, Primed Chilling Grasp R10, Toxic Barrage R3, Scattering Inferno R3, Blaze R3, Shotgun Barrage R5, and Galvanized Savvy R10.
@@ -3594,7 +3637,7 @@ Catalog tests cover the four source-backed triggers and boundaries. The full wea
 
 ## D3-MOD-EFV-OVERPRESSURED-ROUNDS-001 — attack-history and pellet-coverage boundary (in progress)
 
-The current [Overpressured Rounds Wiki page](https://wiki.warframe.com/w/Overpressured_Rounds) shows six rank lines. Rank 0–5 Falloff Distance bonuses are +20/+40/+60/+80/+100/+120%; Spread Decrease is shown as `?` at all ranks; Magazine Restore is 25/30/35/40/45/50% of the current magazine. A Rifle kill buffs only the next Buckshot, while a Buckshot kill restores magazine. The [EFV-5 Jupiter page](https://wiki.warframe.com/w/EFV-5_Jupiter) lists Buckshot as an 11-pellet, 1s charged hit-scan attack with 24°–42° spread, 15-ammo cost, forced Corrosive, and 5–10m falloff. Target size and pellet-hit geometry are not part of the current target model, so Buckshot remains reference-only.
+The current [Overpressured Rounds Wiki page](https://wiki.warframe.com/w/Overpressured_Rounds) shows six rank lines. Rank 0–5 Falloff Distance bonuses are +20/+40/+60/+80/+100/+120%; Spread Decrease is shown as `?` at all ranks; Magazine Restore is 25/30/35/40/45/50% of the current magazine. A Rifle kill buffs only the next Buckshot, while a Buckshot kill restores magazine. The [EFV-5 Jupiter page](https://wiki.warframe.com/w/EFV-5_Jupiter) lists Buckshot as an 11-pellet, 1s charged hit-scan attack with 24°–42° spread, 15-ammo cost, forced Corrosive, and 5–10m falloff. The Wiki's [Accuracy page](https://wiki.warframe.com/w/Accuracy) describes shotgun pellets as random trajectories within the spread cone, with at least one pellet close to the reticle center. It does not specify an exact distribution or target hit geometry. The current planner has no target-radius input, so Buckshot remains reference-only pending a model decision and validation.
 
 The current calculator selects one attack profile and cannot represent a Rifle-kill → next-Buckshot sequence or kill-driven ammo timeline. No static conditional uptime, one-shot activation, magazine refund cadence, or pellet overlap is inferred. The rank text is retained verbatim in `statsTextByRank`; each raw line remains unparsed, keeping the augment out of Auto Optimize. `modEffectUtils.ts` adds a path-specific explanation of the attack-history and unknown-spread limits plus a direct Wiki link. Its explanation says all conditional effects remain unscored.
 
