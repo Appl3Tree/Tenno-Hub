@@ -19,6 +19,13 @@ The catalog now links one immediate Radial Attack to each directly hit Impact an
 
 No full repository suite, live-game hit/charge calibration, Underframe comparison, or current-source IAB visual test was performed. This session exposes no integrated-browser interaction/screenshot control; the previously supplied localhost is documented as stale at `version=2bf6faea`. Do not use an external browser. PR [#327](https://github.com/Appl3Tree/Tenno-Hub/pull/327) squash-merged as `8c15e58cdce71fda42f0862bd6cbff9a0966b76a`; Pages run [#407](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45176106906) succeeded at `version=8c15e58`. Hosted visual review remains open. Reopen this item if an authoritative source or reproducible game observation shows a different charge time, ammo cost, falloff, or impact/radial relationship.
 
+## D3-OPT-RANK-OWNED-FIVE-SLOT-R1-R2-TTK-ORACLE-001 — two-fixture seeded audit (completed locally; 2026-11-23)
+
+Seed 20261154 samples five fully modeled, pairwise-compatible damage mods and one supported attack from each Braton Prime / Grineer and Lex Prime / Corpus fixture. Each sampled mod has an owned cap through R2 (or its lower fusion limit), and the exhaustive oracle scores every legal ordered subset and rank tuple through five slots. Both fixtures use rank-30 Catalyst capacity and default weapon polarities; the run alternates zero Forma for Braton Prime and one Forma for Lex Prime. Exilus and Arcane search are disabled.
+
+The optimizer matches the exact sampled-pool finite Expected TTK winner for both fixtures and returns rank-, capacity-, and Forma-legal builds. The focused Vitest run passes 1/1 in 537.52s (201 unrelated tests skipped). The test project TypeScript check, focused ESLint, and CRLF-aware diff check pass. No application source changed, so no production build or deployment applies.
+
+The earlier four-fixture R1–R2 attempt exceeded its five-minute test timeout without a result. This two-fixture split completes only the Braton and Lex strata; it is bounded sampled-pool evidence, not the full four-class result, R1–R3 five-slot breadth, global optimizer quality, fixed-window optimization, Underframe parity, or gameplay accuracy. No separate Arcane, Exilus, or live-game validation was performed.
 ## D3-MOD-WEAKPOINT-BONUS-HEAD-PROFILE-001 — bounded head weakpoint bonus support (released in PR [#278](https://github.com/Appl3Tree/Tenno-Hub/pull/278), squash merge `e3c3d776a210f7643d3bc7843dde09997d93cdb4`)
 
 ### Source behavior and selected scope
