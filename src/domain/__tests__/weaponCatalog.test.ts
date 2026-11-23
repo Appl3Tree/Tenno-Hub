@@ -61,6 +61,90 @@ describe("weapon catalog stance inference", () => {
             .toEqual(explosion.modelLimitation);
     });
 
+    it("models source-backed single-charge profiles for Castanas, Sancti Castanas, and Talons", () => {
+        const cases = [
+            {
+                name: "Castanas",
+                sourceUrl: "https://wiki.warframe.com/w/Castanas",
+                damageType: "electricity",
+                midFlightDamage: 160,
+                embeddedDamage: 160,
+                midFlightStatus: 0.22,
+                embeddedStatus: 0.22,
+                radius: 3.6,
+                minimumMultiplier: 0.6,
+                forcedProc: { electricity: 1 },
+            },
+            {
+                name: "Sancti Castanas",
+                sourceUrl: "https://wiki.warframe.com/w/Sancti_Castanas",
+                damageType: "electricity",
+                midFlightDamage: 300,
+                embeddedDamage: 300,
+                midFlightStatus: 0.34,
+                embeddedStatus: 0.1,
+                radius: 3.6,
+                minimumMultiplier: 0.6,
+                forcedProc: { electricity: 1 },
+            },
+            {
+                name: "Talons",
+                sourceUrl: "https://wiki.warframe.com/w/Talons",
+                damageType: "blast",
+                midFlightDamage: 120,
+                embeddedDamage: 250,
+                midFlightStatus: 0.26,
+                embeddedStatus: 0.1,
+                radius: 4,
+                minimumMultiplier: 0.5,
+                forcedProc: { puncture: 1 },
+            },
+        ] as const;
+
+        for (const testCase of cases) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === testCase.name);
+            expect(weapon, testCase.name).toBeDefined();
+            expect(weapon!.trigger).toBe("Active");
+            const midFlightIndex = weapon!.attacks.findIndex((attack) => attack.name === "Mid-Flight Detonation");
+            const embeddedIndex = weapon!.attacks.findIndex((attack) => attack.name === "Embedded Detonation");
+            expect(midFlightIndex, `${testCase.name} mid-flight`).toBeGreaterThanOrEqual(0);
+            expect(embeddedIndex, `${testCase.name} embedded`).toBeGreaterThanOrEqual(0);
+
+            const midFlight = weapon!.attacks[midFlightIndex]!;
+            const embedded = weapon!.attacks[embeddedIndex]!;
+            expect(midFlight.trigger).toBe("Active");
+            expect(embedded.trigger).toBe("Active");
+            expect(midFlight.damage[testCase.damageType]).toBe(testCase.midFlightDamage);
+            expect(embedded.damage[testCase.damageType]).toBe(testCase.embeddedDamage);
+            expect(midFlight.statusChance).toBeCloseTo(testCase.midFlightStatus, 8);
+            expect(embedded.statusChance).toBeCloseTo(testCase.embeddedStatus, 8);
+            expect(midFlight.damageFalloff).toMatchObject({
+                startDistanceMeters: 0,
+                endDistanceMeters: testCase.radius,
+                minimumDamageMultiplier: testCase.minimumMultiplier,
+                sourceUrl: testCase.sourceUrl,
+            });
+            expect(embedded.damageFalloff).toEqual(midFlight.damageFalloff);
+            expect(midFlight.multishotLocked).toBe(true);
+            expect(embedded.multishotLocked).toBe(true);
+            expect(midFlight.forcedProcs).toBeUndefined();
+            expect(embedded.forcedProcs).toEqual(testCase.forcedProc);
+            expect(midFlight.lingeringDamageRule).toBeUndefined();
+            expect(embedded.lingeringDamageRule).toBeUndefined();
+            expect(midFlight.scoreBoundaryNote?.reason).toMatch(/alternative.*not an additional hit/i);
+            expect(embedded.scoreBoundaryNote?.reason).toMatch(/one thrown .* attaches to the selected target/i);
+            expect(embedded.scoreBoundaryNote?.reason).toMatch(/extra widely-spread Multishot projectiles/i);
+            expect(withSelectedAttack(weapon!, midFlightIndex).selectedAttackMultishotLocked).toBe(true);
+            expect(withSelectedAttack(weapon!, embeddedIndex).selectedAttackMultishotLocked).toBe(true);
+            if (testCase.name === "Sancti Castanas") {
+                expect(embedded.scoreBoundaryNote?.reason).toMatch(/Purity radial effect/i);
+            }
+            if (testCase.name === "Talons") {
+                expect(embedded.scoreBoundaryNote?.reason).toMatch(/forced Ragdoll control/i);
+            }
+        }
+    });
+
     it("links Aegrit's direct hit to one immediate single-target detonation", () => {
         const aegrit = getWeaponCatalog().find((candidate) => candidate.name === "Aegrit");
         expect(aegrit).toBeDefined();

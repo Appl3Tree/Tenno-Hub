@@ -241,6 +241,41 @@ describe("source-backed Kulstar rocket optimizer coverage", () => {
     });
 });
 
+describe("source-backed single-charge throwables optimizer coverage", () => {
+    it("optimizes each detonation row independently without adding mines or blocking Purity scope", () => {
+        const catalog = getWeaponCatalog();
+        const options = {
+            targetFaction: "Infested",
+            targetProfileOverride: { health: 1_000, shields: 0, overguard: 0, armor: 0 },
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        } as const;
+
+        for (const weaponName of ["Castanas", "Sancti Castanas", "Talons"]) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            for (const attackName of ["Mid-Flight Detonation", "Embedded Detonation"]) {
+                const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+                expect(attackIndex, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(0);
+                const attack = weapon!.attacks[attackIndex]!;
+                const selected = withSelectedAttack(weapon!, attackIndex);
+
+                expect(attack.trigger, `${weaponName} / ${attackName}`).toBe("Active");
+                expect(attack.scoreBoundaryNote, `${weaponName} / ${attackName}`).toBeDefined();
+                expect(selected.selectedAttackModelLimitation, `${weaponName} / ${attackName}`).toBeUndefined();
+                expect(selected.selectedAttackMultishotLocked, `${weaponName} / ${attackName}`).toBe(true);
+                const burst = optimizeBuild(selected, [], "burst", 0, options);
+                const timeToKill = optimizeBuild(selected, [], "timeToKill", 0, options);
+                expect(burst.capacityValid, `${weaponName} / ${attackName}`).toBe(true);
+                expect(timeToKill.encounterTimeToKillSeconds, `${weaponName} / ${attackName}`)
+                    .toBeGreaterThan(0);
+                expect(timeToKill.capacityValid, `${weaponName} / ${attackName}`).toBe(true);
+            }
+        }
+    });
+});
+
 describe("Beast Claw elemental conversion optimizer legality", () => {
     it("never selects more than one of the mutually exclusive elemental conversion mods", () => {
         const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
