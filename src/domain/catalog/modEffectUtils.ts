@@ -1,4 +1,5 @@
 import type { ModEffect } from "./modCatalog";
+import { getSentientIncisionDamageType } from "../logic/sentientIncision";
 
 export const VOLATILE_VARIANT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveSporothrixAugmentMod";
 export const ACID_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Shotgun/Event/ProjectNightwatch/SobekNightwatchMod";
@@ -36,6 +37,12 @@ export interface ScoringEffectContext {
     selectedAttackIsAreaDamage?: boolean;
     /** Name of the selected attack row for source-specific trigger boundaries. */
     selectedAttackName?: string;
+    /** Selected target faction used by target-adaptive effects. */
+    targetFaction?: string;
+    /** Whether the scored attack begins against a target with an Overguard pool. */
+    targetHasOverguard?: boolean;
+    /** Whether the selected melee attack is a Slam, which Sentient Incision excludes. */
+    selectedAttackUsesSlamDamageBonus?: boolean;
 }
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -148,11 +155,16 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify the spread reduction. An optional user-entered effective post-kill spread range enables an experimental single-target Burst estimate and applies the selected rank's sourced Falloff Distance bonus to the entered target distance. This models one assumed post-kill Buckshot event only; it does not simulate the prior Rifle kill, one-shot buff consumption, or repeat-fire history. Finite TTK, 5s Avg DPS, and Magazine Restore remain unscored, and Auto Optimize skips the mod.");
     }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
-        // This augment chooses damage from the target weakness and special-cases
-        // Overguard; the current model cannot change its channel with target stage.
-        // It also exempts Slams and does not scale the matching elemental DoT.
-        // https://wiki.warframe.com/w/Sentient_Incision
-        lines.push("Sentient Incision's faction weakness mapping, Overguard-specific element selection, Slam exclusion, and non-scaling elemental status DoT are not modeled, so Auto Optimize skips this mod.");
+        if (!context) {
+            lines.push("Sentient Incision needs an explicit supported target faction or active Overguard to resolve its adaptive damage type. Without target context, this effect is unscored, so Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Sentient_Incision");
+        } else if (context.selectedAttackUsesSlamDamageBonus === true) {
+            lines.push("Sentient Incision does not affect Slam attacks, so this selected attack receives no bonus and Auto Optimize skips it for this attack. Wiki: https://wiki.warframe.com/w/Sentient_Incision");
+        } else if (!getSentientIncisionDamageType(
+            context.targetFaction ?? "",
+            context.targetHasOverguard === true,
+        )) {
+            lines.push("Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type. No matching target is selected, so Auto Optimize skips this mod. Wiki: https://wiki.warframe.com/w/Sentient_Incision");
+        }
     }
     if (mod.path === PRECISION_STRIKE_MOD_PATH && (
         context?.selectedAttackName !== "Grenade Impact" || context?.selectedAttackIsAreaDamage !== false
@@ -204,6 +216,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === COMBAT_RELOAD_MOD_PATH) {
         return "https://wiki.warframe.com/w/Combat_Reload";
     }
+    if (mod.path === SENTIENT_INCISION_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Sentient_Incision";
+    }
     if (mod.unparsedStatsByRank?.some((rank) => hasUnparsedTruthSyndicateStat(rank))) {
         return "https://wiki.warframe.com/w/Syndicates";
     }
@@ -212,7 +227,7 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
 
 export function emptyEffect(): ModEffect {
     return {
-        damageBonus: 0, firstShotMagazineDamageBonus: 0, lastShotMagazineDamageBonus: 0,
+        damageBonus: 0, sentientIncisionDamageBonus: 0, firstShotMagazineDamageBonus: 0, lastShotMagazineDamageBonus: 0,
         springLoadedBroadheadDamageBonus: 0,
         springLoadedBroadheadMinDistanceMeters: 0,
         sentientSurgeMagazineRefillPerKill: 0,

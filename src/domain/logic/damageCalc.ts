@@ -29,6 +29,7 @@ import {
     type StatusDamageType,
 } from "./damageRuleset";
 import { calculateDamageRampMultipliers } from "./weaponDamageRamp";
+import { getSentientIncisionDamageType, type SentientIncisionDamageType } from "./sentientIncision";
 import {
     getAutoSpoolMagazineAttackCount,
     getFullySpooledMagazineAttackCount,
@@ -209,6 +210,10 @@ export interface ModdedWeaponStats {
     physicalDamageConversion: ModEffect["physicalDamageConversion"] | null;
     /** Primary elemental damage conversion selected by a Beast Claw mod, when present. */
     elementalDamageConversion: ModEffect["elementalDamageConversion"] | null;
+    /** Target-selected Sentient Incision channel; null when unsupported or excluded on Slam attacks. */
+    sentientIncisionDamageType: SentientIncisionDamageType | null;
+    /** Rank-summed adaptive bonus applied as an isolated direct-damage channel. */
+    sentientIncisionDamageBonus: number;
     /** Source-listed selected-attack falloff and range metadata used by this score. */
     attackDamageFalloff: AttackDamageFalloffResult | null;
     /** Unmodded, charge- and active-combo-adjusted base damage used as the Damage 3.0 quantization scale. */
@@ -512,6 +517,8 @@ export interface DamageCalculationOptions {
     hitLocation?: HitLocationDamageProfile;
     /** Target class used by effects whose trigger explicitly requires an Eximus. */
     isEximusTarget?: boolean;
+    /** Whether the initial scored attack begins against an active Overguard pool. */
+    targetHasOverguard?: boolean;
 }
 
 /** Hit-location inputs supplied from Wiki-backed faction or named-enemy data. */
@@ -1538,6 +1545,7 @@ export function calculateBuild(
     let reloadSpeedBonus = 0;
     let directHitReloadSpeedBonus = 0;
     let directHitReloadSpeedDurationSeconds = 0;
+    let sentientIncisionDamageBonus = 0;
     let ammoEfficiencyBonus = 0;
     let attackSpeedBonus = 0;
     let gasBonus = 0;
@@ -1588,6 +1596,9 @@ export function calculateBuild(
             }
             : selectedEffect;
         damageBonus += e.damageBonus ?? 0;
+        if (weapon.category === "Melee" && weapon.selectedAttackUsesSlamDamageBonus !== true) {
+            sentientIncisionDamageBonus += e.sentientIncisionDamageBonus ?? 0;
+        }
         headshotMultiplierBonus += e.headshotMultiplierBonus ?? 0;
         bodyshotDamageBonus += e.bodyshotDamageBonus ?? 0;
         weakPointDamageBonus += e.weakPointDamageBonus ?? 0;
@@ -2146,6 +2157,19 @@ export function calculateBuild(
     }));
     const combinedPrimaries = combineElementQueue([...moddedElementQueue, ...innateQueue]);
     for (const key of DAMAGE_KEYS) rawBreakdown[key] += combinedPrimaries[key];
+
+    const sentientIncisionDamageType = weapon.category === "Melee" && weapon.selectedAttackUsesSlamDamageBonus !== true
+        ? getSentientIncisionDamageType(targetFaction, options.targetHasOverguard === true)
+        : null;
+    const activeSentientIncisionDamageBonus = sentientIncisionDamageType
+        ? sentientIncisionDamageBonus
+        : 0;
+    if (sentientIncisionDamageType && activeSentientIncisionDamageBonus > 0) {
+        // This adaptive element is source-listed as non-combining and does not
+        // scale its matching status DoT. Add it after elemental combination,
+        // without changing totalBase (the Damage 3.0 DoT seed scale).
+        rawBreakdown[sentientIncisionDamageType] += totalBase * activeSentientIncisionDamageBonus;
+    }
 
     rawBreakdown.blast += weaponBaseDamage.blast * baseDamageMultiplier;
     rawBreakdown.radiation += weaponBaseDamage.radiation * baseDamageMultiplier;
@@ -3090,6 +3114,8 @@ export function calculateBuild(
         rawDamageBreakdownBeforePerStatus: rawBreakdown,
         physicalDamageConversion: physicalDamageConversion ?? null,
         elementalDamageConversion: elementalDamageConversion ?? null,
+        sentientIncisionDamageType,
+        sentientIncisionDamageBonus: activeSentientIncisionDamageBonus,
         attackDamageFalloff,
         baseDamageTotal: baseDamageTotal * slamAttackDamageMultiplier * meleeAttackComboDamageMultiplier,
         arsenalDamage,

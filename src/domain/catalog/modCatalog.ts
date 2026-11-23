@@ -113,6 +113,8 @@ const COMPAT_MAP: Record<string, string> = {
 
 export interface ModEffect {
     damageBonus: number;
+    /** Sentient Incision's isolated, target-selected elemental damage fraction. */
+    sentientIncisionDamageBonus?: number;
     /** Spring-Loaded Broadhead's multiplicative damage bonus for one hit beyond its rank distance threshold. */
     springLoadedBroadheadDamageBonus: number;
     /** Target distance must be strictly greater than this rank threshold to activate Spring-Loaded Broadhead. */
@@ -504,6 +506,12 @@ function explodeStatLines(raw: string): string[] {
 
 function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
     const clean = stripColorTags(raw).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+    const sentientIncision = clean.match(
+        /^\+?(\d+(?:\.\d+)?)% additional damage matching the target's weakness\. Does not combine with other damage types\.?$/i,
+    );
+    if (sentientIncision) {
+        return { sentientIncisionDamageBonus: Number(sentientIncision[1]) / 100 };
+    }
     const combatReload = clean.match(
         /^If (\d+) pellets are headshots, increase reload speed by \+?(\d+(?:\.\d+)?)% for (\d+(?:\.\d+)?)s\.?$/i,
     );

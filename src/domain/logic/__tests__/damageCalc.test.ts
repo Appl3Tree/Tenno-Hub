@@ -440,8 +440,8 @@ describe("Vile Discharge Wiki charge caps and safe scoring exclusion", () => {
     });
 });
 
-describe("Sentient Incision Wiki damage display and safe scoring exclusion", () => {
-    it("keeps the Venato augment selectable while disclosing its target-dependent exceptions", () => {
+describe("Sentient Incision adaptive damage", () => {
+    it("parses every Venato rank and keeps the contextual source boundary visible", () => {
         const venato = getWeaponCatalog().find((weapon) => weapon.name === "Venato");
         const venatoPrime = getWeaponCatalog().find((weapon) => weapon.name === "Venato Prime");
         const brokenWar = getWeaponCatalog().find((weapon) => weapon.name === "Broken War");
@@ -456,16 +456,71 @@ describe("Sentient Incision Wiki damage display and safe scoring exclusion", () 
             expect(mod!.statsTextByRank).toEqual([20, 40, 60, 80, 100, 120].map((bonus) =>
                 `+${bonus}% additional damage matching the target's weakness. Does not combine with other damage types.`,
             ));
-            expect(mod!.hasDamageEffect).toBe(false);
-            expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0)).toBe(true);
+            expect(mod!.hasDamageEffect).toBe(true);
+            expect(mod!.effectsByRank.map((effect) => effect.sentientIncisionDamageBonus)).toEqual([0.2, 0.4, 0.6, 0.8, 1, 1.2]);
+            expect(mod!.unparsedStatsByRank?.every((lines) => lines.length === 0)).toBe(true);
 
-            const warning = "Sentient Incision's faction weakness mapping, Overguard-specific element selection, Slam exclusion, and non-scaling elemental status DoT are not modeled, so Auto Optimize skips this mod.";
+            const warning = "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type. No matching target is selected, so Auto Optimize skips this mod. Wiki: https://wiki.warframe.com/w/Sentient_Incision";
+            const missingContextWarning = "Sentient Incision needs an explicit supported target faction or active Overguard to resolve its adaptive damage type. Without target context, this effect is unscored, so Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Sentient_Incision";
             for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
-                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(missingContextWarning);
+                expect(getUnmodeledDamageEffectLines(mod!, rank, { targetFaction: "" })).toContain(warning);
+                expect(getUnmodeledDamageEffectLines(mod!, rank, { targetFaction: "Grineer" })).toEqual([]);
             }
+            expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe("https://wiki.warframe.com/w/Sentient_Incision");
         }
 
         expect(getModsForWeapon(brokenWar!).some((candidate) => candidate.name === "Sentient Incision")).toBe(false);
+    });
+
+    it("adds the mapped element after combination without changing the DoT seed scale", () => {
+        const venato = getWeaponCatalog().find((weapon) => weapon.name === "Venato");
+        expect(venato).toBeDefined();
+        const weapon = withSelectedAttack(venato!, 0);
+        const mod = getModsForWeapon(venato!).find((candidate) => candidate.name === "Sentient Incision");
+        expect(mod).toBeDefined();
+        const baseEffect = mod!.effectsByRank[0];
+        const rankFive = mod!.effectsByRank[5];
+        const baseline = calculateBuild(weapon, [emptyEffect()], "Infested");
+        const atRankZero = calculateBuild(weapon, [baseEffect], "Infested");
+        const atRankFive = calculateBuild(weapon, [rankFive], "Infested");
+        expect(atRankZero.modded.sentientIncisionDamageType).toBe("heat");
+        expect(atRankZero.modded.rawDamageBreakdownBeforePerStatus.heat - baseline.modded.rawDamageBreakdownBeforePerStatus.heat)
+            .toBeCloseTo(baseline.modded.baseDamageTotal * 0.2, 8);
+        expect(atRankFive.modded.rawDamageBreakdownBeforePerStatus.heat - baseline.modded.rawDamageBreakdownBeforePerStatus.heat)
+            .toBeCloseTo(baseline.modded.baseDamageTotal * 1.2, 8);
+        expect(atRankFive.modded.baseDamageTotal).toBe(baseline.modded.baseDamageTotal);
+
+        const elementalMix = { ...emptyEffect(), heatBonus: 0.6, coldBonus: 0.6 };
+        const combinedWithAdaptive = calculateBuild(weapon, [elementalMix, baseEffect], "Infested");
+        expect(combinedWithAdaptive.modded.rawDamageBreakdownBeforePerStatus.blast).toBeGreaterThan(0);
+        expect(combinedWithAdaptive.modded.rawDamageBreakdownBeforePerStatus.heat).toBeGreaterThan(0);
+
+        const heatWeight = { ...emptyEffect(), heatBonus: 0.2 };
+        const heatWithoutAdaptive = calculateBuild(weapon, [heatWeight, { ...baseEffect, sentientIncisionDamageBonus: 0 }], "Infested", { targetStatusState: "initial" });
+        const heatWithAdaptive = calculateBuild(weapon, [heatWeight, baseEffect], "Infested", { targetStatusState: "initial" });
+        expect(heatWithAdaptive.modded.dotDamagePerApplicationSeedByType.heat)
+            .toBeCloseTo(heatWithoutAdaptive.modded.dotDamagePerApplicationSeedByType.heat ?? 0, 8);
+    });
+
+    it("uses Corrosive for the initial Overguard snapshot and excludes Slam attacks", () => {
+        const venato = getWeaponCatalog().find((weapon) => weapon.name === "Venato");
+        expect(venato).toBeDefined();
+        const mod = getModsForWeapon(venato!).find((candidate) => candidate.name === "Sentient Incision");
+        expect(mod).toBeDefined();
+        const effect = mod!.effectsByRank[5];
+        const overguard = calculateBuild(withSelectedAttack(venato!, 0), [effect], "Corpus", { targetHasOverguard: true });
+        expect(overguard.modded.sentientIncisionDamageType).toBe("corrosive");
+        expect(overguard.modded.sentientIncisionDamageBonus).toBe(1.2);
+
+        const slam = { ...withSelectedAttack(venato!, 0), selectedAttackUsesSlamDamageBonus: true };
+        const slamStats = calculateBuild(slam, [effect], "Infested");
+        expect(slamStats.modded.sentientIncisionDamageType).toBeNull();
+        expect(slamStats.modded.sentientIncisionDamageBonus).toBe(0);
+        expect(getUnmodeledDamageEffectLines(mod!, 5, {
+            targetFaction: "Infested",
+            selectedAttackUsesSlamDamageBonus: true,
+        })).toContain("Sentient Incision does not affect Slam attacks, so this selected attack receives no bonus and Auto Optimize skips it for this attack. Wiki: https://wiki.warframe.com/w/Sentient_Incision");
     });
 });
 
