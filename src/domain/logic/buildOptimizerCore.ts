@@ -2721,9 +2721,11 @@ function expectedEncounterScoreForEffectsAtKillRate(
         autoSpoolCadenceRule: weapon.selectedAttackAutoSpoolCadence,
         autoSpoolShotSequenceRule: weapon.selectedAttackAutoSpoolShotSequence,
         shotsPerMagazine: stats.finiteShotsPerMag,
-        attackCountLimit: weapon.selectedAttackIsIncarnon && weapon.selectedAttackIncarnonAmmoCapacity !== undefined
-            ? stats.finiteShotsPerMag
-            : undefined,
+        attackCountLimit: !stats.ammoGateSatisfied
+            ? 0
+            : weapon.selectedAttackIsIncarnon && weapon.selectedAttackIncarnonAmmoCapacity !== undefined
+                ? stats.finiteShotsPerMag
+                : undefined,
         infiniteAmmoActive: stats.infiniteAmmoActive,
         firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
         lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,

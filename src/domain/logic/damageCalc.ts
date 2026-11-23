@@ -334,6 +334,8 @@ export interface ModdedWeaponStats {
     shotsPerMag: number;
     /** Fresh-magazine attack count for finite attack sequences such as Auto-Spool. */
     finiteShotsPerMag: number;
+    /** Whether the selected attack's source-backed loaded-ammo gate is met. */
+    ammoGateSatisfied: boolean;
     damageBreakdown: Record<DamageKey, number>;
     totalDamage: number;
     procChanceByType: Partial<Record<DamageKey, number>>;
@@ -2219,11 +2221,29 @@ export function calculateBuild(
         ? chargeAmmoPerShot / weapon.selectedAttackChargeAmmoPerSecond
         : moddedChargeTimeSeconds(weapon, rateBonus, chargeRateBonus);
     const unroundedShotsPerMag = magazineSize / (ammoCostPerShot * (1 - ammoEfficiencyBonus));
+    const minimumMagazineAmmoToFire = weapon.selectedAttackAmmoGate?.minimumMagazineAmmoToFire ?? 0;
+    const effectiveGatedAmmoCost = ammoCostPerShot * (1 - ammoEfficiencyBonus);
+    const ammoGateSatisfied = minimumMagazineAmmoToFire <= 0 || (
+        magazineSize + 1e-9 >= minimumMagazineAmmoToFire &&
+        magazineSize + 1e-9 >= effectiveGatedAmmoCost
+    );
+    const gatedShotsPerMag = minimumMagazineAmmoToFire <= 0
+        ? null
+        : !ammoGateSatisfied
+            ? 0
+            : (() => {
+                const effectiveAmmoCost = effectiveGatedAmmoCost;
+                if (effectiveAmmoCost <= Number.EPSILON) return Number.MAX_SAFE_INTEGER;
+                const minimumAmmoToStartAttack = Math.max(minimumMagazineAmmoToFire, effectiveAmmoCost);
+                return Math.floor((magazineSize - minimumAmmoToStartAttack + 1e-9) / effectiveAmmoCost) + 1;
+            })();
     // Ammo-efficiency remainders accumulate, and the Wiki treats a remaining
     // fraction below one ammo as the next shot. Preserve the historical
     // magazine/cost ratio without efficiency; round up only when efficiency
     // introduces a fractional-ammo remainder.
-    const calculatedShotsPerMag = weapon.selectedAttackAutoSpoolShotSequence
+    const calculatedShotsPerMag = gatedShotsPerMag !== null
+        ? gatedShotsPerMag
+        : weapon.selectedAttackAutoSpoolShotSequence
         ? getFullySpooledMagazineAttackCount(
             weapon.selectedAttackAutoSpoolShotSequence,
             magazineSize,
@@ -2232,15 +2252,17 @@ export function calculateBuild(
         : ammoEfficiencyBonus > 0
             ? Math.max(1, Math.ceil(unroundedShotsPerMag - 1e-9))
             : unroundedShotsPerMag;
-    const calculatedFiniteShotsPerMag = weapon.selectedAttackAutoSpoolShotSequence
+    const calculatedFiniteShotsPerMag = gatedShotsPerMag !== null
+        ? gatedShotsPerMag
+        : weapon.selectedAttackAutoSpoolShotSequence
         ? getAutoSpoolMagazineAttackCount(
             weapon.selectedAttackAutoSpoolShotSequence,
             magazineSize,
             ammoEfficiencyBonus,
         )
         : calculatedShotsPerMag;
-    const shotsPerMag = infiniteAmmoActive ? Number.MAX_SAFE_INTEGER : calculatedShotsPerMag;
-    const finiteShotsPerMag = infiniteAmmoActive ? Number.MAX_SAFE_INTEGER : calculatedFiniteShotsPerMag;
+    const shotsPerMag = infiniteAmmoActive && ammoGateSatisfied ? Number.MAX_SAFE_INTEGER : calculatedShotsPerMag;
+    const finiteShotsPerMag = infiniteAmmoActive && ammoGateSatisfied ? Number.MAX_SAFE_INTEGER : calculatedFiniteShotsPerMag;
     const activeFirstShotMagazineDamageBonus = ignoresReloadAndMagazine || infiniteAmmoActive
         ? 0
         : Math.max(0, firstShotMagazineDamageBonus);
@@ -2282,7 +2304,9 @@ export function calculateBuild(
         ignoresReloadAndMagazine || infiniteAmmoActive,
     );
     const magazineDuration = infiniteAmmoActive ? 0 : shotsPerMag / Math.max(0.0001, fireRate);
-    const magazineDutyCycle = ignoresReloadAndMagazine || infiniteAmmoActive || reloadTime <= 0 || bowIncludesReloadInFireRate
+    const magazineDutyCycle = shotsPerMag <= 0
+        ? 0
+        : ignoresReloadAndMagazine || infiniteAmmoActive || reloadTime <= 0 || bowIncludesReloadInFireRate
         ? 1
         : magazineDuration / (magazineDuration + reloadTime);
 
@@ -3032,6 +3056,7 @@ export function calculateBuild(
         multishotDamageBonus,
         shotsPerMag,
         finiteShotsPerMag,
+        ammoGateSatisfied,
         damageBreakdown,
         totalDamage: totalDamageOf(damageBreakdown),
         procChanceByType,
@@ -3167,8 +3192,12 @@ export function calculateBuild(
         }
     }
 
-    const burstDPS = averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier;
-    const sustainedDPS = averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier;
+    const burstDPS = ammoGateSatisfied
+        ? averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier
+        : 0;
+    const sustainedDPS = ammoGateSatisfied
+        ? averageShotDamage * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier
+        : 0;
 
     return { modded, burstDPS, sustainedDPS };
 }

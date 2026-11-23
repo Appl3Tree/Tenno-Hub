@@ -104,6 +104,12 @@ export interface WeaponAttackScoreBoundaryNote {
     reason: string;
 }
 
+export interface WeaponAttackAmmoGate {
+    /** Minimum rounds that must be loaded when triggering this attack. */
+    minimumMagazineAmmoToFire: number;
+    sourceUrl: string;
+}
+
 export type WeaponAttackFalloffScaleBy = "weaponRange" | "projectileSpeed" | "blastRadius";
 
 export interface WeaponAttackDamageFalloff {
@@ -186,6 +192,8 @@ export interface WeaponAttack {
     multishotLocked?: boolean;
     /** Ammo consumed by one trigger/attack event when it differs by firing mode. */
     ammoCostPerShot?: number;
+    /** Source-backed minimum magazine ammunition required to trigger this attack. */
+    ammoGate?: WeaponAttackAmmoGate;
     /** Source-backed limit of an attack-row ammo-cost approximation. */
     ammoCostModelNote?: string;
     /** Verified fixed ammo consumption rate for an ammo-charged attack. */
@@ -315,6 +323,8 @@ export interface WeaponEntry {
     selectedAttackIncarnonAmmoCapacitySourceUrl?: string;
     /** Disclosure for source-backed attack-row ammo-cost approximations. */
     selectedAttackAmmoCostModelNote?: string;
+    /** Source-backed trigger ammunition gate for the selected attack. */
+    selectedAttackAmmoGate?: WeaponAttackAmmoGate;
     /** True = area hit, false = direct hit, undefined = no source/Wiki classification. */
     selectedAttackIsAreaDamage?: boolean;
     /** True when the selected melee attack is excluded from Condition Overload's bonus. */
@@ -933,6 +943,19 @@ const VERIFIED_ATTACK_AMMO_COST_OVERRIDES: Readonly<Record<string, Readonly<Reco
     "/Lotus/Weapons/Thanotech/EntratiWristGun/EntratiWristGunWeapon": Object.freeze({
         "incarnon form charge attack": 50,
         "incarnon form charge radial attack": 50,
+    }),
+});
+
+const VERIFIED_ATTACK_AMMO_GATES: Readonly<Record<string, Readonly<Record<string, WeaponAttackAmmoGate>>>> = Object.freeze({
+    // Buckshot consumes 15 rounds and the Wiki explicitly says it cannot fire
+    // below 15 loaded rounds. Keep the trigger gate separate from effective
+    // ammo consumed when ammo-efficiency bonuses are active.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Alternate_Fire
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
+        "buckshot": Object.freeze({
+            minimumMagazineAmmoToFire: 15,
+            sourceUrl: "https://wiki.warframe.com/w/Alternate_Fire",
+        }),
     }),
 });
 
@@ -3315,6 +3338,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const intrinsicPerStatus = VERIFIED_ATTACK_DAMAGE_PER_STATUS_OVERRIDES[uniqueName]?.[attackName];
                 const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
                 const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
+                const ammoGate = VERIFIED_ATTACK_AMMO_GATES[uniqueName]?.[attackName];
                 const damageFalloff = VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES[uniqueName]?.[attackName];
                 const pelletSpreadCone = VERIFIED_ATTACK_PELLET_SPREAD_OVERRIDES[uniqueName]?.[attackName];
                 const maximumRange = VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES[uniqueName]?.[attackName];
@@ -3350,6 +3374,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     multishotLocked: VERIFIED_ATTACK_MULTISHOT_LOCKED_OVERRIDES[uniqueName]?.includes(attackName) ?? false,
                     ammoCostPerShot: VERIFIED_ATTACK_AMMO_COST_OVERRIDES[uniqueName]?.[attackName]
                         ?? (typeof a.ammo_cost === "number" ? a.ammo_cost : undefined),
+                    ...(ammoGate ? { ammoGate } : {}),
                     ammoCostModelNote,
                     chargeAmmoPerSecond: ammoChargeRule?.ammoPerSecond,
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,

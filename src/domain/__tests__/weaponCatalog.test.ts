@@ -1205,6 +1205,10 @@ describe("source-backed charge-trigger gates", () => {
                 sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
             },
             ammoCostPerShot: 15,
+            ammoGate: {
+                minimumMagazineAmmoToFire: 15,
+                sourceUrl: "https://wiki.warframe.com/w/Alternate_Fire",
+            },
             damageFalloff: {
                 startDistanceMeters: 5,
                 endDistanceMeters: 10,
@@ -1218,5 +1222,10 @@ describe("source-backed charge-trigger gates", () => {
         expect(buckshot?.modelLimitation?.reason).toMatch(/target overlap/i);
         expect(buckshot?.modelLimitation?.reason).toContain("24° minimum and 42° maximum spread");
         expect(buckshot?.modelLimitation?.reason).toContain("at least one near the reticle center");
+        const buckshotIndex = weapon!.attacks.findIndex((attack) => attack.name === "Buckshot");
+        expect(withSelectedAttack(weapon!, buckshotIndex).selectedAttackAmmoGate).toEqual({
+            minimumMagazineAmmoToFire: 15,
+            sourceUrl: "https://wiki.warframe.com/w/Alternate_Fire",
+        });
     });
 });

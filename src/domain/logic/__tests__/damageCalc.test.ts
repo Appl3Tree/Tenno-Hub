@@ -5,6 +5,7 @@ import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } fro
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
+import { simulateExpectedWeaponEncounter } from "../targetDamage";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
     const damageByType = {
@@ -116,6 +117,54 @@ describe("EFV-5 Buckshot experimental pellet coverage estimate", () => {
         expect(estimated.totalDamage).toBeCloseTo(unestimatedAtDistance.totalDamage, 8);
         expect(estimated.arsenalDamage).toBeLessThan(unestimated.arsenalDamage);
         expect(estimated.forcedProcsPerShot.corrosive).toBeCloseTo(estimated.multishot, 8);
+    });
+
+    it("enforces Buckshot's loaded-ammo gate in magazine cadence and finite scoring", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name.toLowerCase() === "efv-5 jupiter");
+        expect(weapon).toBeDefined();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Buckshot");
+        const buckshot = withSelectedAttack(weapon!, attackIndex);
+
+        const base = calculateBuild(buckshot, []);
+        expect(base.modded.magazineSize).toBe(65);
+        expect(base.modded.ammoGateSatisfied).toBe(true);
+        expect(base.modded.shotsPerMag).toBe(4);
+        expect(base.modded.finiteShotsPerMag).toBe(4);
+
+        const fiveMoreRounds = calculateBuild(buckshot, [{ ...emptyEffect(), magazineBonus: 0.3 }]).modded;
+        expect(fiveMoreRounds.magazineSize).toBe(85);
+        expect(fiveMoreRounds.shotsPerMag).toBe(5);
+
+        const sixtyPercentEfficiency = calculateBuild(buckshot, [{ ...emptyEffect(), ammoEfficiencyBonus: 0.6 }]).modded;
+        const maximumEfficiency = calculateBuild(buckshot, [{ ...emptyEffect(), ammoEfficiencyBonus: 0.75 }]).modded;
+        expect(sixtyPercentEfficiency.shotsPerMag).toBe(9);
+        expect(maximumEfficiency.shotsPerMag).toBe(14);
+
+        const belowGateWeapon = withSelectedAttack({ ...weapon!, magazineSize: 14 }, attackIndex);
+        const belowGate = calculateBuild(belowGateWeapon, [{ ...emptyEffect(), ammoEfficiencyBonus: 0.75 }]);
+        expect(belowGate.modded.ammoGateSatisfied).toBe(false);
+        expect(belowGate.modded.shotsPerMag).toBe(0);
+        expect(belowGate.modded.finiteShotsPerMag).toBe(0);
+        expect(belowGate.burstDPS).toBe(0);
+        expect(belowGate.sustainedDPS).toBe(0);
+
+        const finite = simulateExpectedWeaponEncounter({
+            damageByType: belowGate.modded.damageBreakdownBeforePerStatus,
+            health: 10_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            initialAttackDelaySeconds: belowGate.modded.initialAttackDelaySeconds,
+            attackIntervalSeconds: 1 / belowGate.modded.fireRate,
+            shotsPerMagazine: belowGate.modded.finiteShotsPerMag,
+            attackCountLimit: belowGate.modded.ammoGateSatisfied ? undefined : 0,
+            maxDurationSeconds: 5,
+            stopAtSeconds: 5,
+        });
+        expect(finite.attacks).toBe(0);
+        expect(finite.totalDamage).toBe(0);
+        expect(finite.damagePerSecond).toBe(0);
     });
 
     it("applies multishot to pellet count before estimating coverage", () => {
