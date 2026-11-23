@@ -3447,3 +3447,16 @@ Both runs request 100,000 accepted pairs, which exceeds each fixture's complete 
 Reproduce Braton Prime with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Braton Prime" --attack="Normal Attack" --samples=100000 --seed=2674696919 --faction=Grineer --health=2000000 --armor=3000`; reproduce Corvas Prime with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Corvas Prime" --attack="Charged Shot" --samples=100000 --seed=1808719306 --faction=Grineer --health=2000000 --armor=3000`.
 
 The two legal baselines remain below the 2m Health ceiling and satisfy the eight-slot / Catalyst / three-Forma budget. No compatible Arcane, owned-rank, Forma-search, or three-plus-mod alternatives were included in these neighborhoods. This closes only these two fixed-model two-mod neighborhoods; it is not Underframe parity, a global optimizer proof, or gameplay validation.
+
+## D3-OPT-WINDOWDPS-EXHAUSTIVE-PAIR-SEEDED-STRATA-001 — exhaustive companion and heavy-melee pair neighborhoods (2026-11-23; bounded)
+
+The remaining seeded companion and heavy-melee fixtures from `D3-OPT-WINDOWDPS-SEED-CORPUS-GRINEER-001` were scored with the same Grineer / 2,000,000 Health / 3,000 Armor / zero Shields and Overguard / Realistic / `[0,5s)` / eight slots / Catalyst / MR30 / up to three Forma scenario. The requested 100,000 legal pairs exceeds each raw universe, so the worker enumerates every raw tuple and exact-scores every legal max-rank two-out/two-in replacement.
+
+| Fixture | Command seed | Raw tuple universe / examined | Legal pairs exact-scored | Baseline DPS | Best pair DPS | Improvement |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Gram Prime / Heavy Slam Attack | 1,808,719,306 | 44,688 / 44,688 | 28,248 | 38,451.54 | 35,027.94 | None |
+| Helstrum / Explosion | 3,449,250,833 | 46,284 / 46,284 | 21,881 | 277.20 | 276.79 | None |
+
+Reproduce Gram Prime with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Gram Prime" --attack="Heavy Slam Attack" --samples=100000 --seed=1808719306 --faction=Grineer --health=2000000 --armor=3000`; reproduce Helstrum with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon=Helstrum --attack=Explosion --samples=100000 --seed=3449250833 --faction=Grineer --health=2000000 --armor=3000`.
+
+Both optimizer baselines are capacity/FORMA legal and the targets survive the window. Combined with the Braton Prime and Corvas Prime exact neighborhoods above, all four seeded weapon-stratum fixtures now have exhaustive two-mod coverage. This does not include rank or Forma search, Arcane combinations, three-plus-mod changes, or any Tenno-Hub-to-Underframe/gameplay comparison; it is not global optimizer evidence.
