@@ -2,6 +2,8 @@
   "weaponName": "Mausolon (Atmosphere)",
   "variantLabel": "Atmosphere",
   "attackName": "Auto",
+  "distanceMeters": 1400,
+  "distanceSource": "The recorded Underframe Auto calculator capture used the visible 1,400–2,800m distance slider at its 1,400m minimum.",
   "underframeAutoBuildSliderState": {
     "primaryBulwark": 500,
     "secondaryOutburst": 12

@@ -26,6 +26,8 @@ interface ModRequest {
 interface Fixture {
     weaponName: string;
     attackName?: string;
+    distanceMeters?: number;
+    distanceSource?: string;
     underframeObservedCapacityAfterAutoPolarize: string;
     underframeMods: ModRequest[];
     underframeAutoBuildSliderState?: Record<string, number>;
@@ -35,6 +37,7 @@ interface Fixture {
     underframeNativeCombinedModeReadout?: Record<string, unknown>;
     underframeNativeCombinedHighHealthReadout?: Record<string, unknown>;
     underframeNativeCombinedUnarmoredHighHealthReadout?: Record<string, unknown>;
+    underframeDistanceModeTransitionAndScoreProbe?: Record<string, unknown>;
     underframeObservedAutoStats?: Record<string, unknown>;
 }
 
@@ -119,6 +122,11 @@ const CAPACITY_CONFIG: CapacityConfig = {
 const requestedRuns = Number(process.argv.find((arg) => arg.startsWith("--runs="))?.slice(7) ?? 3);
 const RUNS = Number.isInteger(requestedRuns) && requestedRuns > 0 ? requestedRuns : 3;
 const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9)?.trim().toLowerCase();
+const requestedDistanceValue = process.argv.find((arg) => arg.startsWith("--distance="))?.slice(11);
+const requestedDistanceMeters = requestedDistanceValue === undefined ? undefined : Number(requestedDistanceValue);
+if (requestedDistanceMeters !== undefined && (!Number.isFinite(requestedDistanceMeters) || requestedDistanceMeters < 0)) {
+    throw new Error("--distance must be a non-negative number");
+}
 
 function getWeapon(name: string, attackName = "Normal Attack") {
     const catalog = getWeaponCatalog();
@@ -151,6 +159,7 @@ function evaluateFixedBuild(
     weapon: WeaponEntry,
     fixture: Fixture,
     compatibleMods: ReturnType<typeof getModsForWeapon>,
+    conditionalState: ConditionalState,
 ) {
     const mods = fixture.underframeMods.map(({ name, rank }) => getMod(name, rank, compatibleMods));
     const ranks = fixture.underframeMods.map(({ rank }) => rank);
@@ -187,7 +196,7 @@ function evaluateFixedBuild(
         effects,
         TARGET_FACTION,
         TARGET,
-        CONDITIONAL_STATE,
+        conditionalState,
     );
     const score = {
         damagePerSecond: evaluation.damagePerSecond,
@@ -211,14 +220,31 @@ function evaluateFixedBuild(
 
 function runFixture(fixture: Fixture) {
     const { weapon, attack } = getWeapon(fixture.weaponName, fixture.attackName);
+    const distanceMeters = requestedDistanceMeters ?? fixture.distanceMeters;
+    const hasDistanceSensitiveAttackModel = weapon.selectedAttackDamageFalloff !== undefined ||
+        Number.isFinite(weapon.selectedAttackMaximumRangeMeters);
+    if (hasDistanceSensitiveAttackModel && distanceMeters === undefined) {
+        throw new Error(`A captured or explicit --distance is required for ${weapon.name} / ${attack.name}`);
+    }
+    const conditionalState: ConditionalState = distanceMeters === undefined
+        ? CONDITIONAL_STATE
+        : {
+            ...CONDITIONAL_STATE,
+            targetDistanceMeters: distanceMeters,
+            attackFalloffDistanceMeters: distanceMeters,
+        };
+    const modelPredictsOutOfRangeMiss = distanceMeters !== undefined &&
+        weapon.selectedAttackMaximumRangeBehavior === "hardHitCap" &&
+        Number.isFinite(weapon.selectedAttackMaximumRangeMeters) &&
+        distanceMeters > (weapon.selectedAttackMaximumRangeMeters ?? 0);
     const compatibleMods = filterBuilderExpertVariants(getModsForWeapon(weapon));
-    const fixedBuild = evaluateFixedBuild(weapon, fixture, compatibleMods);
-    const optimizerRuns = Array.from({ length: RUNS }, () => {
+    const fixedBuild = evaluateFixedBuild(weapon, fixture, compatibleMods, conditionalState);
+    const optimizerRuns = modelPredictsOutOfRangeMiss ? [] : Array.from({ length: RUNS }, () => {
         const startedAt = performance.now();
         const result = optimizeBuild(weapon, compatibleMods, "windowDps", weapon.baseSlotCount, {
             targetFaction: TARGET_FACTION,
             targetProfileOverride: TARGET,
-            conditionalState: CONDITIONAL_STATE,
+            conditionalState,
             allowNonMaxRank: false,
             allowCatalyst: true,
             allowForma: true,
@@ -266,6 +292,26 @@ function runFixture(fixture: Fixture) {
         weapon: getWeaponDisplayName(weapon),
         category: weapon.category,
         attack: attack.name,
+        distanceModel: {
+            distanceMeters: distanceMeters ?? null,
+            source: requestedDistanceMeters !== undefined
+                ? "CLI --distance override"
+                : fixture.distanceMeters !== undefined
+                    ? fixture.distanceSource ?? "captured fixture"
+                    : "not recorded",
+            targetDistanceApplied: distanceMeters !== undefined,
+            attackRangeDistanceApplied: distanceMeters !== undefined && hasDistanceSensitiveAttackModel,
+            falloffProfile: weapon.selectedAttackDamageFalloff ?? null,
+            maximumRangeMeters: weapon.selectedAttackMaximumRangeMeters ?? null,
+            maximumRangeBehavior: weapon.selectedAttackMaximumRangeBehavior ?? null,
+            maximumRangeSourceUrl: weapon.selectedAttackMaximumRangeSourceUrl ?? null,
+            modelPredictsOutOfRangeMiss,
+            optimizerDisposition: modelPredictsOutOfRangeMiss
+                ? "Skipped because the selected source-backed profile predicts no hit at this distance."
+                : distanceMeters !== undefined
+                    ? "Scored with the recorded distance inputs."
+                    : "No distance was recorded; this selected attack has no source-backed falloff or hit-range limit.",
+        },
         underframeObservedCapacityAfterAutoPolarize: fixture.underframeObservedCapacityAfterAutoPolarize,
         underframeAutoBuildSliderState: fixture.underframeAutoBuildSliderState ?? null,
         underframeAutoBuildDisposition: fixture.underframeAutoBuildDisposition ?? null,
@@ -274,6 +320,7 @@ function runFixture(fixture: Fixture) {
         underframeNativeCombinedModeReadout: fixture.underframeNativeCombinedModeReadout ?? null,
         underframeNativeCombinedHighHealthReadout: fixture.underframeNativeCombinedHighHealthReadout ?? null,
         underframeNativeCombinedUnarmoredHighHealthReadout: fixture.underframeNativeCombinedUnarmoredHighHealthReadout ?? null,
+        underframeDistanceModeTransitionAndScoreProbe: fixture.underframeDistanceModeTransitionAndScoreProbe ?? null,
         underframeObservedAutoStats: fixture.underframeObservedAutoStats ?? null,
         capturedUnderframeBuild: fixedBuild,
         tennoHubWindowDps: firstRun ? {
@@ -285,7 +332,7 @@ function runFixture(fixture: Fixture) {
             refined: firstRun.score.refined,
             durationMs: optimizerRuns.map((run) => Number(run.durationMs.toFixed(1))),
         } : null,
-        repeatability: {
+        repeatability: optimizerRuns.length === 0 ? null : {
             identicalModLists: uniqueBuilds.size === 1,
             identicalScores: uniqueScores.size === 1,
         },
@@ -299,8 +346,10 @@ console.log(JSON.stringify({
         targetFaction: TARGET_FACTION,
         target: TARGET,
         conditionalState: CONDITIONAL_STATE.mode,
+        distanceOverrideMeters: requestedDistanceMeters ?? null,
+        distanceBehavior: "CLI --distance overrides a captured fixture distance and is applied to target-distance conditions and selected-attack falloff/range. A selected attack with a source-backed falloff or range limit cannot be scored without an explicit distance; an out-of-range hard miss is reported and its optimizer run is skipped.",
         constraints: "Eight normal slots, max-rank mods, Catalyst, up to three Forma, no Exilus or Arcanes.",
-        modelBoundary: "All captured and optimized lists use Tenno-Hub's same deterministic finite encounter engine. It clips overkill and damage after the single target dies, begins event-triggered mod buffs inactive, does not simulate their trigger history during the window, and does not reset the target. It excludes neighboring targets and melee stance/combo history. This is not Underframe's seeded stochastic simulator or live-game validation.",
+        modelBoundary: "All scored captured and optimized lists use Tenno-Hub's same deterministic finite encounter engine. It clips overkill and damage after the single target dies, begins event-triggered mod buffs inactive, does not simulate their trigger history during the window, and does not reset the target. It excludes neighboring targets and melee stance/combo history. The optimizer is skipped when an explicit distance exceeds a selected profile's source-backed hard-hit cap. This is not Underframe's seeded stochastic simulator or live-game validation.",
         optimizerRunsPerFixture: RUNS,
         selectedFixtureFilter: requestedWeapon ?? null,
     },
