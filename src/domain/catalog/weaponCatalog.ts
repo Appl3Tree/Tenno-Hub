@@ -844,6 +844,38 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // Penta's linked grenade detonation uses its own radial-distance falloff.
+    // Blast radius mods extend the sourced falloff range.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Penta
+    // https://wiki.warframe.com/w/Carmine_Penta
+    // https://wiki.warframe.com/w/Secura_Penta
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/GrenadeLauncher": Object.freeze({
+        "grenade detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 4,
+            minimumDamageMultiplier: 0.5,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Penta",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/CarminePenta": Object.freeze({
+        "grenade detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 4,
+            minimumDamageMultiplier: 0.5,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Carmine_Penta",
+        }),
+    }),
+    "/Lotus/Weapons/Syndicates/PerrinSequence/LongGuns/PSPenta": Object.freeze({
+        "grenade detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 6,
+            minimumDamageMultiplier: 0.4,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Secura_Penta",
+        }),
+    }),
     // Mausolon's Archwing page lists separate direct and radial falloff. The
     // Atmosphere variant has no direct Auto falloff and a smaller radial minimum.
     // Radial distance is from the explosion center to the target.
@@ -1886,6 +1918,46 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackLingeringDamageRule>>
 >> = Object.freeze({
+    // One Penta grenade can be manually detonated without an arming delay.
+    // Model one direct-hit impact and its immediate linked detonation against
+    // the struck target. Grenade flight, multiple active grenades, and damage
+    // to other targets remain outside this single-grenade sequence.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Penta
+    // https://wiki.warframe.com/w/Carmine_Penta
+    // https://wiki.warframe.com/w/Secura_Penta
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/GrenadeLauncher": Object.freeze({
+        "grenade impact": Object.freeze({
+            componentAttackName: "Grenade Detonation",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Penta",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/CarminePenta": Object.freeze({
+        "grenade impact": Object.freeze({
+            componentAttackName: "Grenade Detonation",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Carmine_Penta",
+        }),
+    }),
+    "/Lotus/Weapons/Syndicates/PerrinSequence/LongGuns/PSPenta": Object.freeze({
+        "grenade impact": Object.freeze({
+            componentAttackName: "Grenade Detonation",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Secura_Penta",
+        }),
+    }),
     // One direct Torid hit attaches a ten-second cloud to the struck enemy.
     // The Torid and Damage over Time Wiki pages specify ten ticks, one second
     // apart, with a one-second delay: +1s through +10s. Multiple clouds stack.
@@ -1996,6 +2068,29 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // The detonation row is one component of a manually triggered grenade;
+    // choose the impact row for the bounded one-grenade single-target sequence.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Penta
+    // https://wiki.warframe.com/w/Carmine_Penta
+    // https://wiki.warframe.com/w/Secura_Penta
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/GrenadeLauncher": Object.freeze({
+        "grenade detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Penta",
+            reason: "Grenade Detonation is the linked blast component of one manually detonated Penta grenade. Select Grenade Impact to score the bounded impact-plus-detonation sequence against one struck target; grenade flight, multiple active grenades, and area coverage are excluded.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/CarminePenta": Object.freeze({
+        "grenade detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Carmine_Penta",
+            reason: "Grenade Detonation is the linked blast component of one manually detonated Carmine Penta grenade. Select Grenade Impact to score the bounded impact-plus-detonation sequence against one struck target; grenade flight, multiple active grenades, and area coverage are excluded.",
+        }),
+    }),
+    "/Lotus/Weapons/Syndicates/PerrinSequence/LongGuns/PSPenta": Object.freeze({
+        "grenade detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Secura_Penta",
+            reason: "Grenade Detonation is the linked blast component of one manually detonated Secura Penta grenade. Select Grenade Impact to score the bounded impact-plus-detonation sequence against one struck target; grenade flight, multiple active grenades, and area coverage are excluded.",
+        }),
+    }),
     // Battacor Alt-Fire consumes one to three charges earned by primary-fire
     // kills, with each stored charge multiplying damage. The single-weapon
     // encounter model does not track that primary-fire kill history.
@@ -2037,6 +2132,42 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
             reason: "Alt-Fire launches a mite that can latch onto up to six enemies and applies Impact/Magnetic damage and status effects each second for 10 seconds; the Mercy-finisher branch and delayed multi-target tick history are not represented by the calculator.",
         }),
     }),
+    // Simulor damage depends on deployed-orb merge state and detonation or
+    // expiry history; four merged orbs also create a separate damage-over-time
+    // singularity. None of those event sequences is represented by one attack row.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Simulor
+    "/Lotus/Weapons/Cephalon/Primary/CephPrimary/CephPrimary": Object.freeze({
+        "orb launch": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Simulor",
+            reason: "Simulor orb launches deal no damage by themselves. Damage requires merging orbs or detonating them after a specific merge history, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+        "orb merging damage": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Simulor",
+            reason: "Orb merging damage depends on the number and merge state of deployed orbs. The planner does not track that history, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+        "orb explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Simulor",
+            reason: "Orb explosions depend on the deployed orbs' merge state and manual-detonation or 20-second expiry history. The planner does not track that history, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+    }),
+    "/Lotus/Weapons/Syndicates/CephalonSuda/LongGuns/CSSimulor": Object.freeze({
+        "orb launch": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Synoid_Simulor",
+            reason: "Synoid Simulor orb launches deal no damage by themselves. Damage requires merging orbs or detonating them after a specific merge history, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+        "orb merging damage": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Synoid_Simulor",
+            reason: "Orb merging damage depends on the number and merge state of deployed orbs. The planner does not track that history, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+        "orb explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Synoid_Simulor",
+            reason: "Orb explosions depend on the deployed orbs' merge state and manual-detonation or 20-second expiry history. The planner does not track that history, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+        "fully stacked orb singularity": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Synoid_Simulor",
+            reason: "The fully stacked singularity requires four merged orbs and deals damage over time while its orb state persists. The planner does not model the setup or duration, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+    }),
     "/Lotus/Weapons/ClanTech/Bio/BioWeapon": Object.freeze({
         "poison cloud": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Torid",
@@ -2074,6 +2205,24 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/GrenadeLauncher": Object.freeze({
+        "grenade impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Penta",
+            reason: "The single-target sequence includes one Grenade Impact and its immediately triggered Grenade Detonation when the target is hit. It assumes the hit and immediate detonation, omits grenade flight and preloaded multiple-grenade bursts, and scores no other targets in the blast radius.",
+        }),
+    }),
+    "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/CarminePenta": Object.freeze({
+        "grenade impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Carmine_Penta",
+            reason: "The single-target sequence includes one Grenade Impact and its immediately triggered Grenade Detonation when the target is hit. It assumes the hit and immediate detonation, omits grenade flight and preloaded multiple-grenade bursts, and scores no other targets in the blast radius.",
+        }),
+    }),
+    "/Lotus/Weapons/Syndicates/PerrinSequence/LongGuns/PSPenta": Object.freeze({
+        "grenade impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Secura_Penta",
+            reason: "The single-target sequence includes one Grenade Impact and its immediately triggered Grenade Detonation when the target is hit. It assumes the hit and immediate detonation, omits grenade flight and preloaded multiple-grenade bursts, and scores no other targets in the blast radius.",
+        }),
+    }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun": Object.freeze({
         "normal attack": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Larkspur",

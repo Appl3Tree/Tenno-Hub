@@ -16,6 +16,54 @@ const ITEMS = ITEMS_RAW as Record<string, {
 }>;
 
 describe("weapon catalog stance inference", () => {
+    it("links each Penta grenade impact to its immediate single-target detonation", () => {
+        const cases = [
+            ["Penta", 75, 350, 1, 4, 0.5, "https://wiki.warframe.com/w/Penta"],
+            ["Carmine Penta", 75, 350, 8 / 3, 4, 0.5, "https://wiki.warframe.com/w/Carmine_Penta"],
+            ["Secura Penta", 75, 300, 2, 6, 0.4, "https://wiki.warframe.com/w/Secura_Penta"],
+        ] as const;
+
+        for (const [name, impactDamage, blastDamage, fireRate, falloffEnd, minimumDamage, sourceUrl] of cases) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === name);
+            expect(weapon, name).toBeDefined();
+            const impactIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+            const detonationIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Detonation");
+            expect(impactIndex, `${name} impact`).toBeGreaterThanOrEqual(0);
+            expect(detonationIndex, `${name} detonation`).toBeGreaterThanOrEqual(0);
+
+            const impact = weapon!.attacks[impactIndex]!;
+            const detonation = weapon!.attacks[detonationIndex]!;
+            expect(impact.trigger).toBe("Active");
+            expect(weapon!.fireRate).toBeCloseTo(fireRate, 6);
+            expect(impact.damage.impact).toBe(impactDamage);
+            expect(impact.lingeringDamageRule).toMatchObject({
+                componentAttackName: "Grenade Detonation",
+                firstTickDelaySeconds: 0,
+                tickCount: 1,
+                attachedToDirectTarget: true,
+                stacks: true,
+                sourceUrl,
+            });
+            expect(impact.scoreBoundaryNote?.sourceUrl).toBe(sourceUrl);
+            expect(impact.scoreBoundaryNote?.reason).toMatch(/omits grenade flight and preloaded multiple-grenade bursts/i);
+            expect(impact.scoreBoundaryNote?.reason).toMatch(/scores no other targets/i);
+            expect(detonation.damage.blast).toBe(blastDamage);
+            expect(detonation.isAreaDamage).toBe(true);
+            expect(detonation.damageFalloff).toMatchObject({
+                startDistanceMeters: 0,
+                endDistanceMeters: falloffEnd,
+                minimumDamageMultiplier: minimumDamage,
+                sourceUrl,
+            });
+            expect(detonation.modelLimitation?.sourceUrl).toBe(sourceUrl);
+            expect(detonation.modelLimitation?.reason).toContain("Select Grenade Impact");
+            expect(withSelectedAttack(weapon!, impactIndex).selectedAttackLingeringDamageRule)
+                .toEqual(impact.lingeringDamageRule);
+            expect(withSelectedAttack(weapon!, detonationIndex).selectedAttackModelLimitation)
+                .toEqual(detonation.modelLimitation);
+        }
+    });
+
     it("links Torid Grenade Impact to its attached Poison Cloud tick stream", () => {
         const torid = getWeaponCatalog().find((weapon) => weapon.name === "Torid");
         expect(torid).toBeDefined();

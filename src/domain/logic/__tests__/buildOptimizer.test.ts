@@ -137,6 +137,39 @@ describe("source-backed charged-mode optimizer coverage", () => {
     });
 });
 
+describe("source-backed Penta grenade optimizer coverage", () => {
+    it("optimizes the bounded single-grenade impact-plus-detonation sequence for Burst and Expected TTK", () => {
+        for (const weaponName of ["Penta", "Carmine Penta", "Secura Penta"]) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            const impactIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+            const detonationIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Detonation");
+            const impact = withSelectedAttack(weapon!, impactIndex);
+            const detonation = withSelectedAttack(weapon!, detonationIndex);
+            const options = {
+                targetFaction: "Infested",
+                targetProfileOverride: { health: 1_000, shields: 0, overguard: 0, armor: 0 },
+                allowForma: false,
+                optimizeArcane: false,
+                optimizeExilus: false,
+            } as const;
+
+            expect(impact.selectedAttackModelLimitation).toBeUndefined();
+            expect(() => optimizeBuild(impact, [], "burst", 0, options)).not.toThrow();
+            const combined = optimizeBuild(impact, [], "timeToKill", 0, options);
+            const directOnly = optimizeBuild({
+                ...impact,
+                selectedAttackLingeringDamageRule: undefined,
+            }, [], "timeToKill", 0, options);
+            expect(combined.encounterTimeToKillSeconds, weaponName).not.toBeNull();
+            expect(combined.encounterTimeToKillSeconds, weaponName)
+                .toBeLessThan(directOnly.encounterTimeToKillSeconds ?? Number.POSITIVE_INFINITY);
+            expect(() => optimizeBuild(detonation, [], "burst", 0, options))
+                .toThrow(/Select Grenade Impact/);
+        }
+    });
+});
+
 describe("Beast Claw elemental conversion optimizer legality", () => {
     it("never selects more than one of the mutually exclusive elemental conversion mods", () => {
         const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
@@ -2890,6 +2923,29 @@ describe("build optimizer scoring", () => {
 
         expect(() => optimizeBuild(selectedAltFire, [], "burst", 8)).toThrow(/Optimization is unavailable for Alt-Fire/);
         expect(() => optimizeBuild(selectedAltFire, [], "timeToKill", 8)).toThrow(/Optimization is unavailable for Alt-Fire/);
+    });
+
+    it("keeps Simulor orb-history attacks reference-only", () => {
+        const cases = [
+            ["Simulor", "https://wiki.warframe.com/w/Simulor"],
+            ["Synoid Simulor", "https://wiki.warframe.com/w/Synoid_Simulor"],
+        ] as const;
+
+        for (const [weaponName, sourceUrl] of cases) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
+            expect(weapon, weaponName).toBeTruthy();
+            expect(weapon!.attacks.length).toBe(weaponName === "Simulor" ? 3 : 4);
+
+            for (const attack of weapon!.attacks) {
+                const attackIndex = weapon!.attacks.indexOf(attack);
+                const selected = withSelectedAttack(weapon!, attackIndex);
+                expect(attack.modelLimitation?.sourceUrl, `${weaponName} / ${attack.name}`).toBe(sourceUrl);
+                expect(attack.modelLimitation?.reason, `${weaponName} / ${attack.name}`).toMatch(/reference-only/);
+                expect(selected.selectedAttackModelLimitation).toEqual(attack.modelLimitation);
+                expect(() => optimizeBuild(selected, [], "burst", 8)).toThrow(/Optimization is unavailable/);
+                expect(() => optimizeBuild(selected, [], "timeToKill", 8)).toThrow(/Optimization is unavailable/);
+            }
+        }
     });
 
     it("scores Larkspur charged single-target damage while disclosing unscored Knockdown control", () => {

@@ -1141,6 +1141,25 @@ describe("source-backed per-attack Auto-Charge profiles", () => {
                 .toContain(`Select ${directName}`);
         }
     });
+
+    it("scores one immediate Penta impact-plus-detonation event against the struck target", () => {
+        const cases = ["Penta", "Carmine Penta", "Secura Penta"];
+
+        for (const weaponName of cases) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName)!;
+            const impactIndex = weapon.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+            const detonationIndex = weapon.attacks.findIndex((attack) => attack.name === "Grenade Detonation");
+            const impactStats = calculateBuild(withSelectedAttack(weapon, impactIndex), []).modded;
+            const detonationStats = calculateBuild(withSelectedAttack(weapon, detonationIndex), []).modded;
+
+            expect(impactStats.attachedAttackDamageSequence?.rule.componentAttackName).toBe("Grenade Detonation");
+            expect(impactStats.attachedAttackDamageSequence?.rule.firstTickDelaySeconds).toBe(0);
+            expect(impactStats.attachedAttackDamageSequence?.rule.tickCount).toBe(1);
+            expect(impactStats.attachedAttackDamageSequence?.rule.attachedToDirectTarget).toBe(true);
+            expect(impactStats.attachedAttackDamageSequence?.profile.baseDamageTotal)
+                .toBeCloseTo(detonationStats.baseDamageTotal, 8);
+        }
+    });
 });
 
 describe("Cull the Weak Wiki modeling", () => {
