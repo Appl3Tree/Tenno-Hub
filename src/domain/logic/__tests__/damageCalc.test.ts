@@ -1160,6 +1160,30 @@ describe("source-backed per-attack Auto-Charge profiles", () => {
                 .toBeCloseTo(detonationStats.baseDamageTotal, 8);
         }
     });
+
+    it("scores Aegrit's direct hit plus immediate attached-target detonation", () => {
+        const aegrit = catalog.find((candidate) => candidate.name === "Aegrit")!;
+        const directIndex = aegrit.attacks.findIndex((attack) => attack.name === "Direct Hit");
+        const detonationIndex = aegrit.attacks.findIndex((attack) => attack.name === "Detonation");
+        const direct = calculateBuild(withSelectedAttack(aegrit, directIndex), []).modded;
+        const detonation = calculateBuild(withSelectedAttack(aegrit, detonationIndex), []).modded;
+
+        expect(direct.attachedAttackDamageSequence?.rule).toMatchObject({
+            componentAttackName: "Detonation",
+            firstTickDelaySeconds: 0,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+        });
+        expect(direct.attachedAttackDamageSequence?.profile.baseDamageTotal)
+            .toBeCloseTo(detonation.baseDamageTotal, 8);
+        expect(direct.attachedAttackDamageSequence?.profile.attackDamageFalloff).toMatchObject({
+            distanceMeters: 0,
+            damageMultiplier: 1,
+            endDistanceMeters: 9,
+            minimumDamageMultiplier: 0.3,
+            sourceUrl: "https://wiki.warframe.com/w/Aegrit",
+        });
+    });
 });
 
 describe("Cull the Weak Wiki modeling", () => {

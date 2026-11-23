@@ -844,6 +844,18 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // Aegrit's single-target sequence uses the Detonation row's sourced
+    // 100%→30% radial falloff over 9m. Blast Radius mods extend this range.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Aegrit
+    "/Lotus/Weapons/Grineer/ThrowingWeapons/GrnVorStickyBomb/GrnVorStickyBomb": Object.freeze({
+        "detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 9,
+            minimumDamageMultiplier: 0.3,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Aegrit",
+        }),
+    }),
     // Penta's linked grenade detonation uses its own radial-distance falloff.
     // Blast radius mods extend the sourced falloff range.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Penta
@@ -1918,6 +1930,24 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackLingeringDamageRule>>
 >> = Object.freeze({
+    // Aegrit bombs stick to enemies and can be remotely detonated. Bound one
+    // directly-hit bomb as an immediate impact-plus-detonation event against
+    // that target; travel time, multiple deployed bombs, and other blast
+    // targets are excluded. The Wiki's alternate-fire summary mentions an
+    // unnamed guaranteed proc, while its attack table lists none; do not add
+    // an unverified forced status to the score.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Aegrit
+    "/Lotus/Weapons/Grineer/ThrowingWeapons/GrnVorStickyBomb/GrnVorStickyBomb": Object.freeze({
+        "direct hit": Object.freeze({
+            componentAttackName: "Detonation",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Aegrit",
+        }),
+    }),
     // One Penta grenade can be manually detonated without an arming delay.
     // Model one direct-hit impact and its immediate linked detonation against
     // the struck target. Grenade flight, multiple active grenades, and damage
@@ -2068,6 +2098,15 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // Detonation is the linked component of one manually triggered bomb;
+    // select Direct Hit for the bounded one-bomb single-target sequence.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Aegrit
+    "/Lotus/Weapons/Grineer/ThrowingWeapons/GrnVorStickyBomb/GrnVorStickyBomb": Object.freeze({
+        "detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Aegrit",
+            reason: "Detonation is the linked blast component of one remotely detonated Aegrit bomb. Select Direct Hit to score the bounded impact-plus-detonation sequence against one struck target; bomb flight, multiple active charges, and area coverage are excluded. The Wiki's alternate-fire summary mentions an unnamed guaranteed proc but the attack table does not list a forced proc, so no additional forced status is modeled.",
+        }),
+    }),
     // The detonation row is one component of a manually triggered grenade;
     // choose the impact row for the bounded one-grenade single-target sequence.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Penta
@@ -2205,6 +2244,12 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Weapons/Grineer/ThrowingWeapons/GrnVorStickyBomb/GrnVorStickyBomb": Object.freeze({
+        "direct hit": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Aegrit",
+            reason: "The single-target sequence includes one Direct Hit and its immediately triggered Detonation after the bomb sticks to the selected target. This assumes a hit and immediate manual detonation, omits bomb flight and multiple active charges, and scores no other targets in the 9m blast radius. The Wiki's alternate-fire summary mentions a guaranteed proc without naming its type, while the attack table lists no forced proc; no extra status is assumed.",
+        }),
+    }),
     "/Lotus/Weapons/Corpus/LongGuns/GrenadeLauncher/GrenadeLauncher": Object.freeze({
         "grenade impact": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Penta",

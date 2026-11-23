@@ -170,6 +170,37 @@ describe("source-backed Penta grenade optimizer coverage", () => {
     });
 });
 
+describe("source-backed Aegrit single-bomb optimizer coverage", () => {
+    it("optimizes one immediate Direct Hit-plus-Detonation event and guards the component row", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Aegrit");
+        expect(weapon).toBeDefined();
+        const directIndex = weapon!.attacks.findIndex((attack) => attack.name === "Direct Hit");
+        const detonationIndex = weapon!.attacks.findIndex((attack) => attack.name === "Detonation");
+        const direct = withSelectedAttack(weapon!, directIndex);
+        const detonation = withSelectedAttack(weapon!, detonationIndex);
+        const options = {
+            targetFaction: "Infested",
+            targetProfileOverride: { health: 1_000, shields: 0, overguard: 0, armor: 0 },
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        } as const;
+
+        expect(direct.selectedAttackModelLimitation).toBeUndefined();
+        expect(() => optimizeBuild(direct, [], "burst", 0, options)).not.toThrow();
+        const combined = optimizeBuild(direct, [], "timeToKill", 0, options);
+        const directOnly = optimizeBuild({
+            ...direct,
+            selectedAttackLingeringDamageRule: undefined,
+        }, [], "timeToKill", 0, options);
+        expect(combined.encounterTimeToKillSeconds).not.toBeNull();
+        expect(combined.encounterTimeToKillSeconds)
+            .toBeLessThan(directOnly.encounterTimeToKillSeconds ?? Number.POSITIVE_INFINITY);
+        expect(() => optimizeBuild(detonation, [], "burst", 0, options))
+            .toThrow(/Select Direct Hit/);
+    });
+});
+
 describe("Beast Claw elemental conversion optimizer legality", () => {
     it("never selects more than one of the mutually exclusive elemental conversion mods", () => {
         const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));

@@ -16,6 +16,47 @@ const ITEMS = ITEMS_RAW as Record<string, {
 }>;
 
 describe("weapon catalog stance inference", () => {
+    it("links Aegrit's direct hit to one immediate single-target detonation", () => {
+        const aegrit = getWeaponCatalog().find((candidate) => candidate.name === "Aegrit");
+        expect(aegrit).toBeDefined();
+        const directIndex = aegrit!.attacks.findIndex((attack) => attack.name === "Direct Hit");
+        const detonationIndex = aegrit!.attacks.findIndex((attack) => attack.name === "Detonation");
+        expect(directIndex).toBeGreaterThanOrEqual(0);
+        expect(detonationIndex).toBeGreaterThanOrEqual(0);
+
+        const direct = aegrit!.attacks[directIndex]!;
+        const detonation = aegrit!.attacks[detonationIndex]!;
+        const sourceUrl = "https://wiki.warframe.com/w/Aegrit";
+        expect(direct.trigger).toBe("Active");
+        expect(direct.damageTotal).toBe(9);
+        expect(direct.lingeringDamageRule).toMatchObject({
+            componentAttackName: "Detonation",
+            firstTickDelaySeconds: 0,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            sourceUrl,
+        });
+        expect(direct.scoreBoundaryNote?.sourceUrl).toBe(sourceUrl);
+        expect(direct.scoreBoundaryNote?.reason).toMatch(/immediate manual detonation/i);
+        expect(direct.scoreBoundaryNote?.reason).toMatch(/no other targets/i);
+        expect(direct.scoreBoundaryNote?.reason).toMatch(/guaranteed proc without naming its type/i);
+        expect(detonation.damage.blast).toBe(797);
+        expect(detonation.damageFalloff).toMatchObject({
+            startDistanceMeters: 0,
+            endDistanceMeters: 9,
+            minimumDamageMultiplier: 0.3,
+            sourceUrl,
+        });
+        expect(detonation.isAreaDamage).toBe(true);
+        expect(detonation.forcedProcs).toBeUndefined();
+        expect(detonation.modelLimitation?.sourceUrl).toBe(sourceUrl);
+        expect(detonation.modelLimitation?.reason).toContain("Select Direct Hit");
+        expect(withSelectedAttack(aegrit!, directIndex).selectedAttackLingeringDamageRule)
+            .toEqual(direct.lingeringDamageRule);
+        expect(withSelectedAttack(aegrit!, detonationIndex).selectedAttackModelLimitation)
+            .toEqual(detonation.modelLimitation);
+    });
+
     it("links each Penta grenade impact to its immediate single-target detonation", () => {
         const cases = [
             ["Penta", 75, 350, 1, 4, 0.5, "https://wiki.warframe.com/w/Penta"],
