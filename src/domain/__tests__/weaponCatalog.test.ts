@@ -1210,6 +1210,8 @@ describe("source-backed charge-trigger gates", () => {
             forcedProcs: { corrosive: 1 },
         });
         expect(buckshot?.modelLimitation?.sourceUrl).toBe("https://wiki.warframe.com/w/EFV-5_Jupiter");
-        expect(buckshot?.modelLimitation?.reason).toMatch(/pellets overlap/i);
+        expect(buckshot?.modelLimitation?.reason).toMatch(/target overlap/i);
+        expect(buckshot?.modelLimitation?.reason).toContain("24° minimum and 42° maximum spread");
+        expect(buckshot?.modelLimitation?.reason).toContain("at least one near the reticle center");
     });
 });

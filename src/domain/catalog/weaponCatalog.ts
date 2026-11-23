@@ -2671,7 +2671,7 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
         "buckshot": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
-            reason: "Buckshot has 11 pellets and 33°–42° spread. The planner cannot estimate how many pellets overlap a target of a given size, so the row is reference-only and excluded from damage scoring and Auto Optimize. Its sourced charge time, ammo cost, guaranteed Corrosive proc, and 5–10m falloff remain visible. Overpressured Rounds' next-shot spread/falloff buff and kill-based magazine restore require attack history and are not simulated.",
+            reason: "Buckshot has 11 pellets with 24° minimum and 42° maximum spread. The Wiki describes shotgun pellets as random trajectories in the spread cone, with at least one near the reticle center, but the planner cannot estimate target overlap without a target-size model. The row is reference-only and excluded from damage scoring and Auto Optimize. Its sourced charge time, ammo cost, guaranteed Corrosive proc, and 5–10m falloff remain visible. Overpressured Rounds' next-shot spread/falloff buff and kill-based magazine restore require attack history and are not simulated.",
         }),
     }),
     // Larkspur's explosion is the linked component of its charged Alt-Fire.
