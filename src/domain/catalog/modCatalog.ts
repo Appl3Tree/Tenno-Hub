@@ -22,6 +22,7 @@ import {
     DISABLING_CONDITIONING_MOD_PATH,
     emptyEffect,
     NIGHTWATCH_NAPALM_MOD_PATH,
+    OVERPRESSURED_ROUNDS_MOD_PATH,
     PRECISION_CONDITIONING_MOD_PATH,
     SEPSIS_CLAWS_MOD_PATH,
     SHOCKING_CLAWS_MOD_PATH,
@@ -46,6 +47,7 @@ const STRAIN_INFECTION_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/MeleeStrainI
 const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
+const OVERPRESSURED_ROUNDS_FALLOFF_DISTANCE_BY_RANK = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
     [DISABLING_CONDITIONING_MOD_PATH]: "puncture",
@@ -196,6 +198,12 @@ export interface ModEffect {
     magazineCapacityFlatBonus: number;
     magazineBonus: number;
     reloadSpeedBonus: number;
+    /** Reload Speed bonus activated by a direct Tonkor grenade hit. */
+    directHitReloadSpeedBonus: number;
+    /** Duration of the direct-hit reload-speed buff. */
+    directHitReloadSpeedDurationSeconds: number;
+    /** Rank-based Falloff Distance increase on Overpressured Rounds' next Buckshot. */
+    overpressuredRoundsFalloffDistanceBonus: number;
     attackSpeedBonus: number;
     statusDurationBonus: number;
     statusDamageBonus: number;
@@ -611,6 +619,17 @@ function parseComboScaledLine(raw: string): Partial<ModEffect> {
 
 function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }): Partial<ModEffect> {
     const clean = stripColorTags(raw);
+    if (clean.length > 0 && clean.toLowerCase().includes("hitting an enemy directly with the grenade")) {
+        const precisionStrike = clean.match(
+            /^Hitting an enemy directly with the grenade increases Reload Speed by \+?(\d+(?:\.\d+)?)% for (\d+(?:\.\d+)?)s\.?$/i,
+        );
+        if (precisionStrike) {
+            return {
+                directHitReloadSpeedBonus: Number(precisionStrike[1]) / 100,
+                directHitReloadSpeedDurationSeconds: Number(precisionStrike[2]),
+            };
+        }
+    }
     const noNearbyEnemyDamage = clean.match(
         /^([+-]?\d+(?:\.\d+)?)%\s+damage if no enemies are within (\d+(?:\.\d+)?)m\.?$/i,
     );
@@ -1449,6 +1468,16 @@ function buildCaches(): ModCaches {
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Increased Damage and Status Chance by \+?\d+(?:\.\d+)?% for every 75 Warframe Health\. Capped at 360%\.?$/i.test(line),
                 );
+            });
+        }
+        if (path === OVERPRESSURED_ROUNDS_MOD_PATH) {
+            // Spread Decrease is still an unknown Wiki value. Preserve the raw
+            // augment lines as unparsed so Auto Optimize remains blocked, while
+            // exposing the sourced rank-based falloff extension to the user's
+            // explicit one-shot Burst snapshot.
+            // https://wiki.warframe.com/w/Overpressured_Rounds
+            OVERPRESSURED_ROUNDS_FALLOFF_DISTANCE_BY_RANK.forEach((bonus, rank) => {
+                if (effectsByRank[rank]) effectsByRank[rank].overpressuredRoundsFalloffDistanceBonus = bonus;
             });
         }
         if (path === ARCHGUN_ACE_PATH) {

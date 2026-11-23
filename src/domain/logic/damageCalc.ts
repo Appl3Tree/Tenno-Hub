@@ -194,6 +194,13 @@ export interface AttachedAttackTickProfile {
     uniqueStatusProcsPerAttack: readonly WeaponUniqueStatusType[];
 }
 
+/** A direct hit refreshes a reload-speed buff that can shorten later reloads in an encounter. */
+export interface DirectHitReloadSpeedRule {
+    durationSeconds: number;
+    /** Reload time while the buff is active, including other equipped reload-speed bonuses. */
+    reloadDurationSeconds: number;
+}
+
 export interface ModdedWeaponStats {
     rawDamageBreakdown: Record<DamageKey, number>;
     /** Raw channel contributions before dynamic Condition Overload/direct per-status bonuses. */
@@ -311,6 +318,13 @@ export interface ModdedWeaponStats {
     chargeTimeSeconds: number | null;
     /** Source-backed startup charge before the first finite attack, assuming an uncharged start. */
     initialAttackDelaySeconds: number;
+    /** Reload time from passive and averaged conditional mods, before direct-hit refresh buffs. */
+    reloadTimeWithoutDirectHitBuff: number;
+    /** Aggregate static/averaged Reload Speed bonus used to derive encounter reload times. */
+    reloadSpeedBonus: number;
+    /** Direct-hit reload buff, available only on the supported Tonkor Grenade Impact row. */
+    directHitReloadSpeedBonus: number;
+    directHitReloadSpeedRule?: DirectHitReloadSpeedRule;
     reloadTime: number;
     /** Attack-timed multipliers for weapons whose damage ramps while firing. */
     firstAttackDamageMultiplier: number;
@@ -724,6 +738,7 @@ function calculateAttackDamageFalloff(
     weapon: WeaponEntry,
     mods: readonly (ModEffect | null)[],
     distanceInput: number | undefined,
+    useOverpressuredRoundsBurstSnapshot = false,
 ): AttackDamageFalloffResult | null {
     const profile = weapon.selectedAttackDamageFalloff;
     const maximumRangeMeters = Number.isFinite(weapon.selectedAttackMaximumRangeMeters)
@@ -738,13 +753,17 @@ function calculateAttackDamageFalloff(
     const rangeBonus = mods.reduce((sum, effect) => sum + (effect?.rangeBonus ?? 0), 0);
     const projectileSpeedBonus = mods.reduce((sum, effect) => sum + (effect?.projectileSpeedBonus ?? 0), 0);
     const blastRadiusBonus = mods.reduce((sum, effect) => sum + (effect?.blastRadiusBonus ?? 0), 0);
+    const overpressuredRoundsFalloffDistanceBonus = useOverpressuredRoundsBurstSnapshot
+        ? mods.reduce((sum, effect) => sum + (effect?.overpressuredRoundsFalloffDistanceBonus ?? 0), 0)
+        : 0;
     const hasScale = (scale: WeaponAttackDamageFalloff["scaleBy"][number]) =>
         profile?.scaleBy.includes(scale) === true;
     // Range, Projectile Speed, and Blast Radius are independent game stats.
     // Their falloff extensions are multiplied when a profile responds to more
     // than one of them; the Wiki does not document a combined-stat formula.
     const falloffDistanceMultiplier = profile
-        ? Math.max(0, 1 + (hasScale("weaponRange") ? rangeBonus : 0)) *
+        ? Math.max(0, 1 + overpressuredRoundsFalloffDistanceBonus) *
+            Math.max(0, 1 + (hasScale("weaponRange") ? rangeBonus : 0)) *
             Math.max(0, 1 + (hasScale("projectileSpeed") ? projectileSpeedBonus : 0)) *
             Math.max(0, 1 + (hasScale("blastRadius") ? blastRadiusBonus : 0))
         : 1;
@@ -1441,6 +1460,12 @@ export function calculateBuild(
         weapon,
         mods,
         conditionalState.attackFalloffDistanceMeters,
+        weapon.name.toLowerCase() === "efv-5 jupiter" &&
+            weapon.selectedAttackName?.toLowerCase() === "buckshot" &&
+            normalizeOverpressuredRoundsSpreadSnapshot(
+                conditionalState.overpressuredRoundsSpreadMinimumDegrees,
+                conditionalState.overpressuredRoundsSpreadMaximumDegrees,
+            ) !== null,
     );
     const attackDamageFalloffMultiplier = attackDamageFalloff?.damageMultiplier ?? 1;
     const attackCanHitTarget = attackDamageFalloff?.isOutOfRangeMiss !== true;
@@ -1503,6 +1528,8 @@ export function calculateBuild(
     let magazineBonus = 0;
     let magazineCapacityFlatBonus = 0;
     let reloadSpeedBonus = 0;
+    let directHitReloadSpeedBonus = 0;
+    let directHitReloadSpeedDurationSeconds = 0;
     let ammoEfficiencyBonus = 0;
     let attackSpeedBonus = 0;
     let gasBonus = 0;
@@ -1614,6 +1641,16 @@ export function calculateBuild(
             magazineBonus += e.magazineBonus ?? 0;
             magazineCapacityFlatBonus += e.magazineCapacityFlatBonus ?? 0;
             reloadSpeedBonus += e.reloadSpeedBonus ?? 0;
+            if (
+                weapon.selectedAttackName === "Grenade Impact" &&
+                weapon.selectedAttackIsAreaDamage === false
+            ) {
+                directHitReloadSpeedBonus += e.directHitReloadSpeedBonus ?? 0;
+                directHitReloadSpeedDurationSeconds = Math.max(
+                    directHitReloadSpeedDurationSeconds,
+                    e.directHitReloadSpeedDurationSeconds ?? 0,
+                );
+            }
         }
         if (supportsAmmoEfficiency) {
             ammoEfficiencyBonus += e.ammoEfficiencyBonus ?? 0;
@@ -2249,9 +2286,25 @@ export function calculateBuild(
             ? weapon.selectedAttackIncarnonAmmoCapacity ?? weapon.magazineSize
             : weapon.magazineSize)
         : moddedMagazineSize(weapon.magazineSize, magazineBonus, magazineCapacityFlatBonus);
-    const reloadTime = ignoresReloadAndMagazine
+    const reloadTimeWithoutDirectHitBuff = ignoresReloadAndMagazine
         ? weapon.reloadTime
         : weapon.reloadTime / (1 + reloadSpeedBonus);
+    const canUseDirectHitReloadSpeedRule = directHitReloadSpeedBonus > 0 &&
+        directHitReloadSpeedDurationSeconds > 0 &&
+        !ignoresReloadAndMagazine &&
+        !infiniteAmmoActive;
+    const directHitReloadSpeedRule = canUseDirectHitReloadSpeedRule
+        ? {
+            durationSeconds: directHitReloadSpeedDurationSeconds,
+            reloadDurationSeconds: weapon.reloadTime / (1 + reloadSpeedBonus + directHitReloadSpeedBonus),
+        }
+        : undefined;
+    // The first attack happens before this trigger is active. Sustained DPS
+    // assumes repeated direct hits keep the buff active; encounter scoring
+    // starts unbuffed, then applies the duration rule to later reloads.
+    const reloadTime = ignoresReloadAndMagazine
+        ? weapon.reloadTime
+        : weapon.reloadTime / (1 + reloadSpeedBonus + (canUseDirectHitReloadSpeedRule ? directHitReloadSpeedBonus : 0));
     const rateBonus = usesMeleeDamageModel(weapon.category)
         ? attackSpeedBonus
         : fireRateLocked ? 0 : fireRateBonus;
@@ -3086,6 +3139,10 @@ export function calculateBuild(
             ? ammoCostPerShot / weapon.selectedAttackChargeAmmoPerSecond
             : null,
         initialAttackDelaySeconds,
+        reloadTimeWithoutDirectHitBuff,
+        reloadSpeedBonus,
+        directHitReloadSpeedBonus: canUseDirectHitReloadSpeedRule ? directHitReloadSpeedBonus : 0,
+        ...(directHitReloadSpeedRule ? { directHitReloadSpeedRule } : {}),
         reloadTime,
         firstAttackDamageMultiplier: damageRampMultipliers.firstAttack,
         freshMagazineDamageMultiplier: damageRampMultipliers.freshMagazineAverage,
@@ -3158,7 +3215,13 @@ export function calculateBuild(
     };
 
     const linkedSequenceRule = weapon.selectedAttackLingeringDamageRule;
-    if (linkedSequenceRule && attackCanHitTarget) {
+    const enteredAttackDistanceMeters = Number.isFinite(conditionalState.attackFalloffDistanceMeters)
+        ? Math.max(0, conditionalState.attackFalloffDistanceMeters ?? 0)
+        : null;
+    const linkedSequenceDistanceSatisfied = linkedSequenceRule?.minimumAttackDistanceMeters === undefined ||
+        (enteredAttackDistanceMeters !== null &&
+            enteredAttackDistanceMeters >= linkedSequenceRule.minimumAttackDistanceMeters);
+    if (linkedSequenceRule && attackCanHitTarget && linkedSequenceDistanceSatisfied) {
         const componentIndex = weapon.attacks.findIndex((attack) =>
             attack.name.trim().toLowerCase() === linkedSequenceRule.componentAttackName.trim().toLowerCase(),
         );

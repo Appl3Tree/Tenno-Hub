@@ -20,6 +20,7 @@ export const BLOODTHIRST_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastW
 export const VILE_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveEmbolistAugmentMod";
 export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveVenatoAugmentMod";
 export const OVERPRESSURED_ROUNDS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveLasGooAKAugmentMod";
+export const PRECISION_STRIKE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/GrnGrenadeLauncherArbitrationMod";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -30,6 +31,10 @@ function hasUnparsedTruthSyndicateStat(lines: string[] | undefined): boolean {
 export interface ScoringEffectContext {
     /** True only when the selected target profile confirms its head is a weak point. */
     headIsWeakPoint?: boolean;
+    /** Whether the selected attack row is radial; direct-hit-only effects are unavailable on radial rows. */
+    selectedAttackIsAreaDamage?: boolean;
+    /** Name of the selected attack row for source-specific trigger boundaries. */
+    selectedAttackName?: string;
 }
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -139,7 +144,7 @@ export function getUnmodeledDamageEffectLines(
         // a manual effective cone snapshot is available for Burst only.
         // https://wiki.warframe.com/w/Overpressured_Rounds
         // https://wiki.warframe.com/w/EFV-5_Jupiter
-        lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify the spread reduction. An optional user-entered effective post-kill spread range can drive Buckshot's experimental single-target Burst estimate; this is a manual assumption, not a sourced stat or trigger simulation. The cone is applied to the scored attack event without simulating the prior Rifle kill, one-shot buff consumption, or a repeat-fire spread timeline. Finite TTK, 5s Avg DPS, rank-specific Falloff Distance, and Magazine Restore remain unscored, and Auto Optimize skips the mod.");
+        lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify the spread reduction. An optional user-entered effective post-kill spread range enables an experimental single-target Burst estimate and applies the selected rank's sourced Falloff Distance bonus to the entered target distance. This models one assumed post-kill Buckshot event only; it does not simulate the prior Rifle kill, one-shot buff consumption, or repeat-fire history. Finite TTK, 5s Avg DPS, and Magazine Restore remain unscored, and Auto Optimize skips the mod.");
     }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
         // This augment chooses damage from the target weakness and special-cases
@@ -147,6 +152,11 @@ export function getUnmodeledDamageEffectLines(
         // It also exempts Slams and does not scale the matching elemental DoT.
         // https://wiki.warframe.com/w/Sentient_Incision
         lines.push("Sentient Incision's faction weakness mapping, Overguard-specific element selection, Slam exclusion, and non-scaling elemental status DoT are not modeled, so Auto Optimize skips this mod.");
+    }
+    if (mod.path === PRECISION_STRIKE_MOD_PATH && (
+        context?.selectedAttackName !== "Grenade Impact" || context?.selectedAttackIsAreaDamage !== false
+    )) {
+        lines.push("Precision Strike's Reload Speed bonus requires a direct Tonkor grenade hit. The selected attack does not model that trigger, so Auto Optimize skips this mod.");
     }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         // The Slash keyword appears in the stat line because it determines
@@ -184,6 +194,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) {
         return "https://wiki.warframe.com/w/Overpressured_Rounds";
     }
+    if (mod.path === PRECISION_STRIKE_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Precision_Strike";
+    }
     if (mod.unparsedStatsByRank?.some((rank) => hasUnparsedTruthSyndicateStat(rank))) {
         return "https://wiki.warframe.com/w/Syndicates";
     }
@@ -211,7 +224,9 @@ export function emptyEffect(): ModEffect {
         areaDamageStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false,
         magazineCapacityFlatBonus: 0, magazineBonus: 0,
-        reloadSpeedBonus: 0, attackSpeedBonus: 0,
+        reloadSpeedBonus: 0, directHitReloadSpeedBonus: 0, directHitReloadSpeedDurationSeconds: 0,
+        overpressuredRoundsFalloffDistanceBonus: 0,
+        attackSpeedBonus: 0,
         statusDurationBonus: 0, statusDamageBonus: 0, targetStatusDamageVulnerabilityBonus: 0,
         nightwatchNapalmEffect: 0,
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
