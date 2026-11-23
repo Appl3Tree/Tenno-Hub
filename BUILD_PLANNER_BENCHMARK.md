@@ -2895,6 +2895,24 @@ Both seeds use the deterministic `[0,5s)` single-target score, hold Custom 5 sta
 
 This is a Tenno-Hub neighborhood audit under an explicit static stack snapshot, not a claim about Underframe's native Auto Build objective. The original native list was not re-optimized at 2,000,000 Health, the private engine remains unavailable, and trigger history/expiry are not simulated. The runner now applies a supplied `--attack-distance` to both range-conditioned effects and the selected attack's falloff. A wiring smoke on a synthetic Mausolon Archwing profile/list produced 18,731.1592 DPS at 1,000m and 16,142.4196 DPS at 2,000m; this confirms distance reaches the falloff scorer, not an Underframe result.
 
+### Exhaustive Braton Custom 5 pair neighborhoods (2026-11-23; bounded)
+
+The pair-sample runner stops only after it has scored the requested number of legal unique builds or examined the complete raw tuple universe. Requesting 50,000 samples exhausts all 46,284 raw tuples for these eight-mod baselines. For the captured Underframe list:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --weapon="Braton Prime" --attack="Normal Attack" --samples=50000 --seed=20261159 --faction=Grineer --health=2000000 --shields=0 --overguard=0 --armor=3000 --state=custom --stacks=5 --baseline-file=./scripts/fixtures/underframeBratonFixedWindowCapture.json
+```
+
+The run scored all 15,298 legal unique two-out/two-in builds around the 60,374.3178 DPS / 301,871.5892 damage captured list and found 116 improvements. Its best pair removes High Voltage and Vile Acceleration and adds Spring-Loaded Chamber and Wildfire, scoring 108,767.9816 DPS / 543,839.9081 damage. The full-pool optimizer independently returns the same legal 108,903.6702 DPS / 544,518.3510 damage build (59/60 capacity, three Forma).
+
+The optimizer build is preserved as `scripts/fixtures/tennohubBratonFixedWindowOptimizerCustom5.json` to audit its own exact legal two-mod neighborhood:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --weapon="Braton Prime" --attack="Normal Attack" --samples=50000 --seed=20261161 --faction=Grineer --health=2000000 --shields=0 --overguard=0 --armor=3000 --state=custom --stacks=5 --baseline-file=./scripts/fixtures/tennohubBratonFixedWindowOptimizerCustom5.json
+```
+
+That run exact-scored all 16,146 legal unique pairs from the same 46,284 raw tuples and found no improvement over the optimizer baseline. Its best legal pair scores 108,767.9816 DPS, 135.6886 DPS below the baseline. These exhaust only the legal max-rank two-out/two-in neighborhoods around the named builds under `[0,5s)`, Grineer / 2,000,000 Health / 3,000 Armor / Custom 5. They do not cover one-mod, three-mod, rank, Arcane, Forma, alternate-state, or alternate-target changes, and establish no global optimum, native Underframe objective, or gameplay result.
+
 The next slower single-shot probe was unavailable in the current saved-build session; see the availability check below. Preserve Standard and Luck Averaged reads separately and leave the private-engine boundary open.
 
 ### Slower-profile availability check (2026-11-23; read-only, not scored)

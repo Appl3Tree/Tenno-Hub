@@ -1,0 +1,38 @@
+{
+  "weaponName": "Braton Prime",
+  "attackName": "Normal Attack",
+  "underframeMods": [
+    {
+      "name": "Malignant Force",
+      "rank": 3
+    },
+    {
+      "name": "Rime Rounds",
+      "rank": 3
+    },
+    {
+      "name": "Thermite Rounds",
+      "rank": 3
+    },
+    {
+      "name": "Galvanized Aptitude",
+      "rank": 10
+    },
+    {
+      "name": "Spectral Serration",
+      "rank": 10
+    },
+    {
+      "name": "Galvanized Chamber",
+      "rank": 10
+    },
+    {
+      "name": "Bladed Rounds",
+      "rank": 5
+    },
+    {
+      "name": "Spring-Loaded Chamber",
+      "rank": 5
+    }
+  ]
+}
