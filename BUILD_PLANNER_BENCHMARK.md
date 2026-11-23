@@ -3608,7 +3608,7 @@ Seed `20261151` draws five fully modeled, mutually compatible damage mods and a 
 
 All four optimizer outputs match their exact sampled-pool Expected TTK and five-second Avg DPS winners while remaining capacity-, Forma-, and owned-rank legal. The focused test passes 1/1 in 235.74s. Test-project TypeScript, focused ESLint, and `git diff --check` pass. PR [#309](https://github.com/Appl3Tree/Tenno-Hub/pull/309) squash-merged as `e80992f58e29ca6b35b9ef5ae14d72ddb936d1fb`; GitHub reported no status checks or PR-triggered workflow runs. This test-only change adds no application code, app build, full optimizer/repository suite, or deployment. It is a broader rank-limited candidate pool at four slots, not full-catalog/global optimizer quality, Underframe parity, or gameplay validation. No improving neighbor or global quality claim is made.
 
-## D3-MECH-HELD-FIRE-QUANTA-BOUNDARY-001 — held-beam ramp and event-row audit (validated locally; publication pending, 2026-11-23)
+## D3-MECH-HELD-FIRE-QUANTA-BOUNDARY-001 — held-beam ramp and event-row audit (released in PR #313, 2026-11-23)
 
 ### Held-fire ramp coverage
 
@@ -3632,7 +3632,7 @@ The same current-snapshot audit found 23 Auto-Spool attack rows (the Wiki's 22 w
 
 ### Validation and remaining limits
 
-The full affected `weaponCatalog.test.ts` and `damageCalc.test.ts` files pass 204/204; focused optimizer regressions for the sourced Held ramp and Quanta direct-hit sequence pass 2/2. App and test TypeScript, `npm run validate:sources`, focused ESLint over the five changed source/test files, a 987-module temporary-output production Vite build, and CRLF-aware `git diff --check` pass. The full repository and optimizer suites were not run. The in-app browser check of `http://localhost/Tenno-Hub/` still shows `version=2bf6faea`, so it does not render this branch's source; prior current-source preview ports timed out. The increment is validated locally on `codex/auto-spool-held-fire-audit-20261123` from `bc980c4f`; publication, Pages deployment, and current-source visual review are pending. This is sourced catalog modeling, not native Underframe parity or live-game validation.
+The full affected `weaponCatalog.test.ts` and `damageCalc.test.ts` files pass 204/204; focused optimizer regressions for the sourced Held ramp and Quanta direct-hit sequence pass 2/2. App and test TypeScript, `npm run validate:sources`, focused ESLint over the five changed source/test files, a 987-module temporary-output production Vite build, and CRLF-aware `git diff --check` pass. The full repository and optimizer suites were not run. PR [#313](https://github.com/Appl3Tree/Tenno-Hub/pull/313) squash-merged as `cba425da79656142d41b5246b0e273c781dd5481`; GitHub reported no status checks or PR-triggered workflow runs. Pages deployment is unverified. The in-app browser still shows `version=2bf6faea`, so current-source visual review remains open. This is sourced catalog modeling, not native Underframe parity or live-game validation.
 
 ## D3-MECH-CYNGAS-DUAL-PROFILE-BURST-CADENCE-001 — separate Archwing and Atmosphere profiles (PR #311, 2026-11-23)
 
