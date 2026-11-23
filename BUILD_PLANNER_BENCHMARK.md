@@ -1,3 +1,27 @@
+## D3-OPT-SEEDED-BURST-SCALING-ORACLE-001 — rank-limited Burst and Scaling sample (2026-11-23; bounded)
+
+Added a seeded exact sampled-pool oracle for the direct `Burst` and sustained `Scaling` objectives, which were absent from the existing randomized exact-winner corpus (then covering finite Expected TTK and five-second Avg DPS). Seed `20261156` chooses a supported attack and four fully modeled compatible mod candidates from each Braton Prime / Grineer / Realistic, Lex Prime / Corpus / Initial, Cedo / Grineer / Realistic, and Broken War / Infested / Fully Stacked fixture. Each candidate is randomly capped at owned Rank 1 or 2; the oracle enumerates every legal ordered subset, rank tuple, and slot assignment through three slots at rank-30 Catalyst capacity with alternating zero/one Forma.
+
+All eight optimizer results (two objectives for each fixture) match the exact sampled-pool winner and satisfy owned-rank, capacity, and Forma limits. The focused Vitest case passes 1/1 (1.49s for the test body); test-project TypeScript, focused ESLint, and CRLF-aware diff check pass. This adds bounded objective coverage only: it does not establish global optimality, Underframe parity, or gameplay accuracy. No application source, production build, or deployment changed.
+
+## D3-MOD-TENNOKAI-OPPORTUNITY-MODEL-001 — grouped melee-mod coverage (scope decision pending; 2026-11-23)
+
+The current local source record groups seven melee mods behind Tennokai behavior. On 2026-11-23, current searchable WARFRAME Wiki pages were rechecked for [Melee](https://wiki.warframe.com/w/Melee), [Heavy Attack](https://wiki.warframe.com/w/Heavy_Attack), [Tennokai Mods](https://wiki.warframe.com/w/Tennokai_Mods), [Dreamer's Wrath](https://wiki.warframe.com/w/Dreamer%27s_Wrath), [Condition's Perfection](https://wiki.warframe.com/w/Condition%27s_Perfection), [Master's Edge](https://wiki.warframe.com/w/Master%27s_Edge), [Opportunity's Reach](https://wiki.warframe.com/w/Opportunity%27s_Reach), and [Truth's Flame](https://wiki.warframe.com/w/Truth%27s_Flame). The base behavior remains a 15% opportunity chance and 2-second window; opportunity generation requires a qualifying direct melee hit. A Heavy Attack or Heavy Slam during the active window triggers Tennokai and preserves combo; Heavy Attacks gain faster wind-up, while Heavy Slams have no wind-up to shorten. Dreamer's Wrath increases chance multiplicatively (rank 3 changes 15% to 22.5%) and adds Critical Damage only to Tennokai attacks. Discipline's Merit replaces random opportunities with one every 7/6/5/4 melee hits across ranks 0–3. These facts sharpen the prior local ruleset note; the application still has no opportunity event history.
+
+The generated `warframe-items-all-lean.auto.json` snapshot has the following rank effects:
+
+- Condition's Perfection: +25/+50/+75/+100% Status Chance on Tennokai attacks.
+- Discipline's Merit: opportunity every 7/6/5/4 melee hits.
+- Dreamer's Wrath: +12.5/+25/+37.5/+50% multiplicative opportunity chance and +8/+16/+24/+32% additive Critical Damage for Tennokai attacks.
+- Master's Edge: +10/+20/+30/+40/+50/+60% Tennokai damage.
+- Mentor's Legacy: enables Tennokai; the upstream export has no rank-stat block.
+- Opportunity's Reach: 2.8/3.2/3.6/4.0-second opportunity window and +0.75/+1.5/+2.25/+3m melee range.
+- Truth's Flame: a Tennokai kill extends the opportunity by 4 seconds and enables its rank-listed +30/+40/+60/+120% Tennokai damage bonus; a Tennokai attack that fails to kill can reset combo and apply 25/35/50/100 Heat damage per second for six seconds. The Wiki also lists its separate Truth syndicate effect.
+
+The melee calculator supports selected Heavy Attack rows and an explicit starting combo snapshot, but does not model opportunity generation/consumption, Tennokai wind-up, or attack-by-attack combo retention. The optimizer therefore skips these mod ranks while the mechanics remain unmodeled. A scope decision was requested: (a) a manual one-event Burst snapshot for an active opportunity, (b) an event timeline that models opportunity generation and consumption, or (c) keep the effects excluded. A one-event snapshot could score direct Tennokai damage/critical/status effects, but it would not make opportunity-frequency/window/range effects meaningful to the optimizer and would not close the grouped issue. The complete dynamic cluster remains open if the bounded snapshot is chosen.
+
+The cited mechanic descriptions and rank behavior were rechecked from current Wiki search results, but the relevant pages could not be opened directly because the Wiki blocks automated access. The provided `http://localhost/Tenno-Hub/` endpoint timed out, and this session exposes no in-app browser interaction/screenshot tool. No current-source UI or in-game behavior has been verified for this issue.
+
 ## D3-MOD-DEADLY-MANEUVER-BURST-SNAPSHOT-001 — Magnus headshot Critical Chance snapshot (released in PR [#351](https://github.com/Appl3Tree/Tenno-Hub/pull/351); 2026-11-23)
 
 Deadly Maneuvers now parses the four rank values listed by the [current Wiki page](https://wiki.warframe.com/w/Deadly_Maneuvers): +100%, +200%, +300%, and +400% Headshot Critical Chance. Following the user's selected interpretation of the rank text, the bonus multiplies the existing headshot Critical Chance after other buffs, producing ×2/×3/×4/×5 on each buffed headshot at ranks 0–3. The selected effect is limited to Magnus and Magnus Prime direct attacks that can headshot.
