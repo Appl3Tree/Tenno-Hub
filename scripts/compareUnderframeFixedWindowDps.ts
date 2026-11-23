@@ -16,7 +16,7 @@ import {
     fitsWithinCapacity,
     type CapacityConfig,
 } from "../src/domain/logic/capacityCalc";
-import type { ConditionalState } from "../src/domain/logic/damageCalc";
+import { calculateBuild, type ConditionalState } from "../src/domain/logic/damageCalc";
 
 interface ModRequest {
     name: string;
@@ -26,6 +26,8 @@ interface ModRequest {
 interface Fixture {
     weaponName: string;
     attackName?: string;
+    /** Run only when explicitly selected because its native readout used a non-default target/state. */
+    readoutOnly?: boolean;
     distanceMeters?: number;
     distanceSource?: string;
     underframeObservedCapacityAfterAutoPolarize: string;
@@ -89,6 +91,44 @@ const FIXTURES: Fixture[] = [
             { name: "Volcanic Edge", rank: 3 },
         ],
     },
+    {
+        weaponName: "Braton Prime",
+        attackName: "Normal Attack",
+        readoutOnly: true,
+        underframeObservedCapacityAfterAutoPolarize: "0/60; 3 Forma",
+        underframeMods: [
+            { name: "Malignant Force", rank: 3 },
+            { name: "High Voltage", rank: 3 },
+            { name: "Rime Rounds", rank: 3 },
+            { name: "Galvanized Chamber", rank: 10 },
+            { name: "Vile Acceleration", rank: 5 },
+            { name: "Galvanized Aptitude", rank: 10 },
+            { name: "Vital Sense", rank: 5 },
+            { name: "Primed Bane of Grineer", rank: 10 },
+        ],
+        underframeNativeTargetPools: {
+            health: 2_000_000,
+            shields: 0,
+            overguard: 0,
+            armor: 3_000,
+        },
+        underframeNativeReadout: {
+            capturedAt: "2026-11-23",
+            visibleConditionals: { "Galvanized Chamber": "5/5", "Galvanized Aptitude": "2/2" },
+            accurateAmmo: true,
+            externalStatuses: [],
+            standardDps: [62_939, 72_957, 67_203, 70_336, 68_479, 71_209],
+            standardTtk: ">5s",
+            luckAveraged: {
+                repeatedSamples: 3,
+                dps: 67_699,
+                rawAverageDamagePerShot: 3_929,
+                dotAverageDamagePerShot: 600,
+                ttk: "?",
+            },
+            weaponStats: { attackSpeed: 18.2, magazine: 75, reloadSeconds: 2.15, multishot: 3.3 },
+        },
+    },
     MAUSOLON_CAPTURE,
 ];
 
@@ -102,16 +142,32 @@ function numericOption(name: string, fallback: number): number {
     return value;
 }
 
+const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9)?.trim().toLowerCase();
 const TARGET_FACTION = stringOption("faction", "Grineer");
+const defaultHealth = requestedWeapon === "braton prime" ? 2_000_000 : 100_000;
 const TARGET = {
-    description: `${TARGET_FACTION} custom target: ${numericOption("health", 100_000).toLocaleString()} Health / ${numericOption("armor", 3_000).toLocaleString()} Armor`,
-    health: numericOption("health", 100_000),
+    description: `${TARGET_FACTION} custom target: ${numericOption("health", defaultHealth).toLocaleString()} Health / ${numericOption("armor", 3_000).toLocaleString()} Armor`,
+    health: numericOption("health", defaultHealth),
     shields: numericOption("shields", 0),
     overguard: numericOption("overguard", 0),
     armor: numericOption("armor", 3_000),
     toxinBypassesShields: true,
 };
-const CONDITIONAL_STATE: ConditionalState = { mode: "realistic" };
+const defaultConditionalState = requestedWeapon === "braton prime" ? "custom" : "realistic";
+const conditionalStateMode = stringOption("state", defaultConditionalState);
+const conditionalStateModes: readonly ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
+if (!conditionalStateModes.includes(conditionalStateMode as ConditionalState["mode"])) {
+    throw new Error(`Unsupported --state=${conditionalStateMode}; choose initial, realistic, fullyStacked, or custom.`);
+}
+const defaultExternalStacks = requestedWeapon === "braton prime" ? 5 : 0;
+const requestedExternalStacks = numericOption("stacks", defaultExternalStacks);
+if (!Number.isInteger(requestedExternalStacks) || requestedExternalStacks < 0) {
+    throw new Error("--stacks must be a non-negative integer");
+}
+const CONDITIONAL_STATE: ConditionalState = {
+    mode: conditionalStateMode as ConditionalState["mode"],
+    ...(conditionalStateMode === "custom" ? { externalStacks: requestedExternalStacks } : {}),
+};
 const MAX_FORMA = 3;
 const CAPACITY_CONFIG: CapacityConfig = {
     weaponRank: 30,
@@ -121,7 +177,6 @@ const CAPACITY_CONFIG: CapacityConfig = {
 };
 const requestedRuns = Number(process.argv.find((arg) => arg.startsWith("--runs="))?.slice(7) ?? 3);
 const RUNS = Number.isInteger(requestedRuns) && requestedRuns > 0 ? requestedRuns : 3;
-const requestedWeapon = process.argv.find((arg) => arg.startsWith("--weapon="))?.slice(9)?.trim().toLowerCase();
 const requestedDistanceValue = process.argv.find((arg) => arg.startsWith("--distance="))?.slice(11);
 const requestedDistanceMeters = requestedDistanceValue === undefined ? undefined : Number(requestedDistanceValue);
 if (requestedDistanceMeters !== undefined && (!Number.isFinite(requestedDistanceMeters) || requestedDistanceMeters < 0)) {
@@ -143,7 +198,7 @@ function getWeapon(name: string, attackName = "Normal Attack") {
 const fixturesToRun = requestedWeapon
     ? FIXTURES.filter((fixture) => getWeaponDisplayName(getWeapon(fixture.weaponName, fixture.attackName).weapon)
         .toLowerCase() === requestedWeapon || fixture.weaponName.toLowerCase() === requestedWeapon)
-    : FIXTURES;
+    : FIXTURES.filter((fixture) => !fixture.readoutOnly);
 if (requestedWeapon && fixturesToRun.length === 0) throw new Error(`No captured fixture matches --weapon=${requestedWeapon}`);
 
 function getMod(name: string, rank: number, compatibleMods: ReturnType<typeof getModsForWeapon>) {
@@ -198,6 +253,12 @@ function evaluateFixedBuild(
         TARGET,
         conditionalState,
     );
+    const statPass = calculateBuild(weapon, effects, TARGET_FACTION, {
+        conditionalState,
+        targetStatusState: "initial",
+    }).modded;
+    const dotDamagePerAttack = Object.values(statPass.dotDamagePerShotByType)
+        .reduce((total, damage) => total + (damage ?? 0), 0);
     const score = {
         damagePerSecond: evaluation.damagePerSecond,
         damageInWindow: evaluation.damageInWindow,
@@ -208,6 +269,25 @@ function evaluateFixedBuild(
     };
     return {
         mods: fixture.underframeMods.map(({ name, rank }) => `${name} R${rank}`),
+        unmitigatedStatPass: {
+            baseDamageTotal: statPass.baseDamageTotal,
+            totalDamageBonus: statPass.totalDamageBonus,
+            factionDamageBonus: statPass.factionDamageBonus,
+            damageWeightedMultishot: statPass.damageWeightedMultishot,
+            directDamagePerStatusBonus: statPass.directDamagePerStatusBonus,
+            expectedHitDamageMultiplier: statPass.expectedHitDamageMultiplier,
+            critChance: statPass.critChance,
+            critMultiplier: statPass.critMultiplier,
+            rawDamageByTypeBeforePerStatus: statPass.rawDamageBreakdownBeforePerStatus,
+            directDamageByTypeBeforeDefense: statPass.damageBreakdownBeforePerStatus,
+            averageDirectDamagePerAttack: statPass.averageShotDamage,
+            averageDotDamagePerAttack: dotDamagePerAttack,
+            averageProcsPerAttack: statPass.averageProcsPerShot,
+            fireRate: statPass.fireRate,
+            magazineSize: statPass.magazineSize,
+            reloadTimeSeconds: statPass.reloadTime,
+            note: "Weapon-stat arithmetic before target armor and finite-window hit simulation; not the applied-health score.",
+        },
         tennoHubModeledCapacity: {
             legal,
             used: usedCapacity,
@@ -345,11 +425,14 @@ console.log(JSON.stringify({
         scoringWindow: `[0, ${FIXED_WINDOW_DPS_SECONDS}s)`,
         targetFaction: TARGET_FACTION,
         target: TARGET,
-        conditionalState: CONDITIONAL_STATE.mode,
+        conditionalState: {
+            mode: CONDITIONAL_STATE.mode,
+            externalStacks: CONDITIONAL_STATE.mode === "custom" ? CONDITIONAL_STATE.externalStacks ?? 0 : null,
+        },
         distanceOverrideMeters: requestedDistanceMeters ?? null,
         distanceBehavior: "CLI --distance overrides a captured fixture distance and is applied to target-distance conditions and selected-attack falloff/range. A selected attack with a source-backed falloff or range limit cannot be scored without an explicit distance; an out-of-range hard miss is reported and its optimizer run is skipped.",
         constraints: "Eight normal slots, max-rank mods, Catalyst, up to three Forma, no Exilus or Arcanes.",
-        modelBoundary: "All scored captured and optimized lists use Tenno-Hub's same deterministic finite encounter engine. It clips overkill and damage after the single target dies, begins event-triggered mod buffs inactive, does not simulate their trigger history during the window, and does not reset the target. It excludes neighboring targets and melee stance/combo history. The optimizer is skipped when an explicit distance exceeds a selected profile's source-backed hard-hit cap. This is not Underframe's seeded stochastic simulator or live-game validation.",
+        modelBoundary: "All scored captured and optimized lists use Tenno-Hub's same deterministic finite encounter engine. It clips overkill and damage after the single target dies and does not reset the target. Event-triggered stack history and expiry are not simulated: Fully Stacked starts each trigger at its maximum, nonzero Custom starts at the entered maintained stack count for the entire score, and other states do not assume prior trigger stacks. It excludes neighboring targets and melee stance/combo history. The optimizer is skipped when an explicit distance exceeds a selected profile's source-backed hard-hit cap. This is not Underframe's seeded stochastic simulator or live-game validation.",
         optimizerRunsPerFixture: RUNS,
         selectedFixtureFilter: requestedWeapon ?? null,
     },

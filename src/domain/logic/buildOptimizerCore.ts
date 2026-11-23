@@ -2814,10 +2814,14 @@ function getFixedWindowScoringEffects(
     conditionalState: ConditionalState | undefined,
 ): (ModEffect | null)[] {
     // Fixed-window encounters begin at t=0 and cannot assume prior trigger
-    // history. The dedicated hit-stack sequence remains modeled separately;
-    // other event-triggered mod buffs are omitted unless the user explicitly
-    // selects Fully Stacked.
-    if (conditionalState?.mode === "fullyStacked") return effects;
+    // history. The dedicated hit-stack sequence remains modeled separately.
+    // Fully Stacked and nonzero Custom states explicitly supply maintained
+    // stack snapshots, so preserve their event-triggered effects without
+    // simulating how those stacks were earned or whether they expire.
+    if (conditionalState?.mode === "fullyStacked" ||
+        (conditionalState?.mode === "custom" && (conditionalState.externalStacks ?? 0) > 0)) {
+        return effects;
+    }
     return effects.map((effect) => {
         if (!effect?.conditionalEffects?.length) return effect;
         const conditionalEffects = effect.conditionalEffects.filter((conditional) =>
