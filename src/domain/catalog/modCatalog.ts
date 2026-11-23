@@ -324,6 +324,8 @@ export type ConditionalTrigger =
 export interface ConditionalEffect {
     trigger: ConditionalTrigger;
     durationSeconds: number;
+    /** Minimum headshot pellets required by a source-defined pellet threshold trigger. */
+    minimumHeadshotPellets?: number;
     /** The source limits this trigger to the weapon's Primary Fire mode. */
     requiresPrimaryFire?: boolean;
     /** Effect can activate only while the scored target is an Eximus. */
@@ -502,6 +504,21 @@ function explodeStatLines(raw: string): string[] {
 
 function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
     const clean = stripColorTags(raw).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+    const combatReload = clean.match(
+        /^If (\d+) pellets are headshots, increase reload speed by \+?(\d+(?:\.\d+)?)% for (\d+(?:\.\d+)?)s\.?$/i,
+    );
+    if (combatReload) {
+        return {
+            conditionalEffects: [{
+                trigger: "onHeadshot",
+                durationSeconds: Number(combatReload[3]),
+                minimumHeadshotPellets: Number(combatReload[1]),
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { reloadSpeedBonus: Number(combatReload[2]) / 100 },
+            }],
+        };
+    }
     // Wiki ranks are additive Secondary Damage; the 10s trigger requires a
     // headshot on an Eximus. Weak-point-only activations are disclosed in the
     // calculator trace but are not included in this headshot-share estimate.

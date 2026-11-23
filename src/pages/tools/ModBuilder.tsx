@@ -1734,9 +1734,11 @@ function buildMathBreakdown(
         const killCadenceModel = killStackContext
             ? ` identical-target kill interval ${expectedKillRatePerSecond! > 0 ? fmt(1 / expectedKillRatePerSecond!, 3) + "s" : "no modeled kills"}; the Wiki timeout removes one stack and resets its timer. The estimate uses a deterministic repeating-target cycle; it does not simulate per-enemy carryover or unrelated kill sources.`
             : "";
-        const headshotTriggerModel = conditional.trigger === "onHeadshot" || conditional.trigger === "onHeadshotKill"
-            ? ` Wiki headshot-trigger estimate uses the configured ${(triggerContext.headshotHitRate * 100).toFixed(1)}% share of direct hits; ${conditional.trigger === "onHeadshot" ? "hit refreshes use Poisson arrivals over the listed duration" : Number.isFinite(expectedKillRatePerSecond) ? `expected kills at ${fmt(expectedKillRatePerSecond ?? 0, 4)}/s` : "headshot-kill uptime uses the documented 35% baseline scaled by headshot share"}.`
-            : "";
+        const headshotTriggerModel = (conditional.minimumHeadshotPellets ?? 1) > 1
+            ? ` requires at least ${conditional.minimumHeadshotPellets} headshot pellets; the configured headshot share is per direct hit and does not estimate pellet overlap. Realistic leaves it inactive. Custom/Fully Stacked assumes the buff is active in this scenario; its ${fmt(conditional.durationSeconds, 2)}s expiry and refresh timing are not simulated.`
+            : conditional.trigger === "onHeadshot" || conditional.trigger === "onHeadshotKill"
+                ? ` Wiki headshot-trigger estimate uses the configured ${(triggerContext.headshotHitRate * 100).toFixed(1)}% share of direct hits; ${conditional.trigger === "onHeadshot" ? "hit refreshes use Poisson arrivals over the listed duration" : Number.isFinite(expectedKillRatePerSecond) ? `expected kills at ${fmt(expectedKillRatePerSecond ?? 0, 4)}/s` : "headshot-kill uptime uses the documented 35% baseline scaled by headshot share"}.`
+                : "";
         return `Conditional ${index + 1}: trigger ${triggerLabel}, duration ${fmt(conditional.durationSeconds, 2)}s, max stacks ${conditional.maxStacks}, aiming ${conditional.requiresAiming ? "yes" : "no"}, uptime ${fmt(uptime, 4)}, stack factor ${fmt(stackFactor, 4)}, combined factor ${fmt(combinedFactor, 4)}, stats [${statsApplied || "none"}]${targetStatusModel}${eximusTargetModel}${triggerModel}${killCadenceModel}${headshotTriggerModel}`;
     });
     if (conditionalEntries.some((conditional) => conditional.trigger === "onOcucorTendrilKill")) {
