@@ -139,7 +139,7 @@ export function getUnmodeledDamageEffectLines(
         // and the planner has no target-size pellet-hit model.
         // https://wiki.warframe.com/w/Overpressured_Rounds
         // https://wiki.warframe.com/w/EFV-5_Jupiter
-        lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes. The Wiki does not specify the spread reduction, and EFV-5 Buckshot's 11-pellet spread has no target-size hit model here, so Auto Optimize skips this mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.");
+        lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify its spread reduction. Buckshot's experimental target-size estimate therefore disables itself when this mod is equipped; Auto Optimize skips the mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.");
     }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
         // This augment chooses damage from the target weakness and special-cases

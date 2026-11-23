@@ -28,11 +28,11 @@ import {
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect, SPRING_LOADED_BROADHEAD_PATH } from "../../domain/catalog/modCatalog";
-import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../domain/catalog/modEffectUtils";
+import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, OVERPRESSURED_ROUNDS_MOD_PATH } from "../../domain/catalog/modEffectUtils";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, FIXED_WINDOW_DPS_SECONDS, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
@@ -1988,7 +1988,9 @@ function buildMathBreakdown(
                     ? [`Wiseman's Regard = +${fmt(stats.statusChanceFromCritChanceBonus * 100, 3)} percentage points base Status Chance (${fmt(weapon.selectedAttackBaseStatusChancePerCriticalChance * 100, 3)}% of current ${fmt(stats.critChance * 100, 3)}% Critical Chance, capped at ${fmt((weapon.selectedAttackBaseStatusChancePerCriticalChanceCap ?? 0) * 100, 3)}%).`]
                     : []),
                 `Status chance = base ${fmt(weapon.statusChance, 5)}${weapon.selectedAttackBaseStatusChancePerCriticalChance !== undefined ? ` + Wiki crit-scaled base ${fmt(stats.statusChanceFromCritChanceBonus, 5)} = ${fmt(weapon.statusChance + stats.statusChanceFromCritChanceBonus, 5)}` : ""} × (1 + additive status ${fmt(totals.statusChanceBonus, 5)} + AoE-only additive status ${fmt(weapon.selectedAttackIsAreaDamage === true ? totals.areaDamageStatusChanceBonus : 0, 5)}${usesMeleeDamageModel(weapon.category) ? ` + combo status ${fmt(totals.comboStatusChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1), 5)}` : ""}) + final status ${fmt(totals.finalStatusChanceBonus, 5)} = ${fmt(stats.statusChance, 5)} (${fmt(stats.statusChance * 100, 3)}%)`,
-                `Multishot = base ${fmt(weapon.multishot, 5)} × (1 + additive multishot ${fmt(totals.multishotBonus, 5)}) = ${fmt(stats.multishot, 5)}`,
+                stats.pelletHitEstimate
+                    ? `Pellet coverage estimate = ${fmt(stats.pelletHitEstimate.pelletsFired, 5)} pellets; one idealized center hit + remaining pellets × uniform solid-angle target/cone ratio. Listed spread range ${fmt(stats.pelletHitEstimate.minimumExpectedHits, 5)}–${fmt(stats.pelletHitEstimate.maximumExpectedHits, 5)} expected hits; midpoint ${fmt(stats.pelletHitEstimate.nominalSpreadDegrees, 2)}° estimate ${fmt(stats.pelletHitEstimate.nominalExpectedHits, 5)} is used for manual damage/status scoring. This is not calibrated to exact game RNG or hitbox geometry.`
+                    : `Multishot = base ${fmt(weapon.multishot, 5)} × (1 + additive multishot ${fmt(totals.multishotBonus, 5)}) = ${fmt(stats.multishot, 5)}`,
                 ...(usesMeleeDamageModel(weapon.category)
                     ? ["Combo-scaled bonuses = " + fmt(totals.comboCritChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 3) + "% crit chance; " + fmt(totals.comboStatusChanceBonus * Math.max(0, stats.meleeComboMultiplier - 1) * 100, 3) + "% status chance"]
                     : []),
@@ -2061,7 +2063,7 @@ function buildMathBreakdown(
             title: "Crit and DPS",
             lines: [
                 `Arsenal Total Damage = unquantized damage construction × attack damage equivalent (damage-weighted multishot ${fmt(stats.damageWeightedMultishot, 5)} + one-hit bonus ${fmt(stats.singleProjectileDamageBonus, 5)}) = ${fmt(stats.arsenalDamage, 5)}`,
-                `Expected projectile count = ${fmt(stats.multishot, 5)} per ${damageUnit}; damage-weighted multiplier = ${fmt(stats.damageWeightedMultishot, 5)} (unique extra-projectile damage bonus ${fmt(stats.multishotDamageBonus * 100, 3)}%)`,
+                `${stats.pelletHitEstimate ? "Expected pellet hits" : "Expected projectile count"} = ${fmt(stats.multishot, 5)} per ${damageUnit}; damage-weighted multiplier = ${fmt(stats.damageWeightedMultishot, 5)} (unique extra-projectile damage bonus ${fmt(stats.multishotDamageBonus * 100, 3)}%)`,
                 `Quantized direct damage per ${damageUnit} = ${fmt(stats.totalDamage, 5)} × attack damage equivalent ${fmt(attackDamageEquivalent, 5)} = ${fmt(quantizedShotDamage, 5)}`,
                 `Status DoT seed damage share = (damage-weighted multishot ${fmt(stats.damageWeightedMultishot, 5)} + one-hit bonus ${fmt(stats.singleProjectileDamageBonus, 5)}) ÷ multishot ${fmt(stats.multishot, 5)} = ${fmt(stats.multishot > 0 ? attackDamageEquivalent / stats.multishot : 1, 6)}; Spring-Loaded Broadhead enters the seed once and is not applied again to each DoT tick.`,
                 `Average hit damage multiplier = expected direct damage ÷ quantized damage per ${damageUnit} = ${fmt(stats.averageShotDamage, 5)} ÷ ${fmt(quantizedShotDamage, 5)} = ${fmt(avgHitMultiplier, 6)}`,
@@ -3737,13 +3739,14 @@ export default function ModBuilder() {
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
     const [targetDistanceMeters, setTargetDistanceMeters] = useState<number | undefined>(undefined);
     const [attackFalloffDistanceMeters, setAttackFalloffDistanceMeters] = useState<number | undefined>(undefined);
+    const [targetRadiusMeters, setTargetRadiusMeters] = useState<number | undefined>(undefined);
     const selectedFalloffAttack = weapon?.attacks[selectedAttackIdx];
     const linkedFalloffAttack = selectedFalloffAttack?.lingeringDamageRule
         ? weapon?.attacks.find((attack) => attack.name.trim().toLowerCase() ===
             selectedFalloffAttack.lingeringDamageRule?.componentAttackName.trim().toLowerCase())
         : undefined;
     const falloffRelevantAttacks = [selectedFalloffAttack, linkedFalloffAttack].filter((attack) =>
-        Boolean(attack?.damageFalloff || attack?.maximumRangeMeters !== undefined),
+        Boolean(attack?.damageFalloff || attack?.maximumRangeMeters !== undefined || attack?.pelletSpreadCone),
     );
     const mausolonRangeNote = weapon?.name === "Mausolon" && selectedFalloffAttack
         ? selectedFalloffAttack.name === "Auto"
@@ -3784,11 +3787,8 @@ export default function ModBuilder() {
         phantasmaChargeAmmo,
         targetDistanceMeters,
         attackFalloffDistanceMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters]);
-    const finiteConditionalState = useMemo(
-        () => withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
-        [conditionalState],
-    );
+        targetRadiusMeters,
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -4021,6 +4021,7 @@ export default function ModBuilder() {
             phantasmaChargeAmmo,
             targetDistanceMeters,
             attackFalloffDistanceMeters,
+            targetRadiusMeters,
             warframeArmor,
             warframeMaxEnergy,
             warframeEnergyPercent,
@@ -4074,6 +4075,7 @@ export default function ModBuilder() {
         phantasmaChargeAmmo,
         targetDistanceMeters,
         attackFalloffDistanceMeters,
+        targetRadiusMeters,
         warframeArmor,
         warframeMaxEnergy,
         warframeEnergyPercent,
@@ -4161,6 +4163,7 @@ export default function ModBuilder() {
         setPhantasmaChargeAmmo(2);
         setTargetDistanceMeters(undefined);
         setAttackFalloffDistanceMeters(undefined);
+        setTargetRadiusMeters(undefined);
         setIncarnonPickerTier(null);
         setShowMathWindow(false);
         if (opts?.resetConfig) {
@@ -4729,6 +4732,37 @@ export default function ModBuilder() {
         }
         return effects;
     }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
+    const activeAccuracyAffectingEffect = hasAccuracyAffectingPelletEffect(activeBuildEffects);
+    const activeUnsupportedSpreadModifier = allSlotsForCap.some((mod, index) => {
+        if (!mod) return false;
+        if (mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) return true;
+        const rank = allRanksForCap[index] ?? mod.fusionLimit;
+        return (mod.unparsedStatsByRank?.[rank] ?? []).some((line) => /spread|accuracy/i.test(line));
+    });
+    const activePelletHitEstimateEnabled = Boolean(
+        activeCalcWeapon?.selectedAttackPelletSpreadCone &&
+        estimatePelletHits(
+            activeCalcWeapon.selectedAttackPelletSpreadCone,
+            activeCalcWeapon.multishot,
+            targetRadiusMeters,
+            attackFalloffDistanceMeters,
+        ) &&
+        !activeAccuracyAffectingEffect &&
+        !activeUnsupportedSpreadModifier,
+    );
+    const activeAttackModelLimitationBlocksScoring = Boolean(
+        activeCalcWeapon?.selectedAttackModelLimitation && !activePelletHitEstimateEnabled,
+    );
+    const pelletEstimateConditionalState = useMemo(
+        () => activePelletHitEstimateEnabled
+            ? conditionalState
+            : { ...conditionalState, targetRadiusMeters: undefined },
+        [activePelletHitEstimateEnabled, conditionalState],
+    );
+    const finitePelletEstimateConditionalState = useMemo(
+        () => withoutBurstOnlyConditionalAssumptions(pelletEstimateConditionalState) ?? pelletEstimateConditionalState,
+        [pelletEstimateConditionalState],
+    );
     const sentientSurgeRefillPerKill = activeBuildEffects.reduce(
         (total, effect) => total + (effect?.sentientSurgeMagazineRefillPerKill ?? 0),
         0,
@@ -4786,14 +4820,14 @@ export default function ModBuilder() {
     );
     const activeMetrics = useMemo(
         () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
-            conditionalState,
+            conditionalState: pelletEstimateConditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         }) : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, conditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, pelletEstimateConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride],
     );
     const finiteMetrics = useMemo(() => {
         if (!activeCalcWeapon || !activeMetrics || (
@@ -4803,14 +4837,14 @@ export default function ModBuilder() {
             return activeMetrics;
         }
         return calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
-            conditionalState: finiteConditionalState,
+            conditionalState: finitePelletEstimateConditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         });
-    }, [activeCalcWeapon, activeMetrics, activeBuildEffects, factionOn, faction, finiteConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride]);
+    }, [activeCalcWeapon, activeMetrics, activeBuildEffects, factionOn, faction, finitePelletEstimateConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride]);
     const attackDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
         : "";
@@ -4838,14 +4872,14 @@ export default function ModBuilder() {
     }, [weapon, initialTargetMetrics, meleeDpsInputs]);
     const encounterTargetMetrics = useMemo(
         () => activeCalcWeapon ? calculateBuildForExpectedEncounter(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
-            conditionalState: finiteConditionalState,
+            conditionalState: finitePelletEstimateConditionalState,
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             targetStatusState: "initial",
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         }) : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, finiteConditionalState, targetStatusImmunities, targetProfileOverride, expectedKillRatePerSecond],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, finitePelletEstimateConditionalState, targetStatusImmunities, targetProfileOverride, expectedKillRatePerSecond],
     );
     const activeProcMixLabel = activeMetrics
         ? Object.entries(activeMetrics.modded.procChanceByType)
@@ -4895,13 +4929,13 @@ export default function ModBuilder() {
         };
     }, [activeMetrics, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
     const activeTargetAttackDamage = useMemo(() => {
-        if (!activeTargetAttackInput || !activeMetrics || activeCalcWeapon?.selectedAttackModelLimitation) return null;
+        if (!activeTargetAttackInput || !activeMetrics || activeAttackModelLimitationBlocksScoring) return null;
         const stats = activeMetrics.modded;
         return calculateDirectDamageToInitialPools({
             ...activeTargetAttackInput,
             damageRampMultiplier: stats.firstAttackDamageMultiplier * stats.firstShotMagazineDamageMultiplier,
         });
-    }, [activeTargetAttackInput, activeMetrics, activeCalcWeapon]);
+    }, [activeTargetAttackInput, activeMetrics, activeAttackModelLimitationBlocksScoring]);
     const finiteTargetAttackInput = useMemo<DirectTargetDamageInput | null>(() => {
         if (!activeTargetAttackInput || !finiteMetrics) return null;
         const stats = finiteMetrics.modded;
@@ -4925,7 +4959,7 @@ export default function ModBuilder() {
             !finiteTargetAttackInput ||
             !activeMetrics ||
             !finiteMetrics ||
-            activeCalcWeapon?.selectedAttackModelLimitation ||
+            activeAttackModelLimitationBlocksScoring ||
             activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation
         ) return null;
         const stats = finiteMetrics.modded;
@@ -4963,11 +4997,11 @@ export default function ModBuilder() {
                 : {}),
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
         });
-    }, [finiteTargetAttackInput, activeMetrics, finiteMetrics, activeCalcWeapon, targetProfileOverride]);
+    }, [finiteTargetAttackInput, activeMetrics, finiteMetrics, activeCalcWeapon, targetProfileOverride, activeAttackModelLimitationBlocksScoring]);
     const activeTargetEncounter = useMemo(() => {
         if (
             !encounterTargetMetrics ||
-            activeCalcWeapon?.selectedAttackModelLimitation ||
+            activeAttackModelLimitationBlocksScoring ||
             activeCalcWeapon?.selectedAttackAutoSpoolTimingLimitation
         ) return null;
         const stats = encounterTargetMetrics.modded;
@@ -5064,7 +5098,7 @@ export default function ModBuilder() {
             totalDamageBonus: stats.totalDamageBonus,
             timedConditionalDamageStacks: stats.timedConditionalDamageStacks,
         });
-    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat]);
+    }, [encounterTargetMetrics, activeCalcWeapon, factionOn, faction, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, externalStatusTypeCount, externalStatusTypes, targetStartsWithHeat, activeAttackModelLimitationBlocksScoring]);
     const activeAttackEventLabel = activeCalcWeapon && isBurstTriggerType(activeCalcWeapon.trigger) ? "rounds" : "attacks";
     const selectedAttackOutOfRange = activeMetrics?.modded.attackDamageFalloff?.isOutOfRangeMiss === true;
     const activeEncounterStatusSummary = activeTargetEncounter
@@ -5720,6 +5754,9 @@ export default function ModBuilder() {
             setAttackFalloffDistanceMeters(Number.isFinite(plannerConfig.attackFalloffDistanceMeters)
                 ? Math.max(0, plannerConfig.attackFalloffDistanceMeters ?? 0)
                 : undefined);
+            setTargetRadiusMeters(Number.isFinite(plannerConfig.targetRadiusMeters)
+                ? Math.max(0, plannerConfig.targetRadiusMeters ?? 0)
+                : undefined);
             const attackIndexByName = plannerConfig.attackName
                 ? weapon.attacks.findIndex((attack) => attack.name === plannerConfig.attackName)
                 : -1;
@@ -5898,7 +5935,15 @@ export default function ModBuilder() {
                                             )}
                                             {weapon?.attacks[selectedAttackIdx]?.modelLimitation && (
                                                 <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
-                                                    {weapon.attacks[selectedAttackIdx].modelLimitation.reason} Component/source-row statistics below are reference values only; damage, DPS, TTK, and Auto Optimize are unavailable for this mode. {" "}
+                                                    {activePelletHitEstimateEnabled && activeMetrics?.modded.pelletHitEstimate
+                                                        ? `Experimental single-target estimate: ${fmt(activeMetrics.modded.pelletHitEstimate.nominalExpectedHits, 2)} expected pellet hits (${fmt(activeMetrics.modded.pelletHitEstimate.minimumExpectedHits, 2)}–${fmt(activeMetrics.modded.pelletHitEstimate.maximumExpectedHits, 2)} across the listed spread endpoints) from ${fmt(activeMetrics.modded.pelletHitEstimate.pelletsFired, 2)} pellets. The midpoint cone drives manual damage/TTK/DPS estimates; target overlap is not calibrated to gameplay. Area coverage remains unscored and Auto Optimize stays unavailable.`
+                                                        : `${weapon.attacks[selectedAttackIdx].modelLimitation.reason} Component/source-row statistics below are reference values only; damage, DPS, and TTK are unavailable for this mode. ${weapon.attacks[selectedAttackIdx].pelletSpreadCone
+                                                            ? activeAccuracyAffectingEffect
+                                                                ? "An equipped accuracy-affecting effect disables the experimental pellet estimate. "
+                                                                : activeUnsupportedSpreadModifier
+                                                                    ? "An equipped spread modifier with unknown numeric behavior disables the experimental pellet estimate. "
+                                                                    : "Enter both attack distance and target radius to enable the experimental single-target estimate. "
+                                                            : ""}Auto Optimize is unavailable for this mode.`} {" "}
                                                     <a
                                                         href={weapon.attacks[selectedAttackIdx].modelLimitation.sourceUrl}
                                                         target="_blank"
@@ -6306,7 +6351,7 @@ export default function ModBuilder() {
                                                 {falloffRelevantAttacks.length > 0 && (
                                                     <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 px-2 py-2">
                                                         <label htmlFor="planner-attack-falloff-distance" className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2 text-[10px] text-slate-300">
-                                                            <span>Attack distance (m)</span>
+                                                            <span>{selectedFalloffAttack?.pelletSpreadCone ? "Attack distance / falloff (m)" : "Attack distance (m)"}</span>
                                                             <input
                                                                 id="planner-attack-falloff-distance"
                                                                 aria-label="Attack distance in meters"
@@ -6326,6 +6371,31 @@ export default function ModBuilder() {
                                                         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
                                                             Direct attacks use player-to-target distance; area falloff uses distance from the blast center. A linked component attached to a struck enemy uses 0m. Leave blank to assume full damage without evaluating a range cap. Sourced hard caps count farther attacks as misses; unresolved ranges remain informational.
                                                         </p>
+                                                        {selectedFalloffAttack?.pelletSpreadCone && (
+                                                            <>
+                                                                <label htmlFor="planner-target-radius" className="mt-2 grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2 text-[10px] text-slate-300">
+                                                                    <span>Target radius (m)</span>
+                                                                    <input
+                                                                        id="planner-target-radius"
+                                                                        aria-label="Target radius in meters"
+                                                                        type="number"
+                                                                        min={0.01}
+                                                                        step={0.1}
+                                                                        value={targetRadiusMeters ?? ""}
+                                                                        onChange={(event) => {
+                                                                            const value = event.currentTarget.value;
+                                                                            const next = value === "" ? Number.NaN : Number(value);
+                                                                            setTargetRadiusMeters(Number.isFinite(next) && next > 0 ? next : undefined);
+                                                                        }}
+                                                                        className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                    />
+                                                                    <span className="text-slate-500">meters</span>
+                                                                </label>
+                                                                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                                                                    Buckshot estimates one idealized centered pellet plus the remaining pellets sampled uniformly by solid angle inside the Wiki's {selectedFalloffAttack.pelletSpreadCone.minimumSpreadDegrees}°–{selectedFalloffAttack.pelletSpreadCone.maximumSpreadDegrees}° cone. Both radius and distance are required. Accuracy or spread modifiers disable this estimate; it is a single-target manual score and never enables Auto Optimize.
+                                                                </p>
+                                                            </>
+                                                        )}
                                                         {mausolonRangeNote && (
                                                             <p role="note" className="mt-1.5 text-[10px] leading-relaxed text-amber-300">
                                                                 {mausolonRangeNote}
@@ -7119,9 +7189,11 @@ export default function ModBuilder() {
                                                                         tooltip: `${BASIC_STAT_TOOLTIPS.reload}\n\nThe current effective reload time is ${activeMetrics.modded.reloadTime.toFixed(2)}s.`,
                                                                     },
                                                                     {
-                                                                        label: "Multishot",
+                                                                        label: activeMetrics.modded.pelletHitEstimate ? "Expected pellet hits" : "Multishot",
                                                                         value: `${activeMetrics.modded.multishot.toFixed(2)}`,
-                                                                        tooltip: `${BASIC_STAT_TOOLTIPS.multishot}\n\n${describeMultishot(activeMetrics.modded.multishot)}`,
+                                                                        tooltip: activeMetrics.modded.pelletHitEstimate
+                                                                            ? `Experimental centered-target estimate: ${fmt(activeMetrics.modded.pelletHitEstimate.nominalExpectedHits, 2)} expected hits from ${fmt(activeMetrics.modded.pelletHitEstimate.pelletsFired, 2)} fired pellets. Spread-endpoint range: ${fmt(activeMetrics.modded.pelletHitEstimate.minimumExpectedHits, 2)}–${fmt(activeMetrics.modded.pelletHitEstimate.maximumExpectedHits, 2)}. Assumes one idealized center pellet plus uniform solid-angle sampling for the rest.`
+                                                                            : `${BASIC_STAT_TOOLTIPS.multishot}\n\n${describeMultishot(activeMetrics.modded.multishot)}`,
                                                                     },
                                                                     {
                                                                         label: "Burst DPS",
@@ -7838,9 +7910,11 @@ export default function ModBuilder() {
                                             tooltip: `Chance per pellet/projectile to trigger a status effect. Over 100% = multiple procs per ${damageUnit}.`,
                                         },
                                         {
-                                            label: "Multishot",
-                                            value: stats.multishot.toFixed(2) + "x",
-                                            tooltip: usesHitTerminology(weapon.category) ? "Additional hit instances created by the attack. Each hit rolls status independently." : "Projectiles per trigger pull. Each pellet rolls status independently.",
+                                            label: stats.pelletHitEstimate ? "Expected pellet hits" : "Multishot",
+                                            value: stats.pelletHitEstimate ? stats.multishot.toFixed(2) : stats.multishot.toFixed(2) + "x",
+                                            tooltip: stats.pelletHitEstimate
+                                                ? `Experimental centered-target estimate: ${fmt(stats.pelletHitEstimate.nominalExpectedHits, 2)} expected hits from ${fmt(stats.pelletHitEstimate.pelletsFired, 2)} fired pellets at ${fmt(stats.pelletHitEstimate.attackDistanceMeters, 2)}m against a ${fmt(stats.pelletHitEstimate.targetRadiusMeters, 2)}m radius. Spread-endpoint range: ${fmt(stats.pelletHitEstimate.minimumExpectedHits, 2)}–${fmt(stats.pelletHitEstimate.maximumExpectedHits, 2)}. The value shown drives the manual single-target damage/status estimate.`
+                                                : usesHitTerminology(weapon.category) ? "Additional hit instances created by the attack. Each hit rolls status independently." : "Projectiles per trigger pull. Each pellet rolls status independently.",
                                         },
                                         {
                                             label: rateLabel,

@@ -142,6 +142,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         chargeTime: attack.chargeTime ?? null,
         selectedAttackChargeTimeAffectedByFireRate: attack.chargeTimeAffectedByFireRate !== false,
         selectedAttackDamageFalloff: attack.damageFalloff,
+        selectedAttackPelletSpreadCone: attack.pelletSpreadCone,
         selectedAttackMaximumRangeMeters: attack.maximumRangeMeters,
         selectedAttackMaximumRangeBehavior: attack.maximumRangeBehavior,
         selectedAttackMaximumRangeSourceUrl: attack.maximumRangeSourceUrl,

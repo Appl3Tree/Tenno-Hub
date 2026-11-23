@@ -118,6 +118,14 @@ export interface WeaponAttackDamageFalloff {
     sourceUrl: string;
 }
 
+export interface WeaponAttackPelletSpreadCone {
+    /** Wiki-listed minimum spread angle from the reticle center, in degrees. */
+    minimumSpreadDegrees: number;
+    /** Wiki-listed maximum spread angle from the reticle center, in degrees. */
+    maximumSpreadDegrees: number;
+    sourceUrl: string;
+}
+
 export type WeaponAttackMaximumRangeBehavior = "hardHitCap" | "informational";
 
 export interface WeaponAttackLingeringDamageRule {
@@ -198,6 +206,8 @@ export interface WeaponAttack {
     scoreBoundaryNote?: WeaponAttackScoreBoundaryNote;
     /** Wiki-listed falloff for this attack. AoE profiles measure target offset from the explosion center. */
     damageFalloff?: WeaponAttackDamageFalloff;
+    /** Verified attack cone used only by the configurable experimental pellet-hit estimate. */
+    pelletSpreadCone?: WeaponAttackPelletSpreadCone;
     /** Wiki-listed maximum hit range and how the planner treats targets beyond it. */
     maximumRangeMeters?: number;
     maximumRangeBehavior?: WeaponAttackMaximumRangeBehavior;
@@ -291,6 +301,8 @@ export interface WeaponEntry {
     selectedAttackChargeTimeAffectedByFireRate?: boolean;
     /** Source-listed falloff profile carried from the selected attack row. */
     selectedAttackDamageFalloff?: WeaponAttackDamageFalloff;
+    /** Wiki-listed spread cone carried from the selected attack row. */
+    selectedAttackPelletSpreadCone?: WeaponAttackPelletSpreadCone;
     /** Source-listed range limit carried from the selected attack row. */
     selectedAttackMaximumRangeMeters?: number;
     selectedAttackMaximumRangeBehavior?: WeaponAttackMaximumRangeBehavior;
@@ -1336,6 +1348,22 @@ const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
             minimumDamageMultiplier: 0.3,
             scaleBy: Object.freeze(["blastRadius"] as const),
             sourceUrl: "https://wiki.warframe.com/w/Stahlta",
+        }),
+    }),
+});
+
+const VERIFIED_ATTACK_PELLET_SPREAD_OVERRIDES: Readonly<
+    Record<string, Readonly<Record<string, WeaponAttackPelletSpreadCone>>>
+> = Object.freeze({
+    // The Wiki lists 24° minimum / 42° maximum Buckshot spread. The
+    // experimental target-hit estimate treats the mean angle as nominal and
+    // reports both endpoints; it does not claim the game's exact distribution.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
+        "buckshot": Object.freeze({
+            minimumSpreadDegrees: 24,
+            maximumSpreadDegrees: 42,
+            sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
         }),
     }),
 });
@@ -2671,7 +2699,7 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
         "buckshot": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
-            reason: "Buckshot has 11 pellets with 24° minimum and 42° maximum spread. The Wiki describes shotgun pellets as random trajectories in the spread cone, with at least one near the reticle center, but the planner cannot estimate target overlap without a target-size model. The row is reference-only and excluded from damage scoring and Auto Optimize. Its sourced charge time, ammo cost, guaranteed Corrosive proc, and 5–10m falloff remain visible. Overpressured Rounds' next-shot spread/falloff buff and kill-based magazine restore require attack history and are not simulated.",
+            reason: "Buckshot has 11 pellets with 24° minimum and 42° maximum spread. The Wiki says at least one near the reticle center, but does not specify a precise pellet distribution. Without a target radius and attack distance, target overlap is unknown and the row remains reference-only. With both entered, an experimental single-target estimate assumes one idealized center pellet and uniform solid-angle sampling for the rest; this is not calibrated to the game's exact pellet RNG or hitbox geometry. Accuracy/spread modifiers disable the manual estimate, area coverage remains unscored, and Auto Optimize stays unavailable. Its sourced charge time, ammo cost, guaranteed Corrosive proc, and 5–10m falloff remain visible. Overpressured Rounds' next-shot spread/falloff buff and kill-based magazine restore require attack history and are not simulated.",
         }),
     }),
     // Larkspur's explosion is the linked component of its charged Alt-Fire.
@@ -3288,6 +3316,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 const ammoChargeRule = VERIFIED_ATTACK_AMMO_CHARGE_RULES[uniqueName]?.[attackName];
                 const ammoCostModelNote = VERIFIED_ATTACK_AMMO_COST_MODEL_NOTES[uniqueName]?.[attackName];
                 const damageFalloff = VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES[uniqueName]?.[attackName];
+                const pelletSpreadCone = VERIFIED_ATTACK_PELLET_SPREAD_OVERRIDES[uniqueName]?.[attackName];
                 const maximumRange = VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES[uniqueName]?.[attackName];
                 const modelLimitation = VERIFIED_ATTACK_MODEL_LIMITATIONS[uniqueName]?.[attackName];
                 const scoreBoundaryNote = VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES[uniqueName]?.[attackName];
@@ -3325,6 +3354,7 @@ export function getWeaponCatalog(): WeaponEntry[] {
                     chargeAmmoPerSecond: ammoChargeRule?.ammoPerSecond,
                     chargeDamageBaseAmmoCost: ammoChargeRule?.damageBaseAmmoCost,
                     ...(damageFalloff ? { damageFalloff } : {}),
+                    ...(pelletSpreadCone ? { pelletSpreadCone } : {}),
                     ...(maximumRange ? {
                         maximumRangeMeters: maximumRange.meters,
                         maximumRangeBehavior: maximumRange.behavior,
