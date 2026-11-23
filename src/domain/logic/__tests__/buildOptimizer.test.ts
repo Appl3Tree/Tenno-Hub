@@ -538,6 +538,7 @@ describe("fixed-window DPS objective", () => {
         attackName: string,
         targetFaction = "Grineer",
         targetProfileOverride = { health: 2_000_000, shields: 0, overguard: 0, armor: 3_000 },
+        conditionalState: ConditionalState = { mode: "realistic" },
     ) {
         const catalogWeapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
         expect(catalogWeapon).toBeDefined();
@@ -555,7 +556,7 @@ describe("fixed-window DPS objective", () => {
             {
                 targetFaction,
                 targetProfileOverride,
-                conditionalState: { mode: "realistic" },
+                conditionalState,
                 buildForAttack: attack,
                 slotPolarities,
                 defaultSlotPolarities: slotPolarities,
@@ -614,6 +615,33 @@ describe("fixed-window DPS objective", () => {
         expect(customZero.damageInWindow).toBeCloseTo(initial.damageInWindow, 10);
         expect(customFive.damageInWindow).toBeGreaterThan(customZero.damageInWindow);
         expect(customFive.damageInWindow).toBeCloseTo(fullyStacked.damageInWindow, 10);
+    });
+
+    it("uses a maintained Custom stack snapshot when optimizing fixed-window builds", { timeout: 30_000 }, () => {
+        const target = { health: 2_000_000, shields: 0, overguard: 0, armor: 3_000 };
+        const conditionalState: ConditionalState = { mode: "custom", externalStacks: 5 };
+        const { result, weapon } = optimizeCatalogWindowFixture(
+            "Braton Prime",
+            "Normal Attack",
+            "Grineer",
+            target,
+            conditionalState,
+        );
+        const independentScore = debugEvaluateFixedWindowDps(
+            weapon,
+            result.slots.map((mod, index) => mod
+                ? mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect
+                : null),
+            "Grineer",
+            target,
+            conditionalState,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.some((mod) => mod?.name === "Galvanized Chamber")).toBe(true);
+        expect(result.slots.some((mod) => mod?.name === "Galvanized Aptitude")).toBe(true);
+        expect(independentScore.damagePerSecond).toBeCloseTo(result.windowDpsScore!, 8);
+        expect(independentScore.damageInWindow).toBeCloseTo(result.windowDpsDamage!, 8);
     });
 
     it("keeps refining the Laetum finite window until its critical replacement is selected", () => {
