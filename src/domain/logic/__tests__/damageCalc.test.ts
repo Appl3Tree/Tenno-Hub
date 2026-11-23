@@ -524,6 +524,48 @@ describe("Precision Strike direct-hit reload modeling", () => {
     });
 });
 
+describe("Combat Reload active-buff snapshot", () => {
+    it("parses every rank and leaves pellet-trigger probability inactive in Realistic", () => {
+        const expectedBonuses = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
+        const warning = "Combat Reload requires five Tigris pellets to land on headshot locations and grants rank-scaled Reload Speed for 3s. Per-pellet headshot probability and buff expiry/refresh timing are not modeled, so Realistic leaves the effect inactive. Custom/Fully Stacked can represent a manual active-buff snapshot; Auto Optimize skips this mod.";
+
+        for (const weaponName of ["Tigris", "Tigris Prime", "Sancti Tigris"]) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon).toBeDefined();
+            const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Combat Reload");
+            expect(mod).toBeDefined();
+            expect(mod!.hasDamageEffect).toBe(true);
+            expect(mod!.effectsByRank.map((effect) => effect.conditionalEffects?.[0])).toEqual(
+                expectedBonuses.map((reloadSpeedBonus) => ({
+                    trigger: "onHeadshot",
+                    durationSeconds: 3,
+                    minimumHeadshotPellets: 5,
+                    requiresAiming: false,
+                    maxStacks: 1,
+                    stats: { reloadSpeedBonus },
+                })),
+            );
+            expect(mod!.unparsedStatsByRank?.every((lines) => lines.length === 0)).toBe(true);
+            expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe("https://wiki.warframe.com/w/Combat_Reload");
+            expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit)).toContain(warning);
+
+            const effect = mod!.effectsByRank[mod!.fusionLimit];
+            const realistic = calculateBuild(weapon!, [effect], "Grineer", {
+                conditionalState: { mode: "realistic" },
+                hitLocation: { headshotRate: 1, canHeadshot: true },
+            }).modded;
+            const activeSnapshot = calculateBuild(weapon!, [effect], "Grineer", {
+                conditionalState: { mode: "custom", externalStacks: 1 },
+                hitLocation: { headshotRate: 0, canHeadshot: true },
+            }).modded;
+            expect(realistic.reloadSpeedBonus).toBe(0);
+            expect(realistic.reloadTime).toBe(weapon!.reloadTime);
+            expect(activeSnapshot.reloadSpeedBonus).toBeCloseTo(1.2, 12);
+            expect(activeSnapshot.reloadTime).toBeCloseTo(weapon!.reloadTime / 2.2, 12);
+        }
+    });
+});
+
 describe("Tonkor bounded impact and explosion sequence", () => {
     it("gates standard Tonkor at the conservative arming distance and models Kuva Tonkor on impact", () => {
         const expected = [

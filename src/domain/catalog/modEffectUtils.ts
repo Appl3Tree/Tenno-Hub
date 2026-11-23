@@ -21,6 +21,7 @@ export const VILE_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwa
 export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveVenatoAugmentMod";
 export const OVERPRESSURED_ROUNDS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveLasGooAKAugmentMod";
 export const PRECISION_STRIKE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/GrnGrenadeLauncherArbitrationMod";
+export const COMBAT_RELOAD_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTigrisAugmentMod";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -158,6 +159,9 @@ export function getUnmodeledDamageEffectLines(
     )) {
         lines.push("Precision Strike's Reload Speed bonus requires a direct Tonkor grenade hit. The selected attack does not model that trigger, so Auto Optimize skips this mod.");
     }
+    if (mod.path === COMBAT_RELOAD_MOD_PATH) {
+        lines.push("Combat Reload requires five Tigris pellets to land on headshot locations and grants rank-scaled Reload Speed for 3s. Per-pellet headshot probability and buff expiry/refresh timing are not modeled, so Realistic leaves the effect inactive. Custom/Fully Stacked can represent a manual active-buff snapshot; Auto Optimize skips this mod.");
+    }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         // The Slash keyword appears in the stat line because it determines
         // companion healing; this is not a weapon damage modifier.
@@ -196,6 +200,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === PRECISION_STRIKE_MOD_PATH) {
         return "https://wiki.warframe.com/w/Precision_Strike";
+    }
+    if (mod.path === COMBAT_RELOAD_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Combat_Reload";
     }
     if (mod.unparsedStatsByRank?.some((rank) => hasUnparsedTruthSyndicateStat(rank))) {
         return "https://wiki.warframe.com/w/Syndicates";

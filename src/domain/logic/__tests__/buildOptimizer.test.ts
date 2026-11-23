@@ -1800,6 +1800,24 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Combat Reload out of Auto Optimize despite a manual active-buff snapshot", () => {
+        const tigris = getWeaponCatalog().find((weapon) => weapon.name === "Tigris");
+        expect(tigris).toBeDefined();
+        const combatReload = getModsForWeapon(tigris!).find((mod) => mod.name === "Combat Reload");
+        expect(combatReload).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(combatReload!, combatReload!.fusionLimit)).toContain(
+            "Combat Reload requires five Tigris pellets to land on headshot locations and grants rank-scaled Reload Speed for 3s. Per-pellet headshot probability and buff expiry/refresh timing are not modeled, so Realistic leaves the effect inactive. Custom/Fully Stacked can represent a manual active-buff snapshot; Auto Optimize skips this mod.",
+        );
+
+        const result = optimizeBuild(tigris!, [combatReload!], "timeToKill", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+            conditionalState: { mode: "custom", externalStacks: 1 },
+        });
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
+    });
+
     it("keeps Vile Discharge out of Auto Optimize until its charge-and-discharge sequence is modeled", () => {
         const embolist = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
         expect(embolist).toBeDefined();

@@ -1136,6 +1136,14 @@ export function estimateConditionalUptime(
             break;
         case "onHeadshot":
             {
+                if ((conditional.minimumHeadshotPellets ?? 1) > 1) {
+                    // A direct-hit headshot share does not describe pellet-to-head
+                    // overlap. Keep this trigger inactive in Realistic until the
+                    // five-pellet probability is modeled; Custom/Fully Stacked
+                    // states are handled above as an explicit active-buff snapshot.
+                    uptime = 0;
+                    break;
+                }
                 const headshotRate = normalizeHitShare(context.headshotHitRate);
                 const expectedHeadshots = Math.max(0, fireRate) * headshotRate * Math.max(0, conditional.durationSeconds);
                 uptime = conditional.durationSeconds > 0
