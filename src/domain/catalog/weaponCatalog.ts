@@ -512,6 +512,24 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     // https://wiki.warframe.com/w/Zylok_Prime
     "/Lotus/Weapons/Tenno/Pistols/ConclaveLeverPistol/ConclaveLeverPistol|incarnon form": "Charge",
     "/Lotus/Weapons/Tenno/Pistols/PrimeZylok/ZylokPrimePistol|incarnon form": "Charge",
+    // Higasa's first row is Burst, while its charged Alternate Fire is a
+    // separate Charge row. The full-gauge prerequisite is disclosed below.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Higasa
+    "/Lotus/Weapons/Tenno/LongGuns/Gunbrella/ShrineMaidenGunbrellaWeapon|charged shot": "Charge",
+    // These generated secondary profiles inherit the primary-fire trigger.
+    // Restore their Wiki-listed charged mode; unsupported event mechanics
+    // are bounded by explicit reference-only explanations below.
+    // Verified 2026-11-23:
+    // https://wiki.warframe.com/w/Ambassador
+    // https://wiki.warframe.com/w/Tenet_Plinx
+    "/Lotus/Weapons/Corpus/LongGuns/CrpArSniper/CrpArSniperRifle|charge": "Charge",
+    "/Lotus/Weapons/Corpus/LongGuns/CrpArSniper/CrpArSniperRifle|charged aoe": "Charge",
+    "/Lotus/Weapons/Corpus/BoardExec/Secondary/CrpBEPlinx/CrpBEPlinxWeapon|alt-fire": "Charge",
+    "/Lotus/Weapons/Corpus/BoardExec/Secondary/CrpBEPlinx/CrpBEPlinxWeapon|alt-fire aoe": "Charge",
+    // The Wiki identifies Buckshot as an Auto-Charge alternate fire; its
+    // one-second charge and pellet-overlap boundary are source-backed below.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon|buckshot": "Charge",
     // The Incarnon attack tables classify both Vasto variants as Burst.
     // Verified 2026-11-15: https://wiki.warframe.com/w/Vasto_Incarnon_Genesis
     "/Lotus/Weapons/Tenno/Pistol/RevolverPistol|incarnon form": "Burst",
@@ -791,6 +809,11 @@ const VERIFIED_ATTACK_AMMO_COST_OVERRIDES: Readonly<Record<string, Readonly<Reco
         "alt-fire": 20,
         "alt-fire aoe": 20,
     }),
+    // EFV-5 Jupiter Buckshot spends 15 ammo per charged release.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
+        "buckshot": 15,
+    }),
     "/Lotus/Weapons/Tenno/LongGuns/TnBardRifle/TnBardRifle": Object.freeze({
         "charged attack": 10,
     }),
@@ -859,6 +882,18 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // EFV-5 Jupiter's Buckshot falls from full damage at 5m to 0.79% at 10m;
+    // projectile-speed bonuses extend the listed distances.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
+        "buckshot": Object.freeze({
+            startDistanceMeters: 5,
+            endDistanceMeters: 10,
+            minimumDamageMultiplier: 0.0079,
+            scaleBy: Object.freeze(["projectileSpeed"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
+        }),
+    }),
     // Castanas-family detonations use 100%→60% falloff over 3.6m.
     // Blast Radius mods extend the sourced blast profile.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Castanas
@@ -1794,6 +1829,11 @@ const VERIFIED_ATTACK_FORCED_PROC_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponForcedProcs>>
 >> = Object.freeze({
+    // EFV-5 Jupiter Buckshot's 11 projectiles each guarantee Corrosive.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
+        "buckshot": Object.freeze({ corrosive: 1 }),
+    }),
     // These weapons guarantee Electricity only on embedded detonation; their
     // mid-flight rows do not carry the forced proc.
     // Verified 2026-11-23:
@@ -2279,6 +2319,52 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
             reason: "Battacor Alt-Fire's explosion shares the beam's one-to-three kill-earned charges and charge-scaled damage. Charge count and kill history are not modeled, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
         }),
     }),
+    // Higasa's charged Alternate Fire is available only at full gauge. The
+    // gauge is earned through primary-fire kills or blocking, neither of which
+    // is represented by the single-weapon encounter state.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Higasa
+    "/Lotus/Weapons/Tenno/LongGuns/Gunbrella/ShrineMaidenGunbrellaWeapon": Object.freeze({
+        "charged shot": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Higasa",
+            reason: "Higasa's Charged Shot uses a 1.0s Charge release but is available only when its gauge is full; primary-fire kills and blocking fill that gauge. The planner does not track gauge state or those setup events, so this row is reference-only and cannot be damage-scored or Auto Optimized.",
+        }),
+    }),
+    // The charged rows are separate source entries whose complete event
+    // relationship is not represented by the single-attack scorer.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Ambassador
+    "/Lotus/Weapons/Corpus/LongGuns/CrpArSniper/CrpArSniperRifle": Object.freeze({
+        "charge": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Ambassador",
+            reason: "Ambassador's charged mode consumes 16 rounds and switches modes with a 2.6s delay. The Wiki lists a 600-damage Charge row and a separate 800-damage Charged AoE row; until the planner can bind the full on-impact event and its ammo/mode requirements without omitting or duplicating damage, both rows are reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+        "charged aoe": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Ambassador",
+            reason: "Ambassador's Charged AoE is part of its 16-round charged mode, which follows a 2.6s mode switch. The Wiki exports a separate 600-damage Charge row but the planner cannot safely bind the rows into one complete on-impact event, so this component is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+    }),
+    // Tenet Plinx alt-fire requires a full magazine; damage scales with
+    // magazine size and its explosion occurs after a separate delay.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Tenet_Plinx
+    "/Lotus/Weapons/Corpus/BoardExec/Secondary/CrpBEPlinx/CrpBEPlinxWeapon": Object.freeze({
+        "alt-fire": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Tenet_Plinx",
+            reason: "Tenet Plinx Alt-Fire requires and consumes a full magazine, multiplies damage by magazine size, and releases its explosion after a 0.8s delay. The planner does not model the full-magazine gate, magazine-scaled damage, or delayed impact-plus-explosion cadence, so this row is reference-only and excluded from damage scoring and Auto Optimize.",
+        }),
+        "alt-fire aoe": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Tenet_Plinx",
+            reason: "This is the delayed explosion component of Tenet Plinx Alt-Fire. The attack requires and consumes a full magazine, scales damage with magazine size, and explodes after 0.8s; these linked events are reference-only until the planner models their complete cadence and magazine rules.",
+        }),
+    }),
+    // Buckshot's eleven pellets have very wide spread; target size and pellet
+    // overlap are unavailable, so treating all pellets as hits would overstate
+    // single-target damage. The conditional augment adds another missing state.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
+        "buckshot": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
+            reason: "Buckshot has 11 pellets and 33°–42° spread. The planner cannot estimate how many pellets overlap a target of a given size, so the row is reference-only and excluded from damage scoring and Auto Optimize. Its sourced charge time, ammo cost, guaranteed Corrosive proc, and 5–10m falloff remain visible. Overpressured Rounds' next-shot spread/falloff buff and kill-based magazine restore require attack history and are not simulated.",
+        }),
+    }),
     // Larkspur's explosion is the linked component of its charged Alt-Fire.
     // Select the projectile impact row to score its full single-target release.
     // Verified 2026-11-21: https://wiki.warframe.com/w/Larkspur
@@ -2489,6 +2575,12 @@ const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
 
 /** Current Wiki-verified base multishot for attack rows whose fire modes differ. */
 const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
+    // The charged Buckshot attack releases 11 pellets; target overlap is
+    // separately bounded as reference-only below.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/EFV-5_Jupiter
+    "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
+        "buckshot": 11,
+    }),
     // Each Kulstar rocket always produces three bomblet projectiles; Multishot
     // changes the number of rockets, not this child-projectile count. The
     // cluster rows are reference-only because their loose arc prevents a

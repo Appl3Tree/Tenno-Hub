@@ -819,6 +819,31 @@ describe("source-backed weapon attack falloff", () => {
         expect(fasterProjectile.attackDamageFalloff?.damageMultiplier).toBe(1);
     });
 
+    it("models EFV-5 Jupiter Buckshot's sourced falloff while keeping pellet coverage bounded", () => {
+        const efv = catalog.find((candidate) => candidate.name.toLowerCase() === "efv-5 jupiter");
+        expect(efv).toBeDefined();
+        const buckshotIndex = efv!.attacks.findIndex((attack) => attack.name === "Buckshot");
+        expect(buckshotIndex).toBeGreaterThanOrEqual(0);
+        const buckshot = efv!.attacks[buckshotIndex]!;
+        expect(buckshot.damageFalloff?.sourceUrl).toBe("https://wiki.warframe.com/w/EFV-5_Jupiter");
+        expect(buckshot.modelLimitation?.reason).toMatch(/11 pellets/i);
+
+        const selected = withSelectedAttack(efv!, buckshotIndex);
+        const withinFullDamage = calculateBuild(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 5 },
+        }).modded;
+        const midpoint = calculateBuild(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 7.5 },
+        }).modded;
+        const beyondFalloff = calculateBuild(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 10 },
+        }).modded;
+
+        expect(withinFullDamage.attackDamageFalloff?.damageMultiplier).toBe(1);
+        expect(midpoint.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.50395, 8);
+        expect(beyondFalloff.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.0079, 8);
+    });
+
     it("applies Larkspur beam ramps and only enforces the unambiguous Atmosphere range", () => {
         const larkspurProfiles = catalog.filter((weapon) => weapon.name === "Larkspur" || weapon.name === "Larkspur Prime");
         expect(larkspurProfiles).toHaveLength(4);
@@ -1096,6 +1121,48 @@ describe("source-backed Zylok Incarnon trigger cadence", () => {
         expect(selected.chargeTime).toBeCloseTo(0.6, 8);
         expect(stats.initialAttackDelaySeconds).toBeCloseTo(0.6, 8);
         expect(stats.fireRate).toBeCloseTo(1 / (0.6 + 1 / selected.fireRate), 8);
+    });
+});
+
+describe("source-backed Higasa trigger cadence", () => {
+    it("uses Charge timing for the gated Charged Shot, not the primary burst metadata", () => {
+        const higasa = getWeaponCatalog().find((candidate) => candidate.name === "Higasa");
+        expect(higasa).toBeDefined();
+        const chargedIndex = higasa!.attacks.findIndex((attack) => attack.name === "Charged Shot");
+        expect(chargedIndex).toBeGreaterThanOrEqual(0);
+
+        const selected = withSelectedAttack(higasa!, chargedIndex);
+        const stats = calculateBuild(selected, []).modded;
+        expect(selected.trigger).toBe("Charge");
+        expect(selected.chargeTime).toBeCloseTo(1, 8);
+        expect(selected.burstCount).toBeUndefined();
+        expect(stats.initialAttackDelaySeconds).toBeCloseTo(1, 8);
+        expect(stats.fireRate).toBeCloseTo(1 / (1 + 1 / selected.fireRate), 8);
+        expect(selected.selectedAttackModelLimitation?.reason).toMatch(/gauge is full/i);
+    });
+});
+
+describe("source-backed charged attack cadence gates", () => {
+    it("uses the Wiki-listed charge interval for Ambassador and Tenet Plinx", () => {
+        const cases = [
+            ["Ambassador", "Charge", 1],
+            ["Tenet Plinx", "Alt-Fire", 0.8],
+            ["Efv-5 Jupiter", "Buckshot", 1],
+        ] as const;
+
+        for (const [weaponName, attackName, chargeTime] of cases) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+            expect(attackIndex, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(0);
+
+            const selected = withSelectedAttack(weapon!, attackIndex);
+            const stats = calculateBuild(selected, []).modded;
+            expect(selected.trigger, weaponName).toBe("Charge");
+            expect(selected.chargeTime, weaponName).toBeCloseTo(chargeTime, 8);
+            expect(stats.initialAttackDelaySeconds, weaponName).toBeCloseTo(chargeTime, 8);
+            expect(selected.selectedAttackModelLimitation?.reason, weaponName).toMatch(/reference-only/i);
+        }
     });
 });
 

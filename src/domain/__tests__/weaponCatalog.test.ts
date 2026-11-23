@@ -286,6 +286,30 @@ describe("weapon catalog stance inference", () => {
         }
     });
 
+    it("uses Higasa's Charge trigger and discloses its unmodeled full-gauge gate", () => {
+        const higasa = getWeaponCatalog().find((candidate) => candidate.name === "Higasa");
+        expect(higasa).toBeDefined();
+
+        const autoIndex = higasa!.attacks.findIndex((attack) => attack.name === "Auto");
+        const chargedIndex = higasa!.attacks.findIndex((attack) => attack.name === "Charged Shot");
+        expect(autoIndex).toBeGreaterThanOrEqual(0);
+        expect(chargedIndex).toBeGreaterThanOrEqual(0);
+
+        const auto = higasa!.attacks[autoIndex]!;
+        const charged = higasa!.attacks[chargedIndex]!;
+        expect(auto).toMatchObject({ trigger: "Burst", burstCount: 5 });
+        expect(charged).toMatchObject({ trigger: "Charge", chargeTime: 1 });
+        expect(charged.burstCount).toBeUndefined();
+        expect(charged.burstDelay).toBeUndefined();
+        expect(charged.modelLimitation?.sourceUrl).toBe("https://wiki.warframe.com/w/Higasa");
+        expect(charged.modelLimitation?.reason).toMatch(/only when its gauge is full/i);
+        expect(charged.modelLimitation?.reason).toMatch(/reference-only/i);
+
+        const selected = withSelectedAttack(higasa!, chargedIndex);
+        expect(selected.trigger).toBe("Charge");
+        expect(selected.selectedAttackModelLimitation).toEqual(charged.modelLimitation);
+    });
+
     it("keeps Mausolon's Archwing and Atmosphere damage profiles selectable and distinct", () => {
         const mausolons = getWeaponCatalog().filter((weapon) => weapon.name === "Mausolon");
         const archwing = mausolons.find((weapon) => weapon.variantLabel === "Archwing");
@@ -877,5 +901,61 @@ describe("weapon mod set membership", () => {
         expect(nira!.effectsByRank.every((effect) => effect.niraSetModCount === 1)).toBe(true);
         expect(nira!.effectsByRank[5].damageBonus).toBeCloseTo(0.9, 10);
         expect(nira!.effectsByRank[5].statusChanceBonus).toBeCloseTo(0.6, 10);
+    });
+});
+
+describe("source-backed charge-trigger gates", () => {
+    it("restores Ambassador's charged trigger and keeps incomplete rows reference-only", () => {
+        const ambassador = getWeaponCatalog().find((weapon) => weapon.name === "Ambassador");
+        expect(ambassador).toBeDefined();
+        expect(ambassador!.attacks.find((attack) => attack.name === "Auto")?.trigger).toBe("Auto");
+
+        for (const name of ["Charge", "Charged AoE"]) {
+            const attackIndex = ambassador!.attacks.findIndex((attack) => attack.name === name);
+            expect(attackIndex, name).toBeGreaterThanOrEqual(0);
+            const attack = ambassador!.attacks[attackIndex]!;
+            expect(attack.trigger, name).toBe("Charge");
+            expect(attack.modelLimitation?.sourceUrl, name).toBe("https://wiki.warframe.com/w/Ambassador");
+            expect(attack.modelLimitation?.reason, name).toMatch(/reference-only/i);
+        }
+    });
+
+    it("restores Tenet Plinx Alt-Fire charge metadata and gates unsupported magazine scaling", () => {
+        const plinx = getWeaponCatalog().find((weapon) => weapon.name === "Tenet Plinx");
+        expect(plinx).toBeDefined();
+        expect(plinx!.attacks.find((attack) => attack.name === "Semi-Auto")?.trigger).toBe("Semi");
+
+        for (const name of ["Alt-Fire", "Alt-Fire AoE"]) {
+            const attackIndex = plinx!.attacks.findIndex((attack) => attack.name === name);
+            expect(attackIndex, name).toBeGreaterThanOrEqual(0);
+            const attack = plinx!.attacks[attackIndex]!;
+            expect(attack.trigger, name).toBe("Charge");
+            expect(attack.modelLimitation?.sourceUrl, name).toBe("https://wiki.warframe.com/w/Tenet_Plinx");
+            expect(attack.modelLimitation?.reason, name).toMatch(/full magazine/i);
+        }
+    });
+
+    it("restores EFV-5 Jupiter Buckshot's charged single-release stats and spread boundary", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name.toLowerCase() === "efv-5 jupiter");
+        expect(weapon).toBeDefined();
+        expect(weapon!.attacks.find((attack) => attack.name === "Auto")?.trigger).toBe("Auto");
+
+        const buckshot = weapon!.attacks.find((attack) => attack.name === "Buckshot");
+        expect(buckshot).toMatchObject({
+            trigger: "Charge",
+            chargeTime: 1,
+            multishot: 11,
+            ammoCostPerShot: 15,
+            damageFalloff: {
+                startDistanceMeters: 5,
+                endDistanceMeters: 10,
+                minimumDamageMultiplier: 0.0079,
+                scaleBy: ["projectileSpeed"],
+                sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
+            },
+            forcedProcs: { corrosive: 1 },
+        });
+        expect(buckshot?.modelLimitation?.sourceUrl).toBe("https://wiki.warframe.com/w/EFV-5_Jupiter");
+        expect(buckshot?.modelLimitation?.reason).toMatch(/pellets overlap/i);
     });
 });

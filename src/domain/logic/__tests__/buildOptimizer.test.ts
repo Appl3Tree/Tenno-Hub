@@ -3031,6 +3031,50 @@ describe("build optimizer scoring", () => {
         expect(() => optimizeBuild(selectedAltFire, [], "timeToKill", 8)).toThrow(/Optimization is unavailable for Alt-Fire/);
     });
 
+    it("keeps Higasa's gauge-gated Charged Shot out of damage optimization", () => {
+        const higasa = getWeaponCatalog().find((entry) => entry.name === "Higasa");
+        expect(higasa).toBeTruthy();
+        const chargedIndex = higasa!.attacks.findIndex((attack) => attack.name === "Charged Shot");
+        expect(chargedIndex).toBeGreaterThanOrEqual(0);
+
+        const selected = withSelectedAttack(higasa!, chargedIndex);
+        expect(selected.trigger).toBe("Charge");
+        expect(selected.selectedAttackModelLimitation?.reason).toMatch(/gauge is full/i);
+        expect(() => optimizeBuild(selected, [], "burst", 8)).toThrow(/reference-only/i);
+        expect(() => optimizeBuild(selected, [], "timeToKill", 8)).toThrow(/reference-only/i);
+        expect(() => optimizeBuild(selected, [], "windowDps", 8)).toThrow(/reference-only/i);
+    });
+
+    it("keeps incomplete Ambassador and Tenet Plinx charged sequences out of optimization", () => {
+        const cases = [
+            ["Ambassador", "Charge"],
+            ["Ambassador", "Charged AoE"],
+            ["Tenet Plinx", "Alt-Fire"],
+            ["Tenet Plinx", "Alt-Fire AoE"],
+            ["Efv-5 Jupiter", "Buckshot"],
+        ] as const;
+
+        for (const [weaponName, attackName] of cases) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
+            expect(weapon, weaponName).toBeTruthy();
+            const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === attackName);
+            expect(attackIndex, `${weaponName} / ${attackName}`).toBeGreaterThanOrEqual(0);
+
+            const attack = weapon!.attacks[attackIndex]!;
+            const selected = withSelectedAttack(weapon!, attackIndex);
+            expect(attack.trigger, `${weaponName} / ${attackName}`).toBe("Charge");
+            expect(selected.selectedAttackModelLimitation?.reason, `${weaponName} / ${attackName}`)
+                .toMatch(/reference-only/i);
+
+            for (const goal of ["burst", "timeToKill", "windowDps"] as const) {
+                expect(
+                    () => optimizeBuild(selected, [], goal, 8),
+                    `${weaponName} / ${attackName} / ${goal}`,
+                ).toThrow(/reference-only/i);
+            }
+        }
+    });
+
     it("keeps Simulor orb-history attacks reference-only", () => {
         const cases = [
             ["Simulor", "https://wiki.warframe.com/w/Simulor"],
