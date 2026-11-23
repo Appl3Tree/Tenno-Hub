@@ -19,6 +19,7 @@ export const BELL_RINGER_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastW
 export const BLOODTHIRST_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastDrainingBiteMod";
 export const VILE_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveEmbolistAugmentMod";
 export const SENTIENT_INCISION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveVenatoAugmentMod";
+export const OVERPRESSURED_ROUNDS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveLasGooAKAugmentMod";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -132,6 +133,14 @@ export function getUnmodeledDamageEffectLines(
         // per-hit damage bonus. https://wiki.warframe.com/w/Vile_Discharge
         lines.push("Vile Discharge's accumulated primary-fire/DoT charge, Alt-Fire timing, and 6m Toxin explosion are not simulated, so Auto Optimize skips this mod.");
     }
+    if (mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) {
+        // This EFV-5 augment crosses attack modes and requires a kill-driven
+        // magazine timeline. Buckshot's spread reduction is still unspecified,
+        // and the planner has no target-size pellet-hit model.
+        // https://wiki.warframe.com/w/Overpressured_Rounds
+        // https://wiki.warframe.com/w/EFV-5_Jupiter
+        lines.push("Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes. The Wiki does not specify the spread reduction, and EFV-5 Buckshot's 11-pellet spread has no target-size hit model here, so Auto Optimize skips this mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.");
+    }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
         // This augment chooses damage from the target weakness and special-cases
         // Overguard; the current model cannot change its channel with target stage.
@@ -171,6 +180,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         return "https://wiki.warframe.com/w/Bloodthirst";
+    }
+    if (mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Overpressured_Rounds";
     }
     if (mod.unparsedStatsByRank?.some((rank) => hasUnparsedTruthSyndicateStat(rank))) {
         return "https://wiki.warframe.com/w/Syndicates";
