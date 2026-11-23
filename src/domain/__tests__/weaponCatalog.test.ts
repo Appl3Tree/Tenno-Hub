@@ -16,6 +16,48 @@ const ITEMS = ITEMS_RAW as Record<string, {
 }>;
 
 describe("weapon catalog stance inference", () => {
+    it("models Vulcax's charged Impact and centered Radial Attack as one bounded hit", () => {
+        const vulcax = getWeaponCatalog().find((candidate) => candidate.name === "Vulcax");
+        expect(vulcax).toBeDefined();
+        const impactIndex = vulcax!.attacks.findIndex((attack) => attack.name === "Impact");
+        const radialIndex = vulcax!.attacks.findIndex((attack) => attack.name === "Radial Attack");
+        expect(impactIndex).toBeGreaterThanOrEqual(0);
+        expect(radialIndex).toBeGreaterThanOrEqual(0);
+
+        const impact = vulcax!.attacks[impactIndex]!;
+        const radial = vulcax!.attacks[radialIndex]!;
+        const sourceUrl = "https://wiki.warframe.com/w/Vulcax";
+        expect(vulcax!.trigger).toBe("Charge");
+        expect(impact.trigger).toBe("Charge");
+        expect(impact.chargeTime).toBeCloseTo(1, 8);
+        expect(impact.ammoCostPerShot).toBe(1);
+        expect(impact.maximumRangeMeters).toBe(300);
+        expect(impact.maximumRangeBehavior).toBe("hardHitCap");
+        expect(impact.damage.heat).toBe(500);
+        expect(impact.lingeringDamageRule).toMatchObject({
+            componentAttackName: "Radial Attack",
+            firstTickDelaySeconds: 0,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            sourceUrl,
+        });
+        expect(impact.scoreBoundaryNote?.sourceUrl).toBe(sourceUrl);
+        expect(impact.scoreBoundaryNote?.reason).toMatch(/assumes the hit.*excludes other enemies and area coverage/i);
+        expect(radial.damage.blast).toBe(100);
+        expect(radial.chargeTime).toBeCloseTo(1, 8);
+        expect(radial.damageFalloff).toMatchObject({
+            startDistanceMeters: 0,
+            endDistanceMeters: 5,
+            minimumDamageMultiplier: 0.5,
+            sourceUrl,
+        });
+        expect(radial.modelLimitation?.reason).toMatch(/Select Impact.*reference-only/i);
+        expect(withSelectedAttack(vulcax!, impactIndex).selectedAttackLingeringDamageRule)
+            .toEqual(impact.lingeringDamageRule);
+        expect(withSelectedAttack(vulcax!, radialIndex).selectedAttackModelLimitation)
+            .toEqual(radial.modelLimitation);
+    });
+
     it("corrects Kulstar's trigger and bounds the direct-hit rocket sequence", () => {
         const kulstar = getWeaponCatalog().find((candidate) => candidate.name === "Kulstar");
         expect(kulstar).toBeDefined();
