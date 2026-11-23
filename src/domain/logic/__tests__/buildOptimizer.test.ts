@@ -9499,3 +9499,48 @@ describe("Strain Infection optimizer scope", () => {
     });
 });
 
+describe("Dreadful Killshot optimizer scope", () => {
+    it("uses the current-health snapshot only for Burst and excludes it from other optimizer goals", () => {
+        const basmu = getWeaponCatalog().find((weapon) => weapon.name === "Basmu");
+        expect(basmu).toBeDefined();
+        const dreadfulKillshot = getModsForWeapon(basmu!).find((mod) => mod.name === "Dreadful Killshot");
+        expect(dreadfulKillshot).toBeDefined();
+        const conditionalState = { mode: "initial" as const, dreadfulKillshotCurrentHealth: 1_350 };
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            conditionalState,
+        };
+
+        const burst = optimizeBuild(basmu!, [dreadfulKillshot!], "burst", 1, options);
+        const finite = optimizeBuild(basmu!, [dreadfulKillshot!], "timeToKill", 1, options);
+        const scaling = optimizeBuild(basmu!, [dreadfulKillshot!], "scaling", 1, options);
+        const windowDps = optimizeBuild(basmu!, [dreadfulKillshot!], "windowDps", 1, options);
+        const rankFiveEffect = dreadfulKillshot!.effectsByRank[dreadfulKillshot!.fusionLimit]!;
+        const withoutHealthSnapshot = { ...conditionalState, dreadfulKillshotCurrentHealth: 0 };
+
+        expect(burst.slots.some((mod) => mod?.name === "Dreadful Killshot")).toBe(true);
+        expect(finite.slots.some((mod) => mod?.name === "Dreadful Killshot")).toBe(false);
+        expect(scaling.slots.some((mod) => mod?.name === "Dreadful Killshot")).toBe(false);
+        expect(windowDps.slots.some((mod) => mod?.name === "Dreadful Killshot")).toBe(false);
+        for (const goal of ["scaling", "windowDps"] as const) {
+            expect(debugScoreBuild(basmu!, [rankFiveEffect], goal, "", null, undefined, conditionalState))
+                .toBe(debugScoreBuild(basmu!, [rankFiveEffect], goal, "", null, undefined, withoutHealthSnapshot));
+        }
+        const explanation = explainBuild(
+            basmu!,
+            [dreadfulKillshot!],
+            [dreadfulKillshot!.fusionLimit],
+            "burst",
+            "",
+            undefined,
+            conditionalState,
+        );
+        expect(explanation.buildHighlights.join(" ")).toContain("Dreadful Killshot Burst score assumes 1350 current Warframe Health");
+        expect(explanation.buildHighlights.join(" ")).toContain("Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude it");
+    });
+});
+

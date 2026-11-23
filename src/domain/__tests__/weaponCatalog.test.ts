@@ -581,6 +581,19 @@ describe("weapon catalog stance inference", () => {
     });
 });
 
+describe("Dreadful Killshot rank data", () => {
+    it("parses the Basmu rank values and keeps the sourced mechanic out of unparsed-effect warnings", () => {
+        const basmu = getWeaponCatalog().find((weapon) => weapon.name === "Basmu");
+        expect(basmu).toBeDefined();
+        const mod = getModsForWeapon(basmu!).find((candidate) => candidate.name === "Dreadful Killshot");
+        expect(mod).toBeDefined();
+        expect(mod!.effectsByRank.map((effect) => effect.dreadfulKillshotDamageAndStatusPer75Health))
+            .toEqual([0.1, 0.12, 0.14, 0.16, 0.18, 0.2]);
+        expect(mod!.unparsedStatsByRank?.every((rank) => rank.length === 0)).toBe(true);
+        expect(mod!.effectsByRank.every((_, rank) => getUnmodeledDamageEffectLines(mod!, rank).length === 0)).toBe(true);
+    });
+});
+
 describe("weapon mod set membership", () => {
     it("maps all Strain Infection ranks to Critical Damage per cyst without an unmodeled damage warning", () => {
         const melee = getWeaponCatalog().find((weapon) =>

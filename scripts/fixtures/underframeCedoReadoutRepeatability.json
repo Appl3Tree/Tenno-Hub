@@ -153,5 +153,23 @@
     "minimumProductDamage": 99999.55,
     "maximumProductDamage": 100125.0,
     "interpretation": "The four standard displayed DPS × TTK products are within 125 damage of the target pool. This is consistent with a kill-time-normalized readout, but is an inference from rounded UI values and does not establish Auto Build scoring semantics."
+  },
+  "survivingTargetCheck": {
+    "observedDate": "2026-11-22",
+    "targetHealth": 2000000,
+    "targetArmor": 3000,
+    "simulationTimeSeconds": 5,
+    "survivedSimulation": true,
+    "standardCalculateDps": {
+      "recordedReadCount": 1,
+      "averageDps": 46279,
+      "ttk": "> 5s",
+      "rawDamagePerShot": 3572,
+      "dotDamagePerShot": 0
+    },
+    "notes": [
+      "Read-only IAB check on the same saved Cedo page. The target remained alive at the end of the five-second simulation; no Save action was used.",
+      "With TTK beyond the simulation window, the displayed Average DPS is consistent with a full-window denominator. This single standard readout does not establish Auto Build scorer semantics or the hidden engine's exact denominator. The Health input was restored to 100000 afterward."
+    ]
   }
 }

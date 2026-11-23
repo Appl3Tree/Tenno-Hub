@@ -230,6 +230,8 @@ export interface SavedBuildPlannerConfig {
     externalNiraSetModCount?: number;
     /** Active Strain Infection cysts assumed at impact for Burst only (0–8); finite and sustained scores ignore this. */
     strainInfectionCystsAtImpact?: number;
+    /** Basmu Dreadful Killshot current Warframe Health snapshot for Burst only; finite and sustained scores ignore this. */
+    dreadfulKillshotCurrentHealth?: number;
     /** Named external status types assumed active for Condition Overload and eligible direct-hit bonuses. */
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */

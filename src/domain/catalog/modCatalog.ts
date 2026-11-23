@@ -44,6 +44,8 @@ import {
 const ALL = ALL_RAW as Record<string, unknown>[];
 const STRAIN_INFECTION_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/MeleeStrainInfectionMod";
 const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
+const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
+const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
     [DISABLING_CONDITIONING_MOD_PATH]: "puncture",
@@ -174,6 +176,8 @@ export interface ModEffect {
     critMultBonus: number;
     /** Burst-only relative Critical Damage per assumed active Strain cyst at impact. */
     strainInfectionCritDamagePerCyst: number;
+    /** Basmu Dreadful Killshot rank value; actual Damage/Status bonuses use an editable Burst-only current-Health snapshot. */
+    dreadfulKillshotDamageAndStatusPer75Health: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
     /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
@@ -1430,6 +1434,20 @@ function buildCaches(): ModCaches {
                 effect.strainInfectionCritDamagePerCyst = bonus;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Melee Attacks gain \+\d+(?:\.\d+)?% Critical Damage per Cyst\.?$/i.test(line),
+                );
+            });
+        }
+        if (path === DREADFUL_KILLSHOT_MOD_PATH) {
+            // Current-health progression is a user-entered snapshot for Burst
+            // only. The game updates it as health changes; this planner does
+            // not invent a health timeline for finite or sustained scoring.
+            // https://wiki.warframe.com/w/Dreadful_Killshot
+            DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.dreadfulKillshotDamageAndStatusPer75Health = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Increased Damage and Status Chance by \+?\d+(?:\.\d+)?% for every 75 Warframe Health\. Capped at 360%\.?$/i.test(line),
                 );
             });
         }
