@@ -3459,4 +3459,14 @@ The remaining seeded companion and heavy-melee fixtures from `D3-OPT-WINDOWDPS-S
 
 Reproduce Gram Prime with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Gram Prime" --attack="Heavy Slam Attack" --samples=100000 --seed=1808719306 --faction=Grineer --health=2000000 --armor=3000`; reproduce Helstrum with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon=Helstrum --attack=Explosion --samples=100000 --seed=3449250833 --faction=Grineer --health=2000000 --armor=3000`.
 
-Both optimizer baselines are capacity/FORMA legal and the targets survive the window. Combined with the Braton Prime and Corvas Prime exact neighborhoods above, all four seeded weapon-stratum fixtures now have exhaustive two-mod coverage. This does not include rank or Forma search, Arcane combinations, three-plus-mod changes, or any Tenno-Hub-to-Underframe/gameplay comparison; it is not global optimizer evidence.
+Both optimizer baselines are capacity/FORMA legal and the targets survive the window. Together with the Corvas Prime / Charged Shot exact neighborhood above, these results cover three of the four seeded weapon strata; the explosive-primary stratum is documented in the following section. The separate Braton Prime audit is a fixed control. None of these neighborhoods includes rank or Forma search, Arcane combinations, three-plus-mod changes, or a Tenno-Hub-to-Underframe/gameplay comparison; they are not global optimizer evidence.
+
+## D3-OPT-WINDOWDPS-EXHAUSTIVE-PAIR-SEEDED-EXPLOSIVE-001 — exhaustive Kuva Ogris pair neighborhood (2026-11-23; bounded)
+
+The seeded explosive-primary fixture from `D3-OPT-WINDOWDPS-SEED-CORPUS-GRINEER-001` was scored at Grineer / 2,000,000 Health / 3,000 Armor / zero Shields and Overguard / Realistic / `[0,5s)` / eight slots / Catalyst / MR30 / up to three Forma. Requesting 100,000 legal pairs exceeds the 51,240 raw tuples, so the worker examined the entire universe and exact-scored all 36,163 legal max-rank two-out/two-in replacements.
+
+The Kuva Ogris / Rocket Explosion optimizer baseline scores 42,749.00 DPS (213,744.99 damage in five seconds) at 77/80 capacity with zero Forma. The best legal pair scores 41,071.49 DPS; no pair improves the optimizer baseline, and the target survives the window.
+
+Reproduce with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Kuva Ogris" --attack="Rocket Explosion" --samples=100000 --seed=2435346591 --faction=Grineer --health=2000000 --armor=3000`.
+
+Together with the Corvas Prime, Gram Prime, and Helstrum results above, all four seeded weapon-stratum picks now have exhaustive max-rank two-mod neighborhoods. Braton Prime is a separate fixed control. This is bounded Tenno-Hub model evidence only, without Arcane/rank/FORMA search, Underframe parity, global optimizer, or gameplay claims.
