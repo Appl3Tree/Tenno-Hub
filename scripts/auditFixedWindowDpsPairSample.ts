@@ -66,6 +66,20 @@ function positiveIntegerOption(name: string, fallback: number): number {
     return value;
 }
 
+function conditionalStateOption(): ConditionalState {
+    const stateMode = option("state", "realistic");
+    const supportedModes: readonly ConditionalState["mode"][] = ["initial", "fullyStacked", "realistic", "custom"];
+    if (!supportedModes.includes(stateMode as ConditionalState["mode"])) {
+        throw new Error("--state must be initial, fullyStacked, realistic, or custom");
+    }
+    const mode = stateMode as ConditionalState["mode"];
+    const externalStacks = nonNegativeIntegerOption("stacks", 0);
+    return {
+        mode,
+        ...(mode === "custom" ? { externalStacks } : {}),
+    };
+}
+
 function targetFactionOption(): string {
     const faction = option("faction", "Grineer").trim();
     if (!CANONICAL_FACTIONS.some((candidate) => candidate.toLowerCase() === faction.toLowerCase())) {
@@ -110,6 +124,7 @@ function runCorpus(): void {
     const seed = integerOption("seed", 20261145, 0xffffffff);
     const sampleCount = integerOption("samples", 1024, 100000);
     if (sampleCount < 1) throw new Error("--samples must be at least 1");
+    const conditionalState = conditionalStateOption();
     const targetFaction = targetFactionOption();
     const target = {
         health: positiveIntegerOption("health", 2_000_000),
@@ -138,6 +153,8 @@ function runCorpus(): void {
             `--attack=${fixture.attack}`,
             `--samples=${sampleCount}`,
             `--seed=${fixtureSeed}`,
+            `--state=${conditionalState.mode}`,
+            `--stacks=${conditionalState.externalStacks ?? 0}`,
             `--faction=${targetFaction}`,
             `--health=${target.health}`,
             `--shields=${target.shields}`,
@@ -169,6 +186,10 @@ function runCorpus(): void {
             ...corpus.assumptions,
             faction: targetFaction,
             target,
+            conditionalState: {
+                mode: conditionalState.mode,
+                externalStacks: conditionalState.mode === "custom" ? conditionalState.externalStacks ?? 0 : null,
+            },
             moves: "replace exactly two installed mods with two distinct eligible full-catalog mods at maximum rank; reassign slots and allow up to three Forma",
             neighborAudit: "sample exact legal two-out/two-in replacements without replacement from eligible raw tuples",
             score: "exact deterministic single-target damage applied in [0,5s), divided by five seconds",
@@ -203,6 +224,7 @@ function runFixture(): void {
     const seed = integerOption("seed", 0, 0xffffffff);
     const sampleCount = integerOption("samples", 1024, 100000);
     if (sampleCount < 1) throw new Error("--samples must be at least 1");
+    const conditionalState = conditionalStateOption();
     const attackDistanceArgument = process.argv.find((argument) => argument.startsWith("--attack-distance="));
     const targetDistanceMeters = attackDistanceArgument === undefined
         ? undefined
@@ -237,10 +259,10 @@ function runFixture(): void {
         throw new Error(`Captured baseline attack ${capturedBaseline.attackName} does not match ${attack.name}`);
     }
     const scoringWeapon = withSelectedAttack(weapon, attackIndex);
-    const conditionalState: ConditionalState = {
-        mode: "realistic",
-        ...(targetDistanceMeters === undefined ? {} : { targetDistanceMeters }),
-    };
+    if (targetDistanceMeters !== undefined) {
+        conditionalState.targetDistanceMeters = targetDistanceMeters;
+        conditionalState.attackFalloffDistanceMeters = targetDistanceMeters;
+    }
     const candidates = filterBuilderExpertVariants(getModsForWeapon(weapon));
     const familyHasStandard = new Set<string>();
     for (const mod of candidates) {
@@ -424,6 +446,10 @@ function runFixture(): void {
         attack: attack.name,
         selectionSeed: seed,
         targetDistanceMeters: targetDistanceMeters ?? null,
+        conditionalState: {
+            mode: conditionalState.mode,
+            externalStacks: conditionalState.mode === "custom" ? conditionalState.externalStacks ?? 0 : null,
+        },
         scoringWindowSeconds: FIXED_WINDOW_DPS_SECONDS,
         candidatePool: candidates.length,
         eligibleFullPoolCandidates: eligibleCandidates.length,

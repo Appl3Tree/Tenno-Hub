@@ -2882,6 +2882,19 @@ Focused regression checks Initial, Custom 0, Custom 5, and Fully Stacked; it ver
 
 The follow-up optimizer regression sends Custom 5 through the same full-catalog Braton Prime / Normal Attack / Grineer / 2,000,000 Health / 3,000 Armor fixture used by the readout replay. The legal 8-slot / up-to-three-Forma optimizer result includes Galvanized Chamber and Galvanized Aptitude, and an independent `debugEvaluateFixedWindowDps` replay reproduces both the optimizer's DPS and total five-second damage. The focused test passes 1/1 (7.82s); test-project TypeScript, focused ESLint, and CRLF-aware diff check pass. This verifies Tenno-Hub candidate scoring honors the Custom snapshot; it is not an Underframe Auto Build comparison, native optimizer parity, or a global-optimality proof. No application code or deployment changed.
 
+### Braton Custom 5 captured-list pair samples (2026-11-23; bounded)
+
+The pair-sample runner accepts a Custom stack snapshot and echoes the selected mode/stacks in its JSON result. The capture is preserved in `scripts/fixtures/underframeBratonFixedWindowCapture.json`. Reproduce each seed with:
+
+```sh
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --weapon="Braton Prime" --attack="Normal Attack" --samples=1024 --seed=20261159 --faction=Grineer --health=2000000 --shields=0 --overguard=0 --armor=3000 --state=custom --stacks=5 --baseline-file=./scripts/fixtures/underframeBratonFixedWindowCapture.json
+npx tsx scripts/auditFixedWindowDpsPairSample.ts --weapon="Braton Prime" --attack="Normal Attack" --samples=1024 --seed=20261160 --faction=Grineer --health=2000000 --shields=0 --overguard=0 --armor=3000 --state=custom --stacks=5 --baseline-file=./scripts/fixtures/underframeBratonFixedWindowCapture.json
+```
+
+Both seeds use the deterministic `[0,5s)` single-target score, hold Custom 5 stacks throughout, and preserve the captured eight-mod baseline at 60/60 capacity with three Forma. The baseline scores 60,374.3178 DPS / 301,871.5892 damage. Each run sampled and exact-scored 1,024 legal max-rank two-out/two-in moves from a 46,284 raw-tuple universe; seed 20261159 examined 3,121 raw tuples and found 11 improvements, while seed 20261160 examined 3,129 and found seven. Their best sampled pairs score 88,130.5429 DPS (High Voltage + Primed Bane of Grineer → Magnetic Capacity + Wildfire) and 87,246.3318 DPS (High Voltage + Primed Bane of Grineer → Thermite Rounds + Wildfire), respectively. The full-pool optimizer returned the same 108,903.6702 DPS build in both runs, legal at 59/60 capacity and three Forma after 317 candidates. The seed samples can overlap and do not exhaust the legal pair neighborhood; the two improvement counts are per run, not unique combined candidates.
+
+This is a Tenno-Hub neighborhood audit under an explicit static stack snapshot, not a claim about Underframe's native Auto Build objective. The original native list was not re-optimized at 2,000,000 Health, the private engine remains unavailable, and trigger history/expiry are not simulated. The runner now applies a supplied `--attack-distance` to both range-conditioned effects and the selected attack's falloff. A wiring smoke on a synthetic Mausolon Archwing profile/list produced 18,731.1592 DPS at 1,000m and 16,142.4196 DPS at 2,000m; this confirms distance reaches the falloff scorer, not an Underframe result.
+
 The next slower single-shot probe was unavailable in the current saved-build session; see the availability check below. Preserve Standard and Luck Averaged reads separately and leave the private-engine boundary open.
 
 ### Slower-profile availability check (2026-11-23; read-only, not scored)
