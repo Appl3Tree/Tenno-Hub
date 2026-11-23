@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, PRECISION_STRIKE_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -1415,11 +1415,15 @@ function getOptimizerVariantTier(path: string): "flawed" | "standard" {
     return /\/beginner\//i.test(path) || /Beginner$/i.test(path) ? "flawed" : "standard";
 }
 
-function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: OptimizerOptions): Candidate[] {
+function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: OptimizerOptions, weapon: WeaponEntry): Candidate[] {
     const { ownedModUniqueNames, ownedModMaxRankByUniqueName, excludedModUniqueNames, allowNonMaxRank, targetFaction = "", lockedIncompatibilityGroups, lockedUniqueNames } = opts;
     const scoringEffectContext = {
         headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
+        selectedAttackName: weapon.selectedAttackName,
+        selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
     };
+    const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
+    const hasPrecisionStrikeEffect = (mod: ModEntry): boolean => mod.path === PRECISION_STRIKE_MOD_PATH;
     const allowedRanks = (mod: ModEntry): number[] => {
         const maxRank = Math.max(0, Math.min(
             mod.fusionLimit,
@@ -1434,6 +1438,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     );
     const hasSupportedDamageRank = (mod: ModEntry): boolean =>
         mod.hasDamageEffect && (goal === "burst" || !isDreadfulKillshot(mod)) &&
+        (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
         allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
     for (const mod of allMods) {
@@ -1455,6 +1460,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         // catalog effect is unsupported, so scoring it would silently omit stats.
         if (!mod.hasDamageEffect) continue;
         if (goal !== "burst" && isDreadfulKillshot(mod)) continue;
+        if (!precisionStrikeCanScore && hasPrecisionStrikeEffect(mod)) continue;
         if (mod.isAura) continue; // auras go in the aura slot, not regular slots
         if (excludedModUniqueNames?.has(mod.uniqueName)) continue;
         if (ownedModUniqueNames && !ownedModUniqueNames.has(mod.uniqueName)) continue;
@@ -2729,7 +2735,8 @@ function expectedEncounterScoreForEffectsAtKillRate(
         infiniteAmmoActive: stats.infiniteAmmoActive,
         firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
         lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
-        reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+        reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTimeWithoutDirectHitBuff,
+        directHitReloadSpeedRule: stats.directHitReloadSpeedRule,
         ...getEncounterBurstTiming(weapon, stats.fireRate),
         statusDurationMultiplier: stats.statusDurationMultiplier,
         ...(stats.nightwatchNapalm ? {
@@ -4103,6 +4110,8 @@ function optimizeExilusSlot(
         for (let r = mod.fusionLimit; r >= minRank; r--) {
             if (getUnmodeledDamageEffectLines(mod, r, {
                 headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
+                selectedAttackName: weapon.selectedAttackName,
+                selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
             }).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
             let selectedPolarity = candidatePolarity;
@@ -4281,7 +4290,7 @@ function optimizeBuildInternal(
     // Effective options used inside beam search
     const effectiveOpts: OptimizerOptions = { ...opts, capacityConfig: capCfg };
 
-    const candidates = buildCandidates(availableMods, goal, effectiveOpts);
+    const candidates = buildCandidates(availableMods, goal, effectiveOpts, weapon);
     const hasLockedMainSlots = lockedSlots.some(Boolean);
 
     // Phase 1: Beam search — find best set of mods
@@ -5043,6 +5052,9 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
         parts.push(`${flatMagazineCapacity > 0 ? "+" : "−"}${formatExplanationNumber(Math.abs(flatMagazineCapacity), 0)} Magazine Capacity`);
     }
     addPercent("reloadSpeedBonus", "reload speed");
+    if (value("directHitReloadSpeedBonus") > 0) {
+        parts.push(`${formatExplanationPercent(value("directHitReloadSpeedBonus"))} Reload Speed for ${formatExplanationNumber(value("directHitReloadSpeedDurationSeconds"))}s after each direct grenade hit; encounter timing treats each modeled hit as the trigger, leaves the first attack unbuffed, and uses the bonus on later reloads while active`);
+    }
     addPercent("statusDurationBonus", "Status Duration");
     addPercent("statusDamageBonus", "Status Damage");
     addPercent("targetStatusDamageVulnerabilityBonus", "target Status Damage vulnerability after the required Heat hit");
@@ -5337,6 +5349,8 @@ export function explainBuild(
         }
         const unmodeledLines = getUnmodeledDamageEffectLines(mod, rank, {
             headIsWeakPoint: targetAssumptions.headIsWeakPoint,
+            selectedAttackName: weapon.selectedAttackName,
+            selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
         const effectSummary = parts.length > 0

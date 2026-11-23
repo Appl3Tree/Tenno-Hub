@@ -1819,7 +1819,9 @@ describe("build optimizer scoring", () => {
         expect(efv5).toBeDefined();
         const overpressuredRounds = getModsForWeapon(efv5!).find((mod) => mod.name === "Overpressured Rounds");
         expect(overpressuredRounds).toBeDefined();
-        expect(overpressuredRounds!.hasDamageEffect).toBe(false);
+        expect(overpressuredRounds!.hasDamageEffect).toBe(true);
+        expect(overpressuredRounds!.effectsByRank.map((effect) => effect.overpressuredRoundsFalloffDistanceBonus))
+            .toEqual([0.2, 0.4, 0.6, 0.8, 1, 1.2]);
         expect(getUnmodeledDamageEffectSourceUrl(overpressuredRounds!)).toBe(
             "https://wiki.warframe.com/w/Overpressured_Rounds",
         );
@@ -1836,7 +1838,7 @@ describe("build optimizer scoring", () => {
         for (let rank = 0; rank <= overpressuredRounds!.fusionLimit; rank++) {
             expect(overpressuredRounds!.unparsedStatsByRank?.[rank]).toEqual([expectedRankText[rank]]);
             expect(getUnmodeledDamageEffectLines(overpressuredRounds!, rank)).toContain(
-                "Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify the spread reduction. An optional user-entered effective post-kill spread range can drive Buckshot's experimental single-target Burst estimate; this is a manual assumption, not a sourced stat or trigger simulation. The cone is applied to the scored attack event without simulating the prior Rifle kill, one-shot buff consumption, or a repeat-fire spread timeline. Finite TTK, 5s Avg DPS, rank-specific Falloff Distance, and Magazine Restore remain unscored, and Auto Optimize skips the mod.",
+                "Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify the spread reduction. An optional user-entered effective post-kill spread range enables an experimental single-target Burst estimate and applies the selected rank's sourced Falloff Distance bonus to the entered target distance. This models one assumed post-kill Buckshot event only; it does not simulate the prior Rifle kill, one-shot buff consumption, or repeat-fire history. Finite TTK, 5s Avg DPS, and Magazine Restore remain unscored, and Auto Optimize skips the mod.",
             );
         }
 
@@ -1844,6 +1846,53 @@ describe("build optimizer scoring", () => {
         expect(result.capacityValid).toBe(true);
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
+
+    it("optimizes Precision Strike only for Tonkor direct-hit reload scoring", () => {
+        const tonkor = getWeaponCatalog().find((weapon) => weapon.name === "Tonkor");
+        expect(tonkor).toBeDefined();
+        const impact = withSelectedAttack(
+            tonkor!,
+            tonkor!.attacks.findIndex((attack) => attack.name === "Grenade Impact"),
+        );
+        const explosion = withSelectedAttack(
+            tonkor!,
+            tonkor!.attacks.findIndex((attack) => attack.name === "Grenade Explosion"),
+        );
+        const precisionStrike = getModsForWeapon(tonkor!).find((mod) => mod.name === "Precision Strike");
+        expect(precisionStrike).toBeDefined();
+        expect(precisionStrike!.hasDamageEffect).toBe(true);
+
+        const target = { health: 5_000, shields: 0, overguard: 0, armor: 0 };
+        const options = {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState: { mode: "initial" as const },
+        };
+        const baseline = debugEvaluateExpectedEncounter(impact, [], "Grineer", target, options.conditionalState);
+        const withPrecision = debugEvaluateExpectedEncounter(
+            impact,
+            [precisionStrike!.effectsByRank[precisionStrike!.fusionLimit]],
+            "Grineer",
+            target,
+            options.conditionalState,
+        );
+        expect(withPrecision.timeToKillSeconds).toBeLessThan(baseline.timeToKillSeconds ?? Number.POSITIVE_INFINITY);
+
+        const directHitBuild = optimizeBuild(impact, [precisionStrike!], "timeToKill", 1, options);
+        expect(directHitBuild.capacityValid).toBe(true);
+        expect(directHitBuild.slots).toContain(precisionStrike);
+        expect(directHitBuild.encounterTimeToKillSeconds).toBeCloseTo(withPrecision.timeToKillSeconds!, 8);
+
+        const burstBuild = optimizeBuild(impact, [precisionStrike!], "burst", 1, options);
+        expect(burstBuild.slots).not.toContain(precisionStrike);
+        expect(() => optimizeBuild(explosion, [precisionStrike!], "timeToKill", 1, options))
+            .toThrow("Optimization is unavailable for Grenade Explosion");
+        expect(getUnmodeledDamageEffectLines(precisionStrike!, precisionStrike!.fusionLimit, {
+            selectedAttackName: explosion.selectedAttackName,
+            selectedAttackIsAreaDamage: explosion.selectedAttackIsAreaDamage,
+        })).toContain("Precision Strike's Reload Speed bonus requires a direct Tonkor grenade hit. The selected attack does not model that trigger, so Auto Optimize skips this mod.");
+    }, 20_000);
 
     it("keeps Sentient Incision out of Auto Optimize until adaptive damage and status exceptions are modeled", () => {
         const venato = getWeaponCatalog().find((candidate) => candidate.name === "Venato");

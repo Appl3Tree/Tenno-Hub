@@ -131,6 +131,11 @@ describe("EFV-5 Buckshot experimental pellet coverage estimate", () => {
         expect(weapon).toBeDefined();
         const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Buckshot");
         const buckshot = withSelectedAttack(weapon!, attackIndex);
+        const overpressuredRounds = getModsForWeapon(weapon!).find((mod) => mod.name === "Overpressured Rounds");
+        expect(overpressuredRounds).toBeDefined();
+        expect(overpressuredRounds!.effectsByRank.map((effect) => effect.overpressuredRoundsFalloffDistanceBonus))
+            .toEqual([0.2, 0.4, 0.6, 0.8, 1, 1.2]);
+        const maxRankEffect = overpressuredRounds!.effectsByRank[overpressuredRounds!.fusionLimit];
         const manualSnapshotState: ConditionalState = {
             mode: "initial",
             targetRadiusMeters: 0.5,
@@ -138,14 +143,27 @@ describe("EFV-5 Buckshot experimental pellet coverage estimate", () => {
             overpressuredRoundsSpreadMinimumDegrees: 4,
             overpressuredRoundsSpreadMaximumDegrees: 8,
         };
-        const burst = calculateBuild(buckshot, [], "", { conditionalState: manualSnapshotState }).modded;
+        const burst = calculateBuild(buckshot, [maxRankEffect], "", { conditionalState: manualSnapshotState }).modded;
         expect(burst.pelletHitEstimate?.nominalSpreadDegrees).toBe(6);
+        expect(burst.attackDamageFalloff?.falloffDistanceMultiplier).toBeCloseTo(2.2, 10);
+        expect(burst.attackDamageFalloff?.startDistanceMeters).toBeCloseTo(11, 10);
+        expect(burst.attackDamageFalloff?.endDistanceMeters).toBeCloseTo(22, 10);
+        expect(burst.attackDamageFalloff?.damageMultiplier).toBe(1);
 
-        const finite = calculateBuildForExpectedEncounter(buckshot, [], "", {
+        const withoutSnapshot = calculateBuild(buckshot, [maxRankEffect], "", {
+            conditionalState: { ...manualSnapshotState, overpressuredRoundsSpreadMinimumDegrees: undefined,
+                overpressuredRoundsSpreadMaximumDegrees: undefined },
+        }).modded;
+        expect(withoutSnapshot.attackDamageFalloff?.falloffDistanceMultiplier).toBe(1);
+        expect(withoutSnapshot.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.0079, 10);
+
+        const finite = calculateBuildForExpectedEncounter(buckshot, [maxRankEffect], "", {
             conditionalState: manualSnapshotState,
         }).modded;
         expect(finite.pelletHitEstimate?.nominalSpreadDegrees).toBe(33);
         expect(finite.multishot).toBeLessThan(burst.multishot);
+        expect(finite.attackDamageFalloff?.falloffDistanceMultiplier).toBe(1);
+        expect(finite.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.0079, 10);
     });
 
     it("enforces Buckshot's loaded-ammo gate in magazine cadence and finite scoring", () => {
@@ -448,6 +466,121 @@ describe("Sentient Incision Wiki damage display and safe scoring exclusion", () 
         }
 
         expect(getModsForWeapon(brokenWar!).some((candidate) => candidate.name === "Sentient Incision")).toBe(false);
+    });
+});
+
+describe("Precision Strike direct-hit reload modeling", () => {
+    it("parses all rank values and enables the timed reload rule only on Tonkor impact rows", () => {
+        const expectedBonuses = [0.37, 0.75, 1.1, 1.5];
+        const expectedReloadTimes = { Tonkor: 1.7, "Kuva Tonkor": 1.5 };
+
+        for (const [weaponName, reloadTime] of Object.entries(expectedReloadTimes)) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon).toBeDefined();
+            const impactIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+            const explosionIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Explosion");
+            expect(impactIndex).toBeGreaterThanOrEqual(0);
+            expect(explosionIndex).toBeGreaterThanOrEqual(0);
+            const impact = withSelectedAttack(weapon!, impactIndex);
+            const explosion = withSelectedAttack(weapon!, explosionIndex);
+            const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Precision Strike");
+            expect(mod).toBeDefined();
+            expect(mod!.hasDamageEffect).toBe(true);
+            expect(mod!.statsTextByRank).toEqual([37, 75, 110, 150].map((bonus) =>
+                `Hitting an enemy directly with the grenade increases Reload Speed by ${bonus}% for 5s.`,
+            ));
+            expect(mod!.effectsByRank.map((effect) => effect.directHitReloadSpeedBonus)).toEqual(expectedBonuses);
+            expect(mod!.effectsByRank.map((effect) => effect.directHitReloadSpeedDurationSeconds)).toEqual([5, 5, 5, 5]);
+            expect(mod!.unparsedStatsByRank?.every((lines) => lines.length === 0)).toBe(true);
+            expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe("https://wiki.warframe.com/w/Precision_Strike");
+            expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit, {
+                selectedAttackName: impact.selectedAttackName,
+                selectedAttackIsAreaDamage: impact.selectedAttackIsAreaDamage,
+            })).toEqual([]);
+            expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit, {
+                selectedAttackName: explosion.selectedAttackName,
+                selectedAttackIsAreaDamage: explosion.selectedAttackIsAreaDamage,
+            })).toContain("Precision Strike's Reload Speed bonus requires a direct Tonkor grenade hit. The selected attack does not model that trigger, so Auto Optimize skips this mod.");
+
+            const baselineImpactMetrics = calculateBuild(impact, [], "Grineer");
+            const impactMetrics = calculateBuild(impact, [mod!.effectsByRank[mod!.fusionLimit]], "Grineer");
+            const impactStats = impactMetrics.modded;
+            expect(impactStats.reloadSpeedBonus).toBe(0);
+            expect(impactStats.directHitReloadSpeedBonus).toBe(1.5);
+            expect(impactStats.reloadTimeWithoutDirectHitBuff).toBe(reloadTime);
+            expect(impactStats.reloadTime).toBeCloseTo(reloadTime / 2.5, 10);
+            expect(impactMetrics.burstDPS).toBeCloseTo(baselineImpactMetrics.burstDPS, 10);
+            expect(impactMetrics.sustainedDPS).toBeGreaterThan(baselineImpactMetrics.sustainedDPS);
+            expect(impactStats.directHitReloadSpeedRule).toEqual({
+                durationSeconds: 5,
+                reloadDurationSeconds: reloadTime / 2.5,
+            });
+
+            const explosionStats = calculateBuild(explosion, [mod!.effectsByRank[mod!.fusionLimit]], "Grineer").modded;
+            expect(explosionStats.directHitReloadSpeedBonus).toBe(0);
+            expect(explosionStats.directHitReloadSpeedRule).toBeUndefined();
+            expect(explosionStats.reloadTime).toBe(reloadTime);
+        }
+    });
+});
+
+describe("Tonkor bounded impact and explosion sequence", () => {
+    it("gates standard Tonkor at the conservative arming distance and models Kuva Tonkor on impact", () => {
+        const expected = [
+            {
+                name: "Tonkor",
+                path: "/Lotus/Weapons/Grineer/LongGuns/GrnGrenadeLauncher/GrnGrenadeLauncher",
+                minimumDistance: 7.5,
+            },
+            {
+                name: "Kuva Tonkor",
+                path: "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Tonkor/KuvaTonkor",
+                minimumDistance: undefined,
+            },
+        ] as const;
+
+        for (const fixture of expected) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === fixture.name);
+            expect(weapon?.uniqueName).toBe(fixture.path);
+            const impactIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+            const explosionIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Explosion");
+            expect(impactIndex).toBeGreaterThanOrEqual(0);
+            expect(explosionIndex).toBeGreaterThanOrEqual(0);
+            const impact = withSelectedAttack(weapon!, impactIndex);
+            const explosion = withSelectedAttack(weapon!, explosionIndex);
+            expect(impact.selectedAttackLingeringDamageRule?.minimumAttackDistanceMeters)
+                .toBe(fixture.minimumDistance);
+            expect(explosion.selectedAttackModelLimitation?.reason).toContain("reference-only");
+            expect(explosion.selectedAttackDamageFalloff).toMatchObject({
+                startDistanceMeters: 0,
+                endDistanceMeters: 7,
+                minimumDamageMultiplier: 0.3,
+            });
+
+            const atImpact = calculateBuild(impact, [], "", {
+                conditionalState: { mode: "initial", attackFalloffDistanceMeters: 0 },
+            }).modded;
+            if (fixture.minimumDistance === undefined) {
+                expect(atImpact.attachedAttackDamageSequence?.rule.componentAttackName).toBe("Grenade Explosion");
+                expect(atImpact.attachedAttackDamageSequence?.profile.attackDamageFalloff?.damageMultiplier).toBe(1);
+            } else {
+                expect(atImpact.attachedAttackDamageSequence).toBeUndefined();
+                const belowThreshold = calculateBuild(impact, [], "", {
+                    conditionalState: { mode: "initial", attackFalloffDistanceMeters: 7.49 },
+                }).modded;
+                expect(belowThreshold.attachedAttackDamageSequence).toBeUndefined();
+                const atThreshold = calculateBuild(impact, [], "", {
+                    conditionalState: { mode: "initial", attackFalloffDistanceMeters: 7.5 },
+                }).modded;
+                expect(atThreshold.attachedAttackDamageSequence?.rule.componentAttackName).toBe("Grenade Explosion");
+                expect(atThreshold.attachedAttackDamageSequence?.profile.attackDamageFalloff?.damageMultiplier).toBe(1);
+            }
+
+            const edge = calculateBuild(explosion, [], "", {
+                conditionalState: { mode: "initial", attackFalloffDistanceMeters: 7 },
+            }).modded;
+            expect(edge.attackDamageFalloff?.damageMultiplier).toBeCloseTo(0.3, 10);
+        }
     });
 });
 

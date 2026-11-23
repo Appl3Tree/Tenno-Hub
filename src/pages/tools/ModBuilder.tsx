@@ -205,7 +205,8 @@ function simulateBuilderTargetEncounter(
         infiniteAmmoActive: stats.infiniteAmmoActive,
         firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
         lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
-        reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+        reloadDurationSeconds: weapon.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTimeWithoutDirectHitBuff,
+        directHitReloadSpeedRule: stats.directHitReloadSpeedRule,
         ...effectiveBurstTiming(weapon, stats.fireRate),
         statusDurationMultiplier: stats.statusDurationMultiplier,
         ...(stats.nightwatchNapalm ? {
@@ -885,7 +886,7 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
             : "",
         payload.scoreAvailability?.finiteTargetScoringAvailable === false &&
             payload.scoreAvailability.finiteTargetScoringReason?.toLowerCase().includes("overpressured rounds")
-            ? "Overpressured Rounds uses a user-entered post-kill spread assumption for one scored Buckshot event in Burst only; kill timing, buff consumption, sustained/DoT DPS, and finite target scoring are unavailable."
+            ? "Overpressured Rounds uses a user-entered post-kill spread snapshot plus the selected rank's sourced Falloff Distance bonus for one Buckshot event in Burst only; kill timing, buff consumption, sustained/DoT DPS, and finite target scoring are unavailable."
             : "",
     ].filter(Boolean).join(" ");
     const damageRows = stats
@@ -2584,6 +2585,8 @@ function CapBar({ used, total, over }: { used: number; total: number; over: bool
 interface SlotProps {
     index: number; label?: string;
     headIsWeakPoint?: boolean;
+    selectedAttackName?: string;
+    selectedAttackIsAreaDamage?: boolean;
     mod: ModEntry | null; rank: number; slotPolarity: string;
     compatMods: ModEntry[]; usedGroups: Set<string>;
     ownedUniqueNames: Set<string>; onlyOwned: boolean; isExilusSlot?: boolean;
@@ -2603,7 +2606,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, headIsWeakPoint, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2633,7 +2636,8 @@ function ModSlot({ index, label, headIsWeakPoint, mod, rank, slotPolarity, compa
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, { headIsWeakPoint }) : [];
+    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage };
+    const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
     const polMatch    = !!(mod && slotPolarity && slotPolarity === mod.polarity);
@@ -2818,7 +2822,7 @@ function ModSlot({ index, label, headIsWeakPoint, mod, rank, slotPolarity, compa
                             const match    = !!(slotPolarity && slotPolarity === m.polarity);
                             const mismatch = !!(slotPolarity && slotPolarity !== m.polarity && slotPolarity !== "");
                             const owned    = ownedUniqueNames.size === 0 || ownedUniqueNames.has(m.uniqueName);
-                            const unmodeledDamageLines = getUnmodeledDamageEffectLines(m, m.fusionLimit, { headIsWeakPoint });
+                            const unmodeledDamageLines = getUnmodeledDamageEffectLines(m, m.fusionLimit, scoringEffectContext);
                             return (
                                 <button key={m.uniqueName}
                                     className={["w-full px-3 py-2 text-left hover:bg-slate-800/50 transition-colors",
@@ -4787,8 +4791,8 @@ export default function ModBuilder() {
     const activeOverpressuredBurstSnapshotApplies = Boolean(
         goal === "burst" &&
         activeOverpressuredRoundsSelected &&
-        activeCalcWeapon?.name === "EFV-5 Jupiter" &&
-        activeCalcWeapon.selectedAttackName === "Buckshot" &&
+        activeCalcWeapon?.name.toLowerCase() === "efv-5 jupiter" &&
+        activeCalcWeapon.selectedAttackName?.toLowerCase() === "buckshot" &&
         activeOverpressuredRoundsSpreadSnapshot,
     );
     const activeUnsupportedSpreadModifier = allSlotsForCap.some((mod, index) => {
@@ -4825,7 +4829,12 @@ export default function ModBuilder() {
                     }
                     : {}),
             }
-            : { ...conditionalState, targetRadiusMeters: undefined },
+            : {
+                ...conditionalState,
+                targetRadiusMeters: undefined,
+                overpressuredRoundsSpreadMinimumDegrees: undefined,
+                overpressuredRoundsSpreadMaximumDegrees: undefined,
+            },
         [activePelletHitEstimateEnabled, activeOverpressuredBurstSnapshotApplies, activeOverpressuredRoundsSpreadSnapshot, conditionalState],
     );
     const finitePelletEstimateConditionalState = useMemo(
@@ -4951,7 +4960,7 @@ export default function ModBuilder() {
                 ...(activeSustainedDpsUnavailable
                     ? {
                         sustainedDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
-                            ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual cone snapshot is Burst-only."
+                            ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual spread and Falloff Distance snapshot is Burst-only."
                             : limitation?.reason ?? "Sustained scoring is unavailable for this attack model.",
                     }
                     : {}),
@@ -4959,7 +4968,7 @@ export default function ModBuilder() {
                 ...(activeSustainedDpsUnavailable
                     ? {
                         dotDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
-                            ? "Overpressured Rounds' next-shot and magazine effects need attack history; DoT DPS is unavailable."
+                            ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual spread and Falloff Distance snapshot is Burst-only, and DoT DPS is unavailable."
                             : limitation?.reason ?? "DoT DPS is unavailable for this attack model.",
                     }
                     : {}),
@@ -4967,7 +4976,7 @@ export default function ModBuilder() {
                 ...(activeFiniteAttackModelLimitationBlocksScoring
                     ? {
                         finiteTargetScoringReason: activeOverpressuredBurstSnapshotApplies
-                            ? "The user-entered Overpressured Rounds spread snapshot applies only to Burst; cross-mode kill history is not simulated."
+                            ? "The user-entered Overpressured Rounds spread and Falloff Distance snapshot applies only to manual Burst; cross-mode kill history is not simulated."
                             : limitation?.reason ?? "This attack does not have a supported finite target-scoring model.",
                     }
                     : {}),
@@ -5109,7 +5118,8 @@ export default function ModBuilder() {
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
-            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTimeWithoutDirectHitBuff,
+            directHitReloadSpeedRule: stats.directHitReloadSpeedRule,
             critChance: stats.critChance + stats.punctureCritChanceBonus,
             critMultiplier: stats.critMultiplier + stats.coldCritDamageBonus,
             ...(activeCalcWeapon?.selectedAttackUsesMeleeComboMultiplier && activeCalcWeapon
@@ -5175,7 +5185,8 @@ export default function ModBuilder() {
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
-            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTime,
+            reloadDurationSeconds: activeCalcWeapon?.weaponType.trim().toLowerCase() === "bow" ? 0 : stats.reloadTimeWithoutDirectHitBuff,
+            directHitReloadSpeedRule: stats.directHitReloadSpeedRule,
             ...effectiveBurstTiming(activeCalcWeapon, stats.fireRate),
             statusDurationMultiplier: stats.statusDurationMultiplier,
             ...(stats.nightwatchNapalm ? {
@@ -6083,7 +6094,7 @@ export default function ModBuilder() {
                                             {weapon?.attacks[selectedAttackIdx]?.modelLimitation && (
                                                 <p role="note" className="basis-full text-right text-[10px] leading-relaxed text-amber-300">
                                                     {activePelletHitEstimateEnabled && activeMetrics?.modded.pelletHitEstimate
-                                                        ? `Experimental single-target estimate: ${fmt(activeMetrics.modded.pelletHitEstimate.nominalExpectedHits, 2)} expected pellet hits (${fmt(activeMetrics.modded.pelletHitEstimate.minimumExpectedHits, 2)}–${fmt(activeMetrics.modded.pelletHitEstimate.maximumExpectedHits, 2)} across the entered spread endpoints) from ${fmt(activeMetrics.modded.pelletHitEstimate.pelletsFired, 2)} pellets. ${activeOverpressuredBurstSnapshotApplies ? "The user-entered post-Rifle-kill spread snapshot affects the scored attack event in manual Burst only; the prior Rifle kill, one-shot buff consumption, and repeat-fire spread timeline are not simulated, and finite TTK / 5s Avg DPS remain unavailable. " : "The midpoint cone drives manual damage/TTK/DPS estimates. "}Target overlap is not calibrated to gameplay. Area coverage remains unscored and Auto Optimize stays unavailable.`
+                                                        ? `Experimental single-target estimate: ${fmt(activeMetrics.modded.pelletHitEstimate.nominalExpectedHits, 2)} expected pellet hits (${fmt(activeMetrics.modded.pelletHitEstimate.minimumExpectedHits, 2)}–${fmt(activeMetrics.modded.pelletHitEstimate.maximumExpectedHits, 2)} across the entered spread endpoints) from ${fmt(activeMetrics.modded.pelletHitEstimate.pelletsFired, 2)} pellets. ${activeOverpressuredBurstSnapshotApplies ? "The user-entered post-Rifle-kill spread snapshot and this rank's sourced Falloff Distance bonus affect one Buckshot event in manual Burst only; the prior Rifle kill, one-shot buff consumption, and repeat-fire timeline are not simulated, and finite TTK / 5s Avg DPS remain unavailable. " : "The midpoint cone drives manual damage/TTK/DPS estimates. "}Target overlap is not calibrated to gameplay. Area coverage remains unscored and Auto Optimize stays unavailable.`
                                                     : `${weapon.attacks[selectedAttackIdx].modelLimitation.reason} Component/source-row statistics below are reference values only; ${activeMetrics?.modded.ammoGateSatisfied === false ? "the magazine gate allows no release, so scored target damage and DPS are zero; finite TTK remains unavailable." : "target damage, DPS, and TTK scores are unavailable for this mode."} ${weapon.attacks[selectedAttackIdx].pelletSpreadCone
                                                             ? activeAccuracyAffectingEffect
                                                                 ? "An equipped accuracy-affecting effect disables the experimental pellet estimate. "
@@ -6557,7 +6568,7 @@ export default function ModBuilder() {
                                                                 {activeOverpressuredRoundsSelected && selectedFalloffAttack.name === "Buckshot" && (
                                                                     <div className="mt-2 rounded border border-amber-900/60 bg-amber-950/20 p-2">
                                                                         <p className="text-[10px] leading-relaxed text-amber-200">
-                                                                            Overpressured Rounds does not have a sourced numeric Spread Decrease. Enter the effective spread range you want to assume after a Rifle kill. These user-supplied angles affect the scored attack event in manual Burst only; the prior kill, one-shot buff consumption, and repeat-fire spread timeline are not simulated. Finite TTK / 5s Avg DPS remain unavailable.
+                                                                            Overpressured Rounds does not have a sourced numeric Spread Decrease. Enter the effective spread range you want to assume after a Rifle kill. The selected rank's sourced Falloff Distance bonus is applied to the entered Buckshot target distance for this same one-shot Burst snapshot. The prior kill, one-shot buff consumption, and repeat-fire timeline are not simulated. Finite TTK / 5s Avg DPS remain unavailable.
                                                                         </p>
                                                                         <div className="mt-2 grid grid-cols-2 gap-2">
                                                                             <label className="text-[10px] text-slate-300">
@@ -7420,7 +7431,7 @@ export default function ModBuilder() {
                                                                         value: activeSustainedDpsUnavailable ? "Unavailable" : fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS),
                                                                         tooltip: activeSustainedDpsUnavailable
                                                                             ? activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
-                                                                                ? "Overpressured Rounds' next-shot buff and kill-based magazine restore require attack history. Only the manually entered post-kill spread snapshot can affect Burst scoring; sustained DPS is unavailable."
+                                                                                ? "Overpressured Rounds' next-shot buff and kill-based magazine restore require attack history. The manually entered post-kill spread plus sourced Falloff Distance snapshot can affect one Burst event; sustained DPS is unavailable."
                                                                                 : "This attack is reference-only with the current inputs. Target damage and DPS are unavailable; see the attack note for supported ways to enable a bounded single-target estimate."
                                                                             : `${BASIC_STAT_TOOLTIPS.sustainedDps}\n\nAt the current values, sustained DPS is ${fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS)}.${activeMetrics.modded.strainInfectionCritDamageBonus > 0 ? "\n\nThe Strain Infection Burst-at-impact cyst assumption is excluded because cyst timing and uptime are not modeled." : ""}${activeMetrics.modded.dreadfulKillshotBonus > 0 ? "\n\nThe Dreadful Killshot current-Health snapshot is excluded from sustained scoring." : ""}${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${attackDamageRampNote ? `\n\n${attackDamageRampNote}` : ""}`,
                                                                     },
@@ -7756,7 +7767,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -7787,7 +7798,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -7814,7 +7825,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -7883,7 +7894,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -7956,7 +7967,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}

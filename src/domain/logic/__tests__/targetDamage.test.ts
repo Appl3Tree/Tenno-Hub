@@ -235,6 +235,47 @@ describe("target damage progress across defense pools", () => {
         expect(directSequence.timeToKillSeconds).toBeCloseTo(10 / 3, 8);
     });
 
+    it("refreshes direct-hit reload buffs before the next reload and respects a half-open window", () => {
+        const baseInput = {
+            damageByType: { impact: 5 },
+            health: 15,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            attackIntervalSeconds: 0.25,
+            shotsPerMagazine: 1,
+            reloadDurationSeconds: 1.7,
+            maxDurationSeconds: 10,
+        };
+        const directHitReloadSpeedRule = {
+            durationSeconds: 5,
+            reloadDurationSeconds: 0.68,
+        };
+        const baseline = simulateExpectedWeaponEncounter(baseInput);
+        const refreshed = simulateExpectedWeaponEncounter({
+            ...baseInput,
+            directHitReloadSpeedRule,
+        });
+        const fixedWindow = simulateExpectedWeaponEncounter({
+            ...baseInput,
+            directHitReloadSpeedRule,
+            maxDurationSeconds: 2,
+            stopAtSeconds: 2,
+        });
+        const directSequence = simulateDirectAttackSequence({
+            ...baseInput,
+            directHitReloadSpeedRule,
+        });
+
+        expect(baseline.timeToKillSeconds).toBeCloseTo(3.9, 10);
+        expect(refreshed.timeToKillSeconds).toBeCloseTo(1.86, 10);
+        expect(fixedWindow.attacks).toBe(3);
+        expect(fixedWindow.timeToKillSeconds).toBeCloseTo(1.86, 10);
+        expect(directSequence.attacksToKill).toBe(3);
+        expect(directSequence.timeToKillSeconds).toBeCloseTo(1.86, 10);
+    });
+
     it("scales Auto-Spool intervals with modded fire rate and resets the ramp after reload", () => {
         const doubledRate = simulateExpectedWeaponEncounter({
             damageByType: { impact: 1 },

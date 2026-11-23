@@ -32,7 +32,7 @@ import {
 import { advanceDamageRampMultiplier, getInitialDamageRampMultiplier } from "./weaponDamageRamp";
 import { getAutoSpoolShotSequenceState } from "./weaponAutoSpool";
 import { avgHitDamageMultiplier } from "./damageCalc";
-import type { AttachedAttackTickProfile, HitLocationDamageProfile } from "./damageCalc";
+import type { AttachedAttackTickProfile, DirectHitReloadSpeedRule, HitLocationDamageProfile } from "./damageCalc";
 import type { TimedConditionalDamageStack } from "./damageCalc";
 import type { NonCriticalHitDamageProc } from "../catalog/modCatalog";
 import {
@@ -229,6 +229,8 @@ export interface DirectAttackSequenceInput extends DirectTargetDamageInput {
     lastShotMagazineDamageBonus?: number;
     /** Reload time added after a full magazine, before the next attack interval. */
     reloadDurationSeconds?: number;
+    /** Direct hits refresh a timed reload-speed buff for later magazine reloads. */
+    directHitReloadSpeedRule?: DirectHitReloadSpeedRule;
     /** Number of damage events in each burst, when this attack has burst metadata. */
     burstCount?: number;
     /** Delay between shots inside a burst, after fire-rate modifiers. */
@@ -296,6 +298,8 @@ export interface ExpectedWeaponEncounterInput extends DirectTargetDamageInput {
     lastShotMagazineDamageBonus?: number;
     /** Reload time after each full magazine. */
     reloadDurationSeconds?: number;
+    /** Direct hits refresh a timed reload-speed buff for later magazine reloads. */
+    directHitReloadSpeedRule?: DirectHitReloadSpeedRule;
     /** Number of damage events in each burst, when this attack has burst metadata. */
     burstCount?: number;
     /** Delay between shots inside a burst, after fire-rate modifiers. */
@@ -1476,7 +1480,7 @@ export function simulateExpectedWeaponEncounter(
         };
     };
 
-    const nextAttackTime = (index: number): number => attackEventTime(index, {
+    const nextAttackTime = createAttackEventTimeResolver({
         initialAttackDelaySeconds: input.initialAttackDelaySeconds,
         attackIntervalSeconds: attackInterval,
         shotsPerMagazine,
@@ -1485,7 +1489,7 @@ export function simulateExpectedWeaponEncounter(
         burstDelaySeconds: input.burstDelaySeconds,
         burstCycleRate: input.burstCycleRate,
         autoSpoolCadenceRule: input.autoSpoolCadenceRule,
-    });
+    }, input.directHitReloadSpeedRule);
 
     const rampMultiplierForAttack = (attackTime: number, index: number): number => {
         const rule = input.damageRampRule;
@@ -2270,6 +2274,16 @@ export function simulateDirectAttackSequence(
         ? Math.max(0, Math.floor(input.attackCountLimit ?? 0))
         : maxRampAttacks;
     const maxSimulatedAttacks = Math.min(maxRampAttacks, attackCountLimit);
+    const attackTimeAt = createAttackEventTimeResolver({
+        initialAttackDelaySeconds: input.initialAttackDelaySeconds,
+        attackIntervalSeconds: attackInterval,
+        shotsPerMagazine,
+        reloadDurationSeconds: reloadDuration,
+        burstCount: input.burstCount,
+        burstDelaySeconds: input.burstDelaySeconds,
+        burstCycleRate: input.burstCycleRate,
+        autoSpoolCadenceRule: input.autoSpoolCadenceRule,
+    }, input.directHitReloadSpeedRule);
 
     const firstShotMagazineDamageBonus = input.infiniteAmmoActive
         ? 0
@@ -2281,6 +2295,7 @@ export function simulateDirectAttackSequence(
         input.damageRampRule ||
         input.autoSpoolShotSequenceRule ||
         input.heavyAttackCombo ||
+        input.directHitReloadSpeedRule ||
         firstShotMagazineDamageBonus > 0 ||
         lastShotMagazineDamageBonus > 0 ||
         finiteNonNegative(input.shatteringImpactBaseArmorPerHit ?? 0) > 0 ||
@@ -2297,16 +2312,7 @@ export function simulateDirectAttackSequence(
         let comboMultiplierAtStart: number | undefined;
         let comboMultiplierAtKill: number | undefined;
         for (let index = 0; index < maxSimulatedAttacks; index++) {
-            const attackTime = attackEventTime(index, {
-                initialAttackDelaySeconds: input.initialAttackDelaySeconds,
-                attackIntervalSeconds: attackInterval,
-                shotsPerMagazine,
-                reloadDurationSeconds: reloadDuration,
-                burstCount: input.burstCount,
-                burstDelaySeconds: input.burstDelaySeconds,
-                burstCycleRate: input.burstCycleRate,
-                autoSpoolCadenceRule: input.autoSpoolCadenceRule,
-            });
+            const attackTime = attackTimeAt(index);
             if (!Number.isFinite(attackTime) || (index > 0 && attackInterval <= 0)) break;
             if (previousAttackTime !== null) {
                 const gap = Math.max(0, attackTime - previousAttackTime);
@@ -2764,6 +2770,54 @@ function attackEventTime(index: number, timing: AttackEventTiming): number {
     return initialAttackDelay + magazineIndex * (triggersPerMagazine * burstCycleSeconds + timing.reloadDurationSeconds) +
         triggerInMagazine * burstCycleSeconds +
         shotInBurst * burstDelay;
+}
+
+/**
+ * Build an encounter clock for direct-hit reload effects. These rules assume
+ * each selected direct-hit event lands; the hit refreshes the timer, then the
+ * next reload uses the reduced duration only if the buff is active when that
+ * reload begins. Burst and Auto-Spool schedules keep their existing clock
+ * until a source-backed direct-hit reload effect requires those interactions.
+ */
+function createAttackEventTimeResolver(
+    timing: AttackEventTiming,
+    rule?: DirectHitReloadSpeedRule,
+): (index: number) => number {
+    const durationSeconds = finiteNonNegative(rule?.durationSeconds ?? 0);
+    const buffedReloadDurationSeconds = finiteNonNegative(rule?.reloadDurationSeconds ?? 0);
+    const burstCount = Number.isFinite(timing.burstCount)
+        ? Math.max(1, Math.floor(timing.burstCount ?? 1))
+        : 1;
+    if (
+        !rule ||
+        durationSeconds <= 0 ||
+        timing.reloadDurationSeconds <= 0 ||
+        buffedReloadDurationSeconds >= timing.reloadDurationSeconds ||
+        timing.autoSpoolCadenceRule ||
+        (burstCount > 1 && finiteNonNegative(timing.burstCycleRate ?? 0) > 0)
+    ) return (index) => attackEventTime(index, timing);
+
+    const shotsPerMagazine = Math.max(1, Math.floor(timing.shotsPerMagazine));
+    const attackTimes = [attackEventTime(0, timing)];
+    const buffExpiresAt = [attackTimes[0] + durationSeconds];
+    return (requestedIndex) => {
+        const index = Math.max(0, Math.floor(requestedIndex));
+        while (attackTimes.length <= index) {
+            const previousIndex = attackTimes.length - 1;
+            const previousAttackTime = attackTimes[previousIndex];
+            const reloadStartTime = previousAttackTime + timing.attackIntervalSeconds;
+            let nextAttackTime = reloadStartTime;
+            if ((previousIndex + 1) % shotsPerMagazine === 0) {
+                const buffActiveAtReloadStart = buffExpiresAt[previousIndex] > reloadStartTime + 1e-9;
+                nextAttackTime += buffActiveAtReloadStart
+                    ? buffedReloadDurationSeconds
+                    : timing.reloadDurationSeconds;
+            }
+            attackTimes.push(nextAttackTime);
+            buffExpiresAt.push(nextAttackTime + durationSeconds);
+        }
+        return attackTimes[index];
+    };
 }
 
 function isEncounterTargetDefeated(

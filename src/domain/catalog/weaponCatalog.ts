@@ -147,6 +147,8 @@ export interface WeaponAttackLingeringDamageRule {
     attachedToDirectTarget: boolean;
     /** Whether linked events from separate triggering attacks stack. */
     stacks: boolean;
+    /** Minimum entered player-to-target distance required to trigger this component, if applicable. */
+    minimumAttackDistanceMeters?: number;
     sourceUrl: string;
 }
 
@@ -1155,6 +1157,28 @@ function resolveAttackDamageRamp(
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // Tonkor explosions deal 100% damage at the center, falling linearly to
+    // 30% at the Wiki-listed 7m edge. Blast Radius mods extend the falloff.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Tonkor and
+    // https://wiki.warframe.com/w/Kuva_Tonkor
+    "/Lotus/Weapons/Grineer/LongGuns/GrnGrenadeLauncher/GrnGrenadeLauncher": Object.freeze({
+        "grenade explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 7,
+            minimumDamageMultiplier: 0.3,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Tonkor",
+        }),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Tonkor/KuvaTonkor": Object.freeze({
+        "grenade explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 7,
+            minimumDamageMultiplier: 0.3,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Kuva_Tonkor",
+        }),
+    }),
     // Vulcax's centered radial component falls from 100% at the impact point
     // to 50% at 5m. Blast-radius bonuses extend that distance.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Vulcax
@@ -2398,6 +2422,34 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackLingeringDamageRule>>
 >> = Object.freeze({
+    // Bound one Tonkor direct hit and its immediate explosion against the
+    // same target. Standard Tonkor requires a conservative 7.5m arming gate;
+    // Kuva Tonkor has no minimum distance and explodes on impact.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Tonkor and
+    // https://wiki.warframe.com/w/Kuva_Tonkor
+    "/Lotus/Weapons/Grineer/LongGuns/GrnGrenadeLauncher/GrnGrenadeLauncher": Object.freeze({
+        "grenade impact": Object.freeze({
+            componentAttackName: "Grenade Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            minimumAttackDistanceMeters: 7.5,
+            sourceUrl: "https://wiki.warframe.com/w/Tonkor",
+        }),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Tonkor/KuvaTonkor": Object.freeze({
+        "grenade impact": Object.freeze({
+            componentAttackName: "Grenade Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Kuva_Tonkor",
+        }),
+    }),
     // One Vulcax charged hit produces a direct Heat hit and its centered
     // Blast radial component. Bound the sequence to that directly struck
     // target; charge-up is modeled separately, with no extra event delay.
@@ -2636,6 +2688,22 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // Grenade Explosion is a component of the direct impact sequence. Select
+    // Grenade Impact to score one bounded event and avoid double counting.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Tonkor and
+    // https://wiki.warframe.com/w/Kuva_Tonkor
+    "/Lotus/Weapons/Grineer/LongGuns/GrnGrenadeLauncher/GrnGrenadeLauncher": Object.freeze({
+        "grenade explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Tonkor",
+            reason: "Grenade Explosion is the radial component of one Tonkor direct-hit sequence. Select Grenade Impact to include the explosion when the entered target distance is at least 7.5m. The Wiki gives conflicting 6m and 7.5m standard arming distances, so the planner uses the conservative 7.5m threshold. The standalone explosion row is reference-only; grenade flight, misses, and other targets are excluded.",
+        }),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Tonkor/KuvaTonkor": Object.freeze({
+        "grenade explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Kuva_Tonkor",
+            reason: "Grenade Explosion is the radial component of one Kuva Tonkor direct-hit sequence. Select Grenade Impact to include its immediate impact explosion. The standalone explosion row is reference-only; grenade flight, misses, and other targets are excluded.",
+        }),
+    }),
     // Onos Incarnon is one changing Radiation beam followed by a 50-round Heat
     // release. The source rows do not describe a self-contained repeatable
     // attack cadence, so none is eligible for scoring or optimization.
@@ -2783,7 +2851,7 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     "/Lotus/Weapons/Lasria/LasGooAK/LasGooAKPlayerWeapon": Object.freeze({
         "buckshot": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
-            reason: "Buckshot has 11 pellets with 24° minimum and 42° maximum spread. The Wiki says at least one near the reticle center, but does not specify a precise pellet distribution. Without a target radius and attack distance, target overlap is unknown and the row remains reference-only. With both entered, an experimental single-target estimate assumes one idealized center pellet and uniform solid-angle sampling for the rest; this is not calibrated to the game's exact pellet RNG or hitbox geometry. Accuracy changes and other unsupported spread modifiers disable the estimate. With Overpressured Rounds selected, an optional user-entered effective post-Rifle-kill cone can enable manual Burst scoring for the scored attack event; neither the prior Rifle kill nor one-shot buff consumption is simulated. Area coverage remains unscored and Auto Optimize stays unavailable. Its sourced charge time, ammo cost, guaranteed Corrosive proc, and 5–10m falloff remain visible. The augment's falloff extension, repeat-fire timeline, and kill-based magazine restore require attack history and are not simulated.",
+            reason: "Buckshot has 11 pellets with 24° minimum and 42° maximum spread. The Wiki says at least one near the reticle center, but does not specify a precise pellet distribution. Without a target radius and attack distance, target overlap is unknown and the row remains reference-only. With both entered, an experimental single-target estimate assumes one idealized center pellet and uniform solid-angle sampling for the rest; this is not calibrated to the game's exact pellet RNG or hitbox geometry. Accuracy changes and other unsupported spread modifiers disable the estimate. With Overpressured Rounds selected, an optional user-entered effective post-Rifle-kill cone enables manual Burst scoring for one event and applies the selected rank's sourced Falloff Distance bonus to that entered target distance; neither the prior Rifle kill nor one-shot buff consumption is simulated. Area coverage remains unscored and Auto Optimize stays unavailable. Its sourced charge time, ammo cost, guaranteed Corrosive proc, and base 5–10m falloff remain visible. Repeat-fire timing and kill-based magazine restore require attack history and are not simulated.",
         }),
     }),
     // Larkspur's explosion is the linked component of its charged Alt-Fire.
@@ -2956,6 +3024,18 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Weapons/Grineer/LongGuns/GrnGrenadeLauncher/GrnGrenadeLauncher": Object.freeze({
+        "grenade impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Tonkor",
+            reason: "This bounded single-target score includes one direct Grenade Impact plus its centered Grenade Explosion only when Attack Distance is entered as at least 7.5m. The source conflicts between 6m and 7.5m for standard Tonkor arming, so 7.5m is used conservatively. Below that threshold, or with distance unset, only direct-hit damage is counted. Grenade flight, missed shots, other blast targets, and area coverage are not modeled.",
+        }),
+    }),
+    "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Tonkor/KuvaTonkor": Object.freeze({
+        "grenade impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Kuva_Tonkor",
+            reason: "This bounded single-target score includes one direct Grenade Impact and its immediate centered Grenade Explosion. Kuva Tonkor explodes on impact without the standard weapon's arming distance. Grenade flight, missed shots, other blast targets, and area coverage are not modeled.",
+        }),
+    }),
     "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": Object.freeze({
         "impact": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Vulcax",
