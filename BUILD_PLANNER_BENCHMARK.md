@@ -1,4 +1,4 @@
-## D3-MECH-VULCAX-SINGLE-SHOT-RADIAL-SEQUENCE-001 — charged Impact plus attached Radial Attack (locally validated; release pending)
+## D3-MECH-VULCAX-SINGLE-SHOT-RADIAL-SEQUENCE-001 — charged Impact plus attached Radial Attack (released in PR #327; 2026-11-23)
 
 ### Source behavior and bounded model
 
@@ -17,7 +17,7 @@ The catalog now links one immediate Radial Attack to each directly hit Impact an
 - Focused ESLint over all four changed code/test files passes. Production Vite build transforms 987 modules and succeeds in 10.27s to a temporary output directory; the existing large-chunk warning remains.
 - `git -c core.whitespace=cr-at-eol diff --check` passes. Plain `git diff --check` treats this repository's CRLF endings as trailing whitespace.
 
-No full repository suite, live-game hit/charge calibration, Underframe comparison, or current-source IAB visual test was performed. This session exposes no integrated-browser interaction/screenshot control; the previously supplied localhost is documented as stale at `version=2bf6faea`. Do not use an external browser. Git state at this checkpoint: feature commit `95fab7ee` on `codex/vulcax-single-target-sequence-20261123`, based on docs reconciliation commit `f2a11a19`; subsequent changes are documentation-only, with the working tree clean after checkpoint commit and local commits pending push. Reopen this item if an authoritative source or reproducible game observation shows a different charge time, ammo cost, falloff, or impact/radial relationship. Release and current-source visual review remain open.
+No full repository suite, live-game hit/charge calibration, Underframe comparison, or current-source IAB visual test was performed. This session exposes no integrated-browser interaction/screenshot control; the previously supplied localhost is documented as stale at `version=2bf6faea`. Do not use an external browser. PR [#327](https://github.com/Appl3Tree/Tenno-Hub/pull/327) squash-merged as `8c15e58cdce71fda42f0862bd6cbff9a0966b76a`; Pages run [#407](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45176106906) succeeded at `version=8c15e58`. Hosted visual review remains open. Reopen this item if an authoritative source or reproducible game observation shows a different charge time, ammo cost, falloff, or impact/radial relationship.
 
 ## D3-MOD-WEAKPOINT-BONUS-HEAD-PROFILE-001 — bounded head weakpoint bonus support (released in PR [#278](https://github.com/Appl3Tree/Tenno-Hub/pull/278), squash merge `e3c3d776a210f7643d3bc7843dde09997d93cdb4`)
 
