@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
 
@@ -5776,6 +5776,88 @@ describe("Dreadful Killshot Burst health snapshot", () => {
         expect(withSnapshot.totalDamageBonus).toBeCloseTo(withoutSnapshot.totalDamageBonus, 12);
         expect(withSnapshot.statusChance).toBeCloseTo(withoutSnapshot.statusChance, 12);
         expect(stripped).toMatchObject({ strainInfectionCystsAtImpact: 0, dreadfulKillshotCurrentHealth: 0 });
+    });
+});
+
+describe("Deadly Maneuvers Burst shot snapshot", () => {
+    const magnus = getWeaponCatalog().find((weapon) => weapon.name === "Magnus")!;
+    const deadlyManeuvers = getModsForWeapon(magnus).find((mod) => mod.name === "Deadly Maneuvers")!;
+    const hitLocation = {
+        headshotRate: 1,
+        headshotMultiplier: 3,
+        criticalHeadshotMultiplier: 2,
+        headIsWeakPoint: false,
+    };
+
+    it("normalizes the remaining-shot snapshot to zero, one, or two", () => {
+        expect(normalizeDeadlyManeuversShotsRemaining(-1)).toBe(0);
+        expect(normalizeDeadlyManeuversShotsRemaining(1.9)).toBe(1);
+        expect(normalizeDeadlyManeuversShotsRemaining(5)).toBe(2);
+        expect(normalizeDeadlyManeuversShotsRemaining(Number.NaN)).toBe(0);
+    });
+
+    it("averages one buffed shot and one baseline shot for the next-two-shot Burst snapshot", () => {
+        const rankThree = deadlyManeuvers.effectsByRank[deadlyManeuvers.fusionLimit]!;
+        const baselineMetrics = calculateBuild(magnus, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 0 },
+            hitLocation,
+        });
+        const baseline = baselineMetrics.modded;
+        const oneRemainingMetrics = calculateBuild(magnus, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 1 },
+            hitLocation,
+        });
+        const oneRemaining = oneRemainingMetrics.modded;
+        const twoRemaining = calculateBuild(magnus, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 2 },
+            hitLocation,
+        }).modded;
+
+        expect(rankThree.deadlyManeuversHeadshotCritChanceBonus).toBe(4);
+        expect(twoRemaining.expectedHitDamageMultiplier).toBeGreaterThan(baseline.expectedHitDamageMultiplier);
+        expect(oneRemaining.expectedHitDamageMultiplier).toBeCloseTo(
+            (baseline.expectedHitDamageMultiplier + twoRemaining.expectedHitDamageMultiplier) / 2,
+            10,
+        );
+        expect(oneRemaining.averageShotDamage).toBeCloseTo(
+            (baseline.averageShotDamage + twoRemaining.averageShotDamage) / 2,
+            10,
+        );
+        expect(oneRemainingMetrics.sustainedDPS).toBeCloseTo(baselineMetrics.sustainedDPS, 10);
+    });
+
+    it("keeps the snapshot out of finite encounters and requires headshots on Magnus variants", () => {
+        const rankThree = deadlyManeuvers.effectsByRank[deadlyManeuvers.fusionLimit]!;
+        const base = calculateBuild(magnus, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 0 },
+            hitLocation,
+        }).modded;
+        const noHeadshotBase = calculateBuild(magnus, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 0 },
+            hitLocation: { ...hitLocation, headshotRate: 0 },
+        }).modded;
+        const finite = calculateBuildForExpectedEncounter(magnus, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 2 },
+            hitLocation,
+        }).modded;
+        const noHeadshots = calculateBuild(magnus, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 2 },
+            hitLocation: { ...hitLocation, headshotRate: 0 },
+        }).modded;
+        const otherWeapon = calculateBuild({ ...magnus, name: "Other Pistol" }, [rankThree], "", {
+            conditionalState: { mode: "initial", deadlyManeuversShotsRemaining: 2 },
+            hitLocation,
+        }).modded;
+        const stripped = withoutBurstOnlyConditionalAssumptions({
+            mode: "initial",
+            deadlyManeuversShotsRemaining: 2,
+        });
+
+        expect(finite.expectedHitDamageMultiplier).toBeCloseTo(base.expectedHitDamageMultiplier, 10);
+        expect(finite.deadlyManeuversHeadshotCritChanceBonus).toBe(0);
+        expect(noHeadshots.averageShotDamage).toBeCloseTo(noHeadshotBase.averageShotDamage, 10);
+        expect(otherWeapon.averageShotDamage).toBeCloseTo(base.averageShotDamage, 10);
+        expect(stripped).toMatchObject({ deadlyManeuversShotsRemaining: 0 });
     });
 });
 

@@ -11309,3 +11309,71 @@ describe("Dreadful Killshot optimizer scope", () => {
     });
 });
 
+describe("Deadly Maneuvers optimizer scope", () => {
+    it("allows Burst optimization only with a positive Magnus headshot snapshot", () => {
+        const magnus = getWeaponCatalog().find((weapon) => weapon.name === "Magnus");
+        expect(magnus).toBeDefined();
+        const deadlyManeuvers = getModsForWeapon(magnus!).find((mod) => mod.name === "Deadly Maneuvers");
+        expect(deadlyManeuvers).toBeDefined();
+        const targetProfileOverride = {
+            health: 10_000,
+            shields: 0,
+            armor: 0,
+            overguard: 0,
+            headshotHitRate: 0.5,
+        };
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            targetProfileOverride,
+            conditionalState: { mode: "initial" as const, deadlyManeuversShotsRemaining: 2 },
+        };
+
+        const burst = optimizeBuild(magnus!, [deadlyManeuvers!], "burst", 1, options);
+        const zeroSnapshot = optimizeBuild(magnus!, [deadlyManeuvers!], "burst", 1, {
+            ...options,
+            conditionalState: { mode: "initial" as const, deadlyManeuversShotsRemaining: 0 },
+        });
+        const noHeadshotShare = optimizeBuild(magnus!, [deadlyManeuvers!], "burst", 1, {
+            ...options,
+            targetProfileOverride: { ...targetProfileOverride, headshotHitRate: 0 },
+        });
+        const finite = optimizeBuild(magnus!, [deadlyManeuvers!], "timeToKill", 1, options);
+        const scaling = optimizeBuild(magnus!, [deadlyManeuvers!], "scaling", 1, options);
+        const windowDps = optimizeBuild(magnus!, [deadlyManeuvers!], "windowDps", 1, options);
+        const rankThree = deadlyManeuvers!.effectsByRank[deadlyManeuvers!.fusionLimit]!;
+        const withoutSnapshot = { mode: "initial" as const, deadlyManeuversShotsRemaining: 0 };
+
+        expect(burst.slots.some((mod) => mod?.name === "Deadly Maneuvers")).toBe(true);
+        expect(zeroSnapshot.slots.some((mod) => mod?.name === "Deadly Maneuvers")).toBe(false);
+        expect(noHeadshotShare.slots.some((mod) => mod?.name === "Deadly Maneuvers")).toBe(false);
+        expect(finite.slots.some((mod) => mod?.name === "Deadly Maneuvers")).toBe(false);
+        expect(scaling.slots.some((mod) => mod?.name === "Deadly Maneuvers")).toBe(false);
+        expect(windowDps.slots.some((mod) => mod?.name === "Deadly Maneuvers")).toBe(false);
+        expect(debugScoreBuild(magnus!, [rankThree], "burst", "", null, targetProfileOverride, options.conditionalState))
+            .toBeGreaterThan(debugScoreBuild(magnus!, [rankThree], "burst", "", null, targetProfileOverride, withoutSnapshot));
+        expect(debugScoreBuild(magnus!, [rankThree], "timeToKill", "", null, targetProfileOverride, options.conditionalState))
+            .toBe(debugScoreBuild(magnus!, [rankThree], "timeToKill", "", null, targetProfileOverride, withoutSnapshot));
+        for (const goal of ["scaling", "windowDps"] as const) {
+            expect(debugScoreBuild(magnus!, [rankThree], goal, "", null, targetProfileOverride, options.conditionalState))
+                .toBe(debugScoreBuild(magnus!, [rankThree], goal, "", null, targetProfileOverride, withoutSnapshot));
+        }
+
+        const explanation = explainBuild(
+            magnus!,
+            [deadlyManeuvers!],
+            [deadlyManeuvers!.fusionLimit],
+            "burst",
+            "",
+            undefined,
+            options.conditionalState,
+            targetProfileOverride,
+        );
+        expect(explanation.buildHighlights.join(" ")).toContain("Deadly Maneuvers Burst scoring assumes 2 buffed shots remain after a dodge");
+        expect(explanation.buildHighlights.join(" ")).toContain("finite TTK, and fixed-window scoring exclude this snapshot");
+    });
+});
+

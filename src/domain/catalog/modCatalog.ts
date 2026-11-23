@@ -20,6 +20,7 @@ import {
     CHILLING_CLAWS_MOD_PATH,
     COMBUSTION_BEAM_MOD_PATH,
     DISABLING_CONDITIONING_MOD_PATH,
+    DEADLY_MANEUVERS_MOD_PATH,
     emptyEffect,
     NIGHTWATCH_NAPALM_MOD_PATH,
     OVERPRESSURED_ROUNDS_MOD_PATH,
@@ -47,6 +48,7 @@ const STRAIN_INFECTION_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/MeleeStrainI
 const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
+const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
 const OVERPRESSURED_ROUNDS_FALLOFF_DISTANCE_BY_RANK = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
@@ -182,6 +184,8 @@ export interface ModEffect {
     strainInfectionCritDamagePerCyst: number;
     /** Basmu Dreadful Killshot rank value; actual Damage/Status bonuses use an editable Burst-only current-Health snapshot. */
     dreadfulKillshotDamageAndStatusPer75Health: number;
+    /** Deadly Maneuvers rank value; headshot Critical Chance uses an editable 0–2 shot Burst snapshot on Magnus. */
+    deadlyManeuversHeadshotCritChanceBonus: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
     /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
@@ -1492,6 +1496,22 @@ function buildCaches(): ModCaches {
                 effect.dreadfulKillshotDamageAndStatusPer75Health = bonus;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Increased Damage and Status Chance by \+?\d+(?:\.\d+)?% for every 75 Warframe Health\. Capped at 360%\.?$/i.test(line),
+                );
+            });
+        }
+        if (path === DEADLY_MANEUVERS_MOD_PATH) {
+            // The editable remaining-shot snapshot represents the next 0–2
+            // headshot-capable Magnus shots for Burst scoring only. Dodge and
+            // shot history are not simulated.
+            // https://wiki.warframe.com/w/Deadly_Maneuvers
+            DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.deadlyManeuversHeadshotCritChanceBonus = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^On Dodge, gain \+?\d+(?:\.\d+)?% Headshot Critical Chance for your next 2 shots\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
                 );
             });
         }

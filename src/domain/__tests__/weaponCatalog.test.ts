@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay } from "../catalog/modCatalog";
+import { getUnmodeledDamageEffectSourceUrl } from "../catalog/modEffectUtils";
 import { getWeaponCatalog, getWeaponDisplayName, isBurstTriggerType } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
 import { effectiveDrain } from "../logic/capacityCalc";
@@ -1150,6 +1151,34 @@ describe("Dreadful Killshot rank data", () => {
             .toEqual([0.1, 0.12, 0.14, 0.16, 0.18, 0.2]);
         expect(mod!.unparsedStatsByRank?.every((rank) => rank.length === 0)).toBe(true);
         expect(mod!.effectsByRank.every((_, rank) => getUnmodeledDamageEffectLines(mod!, rank).length === 0)).toBe(true);
+    });
+});
+
+describe("Deadly Maneuvers rank data", () => {
+    it("parses all Magnus augment ranks and scores only with the configured Burst headshot snapshot", () => {
+        const magnusVariants = getWeaponCatalog().filter((weapon) =>
+            weapon.name === "Magnus" || weapon.name === "Magnus Prime",
+        );
+        expect(magnusVariants.map((weapon) => weapon.name)).toEqual(["Magnus", "Magnus Prime"]);
+
+        for (const weapon of magnusVariants) {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Deadly Maneuvers");
+            expect(mod).toBeDefined();
+            expect(mod!.effectsByRank.map((effect) => effect.deadlyManeuversHeadshotCritChanceBonus))
+                .toEqual([1, 2, 3, 4]);
+            expect(mod!.unparsedStatsByRank?.every((rank) => rank.length === 0)).toBe(true);
+            expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit)).toEqual(expect.arrayContaining([
+                expect.stringContaining("editable 0–2 remaining-shot snapshot"),
+            ]));
+            expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit, {
+                selectedWeaponName: weapon.name,
+                selectedAttackIsAreaDamage: false,
+                selectedAttackHeadshotRate: 0.5,
+                deadlyManeuversShotsRemaining: 2,
+                selectedGoal: "burst",
+            })).toEqual([]);
+            expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe("https://wiki.warframe.com/w/Deadly_Maneuvers");
+        }
     });
 });
 

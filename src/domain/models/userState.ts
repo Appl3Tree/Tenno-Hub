@@ -232,6 +232,8 @@ export interface SavedBuildPlannerConfig {
     strainInfectionCystsAtImpact?: number;
     /** Basmu Dreadful Killshot current Warframe Health snapshot for Burst only; finite and sustained scores ignore this. */
     dreadfulKillshotCurrentHealth?: number;
+    /** Deadly Maneuvers remaining shots after a dodge (0–2), used for Magnus Burst only. */
+    deadlyManeuversShotsRemaining?: number;
     /** Named external status types assumed active for Condition Overload and eligible direct-hit bonuses. */
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */
