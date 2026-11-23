@@ -556,6 +556,10 @@ export interface ConditionalState {
     attackFalloffDistanceMeters?: number;
     /** Editable target radius for the experimental single-target pellet-cone estimate. */
     targetRadiusMeters?: number;
+    /** User-entered post-Rifle-kill Buckshot spread minimum; manual Burst snapshot only. */
+    overpressuredRoundsSpreadMinimumDegrees?: number;
+    /** User-entered post-Rifle-kill Buckshot spread maximum; manual Burst snapshot only. */
+    overpressuredRoundsSpreadMaximumDegrees?: number;
     /** Assume the player is sliding at impact; selected weapon perks may use this static contact-state condition. */
     playerSlidingAtImpact?: boolean;
 }
@@ -571,6 +575,24 @@ export interface PelletHitEstimate {
     nominalSpreadDegrees: number;
     targetRadiusMeters: number;
     attackDistanceMeters: number;
+}
+
+/** Validate a user-entered effective spread range without inferring the augment's unknown numeric value. */
+export function normalizeOverpressuredRoundsSpreadSnapshot(
+    minimumSpreadDegrees: number | undefined,
+    maximumSpreadDegrees: number | undefined,
+): Pick<WeaponAttackPelletSpreadCone, "minimumSpreadDegrees" | "maximumSpreadDegrees"> | null {
+    if (
+        !Number.isFinite(minimumSpreadDegrees) ||
+        !Number.isFinite(maximumSpreadDegrees) ||
+        (minimumSpreadDegrees ?? 0) <= 0 ||
+        (maximumSpreadDegrees ?? 0) < (minimumSpreadDegrees ?? 0) ||
+        (maximumSpreadDegrees ?? 181) > 180
+    ) return null;
+    return {
+        minimumSpreadDegrees: minimumSpreadDegrees ?? 0,
+        maximumSpreadDegrees: maximumSpreadDegrees ?? 0,
+    };
 }
 
 /**
@@ -662,9 +684,19 @@ export function withoutBurstOnlyConditionalAssumptions(
 ): ConditionalState | undefined {
     if (!state || (
         normalizeStrainInfectionCystCount(state.strainInfectionCystsAtImpact) === 0 &&
-        normalizeDreadfulKillshotCurrentHealth(state.dreadfulKillshotCurrentHealth) === 0
+        normalizeDreadfulKillshotCurrentHealth(state.dreadfulKillshotCurrentHealth) === 0 &&
+        normalizeOverpressuredRoundsSpreadSnapshot(
+            state.overpressuredRoundsSpreadMinimumDegrees,
+            state.overpressuredRoundsSpreadMaximumDegrees,
+        ) === null
     )) return state;
-    return { ...state, strainInfectionCystsAtImpact: 0, dreadfulKillshotCurrentHealth: 0 };
+    return {
+        ...state,
+        strainInfectionCystsAtImpact: 0,
+        dreadfulKillshotCurrentHealth: 0,
+        overpressuredRoundsSpreadMinimumDegrees: undefined,
+        overpressuredRoundsSpreadMaximumDegrees: undefined,
+    };
 }
 
 export const DEFAULT_CONDITIONAL_STATE: Readonly<ConditionalState> = Object.freeze({ mode: "realistic" });
@@ -2145,8 +2177,19 @@ export function calculateBuild(
     }
 
     const projectileCount = weapon.multishot * (1 + multishotBonus);
+    const overpressuredSpreadSnapshot = weapon.name.toLowerCase() === "efv-5 jupiter" &&
+        weapon.selectedAttackName === "Buckshot" &&
+        weapon.selectedAttackPelletSpreadCone
+        ? normalizeOverpressuredRoundsSpreadSnapshot(
+            conditionalState.overpressuredRoundsSpreadMinimumDegrees,
+            conditionalState.overpressuredRoundsSpreadMaximumDegrees,
+        )
+        : null;
+    const pelletSpreadCone = overpressuredSpreadSnapshot && weapon.selectedAttackPelletSpreadCone
+        ? { ...weapon.selectedAttackPelletSpreadCone, ...overpressuredSpreadSnapshot }
+        : weapon.selectedAttackPelletSpreadCone;
     const pelletHitEstimate = estimatePelletHits(
-        weapon.selectedAttackPelletSpreadCone,
+        pelletSpreadCone,
         projectileCount,
         conditionalState.targetRadiusMeters,
         conditionalState.attackFalloffDistanceMeters,

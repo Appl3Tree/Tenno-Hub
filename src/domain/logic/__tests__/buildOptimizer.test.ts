@@ -1755,7 +1755,7 @@ describe("build optimizer scoring", () => {
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
-    it("keeps Overpressured Rounds unscored until EFV-5 mode history and pellet coverage are modeled", () => {
+    it("keeps Overpressured Rounds excluded from Auto Optimize while documenting the manual Burst snapshot", () => {
         const efv5 = getWeaponCatalog().find((weapon) => weapon.name.toLowerCase() === "efv-5 jupiter");
         expect(efv5).toBeDefined();
         const overpressuredRounds = getModsForWeapon(efv5!).find((mod) => mod.name === "Overpressured Rounds");
@@ -1777,7 +1777,7 @@ describe("build optimizer scoring", () => {
         for (let rank = 0; rank <= overpressuredRounds!.fusionLimit; rank++) {
             expect(overpressuredRounds!.unparsedStatsByRank?.[rank]).toEqual([expectedRankText[rank]]);
             expect(getUnmodeledDamageEffectLines(overpressuredRounds!, rank)).toContain(
-                "Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify its spread reduction. Buckshot's experimental target-size estimate therefore disables itself when this mod is equipped; Auto Optimize skips the mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.",
+                "Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify the spread reduction. An optional user-entered effective post-kill spread range can drive Buckshot's experimental single-target Burst estimate; this is a manual assumption, not a sourced stat or trigger simulation. The cone is applied to the scored attack event without simulating the prior Rifle kill, one-shot buff consumption, or a repeat-fire spread timeline. Finite TTK, 5s Avg DPS, rank-specific Falloff Distance, and Magazine Restore remain unscored, and Auto Optimize skips the mod.",
             );
         }
 
