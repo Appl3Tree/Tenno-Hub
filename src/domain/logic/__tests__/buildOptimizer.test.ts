@@ -585,6 +585,37 @@ describe("fixed-window DPS objective", () => {
         expect(result.windowDpsScore).toBeCloseTo(30_707.940468114255, 6);
     });
 
+    it("honors a maintained Custom stack snapshot in fixed-window scoring", () => {
+        const catalogWeapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(catalogWeapon).toBeDefined();
+        const attackIndex = catalogWeapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const weapon = withSelectedAttack(catalogWeapon!, attackIndex);
+        const mods = ["Galvanized Chamber", "Galvanized Aptitude"].map((name) => {
+            const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === name);
+            expect(mod, name).toBeDefined();
+            return mod!;
+        });
+        const effects = mods.map((mod) => mod.effectsByRank[mod.fusionLimit] ?? mod.effect);
+        const target = { health: 2_000_000, shields: 0, overguard: 0, armor: 3_000 };
+        const score = (conditionalState: ConditionalState) => debugEvaluateFixedWindowDps(
+            weapon,
+            effects,
+            "Grineer",
+            target,
+            conditionalState,
+        );
+
+        const initial = score({ mode: "initial" });
+        const customZero = score({ mode: "custom", externalStacks: 0 });
+        const customFive = score({ mode: "custom", externalStacks: 5 });
+        const fullyStacked = score({ mode: "fullyStacked" });
+
+        expect(customZero.damageInWindow).toBeCloseTo(initial.damageInWindow, 10);
+        expect(customFive.damageInWindow).toBeGreaterThan(customZero.damageInWindow);
+        expect(customFive.damageInWindow).toBeCloseTo(fullyStacked.damageInWindow, 10);
+    });
+
     it("keeps refining the Laetum finite window until its critical replacement is selected", () => {
         const { result } = optimizeCatalogWindowFixture("Laetum", "Normal Attack");
 

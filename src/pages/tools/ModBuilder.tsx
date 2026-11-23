@@ -6691,7 +6691,7 @@ export default function ModBuilder() {
                                                             ? "No conditional trigger effects are active."
                                                             : conditionalMode === "fullyStacked"
                                                                 ? "Assumes every modeled trigger is active at its maximum stacks."
-                                                                : "Applies this maintained stack count to each conditional effect."}
+                                                                : "Applies this maintained stack count to each conditional effect. Fixed-window scoring holds it for the full window without simulating how stacks were earned or expired."}
                                                 </span>
                                             </div>
                                             {supportsKineticKiller && incarnonRecord && (
