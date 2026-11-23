@@ -852,6 +852,57 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // Castanas-family detonations use 100%→60% falloff over 3.6m.
+    // Blast Radius mods extend the sourced blast profile.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Castanas
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/StickyBomb/StickyBombs": Object.freeze({
+        "mid-flight detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 3.6,
+            minimumDamageMultiplier: 0.6,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Castanas",
+        }),
+        "embedded detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 3.6,
+            minimumDamageMultiplier: 0.6,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Castanas",
+        }),
+    }),
+    "/Lotus/Weapons/Syndicates/NewLoka/Pistols/NLCastanas": Object.freeze({
+        "mid-flight detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 3.6,
+            minimumDamageMultiplier: 0.6,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Sancti_Castanas",
+        }),
+        "embedded detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 3.6,
+            minimumDamageMultiplier: 0.6,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Sancti_Castanas",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/U18ThrowingKnives/U18throwingknives": Object.freeze({
+        "mid-flight detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 4,
+            minimumDamageMultiplier: 0.5,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Talons",
+        }),
+        "embedded detonation": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 4,
+            minimumDamageMultiplier: 0.5,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Talons",
+        }),
+    }),
     // Kulstar's linked rocket blast uses the sourced 100%→60% falloff over
     // its 3.9m radius. Blast Radius mods extend this range.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
@@ -1736,6 +1787,23 @@ const VERIFIED_ATTACK_FORCED_PROC_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponForcedProcs>>
 >> = Object.freeze({
+    // These weapons guarantee Electricity only on embedded detonation; their
+    // mid-flight rows do not carry the forced proc.
+    // Verified 2026-11-23:
+    // https://wiki.warframe.com/w/Castanas
+    // https://wiki.warframe.com/w/Sancti_Castanas
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/StickyBomb/StickyBombs": Object.freeze({
+        "embedded detonation": Object.freeze({ electricity: 1 }),
+    }),
+    "/Lotus/Weapons/Syndicates/NewLoka/Pistols/NLCastanas": Object.freeze({
+        "embedded detonation": Object.freeze({ electricity: 1 }),
+    }),
+    // Talons' embedded detonation forces Puncture. Ragdoll is control-only and
+    // is disclosed in the score boundary note.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Talons
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/U18ThrowingKnives/U18throwingknives": Object.freeze({
+        "embedded detonation": Object.freeze({ puncture: 1 }),
+    }),
     // Acrid always applies a Toxin proc on a direct needle hit. The four
     // Hystrix quill rows force their selected element without adding that
     // element to the weapon's damage composition.
@@ -2304,6 +2372,44 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    // Each row is one alternative single-charge detonation. Do not combine
+    // Mid-Flight and Embedded Detonation. Extra Multishot charges are widely
+    // spread; flight, manual detonation timing, stacked charges, and other
+    // targets are outside this single-target model.
+    // Verified 2026-11-23:
+    // https://wiki.warframe.com/w/Castanas
+    // https://wiki.warframe.com/w/Sancti_Castanas
+    // https://wiki.warframe.com/w/Talons
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/StickyBomb/StickyBombs": Object.freeze({
+        "mid-flight detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Castanas",
+            reason: "This row scores one Castanas mid-flight detonation centered on the selected target. It is an alternative to Embedded Detonation, not an additional hit. Projectile travel, the manual detonation delay, multiple deployed mines, extra widely-spread Multishot projectiles, and other blast targets are not modeled; use 0m Attack distance for a centered single-target explosion.",
+        }),
+        "embedded detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Castanas",
+            reason: "This row assumes one thrown Castanas attaches to the selected target and is detonated immediately; no separate impact damage is added. It is an alternative to Mid-Flight Detonation, not an additional hit. Projectile travel, manual detonation delay, multiple deployed mines, extra widely-spread Multishot projectiles, and other blast targets are not modeled; use 0m Attack distance for the centered explosion.",
+        }),
+    }),
+    "/Lotus/Weapons/Syndicates/NewLoka/Pistols/NLCastanas": Object.freeze({
+        "mid-flight detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Sancti_Castanas",
+            reason: "This row scores one Sancti Castanas mid-flight detonation centered on the selected target. It is an alternative to Embedded Detonation, not an additional hit. Projectile travel, the manual detonation delay, multiple deployed mines, extra widely-spread Multishot projectiles, and other blast targets are not modeled. The affinity-triggered Purity radial effect and its health restore/buff are excluded because affinity and multi-target event history are not modeled; use 0m Attack distance for a centered single-target explosion.",
+        }),
+        "embedded detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Sancti_Castanas",
+            reason: "This row assumes one thrown Sancti Castanas attaches to the selected target and is detonated immediately; no separate impact damage is added. It is an alternative to Mid-Flight Detonation, not an additional hit. Projectile travel, manual detonation delay, multiple deployed mines, extra widely-spread Multishot projectiles, and other blast targets are not modeled. The affinity-triggered Purity radial effect and its health restore/buff are excluded because affinity and multi-target event history are not modeled; use 0m Attack distance for the centered explosion.",
+        }),
+    }),
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/U18ThrowingKnives/U18throwingknives": Object.freeze({
+        "mid-flight detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Talons",
+            reason: "This row scores one Talons mid-flight detonation centered on the selected target. It is an alternative to Embedded Detonation, not an additional hit. Projectile travel, manual detonation delay, multiple deployed charges, extra widely-spread Multishot projectiles, other blast targets, and forced Puncture/Ragdoll control effects are not modeled; use 0m Attack distance for a centered single-target explosion.",
+        }),
+        "embedded detonation": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Talons",
+            reason: "This row assumes one thrown Talons charge attaches to the selected target and is detonated immediately; no separate impact damage is added. It is an alternative to Mid-Flight Detonation, not an additional hit. Projectile travel, manual detonation delay, multiple deployed charges, extra widely-spread Multishot projectiles, other blast targets, and forced Ragdoll control are not modeled; the forced Puncture proc is included. Use 0m Attack distance for the centered explosion.",
+        }),
+    }),
     "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": Object.freeze({
         "rocket impact": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Kulstar",
@@ -2459,6 +2565,24 @@ const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Reco
 
 /** Wiki-confirmed attack components that do not inherit multishot modifiers. */
 const VERIFIED_ATTACK_MULTISHOT_LOCKED_OVERRIDES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    // Keep each single-target mode to one thrown charge because Multishot
+    // charges spread widely and cannot be assumed to hit the same target.
+    // Verified 2026-11-23:
+    // https://wiki.warframe.com/w/Castanas
+    // https://wiki.warframe.com/w/Sancti_Castanas
+    // https://wiki.warframe.com/w/Talons
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/StickyBomb/StickyBombs": Object.freeze([
+        "mid-flight detonation",
+        "embedded detonation",
+    ]),
+    "/Lotus/Weapons/Syndicates/NewLoka/Pistols/NLCastanas": Object.freeze([
+        "mid-flight detonation",
+        "embedded detonation",
+    ]),
+    "/Lotus/Weapons/Tenno/ThrowingWeapons/U18ThrowingKnives/U18throwingknives": Object.freeze([
+        "mid-flight detonation",
+        "embedded detonation",
+    ]),
     // The number of bomblets per Kulstar rocket is fixed; Multishot only
     // changes how many rockets are fired.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar

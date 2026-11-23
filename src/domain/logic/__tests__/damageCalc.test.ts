@@ -1217,6 +1217,44 @@ describe("source-backed per-attack Auto-Charge profiles", () => {
         expect(clusterModded.multishot).toBe(3);
         expect(clusterExplosion.multishot).toBe(1);
     });
+
+    it("scores one alternative Castanas-family or Talons detonation with sourced falloff", () => {
+        const cases = [
+            { name: "Castanas", radius: 3.6, minimumMultiplier: 0.6 },
+            { name: "Sancti Castanas", radius: 3.6, minimumMultiplier: 0.6 },
+            { name: "Talons", radius: 4, minimumMultiplier: 0.5 },
+        ] as const;
+
+        for (const { name, radius, minimumMultiplier } of cases) {
+            const weapon = catalog.find((candidate) => candidate.name === name)!;
+            const attackIndexes = [
+                weapon.attacks.findIndex((attack) => attack.name === "Mid-Flight Detonation"),
+                weapon.attacks.findIndex((attack) => attack.name === "Embedded Detonation"),
+            ];
+            const lethalTorrent = getModsForWeapon(weapon).find((mod) => mod.name === "Lethal Torrent");
+            expect(lethalTorrent, name).toBeDefined();
+            const lethalTorrentEffect = lethalTorrent!.effectsByRank[lethalTorrent!.fusionLimit]!;
+
+            for (const attackIndex of attackIndexes) {
+                expect(attackIndex, name).toBeGreaterThanOrEqual(0);
+                const selected = withSelectedAttack(weapon, attackIndex);
+                const center = calculateBuild(selected, [], "", {
+                    conditionalState: { mode: "initial", attackFalloffDistanceMeters: 0 },
+                }).modded;
+                const midpoint = calculateBuild(selected, [], "", {
+                    conditionalState: { mode: "initial", attackFalloffDistanceMeters: radius / 2 },
+                }).modded;
+                const multishotModded = calculateBuild(selected, [lethalTorrentEffect]).modded;
+
+                expect(center.attackDamageFalloff?.damageMultiplier, name).toBe(1);
+                expect(center.attackDamageFalloff?.distanceMeters, name).toBe(0);
+                expect(midpoint.attackDamageFalloff?.damageMultiplier, name)
+                    .toBeCloseTo((1 + minimumMultiplier) / 2, 8);
+                expect(multishotModded.multishot, name).toBe(1);
+                expect(center.attachedAttackDamageSequence, name).toBeUndefined();
+            }
+        }
+    });
 });
 
 describe("Cull the Weak Wiki modeling", () => {
