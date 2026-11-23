@@ -9342,7 +9342,7 @@ describe("build optimizer scoring", () => {
         }
     });
 
-    it("matches a seeded six-mod, four-slot R1-owned Expected TTK and 5s DPS oracle across weapon classes", { timeout: 600000 }, () => {
+    it("matches a seeded six-mod, four- and five-slot R1-owned Expected TTK and 5s DPS oracle across weapon classes", { timeout: 600000 }, () => {
         let seed = 20261153;
         const random = () => {
             seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -9356,11 +9356,15 @@ describe("build optimizer scoring", () => {
             }
             return result;
         };
-        const scenarios = [
+        const baseScenarios = [
             { weaponName: "Braton Prime", faction: "Grineer", target: { health: 82_000, shields: 0, overguard: 0, armor: 2_700 }, mode: "realistic" as const },
             { weaponName: "Lex Prime", faction: "Corpus", target: { health: 42_000, shields: 58_000, overguard: 0, armor: 0 }, mode: "initial" as const },
             { weaponName: "Cedo", faction: "Grineer", target: { health: 155_000, shields: 0, overguard: 0, armor: 2_100 }, mode: "realistic" as const },
             { weaponName: "Broken War", faction: "Infested", target: { health: 108_000, shields: 0, overguard: 0, armor: 300 }, mode: "fullyStacked" as const },
+        ];
+        const scenarios = [
+            ...baseScenarios.map((scenario) => ({ ...scenario, slotCount: 4 })),
+            ...baseScenarios.map((scenario) => ({ ...scenario, slotCount: 5 })),
         ];
 
         for (const [scenarioIndex, scenario] of scenarios.entries()) {
@@ -9397,13 +9401,31 @@ describe("build optimizer scoring", () => {
                 1,
             ]));
             const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const hasElementalContributionAtOwnedRank = (mod: ModEntry) => [0, 1].some((rank) => {
+                const effect = mod.effectsByRank[rank] ?? mod.effect;
+                const hasDirectElement = (effect.heatBonus ?? 0) > 0 ||
+                    (effect.coldBonus ?? 0) > 0 ||
+                    (effect.electricityBonus ?? 0) > 0 ||
+                    (effect.toxinBonus ?? 0) > 0;
+                return hasDirectElement || (effect.conditionalEffects ?? []).some((conditional) =>
+                    (conditional.stats.heatBonus ?? 0) > 0 ||
+                    (conditional.stats.coldBonus ?? 0) > 0 ||
+                    (conditional.stats.electricityBonus ?? 0) > 0 ||
+                    (conditional.stats.toxinBonus ?? 0) > 0,
+                );
+            });
+            const elementOrderSensitiveModNames = new Set(
+                candidates
+                    .filter(hasElementalContributionAtOwnedRank)
+                    .map((mod) => mod.uniqueName),
+            );
             const capacityConfig = {
                 weaponRank: 30,
                 hasCatalyst: false,
                 masteryRank: 30,
                 canOverLevel: weapon!.canOverLevel,
             };
-            const slotCount = 4;
+            const { slotCount } = scenario;
             const slotPolarities = weapon!.polarities.slice(0, slotCount);
             const maxFormaCount = scenarioIndex % 2;
             const conditionalState: ConditionalState = { mode: scenario.mode };
@@ -9489,6 +9511,17 @@ describe("build optimizer scoring", () => {
                 if (ordered.length >= slotCount) return;
                 for (let index = 0; index < remaining.length; index++) {
                     const candidate = remaining[index];
+                    if (!elementOrderSensitiveModNames.has(candidate.uniqueName)) {
+                        let lastOrderIndependent: ModEntry | undefined;
+                        for (let orderedIndex = ordered.length - 1; orderedIndex >= 0; orderedIndex--) {
+                            const previous = ordered[orderedIndex];
+                            if (!elementOrderSensitiveModNames.has(previous.uniqueName)) {
+                                lastOrderIndependent = previous;
+                                break;
+                            }
+                        }
+                        if (lastOrderIndependent && lastOrderIndependent.uniqueName.localeCompare(candidate.uniqueName) > 0) continue;
+                    }
                     if (ordered.some((mod) =>
                         mod.uniqueName === candidate.uniqueName ||
                         (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
@@ -9501,7 +9534,7 @@ describe("build optimizer scoring", () => {
             };
             enumerate(candidates, []);
             expect(legalLoadoutCount, scenario.weaponName + " legal ranked loadouts").toBeGreaterThan(0);
-            expect(maximumLegalSlotCount, scenario.weaponName + " legal four-slot ranked loadout").toBe(4);
+            expect(maximumLegalSlotCount, scenario.weaponName + ` legal ${slotCount}-slot ranked loadout`).toBe(slotCount);
             expect(exactScoreCount, scenario.weaponName + " exact ranked loadout scores").toBe(legalLoadoutCount);
             expect(exhaustiveBestWindow.damageInWindow, scenario.weaponName + " uncapped five-second damage")
                 .toBeLessThan(windowTarget.health + windowTarget.shields);
@@ -9538,7 +9571,7 @@ describe("build optimizer scoring", () => {
                 expect(result.slotRanks[slotIndex], scenario.weaponName + " TTK owned rank")
                     .toBeLessThanOrEqual(ownedModMaxRankByUniqueName[mod.uniqueName]);
             }
-            expect(optimizedRank, scenario.weaponName + " exact ranked four-slot TTK")
+            expect(optimizedRank, scenario.weaponName + ` exact ranked ${slotCount}-slot TTK`)
                 .toBeCloseTo(bestRank, 8);
             expect(optimizedScore.timeToKillSeconds, scenario.weaponName + " TTK")
                 .toBe(exhaustiveBest.timeToKillSeconds);
@@ -9576,10 +9609,27 @@ describe("build optimizer scoring", () => {
                 expect(windowResult.slotRanks[slotIndex], scenario.weaponName + " 5s owned rank")
                     .toBeLessThanOrEqual(ownedModMaxRankByUniqueName[mod.uniqueName]);
             }
-            expect(optimizedWindowScore.damagePerSecond, scenario.weaponName + " exact ranked four-slot 5s DPS")
+            expect(optimizedWindowScore.damagePerSecond, scenario.weaponName + ` exact ranked ${slotCount}-slot 5s DPS`)
                 .toBeCloseTo(bestWindowDps, 8);
             expect(optimizedWindowScore.damageInWindow, scenario.weaponName + " 5s total damage")
                 .toBeCloseTo(exhaustiveBestWindow.damageInWindow, 8);
+            if (process.env.TENNO_HUB_ORACLE_REPORT === "1") {
+                console.info(JSON.stringify({
+                    seed: 20261153,
+                    slotCount,
+                    weapon: scenario.weaponName,
+                    attack: attack.name,
+                    faction: scenario.faction,
+                    state: scenario.mode,
+                    maxFormaCount,
+                    candidateMods: candidates.map((mod) => mod.name),
+                    exactLegalRankedLoadouts: legalLoadoutCount,
+                    expectedTtkSeconds: optimizedScore.timeToKillSeconds,
+                    expectedTtkDamagePerSecond: optimizedScore.damagePerSecond,
+                    fiveSecondAverageDps: optimizedWindowScore.damagePerSecond,
+                    fiveSecondDamage: optimizedWindowScore.damageInWindow,
+                }));
+            }
         }
     });
 
