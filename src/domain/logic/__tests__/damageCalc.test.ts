@@ -1083,6 +1083,22 @@ describe("source-backed Arch-Gun charge-rate mechanics", () => {
     });
 });
 
+describe("source-backed Zylok Incarnon trigger cadence", () => {
+    it.each(["Zylok", "Zylok Prime"])("uses the 0.6s charged cycle for %s Incarnon Form", (weaponName) => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+        expect(weapon).toBeDefined();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Incarnon Form");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+
+        const selected = withSelectedAttack(weapon!, attackIndex);
+        const stats = calculateBuild(selected, []).modded;
+        expect(selected.trigger).toBe("Charge");
+        expect(selected.chargeTime).toBeCloseTo(0.6, 8);
+        expect(stats.initialAttackDelaySeconds).toBeCloseTo(0.6, 8);
+        expect(stats.fireRate).toBeCloseTo(1 / (0.6 + 1 / selected.fireRate), 8);
+    });
+});
+
 describe("source-backed per-attack Auto-Charge profiles", () => {
     const catalog = getWeaponCatalog();
 

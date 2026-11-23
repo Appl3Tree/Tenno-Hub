@@ -505,6 +505,13 @@ const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze
     // grenade launcher is semi-auto. Cannonade requires every firing form to
     // be semi-auto, so the base trigger alone is insufficient here.
     "/Lotus/Weapons/ClanTech/Bio/BioWeapon|incarnon form": "Held",
+    // Zylok's normal fire is Duplex, but the Incarnon Form's direct attack is
+    // separately listed as Charge with a 0.6s charge time. Keep the radial
+    // component row's separately exported trigger unchanged.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Zylok
+    // https://wiki.warframe.com/w/Zylok_Prime
+    "/Lotus/Weapons/Tenno/Pistols/ConclaveLeverPistol/ConclaveLeverPistol|incarnon form": "Charge",
+    "/Lotus/Weapons/Tenno/Pistols/PrimeZylok/ZylokPrimePistol|incarnon form": "Charge",
     // The Incarnon attack tables classify both Vasto variants as Burst.
     // Verified 2026-11-15: https://wiki.warframe.com/w/Vasto_Incarnon_Genesis
     "/Lotus/Weapons/Tenno/Pistol/RevolverPistol|incarnon form": "Burst",

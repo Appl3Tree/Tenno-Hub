@@ -265,6 +265,27 @@ describe("weapon catalog stance inference", () => {
         );
     });
 
+    it("uses Charge timing for Zylok Incarnon direct attacks while preserving their radial rows", () => {
+        for (const weaponName of ["Zylok", "Zylok Prime"]) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon).toBeDefined();
+
+            const directIndex = weapon!.attacks.findIndex((attack) => attack.name === "Incarnon Form");
+            const radialIndex = weapon!.attacks.findIndex((attack) => attack.name === "Incarnon Form Radial Attack");
+            expect(directIndex).toBeGreaterThanOrEqual(0);
+            expect(radialIndex).toBeGreaterThanOrEqual(0);
+
+            const direct = weapon!.attacks[directIndex]!;
+            expect(direct).toMatchObject({ trigger: "Charge", chargeTime: 0.6 });
+            const selected = withSelectedAttack(weapon!, directIndex);
+            expect(selected.trigger).toBe("Charge");
+
+            // The Wiki comparison table lists the separately catalogued radial
+            // component with Duplex; do not apply the direct-row correction to it.
+            expect(weapon!.attacks[radialIndex]!.trigger).toBe("Duplex");
+        }
+    });
+
     it("keeps Mausolon's Archwing and Atmosphere damage profiles selectable and distinct", () => {
         const mausolons = getWeaponCatalog().filter((weapon) => weapon.name === "Mausolon");
         const archwing = mausolons.find((weapon) => weapon.variantLabel === "Archwing");
