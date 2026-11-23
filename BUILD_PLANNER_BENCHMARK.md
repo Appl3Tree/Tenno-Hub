@@ -1,4 +1,4 @@
-## D3-MOD-DEADLY-MANEUVER-BURST-SNAPSHOT-001 — Magnus headshot Critical Chance snapshot (implementation pending release; 2026-11-23)
+## D3-MOD-DEADLY-MANEUVER-BURST-SNAPSHOT-001 — Magnus headshot Critical Chance snapshot (released in PR [#351](https://github.com/Appl3Tree/Tenno-Hub/pull/351); 2026-11-23)
 
 Deadly Maneuvers now parses the four rank values listed by the [current Wiki page](https://wiki.warframe.com/w/Deadly_Maneuvers): +100%, +200%, +300%, and +400% Headshot Critical Chance. Following the user's selected interpretation of the rank text, the bonus multiplies the existing headshot Critical Chance after other buffs, producing ×2/×3/×4/×5 on each buffed headshot at ranks 0–3. The selected effect is limited to Magnus and Magnus Prime direct attacks that can headshot.
 
@@ -8,7 +8,7 @@ The augment can enter Burst Auto Optimize only when Magnus/Magnus Prime, a heads
 
 Focused regressions cover all rank values, 0/1/2 remaining shots, the ×2–×5 multiplier order, configured headshot share, Burst-only damage, and optimizer objective/weapon gates. The filtered catalog/calculator/optimizer run passes 5/5, and the additional optimizer scope assertion passes 1/1; the full affected catalog/calculator files pass 221/221. App/test TypeScript, focused ESLint, source validation, mod-effect coverage audit, CRLF-aware diff check, and a temporary 988-module Vite build pass. The audit reports 698 weapon profiles / 600 eligible mod records / 501 parsed / 99 with no parsed effect / 68 conservative candidates / zero empty pools.
 
-The local `http://localhost/Tenno-Hub/` endpoint timed out during this checkpoint, so no current-source rendered review is claimed. The full repository suite, full optimizer suite, live-game behavior, and Underframe parity were not validated. Reopen if a supported Magnus attack context or the rank-text interpretation changes.
+The local `http://localhost/Tenno-Hub/` endpoint timed out during this checkpoint, so no current-source rendered review is claimed. The full repository suite, full optimizer suite, live-game behavior, and Underframe parity were not validated. PR #351 squash-merged as `67bbdf58168e580311ff2e3ef90d688ce3e32e6c`; Pages run [#431](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45260382142) succeeded. Reopen if a supported Magnus attack context or the rank-text interpretation changes.
 
 ## D3-MECH-VULCAX-SINGLE-SHOT-RADIAL-SEQUENCE-001 — charged Impact plus attached Radial Attack (released in PR #327; 2026-11-23)
 
