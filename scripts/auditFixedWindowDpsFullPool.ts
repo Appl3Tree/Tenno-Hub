@@ -381,7 +381,7 @@ console.log(JSON.stringify({
         arcanePolicy: jointArcane
             ? "Each baseline and legal one-mod neighbor is exactly re-scored with no Arcane and every modeled rank of every compatible Arcane; the best score is retained."
             : "Arcanes are disabled unless --joint-arcane=true is supplied.",
-        modelBoundary: "Tenno-Hub's deterministic target encounter; it is not Underframe's private simulator or live-game validation. When attack distance is omitted the profile assumes full damage. A listed maximum range is reported but not enforced as a no-hit cap. Companion precepts, targeting, and multi-target behavior are outside this weapon-only score.",
+        modelBoundary: "Tenno-Hub's deterministic target encounter; it is not Underframe's private simulator or live-game validation. When attack distance is omitted the selected profile assumes full damage. Sourced per-attack falloff and hard hit caps are applied where modeled; informational or conflicting range fields remain unenforced. Companion precepts, targeting, and multi-target behavior are outside this weapon-only score.",
         optimizerRuns: requestedRuns,
     },
     fixture: {
