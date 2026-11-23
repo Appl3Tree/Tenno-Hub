@@ -1747,7 +1747,7 @@ describe("build optimizer scoring", () => {
         for (let rank = 0; rank <= overpressuredRounds!.fusionLimit; rank++) {
             expect(overpressuredRounds!.unparsedStatsByRank?.[rank]).toEqual([expectedRankText[rank]]);
             expect(getUnmodeledDamageEffectLines(overpressuredRounds!, rank)).toContain(
-                "Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes. The Wiki does not specify the spread reduction, and EFV-5 Buckshot's 11-pellet spread has no target-size hit model here, so Auto Optimize skips this mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.",
+                "Overpressured Rounds' Rifle-kill buff applies only to the next Buckshot, and its magazine restore requires a Buckshot kill. The planner does not simulate cross-mode kill history or ammo changes, and the Wiki does not specify its spread reduction. Buckshot's experimental target-size estimate therefore disables itself when this mod is equipped; Auto Optimize skips the mod. Its rank-specific Falloff Distance and Magazine Restore values remain visible in the source stat text, but none of these conditional effects is scored.",
             );
         }
 

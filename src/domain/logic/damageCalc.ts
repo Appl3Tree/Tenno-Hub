@@ -1,7 +1,7 @@
 // src/domain/logic/damageCalc.ts
 // Damage + status calculations for the mod builder / optimizer.
 
-import type { IntrinsicDamagePerStatusMode, WeaponAttackDamageFalloff, WeaponAttackLingeringDamageRule, WeaponAttackMaximumRangeBehavior, WeaponEntry, WeaponForcedProcType, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
+import type { IntrinsicDamagePerStatusMode, WeaponAttackDamageFalloff, WeaponAttackLingeringDamageRule, WeaponAttackMaximumRangeBehavior, WeaponAttackPelletSpreadCone, WeaponEntry, WeaponForcedProcType, WeaponUniqueStatusType } from "../catalog/weaponCatalog";
 import {
     clampMeleeComboMultiplier,
     getHeavyAttackRetainedComboPoints,
@@ -324,6 +324,8 @@ export interface ModdedWeaponStats {
     infiniteAmmoActive: boolean;
     /** Expected projectile count used for independent crit/status rolls. */
     multishot: number;
+    /** Experimental source-cone estimate when target radius and attack distance are both supplied. */
+    pelletHitEstimate: PelletHitEstimate | null;
     /** Expected damage multiplier after unique bonuses to extra projectiles. */
     damageWeightedMultishot: number;
     /** Additive unique bonus applied only to projectiles beyond base multishot. */
@@ -550,8 +552,79 @@ export interface ConditionalState {
     targetDistanceMeters?: number;
     /** Explicit target distance used only by the selected attack's damage-falloff profile. */
     attackFalloffDistanceMeters?: number;
+    /** Editable target radius for the experimental single-target pellet-cone estimate. */
+    targetRadiusMeters?: number;
     /** Assume the player is sliding at impact; selected weapon perks may use this static contact-state condition. */
     playerSlidingAtImpact?: boolean;
+}
+
+export interface PelletHitEstimate {
+    pelletsFired: number;
+    /** Expected hits under the maximum listed spread angle (lower bound). */
+    minimumExpectedHits: number;
+    /** Expected hits using the midpoint of the listed spread angles. */
+    nominalExpectedHits: number;
+    /** Expected hits under the minimum listed spread angle (upper bound). */
+    maximumExpectedHits: number;
+    nominalSpreadDegrees: number;
+    targetRadiusMeters: number;
+    attackDistanceMeters: number;
+}
+
+/**
+ * Estimates centered-target pellet overlap using a deliberately idealized
+ * center pellet plus uniform solid-angle sampling for the remaining pellets.
+ * This is an experimental planning estimate, not the game's exact shotgun RNG.
+ */
+export function estimatePelletHits(
+    spreadCone: WeaponAttackPelletSpreadCone | undefined,
+    pelletCount: number,
+    targetRadiusMeters: number | undefined,
+    attackDistanceMeters: number | undefined,
+): PelletHitEstimate | null {
+    if (
+        !spreadCone ||
+        !Number.isFinite(pelletCount) || pelletCount <= 0 ||
+        !Number.isFinite(targetRadiusMeters) || (targetRadiusMeters ?? 0) <= 0 ||
+        !Number.isFinite(attackDistanceMeters) || (attackDistanceMeters ?? -1) < 0 ||
+        !Number.isFinite(spreadCone.minimumSpreadDegrees) ||
+        !Number.isFinite(spreadCone.maximumSpreadDegrees) ||
+        spreadCone.minimumSpreadDegrees <= 0 ||
+        spreadCone.maximumSpreadDegrees < spreadCone.minimumSpreadDegrees
+    ) return null;
+
+    const radius = targetRadiusMeters ?? 0;
+    const distance = attackDistanceMeters ?? 0;
+    const count = Math.max(0, pelletCount);
+    const expectedAtSpread = (spreadDegrees: number) => {
+        if (count <= 1 || distance === 0) return count;
+        const spreadRadians = spreadDegrees * Math.PI / 180;
+        const targetAngleRadians = Math.atan(radius / distance);
+        const targetSolidAngle = 1 - Math.cos(Math.min(targetAngleRadians, spreadRadians));
+        const coneSolidAngle = 1 - Math.cos(spreadRadians);
+        const probability = coneSolidAngle > 0
+            ? Math.max(0, Math.min(1, targetSolidAngle / coneSolidAngle))
+            : 1;
+        return Math.min(count, 1 + Math.max(0, count - 1) * probability);
+    };
+    const nominalSpreadDegrees = (spreadCone.minimumSpreadDegrees + spreadCone.maximumSpreadDegrees) / 2;
+    return {
+        pelletsFired: count,
+        minimumExpectedHits: expectedAtSpread(spreadCone.maximumSpreadDegrees),
+        nominalExpectedHits: expectedAtSpread(nominalSpreadDegrees),
+        maximumExpectedHits: expectedAtSpread(spreadCone.minimumSpreadDegrees),
+        nominalSpreadDegrees,
+        targetRadiusMeters: radius,
+        attackDistanceMeters: distance,
+    };
+}
+
+/** Accuracy changes alter pellet spread, which this experimental estimator does not model. */
+export function hasAccuracyAffectingPelletEffect(effects: readonly (ModEffect | null | undefined)[]): boolean {
+    return effects.some((effect) =>
+        Math.abs(effect?.accuracyBonus ?? 0) > 1e-9 ||
+        effect?.conditionalEffects?.some((conditional) => Math.abs(conditional.stats.accuracyBonus ?? 0) > 1e-9),
+    );
 }
 
 export const MAX_STRAIN_INFECTION_CYSTS = 8;
@@ -2069,8 +2142,24 @@ export function calculateBuild(
         totalBase *= attackDamageFalloffMultiplier;
     }
 
-    const moddedMultishot = weapon.multishot * (1 + multishotBonus);
-    const extraProjectiles = Math.max(0, moddedMultishot - weapon.multishot);
+    const projectileCount = weapon.multishot * (1 + multishotBonus);
+    const pelletHitEstimate = estimatePelletHits(
+        weapon.selectedAttackPelletSpreadCone,
+        projectileCount,
+        conditionalState.targetRadiusMeters,
+        conditionalState.attackFalloffDistanceMeters,
+    );
+    const moddedMultishot = pelletHitEstimate?.nominalExpectedHits ?? projectileCount;
+    const basePelletHitEstimate = pelletHitEstimate
+        ? estimatePelletHits(
+            weapon.selectedAttackPelletSpreadCone,
+            weapon.multishot,
+            conditionalState.targetRadiusMeters,
+            conditionalState.attackFalloffDistanceMeters,
+        )
+        : null;
+    const baseHitCount = basePelletHitEstimate?.nominalExpectedHits ?? weapon.multishot;
+    const extraProjectiles = Math.max(0, moddedMultishot - baseHitCount);
     const damageWeightedMultishot = moddedMultishot + extraProjectiles * multishotDamageBonus;
     // Broadhead buffs only one projectile. Its proportional seed contribution
     // is included once here, so status DoTs receive the damage bonus exactly
@@ -2938,6 +3027,7 @@ export function calculateBuild(
         ammoEfficiencyBonus,
         infiniteAmmoActive,
         multishot: moddedMultishot,
+        pelletHitEstimate,
         damageWeightedMultishot,
         multishotDamageBonus,
         shotsPerMag,

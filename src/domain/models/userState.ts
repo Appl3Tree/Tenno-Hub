@@ -249,6 +249,8 @@ export interface SavedBuildPlannerConfig {
     targetDistanceMeters?: number;
     /** Explicit distance used for attack falloff; separate from distance-conditioned mod triggers. */
     attackFalloffDistanceMeters?: number;
+    /** Editable target radius for the experimental single-target pellet-cone estimate. */
+    targetRadiusMeters?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */
     meleeAverageComboDamageMultiplier?: number;
     /** @deprecated Legacy manual stance values are retained for saved-data compatibility and ignored. */

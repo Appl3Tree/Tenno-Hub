@@ -1199,6 +1199,11 @@ describe("source-backed charge-trigger gates", () => {
             trigger: "Charge",
             chargeTime: 1,
             multishot: 11,
+            pelletSpreadCone: {
+                minimumSpreadDegrees: 24,
+                maximumSpreadDegrees: 42,
+                sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
+            },
             ammoCostPerShot: 15,
             damageFalloff: {
                 startDistanceMeters: 5,

@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -56,6 +56,84 @@ function makeRivenEffect(stats: CustomRivenStatValue[]): ModEffect {
         updatedAtIso: "2026-11-15T00:00:00.000Z",
     }).effect;
 }
+
+describe("EFV-5 Buckshot experimental pellet coverage estimate", () => {
+    const cone = {
+        minimumSpreadDegrees: 24,
+        maximumSpreadDegrees: 42,
+        sourceUrl: "https://wiki.warframe.com/w/EFV-5_Jupiter",
+    } as const;
+
+    it("bounds centered-target hits across the sourced spread endpoints", () => {
+        const smallTarget = estimatePelletHits(cone, 11, 0.5, 10);
+        expect(smallTarget).not.toBeNull();
+        expect(smallTarget!.nominalSpreadDegrees).toBe(33);
+        expect(smallTarget!.minimumExpectedHits).toBeLessThan(smallTarget!.nominalExpectedHits);
+        expect(smallTarget!.nominalExpectedHits).toBeLessThan(smallTarget!.maximumExpectedHits);
+        expect(smallTarget!.maximumExpectedHits).toBeLessThan(11);
+
+        const targetCoveringCone = estimatePelletHits(cone, 11, 100, 10);
+        expect(targetCoveringCone?.minimumExpectedHits).toBeCloseTo(11, 10);
+        expect(targetCoveringCone?.nominalExpectedHits).toBeCloseTo(11, 10);
+        expect(targetCoveringCone?.maximumExpectedHits).toBeCloseTo(11, 10);
+        expect(estimatePelletHits(cone, 11, 0.5, undefined)).toBeNull();
+        expect(estimatePelletHits(cone, 11, undefined, 10)).toBeNull();
+        expect(estimatePelletHits(cone, 11, 0, 10)).toBeNull();
+    });
+
+    it("fails closed when a selected effect changes accuracy", () => {
+        expect(hasAccuracyAffectingPelletEffect([emptyEffect()])).toBe(false);
+        expect(hasAccuracyAffectingPelletEffect([{ ...emptyEffect(), accuracyBonus: -0.2 }])).toBe(true);
+        expect(hasAccuracyAffectingPelletEffect([{
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "whileAiming",
+                durationSeconds: 1,
+                requiresAiming: true,
+                maxStacks: 1,
+                stats: { accuracyBonus: 0.2 },
+            }],
+        }])).toBe(true);
+    });
+
+    it("uses expected hits for Buckshot damage and status rolls only when both inputs are present", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name.toLowerCase() === "efv-5 jupiter");
+        expect(weapon).toBeDefined();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Buckshot");
+        const buckshot = withSelectedAttack(weapon!, attackIndex);
+        const unestimated = calculateBuild(buckshot, []).modded;
+        const unestimatedAtDistance = calculateBuild(buckshot, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 10 },
+        }).modded;
+        const estimated = calculateBuild(buckshot, [], "", {
+            conditionalState: { mode: "initial", targetRadiusMeters: 0.5, attackFalloffDistanceMeters: 10 },
+        }).modded;
+        expect(unestimated.pelletHitEstimate).toBeNull();
+        expect(unestimated.multishot).toBe(11);
+        expect(estimated.pelletHitEstimate?.pelletsFired).toBe(11);
+        expect(estimated.multishot).toBeCloseTo(estimated.pelletHitEstimate!.nominalExpectedHits, 10);
+        expect(estimated.multishot).toBeLessThan(11);
+        expect(estimated.totalDamage).toBeCloseTo(unestimatedAtDistance.totalDamage, 8);
+        expect(estimated.arsenalDamage).toBeLessThan(unestimated.arsenalDamage);
+        expect(estimated.forcedProcsPerShot.corrosive).toBeCloseTo(estimated.multishot, 8);
+    });
+
+    it("applies multishot to pellet count before estimating coverage", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name.toLowerCase() === "efv-5 jupiter");
+        expect(weapon).toBeDefined();
+        const attackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Buckshot");
+        const buckshot = withSelectedAttack(weapon!, attackIndex);
+        const effect = { ...emptyEffect(), multishotBonus: 1, multishotDamageBonus: 0.5 };
+        const stats = calculateBuild(buckshot, [effect], "", {
+            conditionalState: { mode: "initial", targetRadiusMeters: 0.5, attackFalloffDistanceMeters: 10 },
+        }).modded;
+        const baseHits = estimatePelletHits(cone, 11, 0.5, 10)!.nominalExpectedHits;
+        const moddedHits = estimatePelletHits(cone, 22, 0.5, 10)!.nominalExpectedHits;
+        expect(stats.pelletHitEstimate?.pelletsFired).toBe(22);
+        expect(stats.multishot).toBeCloseTo(moddedHits, 10);
+        expect(stats.damageWeightedMultishot).toBeCloseTo(moddedHits + (moddedHits - baseHits) * 0.5, 10);
+    });
+});
 
 describe("Eximus Advantage Wiki effect", () => {
     it("parses all ranks and applies only to sustained headshots against an Eximus target", () => {
