@@ -8,6 +8,7 @@ import {
     getMeleeComboPointsAtTier,
     getMeleeInnateInitialComboPoints,
     getInitialMeleeComboMultiplier,
+    isBurstTriggerType,
     usesMeleeDamageModel,
     withSelectedAttack,
 } from "../catalog/weaponRules";
@@ -101,7 +102,7 @@ function effectiveFireRate(
         return 1 / Math.max(1 / rawFireRate, ammoChargeTime);
     }
     if (
-        weapon.trigger.toLowerCase() === "burst" &&
+        isBurstTriggerType(weapon.trigger) &&
         weapon.burstCount !== undefined &&
         weapon.burstCycleRate !== undefined &&
         weapon.burstDelay !== undefined

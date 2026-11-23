@@ -8,7 +8,7 @@
 //            placement, with capacity constraints included during candidate search.
 
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
-import { withSelectedAttack } from "../catalog/weaponRules";
+import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
 import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
@@ -2928,7 +2928,7 @@ function getEncounterBurstTiming(weapon: WeaponEntry, effectiveFireRate: number)
     const burstCycleRate = weapon.burstCycleRate;
     const burstDelay = weapon.burstDelay;
     if (
-        weapon.trigger.toLowerCase() !== "burst" ||
+        !isBurstTriggerType(weapon.trigger) ||
         !Number.isFinite(burstCount) || !Number.isFinite(burstCycleRate) ||
         !Number.isFinite(burstDelay) || (burstCount ?? 0) <= 1 ||
         (burstCycleRate ?? 0) <= 0 || (burstDelay ?? 0) < 0 || effectiveFireRate <= 0

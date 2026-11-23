@@ -14,6 +14,11 @@ export function usesMeleeDamageModel(category: WeaponCategory): boolean {
     return category === "Melee" || category === "Arch-Melee";
 }
 
+/** Burst timing is shared by manual Burst and automatic Auto-Burst triggers. */
+export function isBurstTriggerType(trigger: string): boolean {
+    return /^(?:auto[- ]?)?burst$/i.test(trigger.trim());
+}
+
 /** Current weapon-specific exceptions to the standard 20-point, 12x combo ladder. */
 export function getMeleeComboRules(weapon: Pick<WeaponEntry, "category" | "name">): MeleeComboRules {
     if (!usesMeleeDamageModel(weapon.category)) return { pointsPerTier: 20, maxMultiplier: 1 };
@@ -121,7 +126,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         (weapon.category === "Melee" || weapon.category === "Arch-Melee") &&
         (/\bheavy\b/.test(attackName) || (isGlaive && /^charged throw\b/.test(attackName)));
     const useBurstModel =
-        trigger.toLowerCase() === "burst" &&
+        isBurstTriggerType(trigger) &&
         attack.burstCount !== undefined &&
         attack.burstDelay !== undefined;
 

@@ -121,6 +121,84 @@
       ]
     }
   },
+  "readoutReplay2026-11-23": {
+    "sameSavedBuildAndVisibleState": true,
+    "weapon": "Cedo / Shotgun / Normal Attack",
+    "target": "Grineer / 100000 Health / 3000 Armor / 0 Shields / 0 Overguard",
+    "simulationTimeSeconds": 5,
+    "standardCalculateDps": {
+      "readCount": 4,
+      "results": [
+        {
+          "averageDps": 29703,
+          "ttk": "3.37s",
+          "rawDamagePerShot": 2273,
+          "dotDamagePerShot": 0
+        },
+        {
+          "averageDps": 34483,
+          "ttk": null,
+          "rawDamagePerShot": 2632,
+          "dotDamagePerShot": 0,
+          "note": "DPS and per-shot values were observed; the TTK value was not retained by the bounded accessibility extraction."
+        },
+        {
+          "averageDps": 42553,
+          "ttk": "2.35s",
+          "rawDamagePerShot": 3226,
+          "dotDamagePerShot": 0
+        },
+        {
+          "averageDps": 36585,
+          "ttk": "2.73s",
+          "rawDamagePerShot": 2778,
+          "dotDamagePerShot": 0
+        }
+      ]
+    },
+    "luckAveragedDps": {
+      "readCount": 3,
+      "results": [
+        {
+          "averageDps": 38091,
+          "ttk": "2.74s",
+          "rawDamagePerShot": 2893,
+          "dotDamagePerShot": 0
+        },
+        {
+          "averageDps": 38091,
+          "ttk": "2.74s",
+          "rawDamagePerShot": 2893,
+          "dotDamagePerShot": 0
+        },
+        {
+          "averageDps": 38091,
+          "ttk": "2.74s",
+          "rawDamagePerShot": 2893,
+          "dotDamagePerShot": 0
+        }
+      ]
+    },
+    "visibleState": {
+      "galvanizedHellStacks": "4/4",
+      "galvanizedSavvyStacks": "2/2",
+      "cedoConditionalEnabled": false,
+      "externalStatuses": [],
+      "externalBuffs": [],
+      "distanceMeters": 26
+    },
+    "actionsUsed": [
+      "Standard Calculate DPS",
+      "Luck Averaged DPS"
+    ],
+    "actionsNotUsed": [
+      "Save",
+      "Auto Build",
+      "Auto Polarize",
+      "Mod or build editing"
+    ],
+    "interpretation": "Four Standard reads varied from 29,703 to 42,553 DPS; three Luck Averaged reads repeated at 38,091 DPS, 2.74s, and 2,893 raw damage per shot. The sample confirms distinct page readout behavior but does not expose seeds, engine aggregation, or Auto Build objective semantics."
+  },
   "notes": [
     "The five-second simulator, visible target, mod list, and conditional sliders were read from the existing page. No Save, Auto Build, or Auto Polarize action was used.",
     "One additional standard calculation occurred during result extraction but its structured value was not retained; it is excluded from the four recorded values.",

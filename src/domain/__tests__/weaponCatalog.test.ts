@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterBuilderExpertVariants, getModsForCompat, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay } from "../catalog/modCatalog";
-import { getWeaponCatalog, getWeaponDisplayName } from "../catalog/weaponCatalog";
+import { getWeaponCatalog, getWeaponDisplayName, isBurstTriggerType } from "../catalog/weaponCatalog";
 import { withSelectedAttack } from "../catalog/weaponRules";
 import { effectiveDrain } from "../logic/capacityCalc";
 import ITEMS_RAW from "../../data/_generated/items-lean.auto.json";
@@ -369,6 +369,60 @@ describe("weapon catalog stance inference", () => {
         expect(new Set(atmosphereMods.map((mod) => mod.uniqueName))).toEqual(
             new Set(archwingMods.map((mod) => mod.uniqueName)),
         );
+    });
+
+    it("keeps Cyngas Auto-Burst Archwing and regular Burst Atmosphere profiles distinct", () => {
+        const profiles = getWeaponCatalog().filter((weapon) => weapon.name === "Cyngas");
+        const archwing = profiles.find((weapon) => weapon.variantLabel === "Archwing");
+        const atmosphere = profiles.find((weapon) => weapon.variantLabel === "Atmosphere");
+        expect(profiles).toHaveLength(2);
+        expect(archwing).toBeDefined();
+        expect(atmosphere).toBeDefined();
+        expect(getWeaponDisplayName(archwing!)).toBe("Cyngas (Archwing)");
+        expect(getWeaponDisplayName(atmosphere!)).toBe("Cyngas (Atmosphere)");
+        expect(atmosphere!.sourceUniqueName).toBe(archwing!.uniqueName);
+        expect(atmosphere!.modCompat).toBe(archwing!.modCompat);
+        expect(new Set(getModsForWeapon(atmosphere!).map((mod) => mod.uniqueName))).toEqual(
+            new Set(getModsForWeapon(archwing!).map((mod) => mod.uniqueName)),
+        );
+
+        const archwingAttack = archwing!.attacks.find((attack) => attack.name === "Normal Attack")!;
+        const atmosphereAttack = atmosphere!.attacks.find((attack) => attack.name === "Normal Attack")!;
+        expect(archwing).toMatchObject({ trigger: "Auto-Burst", fireRate: 6.67, reloadTime: 1.25 });
+        expect(archwing!.damage.total).toBeCloseTo(120, 4);
+        expect(archwing!.damage.impact).toBeCloseTo(39.6, 4);
+        expect(archwing!.damage.puncture).toBeCloseTo(39.6, 4);
+        expect(archwing!.damage.slash).toBeCloseTo(40.8, 4);
+        expect(archwingAttack).toMatchObject({
+            trigger: "Auto-Burst",
+            speed: 6.67,
+            burstCount: 3,
+            burstDelay: 0.06,
+            damageFalloff: {
+                startDistanceMeters: 1500,
+                endDistanceMeters: 3000,
+                minimumDamageMultiplier: 0.2,
+                scaleBy: ["projectileSpeed"],
+            },
+        });
+        expect(archwingAttack.maximumRangeMeters).toBeUndefined();
+        expect(archwingAttack.scoreBoundaryNote?.reason).toContain("projectile travel time");
+        expect(atmosphere).toMatchObject({ trigger: "Burst", fireRate: 6.67, reloadTime: 1.2 });
+        expect(atmosphere!.damage).toMatchObject({ total: 240, impact: 80, puncture: 80, slash: 80 });
+        expect(atmosphereAttack).toMatchObject({
+            trigger: "Burst",
+            speed: 6.67,
+            burstCount: 3,
+            burstDelay: 0.06,
+            damageFalloff: undefined,
+            maximumRangeMeters: 300,
+            maximumRangeBehavior: "hardHitCap",
+            maximumRangeSourceUrl: "https://wiki.warframe.com/w/Cyngas",
+        });
+        expect(atmosphereAttack.scoreBoundaryNote?.reason).toContain("punch-through hits");
+        expect(isBurstTriggerType("Burst")).toBe(true);
+        expect(isBurstTriggerType("Auto-Burst")).toBe(true);
+        expect(isBurstTriggerType("Semi-Auto")).toBe(false);
     });
 
     it("marks the Larkspur charged grenade components as one sourced charged mode", () => {
