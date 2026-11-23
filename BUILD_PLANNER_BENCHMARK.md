@@ -3389,3 +3389,61 @@ Weak-point hit and kill conditional effects are removed from finite Expected TTK
 Focused Pain Points/parser/optimizer/calculator regressions passed 3/3 before the explanation-mode refinement; the focused optimizer/explanation regression passes 1/1 after the refinement, including Realistic, Initial, Fully Stacked, Custom, target gates, Primary Fire/Alt-Fire, and finite-score exclusion. The complete `damageCalc.test.ts` passes 152/152. App and node TypeScript checks, `npm run validate:sources`, `npm run audit:prerequisites` (162 entries; no unresolved references/cycles), and `npm run audit:mod-effect-coverage` (697 profiles / 600 mod records / 495 parsed max-rank effects / 105 with none / 69 review candidates / zero empty weapon pools) pass. Focused ESLint and CRLF-aware diff check pass. `npm run build` cannot write the shared `node_modules/.tmp` build-info file (`EPERM`); direct app/node typechecks pass, and `npx vite build --configLoader runner --outDir dist-weakpoint-20261122` builds 987 modules successfully in 9.97s with the repository's existing large-chunk warning.
 
 In-app-browser review of the preceding copy-only revision showed Athodai against the named Lancer with a 100% assumed head-hit share: adding max-rank Pain Points changed displayed Burst from 2,058 to 8,233. This was a temporary unsaved build. The final mode-specific explanation text correction passed its focused unit test, app typecheck, lint, and production bundle; that revised copy was not separately rendered. PR [#280](https://github.com/Appl3Tree/Tenno-Hub/pull/280) was squash-merged as `70a73ffcd4ef3fe125d395cbc34012340151b59d`. GitHub reported no PR checks/status contexts or PR-triggered workflows, so the Pages deployment was not independently verified. Full optimizer/repository suites, a matched Underframe comparison, hosted review, and live-game validation remain open.
+
+## D3-OPT-WINDOWDPS-SEED-CORPUS-GRINEER-001 — additional seeded Grineer fixed-window neighborhood (2026-11-23; bounded)
+
+Reproduce with `npx tsx scripts/auditFixedWindowDpsCorpus.ts --seed=20261150 --runs=1`. The runner combines the same eight fixed control fixtures with one Mulberry32 draw from each explosive-primary, Archgun, companion-weapon, and heavy-melee stratum. Seed `20261150` selected Kuva Ogris / Rocket Explosion, Corvas Prime / Charged Shot, Helstrum / Explosion, and Gram Prime / Heavy Slam Attack.
+
+All twelve cases use Grineer / 2,000,000 Health / 3,000 Armor / zero Shields and Overguard / Realistic state / `[0,5s)` / eight slots / Catalyst / MR30 / up to three Forma, without Exilus or Arcane optimization. The 2m target survives every window, so scores are below the 400,000 DPS health ceiling. Every returned build passed the Tenno-Hub capacity and Forma checks. Each optimizer baseline was compared with every exact legal one-mod addition, removal, or replacement at max rank.
+
+| Fixture | Selection | Tenno-Hub `[0,5s)` DPS | Exact legal one-mod neighbors | Improving neighbor |
+| --- | --- | ---: | ---: | --- |
+| Braton Prime / Normal Attack | Fixed control | 30,707.94 | 226 | None |
+| Cedo / Normal Attack | Fixed control | 29,769.16 | 367 | None |
+| Laetum / Normal Attack | Fixed control | 56,869.97 | 286 | None |
+| Soma Prime / Fully Spooled | Fixed control | 45,602.16 | 414 | None |
+| Broken War / Normal Attack | Fixed control | 5,071.25 | 387 | None |
+| Kuva Nukor / Normal Attack | Fixed control | 61,237.29 | 436 | None |
+| Nataruk / Perfect Shot | Fixed control | 97,782.77 | 403 | None |
+| Torid / Grenade Impact | Fixed control | 10,876.37 | 295 | None |
+| Kuva Ogris / Rocket Explosion | Seeded explosive primary | 42,749.00 | 450 | None |
+| Corvas Prime / Charged Shot | Seeded Archgun | 134,573.95 | 191 | None |
+| Helstrum / Explosion | Seeded companion weapon | 277.20 | 280 | None |
+| Gram Prime / Heavy Slam Attack | Seeded heavy melee | 38,451.54 | 353 | None |
+
+The run scored 4,088 legal neighbors total, with no improving move. It used one optimizer run per fixture, so it does not measure repeated-run variance. The fixed anchors are harness controls; the four seeded rows are the incremental stratum sample. The small seeded pools and one-mod neighborhoods do not establish full-catalog or global optimality. These results validate only the deterministic Tenno-Hub model under this synthetic Grineer target; Underframe's website objective, conditional sampling, private engine, and live-game behavior remain unresolved.
+
+## D3-OPT-WINDOWDPS-SEED-PAIR-SAMPLE-GRINEER-001 — seeded two-mod sample for the Grineer corpus (2026-11-23; bounded)
+
+Reproduce with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --seed=20261150 --samples=1024 --faction=Grineer --health=2000000 --armor=3000`. This uses the same eight fixed controls and four seeded strata picks listed in the preceding Grineer one-mod audit. For each fixture, the runner derives its own deterministic seed and samples 1,024 legal max-rank two-out/two-in replacements without replacement from the eligible full-catalog pair tuples. Each candidate is exactly scored with the deterministic `[0,5s)` evaluator and the same capacity/FORMA constraints.
+
+| Fixture | Raw tuples examined to accept 1,024 legal pairs | Legal pairs scored | Sampled improvement |
+| --- | ---: | ---: | --- |
+| Braton Prime / Normal Attack | 2,802 | 1,024 | None |
+| Cedo / Normal Attack | 1,646 | 1,024 | None |
+| Laetum / Normal Attack | 2,246 | 1,024 | None |
+| Soma Prime / Fully Spooled | 1,519 | 1,024 | None |
+| Broken War / Normal Attack | 1,622 | 1,024 | None |
+| Kuva Nukor / Normal Attack | 1,433 | 1,024 | None |
+| Nataruk / Perfect Shot | 1,604 | 1,024 | None |
+| Torid / Grenade Impact | 1,715 | 1,024 | None |
+| Kuva Ogris / Rocket Explosion | 1,426 | 1,024 | None |
+| Corvas Prime / Charged Shot | 1,970 | 1,024 | None |
+| Helstrum / Explosion | 2,147 | 1,024 | None |
+| Gram Prime / Heavy Slam Attack | 1,621 | 1,024 | None |
+| **Total** | **21,751** | **12,288** | **None** |
+
+All optimizer baselines are legal, use at most three Forma, and remain below the 2m target-health cap. This was one optimizer run per fixture; repeated-run variance was not measured. The 12,288 accepted pairs cover only a sampled portion of the legal two-mod space (the per-fixture raw tuple universes range from 13,020 to 51,240), so zero sampled improvements do not establish an exhaustive pair-local optimum. The fixed-window objective and Underframe private engine/conditional mixture remain distinct; this does not show Underframe or live-game parity.
+
+## D3-OPT-WINDOWDPS-EXHAUSTIVE-PAIR-BRATON-CORVAS-001 — exhaustive sampled-fixture pair neighborhoods (2026-11-23; bounded)
+
+Both runs request 100,000 accepted pairs, which exceeds each fixture's complete raw tuple universe; the runner therefore examines every raw tuple and exact-scores every legal max-rank two-out/two-in replacement. Use `--worker` so only the specified fixture runs.
+
+| Fixture | Command seed | Raw tuple universe / examined | Legal pairs exact-scored | Baseline DPS | Best pair DPS | Improvement |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Braton Prime / Normal Attack | 2,674,696,919 | 46,284 / 46,284 | 16,966 | 30,707.94 | 29,227.89 | None |
+| Corvas Prime / Charged Shot | 1,808,719,306 | 13,020 / 13,020 | 6,786 | 134,573.95 | 104,951.53 | None |
+
+Reproduce Braton Prime with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Braton Prime" --attack="Normal Attack" --samples=100000 --seed=2674696919 --faction=Grineer --health=2000000 --armor=3000`; reproduce Corvas Prime with `npx tsx scripts/auditFixedWindowDpsPairSample.ts --worker --weapon="Corvas Prime" --attack="Charged Shot" --samples=100000 --seed=1808719306 --faction=Grineer --health=2000000 --armor=3000`.
+
+The two legal baselines remain below the 2m Health ceiling and satisfy the eight-slot / Catalyst / three-Forma budget. No compatible Arcane, owned-rank, Forma-search, or three-plus-mod alternatives were included in these neighborhoods. This closes only these two fixed-model two-mod neighborhoods; it is not Underframe parity, a global optimizer proof, or gameplay validation.
