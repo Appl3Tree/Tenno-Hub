@@ -257,6 +257,10 @@ export interface ModdedWeaponStats {
     strainInfectionCritDamageBonus: number;
     /** Cyst count used by this one-hit stat view, normalized to 0–8. */
     strainInfectionCystsAtImpact: number;
+    /** Additive Damage and Status Chance assumed from Dreadful Killshot in a Basmu Burst snapshot. */
+    dreadfulKillshotBonus: number;
+    /** Current Warframe Health snapshot supplied for Dreadful Killshot, normalized to a nonnegative integer. */
+    dreadfulKillshotCurrentHealth: number;
     /** Count of selected and external Vigilante pieces, capped at six. */
     vigilanteSetModCount: number;
     /** Count of selected and external Gladiator pieces, capped at six. */
@@ -531,6 +535,8 @@ export interface ConditionalState {
     externalNiraSetModCount?: number;
     /** Assumed active Strain Infection cysts on this one impact (0–8); used for Burst scoring only. */
     strainInfectionCystsAtImpact?: number;
+    /** Current Warframe Health for Basmu Dreadful Killshot; Burst snapshot only, ignored by finite/sustained objectives. */
+    dreadfulKillshotCurrentHealth?: number;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -555,12 +561,34 @@ export function normalizeStrainInfectionCystCount(value: number | undefined): nu
         : 0;
 }
 
+export function normalizeDreadfulKillshotCurrentHealth(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.floor(value ?? 0))
+        : 0;
+}
+
+/** Converts Dreadful Killshot's rank value and current-health snapshot to its capped, 20%-quantized bonus. */
+export function dreadfulKillshotBonusFromCurrentHealth(
+    per75HealthBonus: number,
+    currentHealth: number | undefined,
+): number {
+    if (!Number.isFinite(per75HealthBonus) || per75HealthBonus <= 0) return 0;
+    const healthSteps = Math.floor(normalizeDreadfulKillshotCurrentHealth(currentHealth) / 75);
+    const perStepPercent = Math.round(per75HealthBonus * 100);
+    const unroundedPercent = healthSteps * perStepPercent;
+    const roundedPercent = Math.floor((unroundedPercent + Number.EPSILON) / 20) * 20;
+    return Math.min(360, roundedPercent) / 100;
+}
+
 /** Remove assumptions reserved for Burst scoring when evaluating other objectives. */
 export function withoutBurstOnlyConditionalAssumptions(
     state: ConditionalState | undefined,
 ): ConditionalState | undefined {
-    if (!state || normalizeStrainInfectionCystCount(state.strainInfectionCystsAtImpact) === 0) return state;
-    return { ...state, strainInfectionCystsAtImpact: 0 };
+    if (!state || (
+        normalizeStrainInfectionCystCount(state.strainInfectionCystsAtImpact) === 0 &&
+        normalizeDreadfulKillshotCurrentHealth(state.dreadfulKillshotCurrentHealth) === 0
+    )) return state;
+    return { ...state, strainInfectionCystsAtImpact: 0, dreadfulKillshotCurrentHealth: 0 };
 }
 
 export const DEFAULT_CONDITIONAL_STATE: Readonly<ConditionalState> = Object.freeze({ mode: "realistic" });
@@ -1298,6 +1326,9 @@ export function calculateBuild(
     const strainInfectionCystsAtImpact = normalizeStrainInfectionCystCount(
         conditionalState.strainInfectionCystsAtImpact,
     );
+    const dreadfulKillshotCurrentHealth = normalizeDreadfulKillshotCurrentHealth(
+        conditionalState.dreadfulKillshotCurrentHealth,
+    );
     const attackDamageFalloff = calculateAttackDamageFalloff(
         weapon,
         mods,
@@ -1345,6 +1376,7 @@ export function calculateBuild(
     let finalCritChanceBonus = 0;
     let critMultBonus = 0;
     let strainInfectionCritDamagePerCyst = 0;
+    let dreadfulKillshotDamageAndStatusPer75Health = 0;
     let finalCritMultiplierBonus = 0;
     let headshotMultiplierBonus = 0;
     let bodyshotDamageBonus = 0;
@@ -1459,6 +1491,7 @@ export function calculateBuild(
         finalCritChanceBonus += e.finalCritChanceBonus ?? 0;
         critMultBonus += e.critMultBonus ?? 0;
         strainInfectionCritDamagePerCyst += e.strainInfectionCritDamagePerCyst ?? 0;
+        dreadfulKillshotDamageAndStatusPer75Health += e.dreadfulKillshotDamageAndStatusPer75Health ?? 0;
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
         areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
@@ -1542,6 +1575,15 @@ export function calculateBuild(
         directBonusBreakdown.tau += e.tauBonus ?? 0;
         directBonusBreakdown.true += e.trueBonus ?? 0;
     }
+
+    const dreadfulKillshotBonus = weapon.name === "Basmu"
+        ? dreadfulKillshotBonusFromCurrentHealth(
+            dreadfulKillshotDamageAndStatusPer75Health,
+            dreadfulKillshotCurrentHealth,
+        )
+        : 0;
+    damageBonus += dreadfulKillshotBonus;
+    statusChanceBonus += dreadfulKillshotBonus;
 
     const externalGladiatorSetModCount = Number.isFinite(conditionalState.externalGladiatorSetModCount)
         ? Math.max(0, Math.min(3, Math.floor(conditionalState.externalGladiatorSetModCount ?? 0)))
@@ -2855,6 +2897,8 @@ export function calculateBuild(
         critMultiplier,
         strainInfectionCritDamageBonus,
         strainInfectionCystsAtImpact,
+        dreadfulKillshotBonus,
+        dreadfulKillshotCurrentHealth,
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
         sacrificialSetModCount,
@@ -3045,6 +3089,10 @@ export function calculateBuildForExpectedEncounter(
     targetFaction = "",
     options: DamageCalculationOptions = {},
 ): DamageMetrics {
+    const finiteOptions: DamageCalculationOptions = {
+        ...options,
+        conditionalState: withoutBurstOnlyConditionalAssumptions(options.conditionalState),
+    };
     const finiteEffects = mods.map((effect) => {
         if (!effect?.conditionalEffects?.length) return effect;
         return {
@@ -3059,7 +3107,7 @@ export function calculateBuildForExpectedEncounter(
         };
     });
     const selectedState = calculateBuild(weapon, finiteEffects, targetFaction, {
-        ...options,
+        ...finiteOptions,
         includeTimedConditionalHitStackDetails: true,
     });
     const timedStacks = selectedState.modded.timedConditionalDamageStacks;
@@ -3074,7 +3122,7 @@ export function calculateBuildForExpectedEncounter(
             ),
         };
     });
-    const baseline = calculateBuild(weapon, effectsWithoutTimedStackDamage, targetFaction, options);
+    const baseline = calculateBuild(weapon, effectsWithoutTimedStackDamage, targetFaction, finiteOptions);
     return {
         ...baseline,
         modded: {

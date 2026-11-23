@@ -1415,7 +1415,7 @@ function getOptimizerVariantTier(path: string): "flawed" | "standard" {
     return /\/beginner\//i.test(path) || /Beginner$/i.test(path) ? "flawed" : "standard";
 }
 
-function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate[] {
+function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: OptimizerOptions): Candidate[] {
     const { ownedModUniqueNames, ownedModMaxRankByUniqueName, excludedModUniqueNames, allowNonMaxRank, targetFaction = "", lockedIncompatibilityGroups, lockedUniqueNames } = opts;
     const scoringEffectContext = {
         headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
@@ -1429,8 +1429,12 @@ function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate
             ? Array.from({ length: maxRank + 1 }, (_, rank) => rank)
             : [maxRank];
     };
+    const isDreadfulKillshot = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
+        (effect.dreadfulKillshotDamageAndStatusPer75Health ?? 0) > 0,
+    );
     const hasSupportedDamageRank = (mod: ModEntry): boolean =>
-        mod.hasDamageEffect && allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length === 0);
+        mod.hasDamageEffect && (goal === "burst" || !isDreadfulKillshot(mod)) &&
+        allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
     for (const mod of allMods) {
         if (!hasSupportedDamageRank(mod)) continue;
@@ -1450,6 +1454,7 @@ function buildCandidates(allMods: ModEntry[], opts: OptimizerOptions): Candidate
         // A zero-effect parse is not a neutral optimizer choice: it means the
         // catalog effect is unsupported, so scoring it would silently omit stats.
         if (!mod.hasDamageEffect) continue;
+        if (goal !== "burst" && isDreadfulKillshot(mod)) continue;
         if (mod.isAura) continue; // auras go in the aura slot, not regular slots
         if (excludedModUniqueNames?.has(mod.uniqueName)) continue;
         if (ownedModUniqueNames && !ownedModUniqueNames.has(mod.uniqueName)) continue;
@@ -2606,7 +2611,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
         "magneticBonus", "viralBonus", "corrosiveBonus", "radiationBonus", "voidBonus", "tauBonus",
     )) families.push("elemental");
     const statusRelevant = has(
-        "statusChanceBonus", "areaDamageStatusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "statusChanceBonus", "areaDamageStatusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus", "dreadfulKillshotDamageAndStatusPer75Health",
         "targetStatusDamageVulnerabilityBonus",
         "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
@@ -2631,11 +2636,11 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("fireRateBonus", "chargeRateBonus")) families.push("fire-rate");
     if (has("attackSpeedBonus")) families.push("melee-attack-speed");
-    if (has("damageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs")) families.push("base-damage");
+    if (has("damageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs", "dreadfulKillshotDamageAndStatusPer75Health")) families.push("base-damage");
     if (has("factionDamageBonus")) families.push("faction-damage");
     if (has("nightwatchNapalmEffect")) families.push("weapon-specific-damage");
     if (has(
-        "statusChanceBonus", "areaDamageStatusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus",
+        "statusChanceBonus", "areaDamageStatusChanceBonus", "comboStatusChanceBonus", "finalStatusChanceBonus", "statusDamageBonus", "dreadfulKillshotDamageAndStatusPer75Health",
         "targetStatusDamageVulnerabilityBonus",
         "independentStatusProcChanceByType",
         "directDamagePerStatusBonus", "conditionOverloadDamagePerStatusBonus",
@@ -4270,7 +4275,7 @@ function optimizeBuildInternal(
     // Effective options used inside beam search
     const effectiveOpts: OptimizerOptions = { ...opts, capacityConfig: capCfg };
 
-    const candidates = buildCandidates(availableMods, effectiveOpts);
+    const candidates = buildCandidates(availableMods, goal, effectiveOpts);
     const hasLockedMainSlots = lockedSlots.some(Boolean);
 
     // Phase 1: Beam search — find best set of mods
@@ -5283,6 +5288,9 @@ export function explainBuild(
     }
     if (selectedStats.strainInfectionCritDamageBonus > 0) {
         buildHighlights.push(`Strain Infection Burst scoring assumes ${selectedStats.strainInfectionCystsAtImpact} active cysts at impact and adds ${formatExplanationPercent(selectedStats.strainInfectionCritDamageBonus)} Critical Damage. The selected count stays static within that calculation; cyst growth, erosion timing, and average uptime are not modeled. Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this assumption.`);
+    }
+    if (selectedStats.dreadfulKillshotBonus > 0) {
+        buildHighlights.push(`Basmu's Dreadful Killshot Burst score assumes ${formatExplanationNumber(selectedStats.dreadfulKillshotCurrentHealth, 0)} current Warframe Health and adds ${formatExplanationPercent(selectedStats.dreadfulKillshotBonus)} each to additive weapon Damage and Status Chance after rounding down to 20% increments (360% cap). Current Health is held static; health buffs and damage taken are not simulated. The assumption applies only to Burst scoring and Burst Auto Optimize; Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude it.`);
     }
     if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
         buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);

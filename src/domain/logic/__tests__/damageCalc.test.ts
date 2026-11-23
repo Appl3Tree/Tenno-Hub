@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeStrainInfectionCystCount, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDreadfulKillshotCurrentHealth, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
@@ -5017,6 +5017,63 @@ describe("Strain Infection Burst critical damage", () => {
         expect(exalted.critMultiplier).toBeCloseTo(exalted.quantizedBaseCritMultiplier, 10);
         expect(primary.strainInfectionCritDamageBonus).toBe(0);
         expect(primary.critMultiplier).toBeCloseTo(primary.quantizedBaseCritMultiplier, 10);
+    });
+});
+
+describe("Dreadful Killshot Burst health snapshot", () => {
+    const basmu = getWeaponCatalog().find((weapon) => weapon.name === "Basmu")!;
+    const dreadfulKillshot = getModsForWeapon(basmu).find((mod) => mod.name === "Dreadful Killshot")!;
+
+    it("rounds the rank-scaled current-health bonus down to 20% increments and caps it at 360%", () => {
+        expect(dreadfulKillshotBonusFromCurrentHealth(0.1, 74)).toBe(0);
+        expect(dreadfulKillshotBonusFromCurrentHealth(0.1, 75)).toBe(0);
+        expect(dreadfulKillshotBonusFromCurrentHealth(0.1, 150)).toBeCloseTo(0.2, 12);
+        expect(dreadfulKillshotBonusFromCurrentHealth(0.1, 675)).toBeCloseTo(0.8, 12);
+        expect(dreadfulKillshotBonusFromCurrentHealth(0.2, 75)).toBeCloseTo(0.2, 12);
+        expect(dreadfulKillshotBonusFromCurrentHealth(0.2, 1_350)).toBeCloseTo(3.6, 12);
+        expect(dreadfulKillshotBonusFromCurrentHealth(0.2, 5_000)).toBeCloseTo(3.6, 12);
+        expect(normalizeDreadfulKillshotCurrentHealth(-3)).toBe(0);
+        expect(normalizeDreadfulKillshotCurrentHealth(150.9)).toBe(150);
+        expect(normalizeDreadfulKillshotCurrentHealth(Number.NaN)).toBe(0);
+    });
+
+    it("adds the snapshot to Basmu Damage and Status Chance, but ignores it on other weapons", () => {
+        const rankZero = dreadfulKillshot.effectsByRank[0]!;
+        const withSnapshot = calculateBuild(basmu, [rankZero], "", {
+            conditionalState: { mode: "initial", dreadfulKillshotCurrentHealth: 150 },
+        }).modded;
+        const withoutSnapshot = calculateBuild(basmu, [rankZero], "", {
+            conditionalState: { mode: "initial", dreadfulKillshotCurrentHealth: 0 },
+        }).modded;
+        const otherWeapon = calculateBuild({ ...basmu, name: "Other Rifle" }, [rankZero], "", {
+            conditionalState: { mode: "initial", dreadfulKillshotCurrentHealth: 1_350 },
+        }).modded;
+
+        expect(withSnapshot.dreadfulKillshotBonus).toBeCloseTo(0.2, 12);
+        expect(withSnapshot.totalDamageBonus).toBeCloseTo(withoutSnapshot.totalDamageBonus + 0.2, 12);
+        expect(withSnapshot.statusChance).toBeCloseTo(basmu.statusChance * (1 + 0.2), 10);
+        expect(withoutSnapshot.dreadfulKillshotBonus).toBe(0);
+        expect(otherWeapon.dreadfulKillshotBonus).toBe(0);
+    });
+
+    it("removes the health snapshot from finite encounters and other burst-only contexts", () => {
+        const rankFive = dreadfulKillshot.effectsByRank[dreadfulKillshot.fusionLimit]!;
+        const withSnapshot = calculateBuildForExpectedEncounter(basmu, [rankFive], "", {
+            conditionalState: { mode: "initial", dreadfulKillshotCurrentHealth: 2_000 },
+        }).modded;
+        const withoutSnapshot = calculateBuildForExpectedEncounter(basmu, [rankFive], "", {
+            conditionalState: { mode: "initial", dreadfulKillshotCurrentHealth: 0 },
+        }).modded;
+        const stripped = withoutBurstOnlyConditionalAssumptions({
+            mode: "initial",
+            strainInfectionCystsAtImpact: 4,
+            dreadfulKillshotCurrentHealth: 2_000,
+        });
+
+        expect(withSnapshot.dreadfulKillshotBonus).toBe(0);
+        expect(withSnapshot.totalDamageBonus).toBeCloseTo(withoutSnapshot.totalDamageBonus, 12);
+        expect(withSnapshot.statusChance).toBeCloseTo(withoutSnapshot.statusChance, 12);
+        expect(stripped).toMatchObject({ strainInfectionCystsAtImpact: 0, dreadfulKillshotCurrentHealth: 0 });
     });
 });
 
