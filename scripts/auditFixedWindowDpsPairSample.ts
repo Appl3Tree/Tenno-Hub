@@ -167,6 +167,8 @@ function runCorpus(): void {
         samplesPerFixture: sampleCount,
         assumptions: {
             ...corpus.assumptions,
+            faction: targetFaction,
+            target,
             moves: "replace exactly two installed mods with two distinct eligible full-catalog mods at maximum rank; reassign slots and allow up to three Forma",
             neighborAudit: "sample exact legal two-out/two-in replacements without replacement from eligible raw tuples",
             score: "exact deterministic single-target damage applied in [0,5s), divided by five seconds",
