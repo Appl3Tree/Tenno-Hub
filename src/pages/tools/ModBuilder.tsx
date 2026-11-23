@@ -197,9 +197,11 @@ function simulateBuilderTargetEncounter(
         autoSpoolCadenceRule: weapon.selectedAttackAutoSpoolCadence,
         autoSpoolShotSequenceRule: weapon.selectedAttackAutoSpoolShotSequence,
         shotsPerMagazine: stats.finiteShotsPerMag,
-        attackCountLimit: weapon.selectedAttackIsIncarnon && weapon.selectedAttackIncarnonAmmoCapacity !== undefined
-            ? stats.finiteShotsPerMag
-            : undefined,
+        attackCountLimit: !stats.ammoGateSatisfied
+            ? 0
+            : weapon.selectedAttackIsIncarnon && weapon.selectedAttackIncarnonAmmoCapacity !== undefined
+                ? stats.finiteShotsPerMag
+                : undefined,
         infiniteAmmoActive: stats.infiniteAmmoActive,
         firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
         lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
@@ -2112,8 +2114,15 @@ function buildMathBreakdown(
                     ...(weapon.selectedAttackChargeAmmoPerSecond && weapon.selectedAttackChargeDamageBaseAmmoCost ? [
                         `Charged attack damage = Wiki row damage × (${fmt(stats.ammoCostPerShot, 5)} ammo ÷ ${fmt(weapon.selectedAttackChargeDamageBaseAmmoCost, 5)}-ammo baseline) = ${fmt(stats.totalDamage, 5)}; charge time = ${fmt(stats.ammoCostPerShot, 5)} ÷ ${fmt(weapon.selectedAttackChargeAmmoPerSecond, 5)} ammo/s = ${fmt(stats.chargeTimeSeconds ?? 0, 5)}s.`,
                     ] : []),
-                    stats.infiniteAmmoActive
+                    ...(weapon.selectedAttackAmmoGate ? [
+                        `Loaded-ammo gate = ${fmt(weapon.selectedAttackAmmoGate.minimumMagazineAmmoToFire, 0)} rounds; current magazine ${fmt(stats.magazineSize, 0)} ${stats.ammoGateSatisfied ? "meets" : "does not meet"} the requirement. The Wiki does not specify whether ammo efficiency lowers this trigger threshold; this model keeps the gate fixed and applies efficiency only to ammo spent.`,
+                    ] : []),
+                    stats.infiniteAmmoActive && stats.ammoGateSatisfied
                         ? "Shots per magazine = unbounded while the Gale Force buff is assumed active; no reload interruption is modeled."
+                        : weapon.selectedAttackAmmoGate
+                        ? stats.ammoGateSatisfied
+                            ? `Shots per magazine = floor((${fmt(stats.magazineSize, 5)} - max(${fmt(weapon.selectedAttackAmmoGate.minimumMagazineAmmoToFire, 5)}, ${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)}))) ÷ (${fmt(stats.ammoCostPerShot, 5)} × (1 - ${fmt(stats.ammoEfficiencyBonus, 5)}))) + 1 = ${fmt(stats.shotsPerMag, 0)}.`
+                            : "Shots per magazine = 0 because current magazine capacity is below the loaded-ammo gate."
                         : weapon.selectedAttackAutoSpoolShotSequence
                         ? `Fully-spooled magazine attacks = ${fmt(stats.shotsPerMag, 0)} at ${fmt(weapon.selectedAttackAutoSpoolShotSequence.fullySpooledMagazineAmmoCost ?? weapon.selectedAttackAutoSpoolShotSequence.ammoCostAtMaximumProjectiles, 2)} ammo per attack. For finite attacks from rest, the sequence estimates ${fmt(stats.finiteShotsPerMag, 0)} shots before the next modeled ammo cost exceeds ${fmt(stats.magazineSize, 5)} capacity. Intermediate costs use the exact ${fmt(weapon.selectedAttackAutoSpoolShotSequence.ammoCostAtMaximumProjectiles, 4)}-ammo full-spool endpoint, are linearly interpolated by pellet count, have a ${fmt(weapon.selectedAttackAutoSpoolShotSequence.minimumAmmoCostPerShot, 0)}-ammo minimum, and carry fractional ammo between shots. This interpolation is an inference, not a Wiki per-shot table.`
                         : stats.ammoEfficiencyBonus > 0
@@ -4929,7 +4938,7 @@ export default function ModBuilder() {
         };
     }, [activeMetrics, activeTargetAssumptions, activeCalcWeapon, factionOn, faction, targetProfileOverride]);
     const activeTargetAttackDamage = useMemo(() => {
-        if (!activeTargetAttackInput || !activeMetrics || activeAttackModelLimitationBlocksScoring) return null;
+        if (!activeTargetAttackInput || !activeMetrics || activeAttackModelLimitationBlocksScoring || !activeMetrics.modded.ammoGateSatisfied) return null;
         const stats = activeMetrics.modded;
         return calculateDirectDamageToInitialPools({
             ...activeTargetAttackInput,
@@ -4971,9 +4980,11 @@ export default function ModBuilder() {
             autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
             autoSpoolShotSequenceRule: activeCalcWeapon?.selectedAttackAutoSpoolShotSequence,
             shotsPerMagazine: stats.finiteShotsPerMag,
-            attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
-                ? stats.finiteShotsPerMag
-                : undefined,
+            attackCountLimit: !stats.ammoGateSatisfied
+                ? 0
+                : activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
+                    ? stats.finiteShotsPerMag
+                    : undefined,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
@@ -5035,9 +5046,11 @@ export default function ModBuilder() {
             autoSpoolCadenceRule: activeCalcWeapon?.selectedAttackAutoSpoolCadence,
             autoSpoolShotSequenceRule: activeCalcWeapon?.selectedAttackAutoSpoolShotSequence,
             shotsPerMagazine: stats.finiteShotsPerMag,
-            attackCountLimit: activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
-                ? stats.finiteShotsPerMag
-                : undefined,
+            attackCountLimit: !stats.ammoGateSatisfied
+                ? 0
+                : activeCalcWeapon?.selectedAttackIsIncarnon && activeCalcWeapon.selectedAttackIncarnonAmmoCapacity !== undefined
+                    ? stats.finiteShotsPerMag
+                    : undefined,
             infiniteAmmoActive: stats.infiniteAmmoActive,
             firstShotMagazineDamageBonus: stats.firstShotMagazineDamageBonus,
             lastShotMagazineDamageBonus: stats.lastShotMagazineDamageBonus,
@@ -5946,6 +5959,19 @@ export default function ModBuilder() {
                                                             : ""}Auto Optimize is unavailable for this mode.`} {" "}
                                                     <a
                                                         href={weapon.attacks[selectedAttackIdx].modelLimitation.sourceUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="underline underline-offset-2"
+                                                    >Wiki source</a>
+                                                </p>
+                                            )}
+                                            {weapon?.attacks[selectedAttackIdx]?.ammoGate && activeMetrics && (
+                                                <p role={activeMetrics.modded.ammoGateSatisfied ? "note" : "alert"} className={`basis-full text-right text-[10px] leading-relaxed ${activeMetrics.modded.ammoGateSatisfied ? "text-sky-300" : "text-rose-300"}`}>
+                                                    {activeMetrics.modded.ammoGateSatisfied
+                                                        ? `This attack requires at least ${fmt(weapon.attacks[selectedAttackIdx].ammoGate.minimumMagazineAmmoToFire, 0)} rounds loaded. At ${fmt(activeMetrics.modded.magazineSize, 0)} rounds, it can fire ${fmt(activeMetrics.modded.shotsPerMag, 0)} times before reaching the trigger floor. `
+                                                        : `This attack needs at least ${fmt(weapon.attacks[selectedAttackIdx].ammoGate.minimumMagazineAmmoToFire, 0)} rounds loaded to fire, but the current magazine holds ${fmt(activeMetrics.modded.magazineSize, 0)}. No attack is available at this capacity, so target damage and DPS scoring are zero; per-release damage stats remain theoretical. `}Ammo-efficiency effects reduce modeled ammo spent per release; the Wiki does not say whether they also lower this trigger threshold, so the planner keeps the {fmt(weapon.attacks[selectedAttackIdx].ammoGate.minimumMagazineAmmoToFire, 0)}-round gate fixed. {" "}
+                                                    <a
+                                                        href={weapon.attacks[selectedAttackIdx].ammoGate.sourceUrl}
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         className="underline underline-offset-2"
@@ -7937,14 +7963,16 @@ export default function ModBuilder() {
                                         }] : []),
                                         {
                                             label: weapon.weaponType.trim().toLowerCase() === "bow" ? "Shots / Cycle" : "Shots / Mag",
-                                            value: stats.infiniteAmmoActive ? "∞" : fmt(stats.shotsPerMag, 2),
-                                            sub: stats.infiniteAmmoActive ? "while Gale Force is maintained" : weapon.weaponType.trim().toLowerCase() === "bow" ? "per arrow cycle" : "before reload",
+                                            value: stats.infiniteAmmoActive && stats.ammoGateSatisfied ? "∞" : fmt(stats.shotsPerMag, 2),
+                                            sub: stats.infiniteAmmoActive && stats.ammoGateSatisfied ? "while Gale Force is maintained" : weapon.weaponType.trim().toLowerCase() === "bow" ? "per arrow cycle" : "before reload",
                                             tooltip: weapon.weaponType.trim().toLowerCase() === "bow"
                                                 ? "Bow attacks fire one arrow per charge/reload cycle. The repeating bow rate already includes this cycle, so it is not counted again as magazine downtime."
-                                                : stats.infiniteAmmoActive
+                                                : stats.infiniteAmmoActive && stats.ammoGateSatisfied
                                                     ? "Gale Force is assumed maintained, so ammo does not run out and no reload occurs."
                                                 : weapon.selectedAttackAutoSpoolShotSequence
                                                     ? `Fully-spooled attack count at constant Wiki-listed ammo cost. The finite encounter starts from rest and estimates ${fmt(stats.finiteShotsPerMag, 0)} attacks as pellets and ammo cost spool up; its intermediate ammo costs use a documented model inference.`
+                                                : weapon.selectedAttackAmmoGate
+                                                    ? `This attack requires ${fmt(weapon.selectedAttackAmmoGate.minimumMagazineAmmoToFire, 0)} rounds loaded at trigger time. ${stats.ammoGateSatisfied ? `${fmt(stats.shotsPerMag, 0)} releases fit before the magazine drops below that threshold.` : "The current magazine is below the trigger threshold, so no release is available."} Ammo efficiency affects ammo spent per release; the Wiki does not say whether it also lowers this threshold.`
                                                 : usesHitTerminology(weapon.category)
                                                     ? "Effective attack count before any reload-like interruption. For melee this is mostly a placeholder value."
                                                     : "Number of trigger pulls available before reloading.",

@@ -148,6 +148,7 @@ export function withSelectedAttack(weapon: WeaponEntry, selectedAttackIdx: numbe
         selectedAttackMaximumRangeSourceUrl: attack.maximumRangeSourceUrl,
         ammoCostPerShot: attack.ammoCostPerShot ?? weapon.ammoCostPerShot,
         selectedAttackAmmoCostModelNote: attack.ammoCostModelNote,
+        selectedAttackAmmoGate: attack.ammoGate,
         burstCount: useBurstModel ? attack.burstCount : undefined,
         burstDelay: useBurstModel ? attack.burstDelay : undefined,
         burstCycleRate: useBurstModel ? attack.speed : undefined,
