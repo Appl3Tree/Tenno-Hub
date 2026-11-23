@@ -865,7 +865,13 @@ function scoreEffectsCore(
     meleeStanceCombo?: MeleeAverageDpsParameters,
     expectedKillRatePerSecond?: number,
 ): OptimizerEffectScore {
+    const hasSentientIncision = weapon.category === "Melee" && weapon.selectedAttackUsesSlamDamageBonus !== true &&
+        effects.some((effect) => (effect?.sentientIncisionDamageBonus ?? 0) > 0);
+    const targetOverguard = getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0;
     if (goal === "meleeDps") {
+        if (hasSentientIncision && targetOverguard) {
+            return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: 0 };
+        }
         if (!meleeStanceCombo) return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: 0 };
         const rawEffects = arcaneEffect
             ? [...effects, normalizeArcaneEffect(arcaneEffect)]
@@ -873,6 +879,7 @@ function scoreEffectsCore(
         const { modded } = calculateBuild(weapon, rawEffects, targetFaction, {
             conditionalState: { mode: "initial" },
             includeDoTTickDetails: false,
+            targetHasOverguard: targetOverguard,
         });
         return {
             score: calculateMeleeAverageDps(modded, meleeStanceCombo)?.averageDps ?? 0,
@@ -884,6 +891,12 @@ function scoreEffectsCore(
 
     const scoringTarget = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
     const { target, statusImmuneTypes, statusStackCaps } = scoringTarget;
+    if (hasSentientIncision && scoringTarget.pools.overguard > 0 && goal !== "burst") {
+        // Sentient Incision changes from Corrosive to the faction element when
+        // the initial Overguard pool breaks. Finite and sustained timelines
+        // do not yet update its channel at that event.
+        return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: scoringTarget.poolTotal };
+    }
     const damageOptions = {
         statusImmuneTypes,
         statusStackCaps,
@@ -894,6 +907,7 @@ function scoreEffectsCore(
             headIsWeakPoint: scoringTarget.pools.headIsWeakPoint,
         } satisfies HitLocationDamageProfile,
         isEximusTarget: scoringTarget.pools.isEximusTarget,
+        targetHasOverguard: scoringTarget.pools.overguard > 0,
         conditionalState,
         includeDoTTickDetails: false,
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
@@ -1417,10 +1431,14 @@ function getOptimizerVariantTier(path: string): "flawed" | "standard" {
 
 function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: OptimizerOptions, weapon: WeaponEntry): Candidate[] {
     const { ownedModUniqueNames, ownedModMaxRankByUniqueName, excludedModUniqueNames, allowNonMaxRank, targetFaction = "", lockedIncompatibilityGroups, lockedUniqueNames } = opts;
+    const scoringTargetAssumptions = getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride);
     const scoringEffectContext = {
-        headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
+        headIsWeakPoint: scoringTargetAssumptions.headIsWeakPoint,
         selectedAttackName: weapon.selectedAttackName,
         selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
+        targetFaction,
+        targetHasOverguard: scoringTargetAssumptions.overguard > 0,
+        selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
     const hasPrecisionStrikeEffect = (mod: ModEntry): boolean => mod.path === PRECISION_STRIKE_MOD_PATH;
@@ -1436,8 +1454,13 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     const isDreadfulKillshot = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.dreadfulKillshotDamageAndStatusPer75Health ?? 0) > 0,
     );
+    const isSentientIncision = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
+        (effect.sentientIncisionDamageBonus ?? 0) > 0,
+    );
+    const sentientIncisionBlockedByOverguard = (mod: ModEntry): boolean =>
+        goal !== "burst" && scoringEffectContext.targetHasOverguard === true && isSentientIncision(mod);
     const hasSupportedDamageRank = (mod: ModEntry): boolean =>
-        mod.hasDamageEffect && (goal === "burst" || !isDreadfulKillshot(mod)) &&
+        !sentientIncisionBlockedByOverguard(mod) && mod.hasDamageEffect && (goal === "burst" || !isDreadfulKillshot(mod)) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
         allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
@@ -1462,6 +1485,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         if (goal !== "burst" && isDreadfulKillshot(mod)) continue;
         if (!precisionStrikeCanScore && hasPrecisionStrikeEffect(mod)) continue;
         if (mod.isAura) continue; // auras go in the aura slot, not regular slots
+        if (sentientIncisionBlockedByOverguard(mod)) continue;
         if (excludedModUniqueNames?.has(mod.uniqueName)) continue;
         if (ownedModUniqueNames && !ownedModUniqueNames.has(mod.uniqueName)) continue;
         if (lockedIncompatibilityGroups?.has(mod.incompatibilityGroup)) continue;
@@ -2642,7 +2666,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("fireRateBonus", "chargeRateBonus")) families.push("fire-rate");
     if (has("attackSpeedBonus")) families.push("melee-attack-speed");
-    if (has("damageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs", "dreadfulKillshotDamageAndStatusPer75Health")) families.push("base-damage");
+    if (has("damageBonus", "sentientIncisionDamageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs", "dreadfulKillshotDamageAndStatusPer75Health")) families.push("base-damage");
     if (has("factionDamageBonus")) families.push("faction-damage");
     if (has("nightwatchNapalmEffect")) families.push("weapon-specific-damage");
     if (has(
@@ -4112,6 +4136,9 @@ function optimizeExilusSlot(
                 headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
                 selectedAttackName: weapon.selectedAttackName,
                 selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
+                targetFaction,
+                targetHasOverguard: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).overguard > 0,
+                selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
             }).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
             let selectedPolarity = candidatePolarity;
@@ -5024,6 +5051,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     };
 
     addPercent("damageBonus", "base weapon damage");
+    addPercent("sentientIncisionDamageBonus", "additional damage matching the selected target's weakness (kept uncombined; does not scale its matching Status Effect DoT)");
     addPercent("heavyAttackDamageBonus", "base damage on Heavy Attacks");
     addPercent("slamAttackDamageBonus", "Slam Damage on eligible melee slams");
     addPercent("critChanceBonus", "of base Critical Chance");
@@ -5257,6 +5285,7 @@ export function explainBuild(
             headIsWeakPoint: targetAssumptions.headIsWeakPoint,
         } satisfies HitLocationDamageProfile,
         isEximusTarget: targetAssumptions.isEximusTarget,
+        targetHasOverguard: targetAssumptions.overguard > 0,
         conditionalState: statsConditionalState,
         includeDoTTickDetails: false,
     };
@@ -5270,6 +5299,11 @@ export function explainBuild(
     const selectedStats = calculateBuild(scoringWeapon, selectedEffects, targetFaction, statsOptions).modded;
     const changed = (before: number, after: number) => Math.abs(before - after) > 1e-9;
     const buildHighlights: string[] = [];
+    if (selectedStats.sentientIncisionDamageType && selectedStats.sentientIncisionDamageBonus > 0) {
+        buildHighlights.push(
+            `Sentient Incision adds ${formatExplanationPercent(selectedStats.sentientIncisionDamageBonus)} isolated ${selectedStats.sentientIncisionDamageType[0].toUpperCase()}${selectedStats.sentientIncisionDamageType.slice(1)} damage for the selected target. The bonus is added after elemental combination and does not scale the matching DoT seed. ${targetAssumptions.overguard > 0 ? "Because this target starts with Overguard, Burst uses its Corrosive snapshot; finite TTK, sustained, and fixed-window scoring are unavailable because the element changes when Overguard breaks." : "The target has no initial Overguard, so this selected faction element remains fixed during the modeled encounter."}`,
+        );
+    }
     const headWeakPointHitShare = selectedStats.hitLocation.canHeadshot === false
         ? 0
         : selectedStats.hitLocation.headshotRate ?? 0;
@@ -5351,6 +5385,9 @@ export function explainBuild(
             headIsWeakPoint: targetAssumptions.headIsWeakPoint,
             selectedAttackName: weapon.selectedAttackName,
             selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
+            targetFaction,
+            targetHasOverguard: targetAssumptions.overguard > 0,
+            selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
         const effectSummary = parts.length > 0

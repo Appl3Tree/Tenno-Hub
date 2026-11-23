@@ -1912,18 +1912,39 @@ describe("build optimizer scoring", () => {
         })).toContain("Precision Strike's Reload Speed bonus requires a direct Tonkor grenade hit. The selected attack does not model that trigger, so Auto Optimize skips this mod.");
     }, 20_000);
 
-    it("keeps Sentient Incision out of Auto Optimize until adaptive damage and status exceptions are modeled", () => {
+    it("only optimizes Sentient Incision when its adaptive element is resolved for the selected score", () => {
         const venato = getWeaponCatalog().find((candidate) => candidate.name === "Venato");
         expect(venato).toBeDefined();
         const sentientIncision = getModsForWeapon(venato!).find((mod) => mod.name === "Sentient Incision");
         expect(sentientIncision).toBeDefined();
-        expect(getUnmodeledDamageEffectLines(sentientIncision!, sentientIncision!.fusionLimit)).toContain(
-            "Sentient Incision's faction weakness mapping, Overguard-specific element selection, Slam exclusion, and non-scaling elemental status DoT are not modeled, so Auto Optimize skips this mod.",
+        expect(getUnmodeledDamageEffectLines(sentientIncision!, sentientIncision!.fusionLimit, { targetFaction: "" })).toContain(
+            "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type. No matching target is selected, so Auto Optimize skips this mod. Wiki: https://wiki.warframe.com/w/Sentient_Incision",
         );
 
-        const result = optimizeBuild(venato!, [sentientIncision!], "burst", 1, { allowForma: false });
-        expect(result.capacityValid).toBe(true);
-        expect(result.slots.filter(Boolean)).toHaveLength(0);
+        const noTarget = optimizeBuild(venato!, [sentientIncision!], "burst", 1, { allowForma: false });
+        expect(noTarget.slots.filter(Boolean)).toHaveLength(0);
+
+        const grineerBurst = optimizeBuild(venato!, [sentientIncision!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+        });
+        expect(grineerBurst.capacityValid).toBe(true);
+        expect(grineerBurst.slots.filter(Boolean).map((mod) => mod?.name)).toContain("Sentient Incision");
+
+        const overguardTarget = { health: 5_000, shields: 0, overguard: 1_000, armor: 0 };
+        const overguardBurst = optimizeBuild(venato!, [sentientIncision!], "burst", 1, {
+            allowForma: false,
+            targetFaction: "Corpus",
+            targetProfileOverride: overguardTarget,
+        });
+        expect(overguardBurst.slots.filter(Boolean).map((mod) => mod?.name)).toContain("Sentient Incision");
+
+        const overguardTtk = optimizeBuild(venato!, [sentientIncision!], "timeToKill", 1, {
+            allowForma: false,
+            targetFaction: "Corpus",
+            targetProfileOverride: overguardTarget,
+        });
+        expect(overguardTtk.slots.filter(Boolean)).toHaveLength(0);
     });
 
     it("keeps Wiki-modeled Nightwatch Napalm eligible and scores it in finite Expected TTK", () => {

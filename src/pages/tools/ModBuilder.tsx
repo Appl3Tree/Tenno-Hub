@@ -32,6 +32,7 @@ import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, OVER
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
+import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
@@ -288,11 +289,16 @@ function estimateGalvanizedPerStatusKillRate(
     if (weapon.selectedAttackAutoSpoolTimingLimitation) return 0;
 
     const targetAssumptions = getTargetProfileAssumptions(targetFaction, targetProfileOverride);
+    if (
+        targetAssumptions.overguard > 0 &&
+        effects.some((effect) => (effect?.sentientIncisionDamageBonus ?? 0) > 0)
+    ) return 0;
     const effectiveStatusImmunities = statusImmuneTypes ?? targetAssumptions.statusImmuneTypes;
     const finiteConditionalState = withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState;
     const simulateAtKillRate = (killRate: number) => {
         const metrics = calculateBuildForExpectedEncounter(weapon, effects, targetFaction, {
             conditionalState: finiteConditionalState,
+            targetHasOverguard: targetAssumptions.overguard > 0,
             statusImmuneTypes: effectiveStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps ?? targetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
@@ -1230,6 +1236,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
     return effects.reduce((acc, effect) => {
         if (!effect) return acc;
         acc.damageBonus += effect.damageBonus ?? 0;
+        acc.sentientIncisionDamageBonus += effect.sentientIncisionDamageBonus ?? 0;
         acc.sentientSurgeMagazineRefillPerKill += effect.sentientSurgeMagazineRefillPerKill ?? 0;
         acc.conditionOverloadDamagePerStatusBonus += effect.conditionOverloadDamagePerStatusBonus ?? 0;
         acc.impactBonus += effect.impactBonus ?? 0;
@@ -1273,6 +1280,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         return acc;
     }, {
         damageBonus: 0,
+        sentientIncisionDamageBonus: 0,
         sentientSurgeMagazineRefillPerKill: 0,
         conditionOverloadDamagePerStatusBonus: 0,
         impactBonus: 0,
@@ -1565,6 +1573,7 @@ function buildMathBreakdown(
     const result = calculateBuild(weapon, effects, targetFaction, {
         conditionalState,
         isEximusTarget: targetProfileOverride?.isEximusTarget,
+        targetHasOverguard: getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0,
         statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
         hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
@@ -1577,6 +1586,7 @@ function buildMathBreakdown(
         ? calculateBuild(weapon, effects, targetFaction, {
             conditionalState: finiteConditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
+            targetHasOverguard: getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0,
             statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
@@ -1590,6 +1600,7 @@ function buildMathBreakdown(
         ? calculateBuild(weapon, effects, targetFaction, {
             conditionalState: { mode: "initial" },
             isEximusTarget: targetProfileOverride?.isEximusTarget,
+            targetHasOverguard: getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0,
             statusImmuneTypes: statusImmuneTypes ?? targetProfileOverride?.statusImmuneTypes,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride),
@@ -1627,7 +1638,10 @@ function buildMathBreakdown(
     const conditionalEntries = effects.flatMap((effect) => effect?.conditionalEffects ?? []);
     let timedStackTraceIndex = 0;
     const unconditionalEffects = effects.map((effect) => effect ? { ...effect, conditionalEffects: [] } : effect);
-    const baselineConditionalStats = calculateBuild(weapon, unconditionalEffects, targetFaction, { conditionalState }).modded;
+    const baselineConditionalStats = calculateBuild(weapon, unconditionalEffects, targetFaction, {
+        conditionalState,
+        targetHasOverguard: getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0,
+    }).modded;
     const baselineRateForConditionals = baselineConditionalStats.fireRate;
     const baseMagazineForConditionals = baselineConditionalStats.magazineSize;
     const qualifyingHitGroupProbability = estimateNonCriticalNoStatusHitGroupProbability(
@@ -2028,6 +2042,9 @@ function buildMathBreakdown(
                     ? ["Sentient Surge refills " + fmt(totals.sentientSurgeMagazineRefillPerKill * 100, 0) + "% of the magazine from reserve ammo per target eliminated; this refill is displayed but excluded from the single-target score."]
                     : []),
                 `Damage bonus = ${fmt(totals.damageBonus * 100, 3)}% | impact bonus = ${fmt(totals.impactBonus * 100, 3)}% | puncture bonus = ${fmt(totals.punctureBonus * 100, 3)}% | slash bonus = ${fmt(totals.slashBonus * 100, 3)}%`,
+                ...(totals.sentientIncisionDamageBonus > 0
+                    ? [`Sentient Incision rank bonus = ${fmt(totals.sentientIncisionDamageBonus * 100, 3)}%; target-resolved channel = ${stats.sentientIncisionDamageType ?? "unresolved"} (Slam attacks are excluded).`]
+                    : []),
                 ...(stats.slamAttackDamageMultiplier > 1
                     ? [`Selected slam damage multiplier = ×${fmt(stats.slamAttackDamageMultiplier, 5)} (multiplicative Slam Damage category)`]
                     : []),
@@ -2047,6 +2064,9 @@ function buildMathBreakdown(
             title: "Damage Construction",
             lines: [
                 `Modded base damage = base total ${fmt(baseDamage, 5)} × damage bracket ${fmt(baseDamageMultiplier, 5)} = ${fmt(moddedBaseDamageBeforeConditionOverload, 5)}; Condition Overload adds ${fmt(moddedBaseDamage - moddedBaseDamageBeforeConditionOverload, 5)} = ${fmt(moddedBaseDamage, 5)}`,
+                ...(stats.sentientIncisionDamageType && stats.sentientIncisionDamageBonus > 0
+                    ? [`Sentient Incision adds ${fmt(stats.baseDamageTotal * stats.sentientIncisionDamageBonus, 5)} ${capitalizeDamageType(stats.sentientIncisionDamageType)} as a separate, non-combining channel after elemental combination. It does not increase the base-damage quantization scale or the matching Status Effect DoT seed. ${targetProfileOverride?.overguard && targetProfileOverride.overguard > 0 ? "This uses the initial Overguard Corrosive snapshot; later element switching is not part of finite or sustained scores." : ""} https://wiki.warframe.com/w/Sentient_Incision`]
+                    : []),
                 ...(selectedAttackDamageMultiplier !== 1
                     ? [`Selected attack damage multipliers = Slam Damage ${fmt(stats.slamAttackDamageMultiplier, 5)} × heavy-attack combo ${fmt(stats.meleeAttackComboDamageMultiplier, 5)} = ${fmt(selectedAttackDamageMultiplier, 5)}; quantization base = ${fmt(moddedBaseDamage, 5)} × ${fmt(selectedAttackDamageMultiplier, 5)} = ${fmt(moddedBaseDamageForQuantization, 5)}`]
                     : []),
@@ -2270,6 +2290,7 @@ function buildExportPayload(args: {
     const calculated = calculateBuild(calcWeapon, effects, targetFaction ?? "", {
         conditionalState,
         isEximusTarget: targetProfileOverride?.isEximusTarget,
+        targetHasOverguard: getTargetProfileAssumptions(targetFaction ?? "", targetProfileOverride).overguard > 0,
         statusImmuneTypes: targetStatusImmunities,
         statusStackCaps: targetProfileOverride?.statusStackCaps,
         hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
@@ -2279,6 +2300,7 @@ function buildExportPayload(args: {
         ? calculateBuild(calcWeapon, effects, targetFaction ?? "", {
             conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
+            targetHasOverguard: getTargetProfileAssumptions(targetFaction ?? "", targetProfileOverride).overguard > 0,
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
@@ -2290,6 +2312,7 @@ function buildExportPayload(args: {
         ? calculateBuild(calcWeapon, effects, targetFaction ?? "", {
             conditionalState: { mode: "initial" },
             isEximusTarget: targetProfileOverride?.isEximusTarget,
+            targetHasOverguard: getTargetProfileAssumptions(targetFaction ?? "", targetProfileOverride).overguard > 0,
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
@@ -2589,6 +2612,9 @@ interface SlotProps {
     headIsWeakPoint?: boolean;
     selectedAttackName?: string;
     selectedAttackIsAreaDamage?: boolean;
+    targetFaction?: string;
+    targetHasOverguard?: boolean;
+    selectedAttackUsesSlamDamageBonus?: boolean;
     mod: ModEntry | null; rank: number; slotPolarity: string;
     compatMods: ModEntry[]; usedGroups: Set<string>;
     ownedUniqueNames: Set<string>; onlyOwned: boolean; isExilusSlot?: boolean;
@@ -2608,7 +2634,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2638,7 +2664,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage };
+    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus };
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
@@ -3253,13 +3279,14 @@ function ExclusionList({ allMods, excluded, onToggle }: {
 
 // ── Saved Builds ──────────────────────────────────────────────────────────────
 
-function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUnavailableReason, availableMods, currentSlots, currentRanks, currentPolarities, currentCfg,
+function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUnavailableReason, targetHasOverguard, availableMods, currentSlots, currentRanks, currentPolarities, currentCfg,
     stanceMod, stanceRank, stancePol, exilusMod, exilusPol, arcane1, arcane1Rank, hasExilus,
     targetFaction, conditionalState, targetProfileOverride, plannerConfig, onLoad }: {
     weapon: WeaponEntry | null;
     selectedAttackIdx: number;
     scoreUnavailable: boolean;
     scoreUnavailableReason?: string;
+    targetHasOverguard: boolean;
     availableMods: ModEntry[];
     currentSlots: (ModEntry | null)[]; currentRanks: number[]; currentPolarities: string[];
     currentCfg: BuildCfg;
@@ -3383,15 +3410,19 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
     function comparisonRows(
         stats: ReturnType<typeof calculateBuild>,
         finiteStats: ReturnType<typeof calculateBuild> = stats,
+        sentientIncisionUnsupportedTarget = false,
     ) {
         const category = weapon?.category ?? "Primary";
         const avgDamageLabel = averageDamageLabel(category);
         const rateLabel = actionRateLabel(category);
+        const targetDamageUnavailable = scoreUnavailable || sentientIncisionUnsupportedTarget;
+        const sentientIncisionTimelineLimited = targetHasOverguard && stats.modded.sentientIncisionDamageBonus > 0;
+        const sustainedUnavailable = targetDamageUnavailable || sentientIncisionTimelineLimited;
         const rows: Array<[string, string]> = [
-            ["Burst DPS", scoreUnavailable ? "Unavailable" : fmt(stats.burstDPS)],
-            ["Sustained DPS", scoreUnavailable ? "Unavailable" : fmt(finiteStats.sustainedDPS)],
-            [scoreUnavailable ? `Reference ${avgDamageLabel}` : avgDamageLabel, fmt(stats.modded.averageShotDamage)],
-            [scoreUnavailable ? "Reference Arsenal Total" : "Arsenal Total", fmt(stats.modded.arsenalDamage)],
+            ["Burst DPS", targetDamageUnavailable ? "Unavailable" : fmt(stats.burstDPS)],
+            ["Sustained DPS", sustainedUnavailable ? "Unavailable" : fmt(finiteStats.sustainedDPS)],
+            [targetDamageUnavailable ? `Reference ${avgDamageLabel}` : avgDamageLabel, fmt(stats.modded.averageShotDamage)],
+            [targetDamageUnavailable ? "Reference Arsenal Total" : "Arsenal Total", fmt(stats.modded.arsenalDamage)],
             ["Crit Chance", `${fmt(stats.modded.critChance * 100, 1)}%`],
             ["Crit Mult", `${fmt(stats.modded.critMultiplier, 2)}x`],
             ["Crit Tier", `${fmt(stats.modded.averageCritTier, 2)}x`],
@@ -3399,7 +3430,7 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
             ["Multishot", fmt(stats.modded.multishot, 2)],
             [rateLabel, fmt(stats.modded.fireRate, 2)],
             ["Avg Procs", fmt(stats.modded.averageProcsPerShot, 2)],
-            ["DoT DPS", scoreUnavailable ? "Unavailable" : fmt(finiteStats.modded.dotDps)],
+            ["DoT DPS", sustainedUnavailable ? "Unavailable" : fmt(finiteStats.modded.dotDps)],
         ];
         if (stats.modded.strainInfectionCritDamageBonus > 0) {
             rows.push(["Burst cyst assumption", `${stats.modded.strainInfectionCystsAtImpact}/8 at impact`]);
@@ -3411,6 +3442,18 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
             if ((value ?? 0) > 0) rows.push([key[0].toUpperCase() + key.slice(1), fmt(value ?? 0, 1)]);
         }
         return rows;
+    }
+
+    function sentientIncisionModelNote(
+        stats: ReturnType<typeof calculateBuild>,
+        unsupportedTarget = false,
+    ): string | null {
+        if (unsupportedTarget) {
+            return "Sentient Incision has no supported target faction or active Overguard to select its adaptive element; this build's damage scores are unavailable.";
+        }
+        return targetHasOverguard && stats.modded.sentientIncisionDamageBonus > 0
+            ? "Burst uses the initial Corrosive snapshot. Sustained and DoT scores are unavailable because the element changes when Overguard breaks."
+            : null;
     }
 
     return (
@@ -3441,7 +3484,11 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                             const buildCfg = buildCfgFromSavedBuild(b);
                             const weaponState = applyWeaponConfig(weapon, selectedAttackIdx, buildCfg);
                             const effects = [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)];
-                            const options = { conditionalState, isEximusTarget: targetProfileOverride?.isEximusTarget, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) };
+                            const hasSentientIncision = effects.some((effect) => (effect?.sentientIncisionDamageBonus ?? 0) > 0);
+                            const sentientIncisionUnsupportedTarget = hasSentientIncision &&
+                                weaponState.selectedWeapon.selectedAttackUsesSlamDamageBonus !== true &&
+                                !getSentientIncisionDamageType(targetFaction, targetHasOverguard);
+                            const options = { conditionalState, isEximusTarget: targetProfileOverride?.isEximusTarget, targetHasOverguard: getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) };
                             const stats = calculateBuild(
                                 weaponState.selectedWeapon,
                                 effects,
@@ -3457,8 +3504,11 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                             return (
                                 <div key={b.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-2">
                                     <div className="text-xs font-semibold text-slate-100">{b.name}</div>
+                                    {sentientIncisionModelNote(stats, sentientIncisionUnsupportedTarget) && (
+                                        <p role="note" className="text-[10px] leading-relaxed text-amber-300">{sentientIncisionModelNote(stats, sentientIncisionUnsupportedTarget)}</p>
+                                    )}
                                     <div className="space-y-1">
-                                        {comparisonRows(stats, finiteStats).map(([lbl, val]) => (
+                                        {comparisonRows(stats, finiteStats, sentientIncisionUnsupportedTarget).map(([lbl, val]) => (
                                             <div key={lbl} className="flex justify-between gap-2 text-[11px]">
                                                 <span className="text-slate-500">{lbl}</span>
                                                 <span className="font-mono text-slate-200 text-right">{val}</span>
@@ -3480,7 +3530,11 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                             const buildCfg = buildCfgFromSavedBuild(b);
                             const weaponState = applyWeaponConfig(weapon, selectedAttackIdx, buildCfg);
                             const effects = [...weaponState.activeIncarnonEffects, ...buildSavedBuildEffects(b)];
-                            const options = { conditionalState, isEximusTarget: targetProfileOverride?.isEximusTarget, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) };
+                            const hasSentientIncision = effects.some((effect) => (effect?.sentientIncisionDamageBonus ?? 0) > 0);
+                            const sentientIncisionUnsupportedTarget = hasSentientIncision &&
+                                weaponState.selectedWeapon.selectedAttackUsesSlamDamageBonus !== true &&
+                                !getSentientIncisionDamageType(targetFaction, targetHasOverguard);
+                            const options = { conditionalState, isEximusTarget: targetProfileOverride?.isEximusTarget, targetHasOverguard: getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) };
                             const result = calculateBuild(weaponState.selectedWeapon, effects, targetFaction, options);
                             const finiteResult = result.modded.strainInfectionCritDamageBonus > 0
                                 ? calculateBuild(weaponState.selectedWeapon, effects, targetFaction, {
@@ -3488,7 +3542,7 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                                     conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
                                 })
                                 : result;
-                            return { result, finiteResult };
+                            return { result, finiteResult, sentientIncisionUnsupportedTarget };
                         })() : null;
                         return (
                             <div key={b.id} className={["rounded-lg border px-3 py-2",
@@ -3514,14 +3568,19 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                                     </div>
                                 </div>
                                 {comparing.has(b.id) && stats && (
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2 pt-2 border-t border-slate-800/60">
-                                        {comparisonRows(stats.result, stats.finiteResult).slice(0, 12).map(([lbl, val]) => (
-                                            <div key={lbl} className="flex items-center justify-between gap-2 text-[10px]">
-                                                <div className="text-slate-600">{lbl}</div>
-                                                <div className="font-mono text-blue-300 text-right">{val}</div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <>
+                                        {sentientIncisionModelNote(stats.result, stats.sentientIncisionUnsupportedTarget) && (
+                                            <p role="note" className="mt-2 text-[10px] leading-relaxed text-amber-300">{sentientIncisionModelNote(stats.result, stats.sentientIncisionUnsupportedTarget)}</p>
+                                        )}
+                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2 pt-2 border-t border-slate-800/60">
+                                            {comparisonRows(stats.result, stats.finiteResult, stats.sentientIncisionUnsupportedTarget).slice(0, 12).map(([lbl, val]) => (
+                                                <div key={lbl} className="flex items-center justify-between gap-2 text-[10px]">
+                                                    <div className="text-slate-600">{lbl}</div>
+                                                    <div className="font-mono text-blue-300 text-right">{val}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         );
@@ -4814,11 +4873,28 @@ export default function ModBuilder() {
         !activeUnsupportedSpreadModifier &&
         (!activeOverpressuredRoundsSelected || activeOverpressuredBurstSnapshotApplies),
     );
+    const activeTargetAssumptions = useMemo(
+        () => getTargetProfileAssumptions(factionOn ? faction : "", targetProfileOverride),
+        [factionOn, faction, targetProfileOverride],
+    );
+    const activeSentientIncisionSelected = activeBuildEffects.some((effect) =>
+        (effect?.sentientIncisionDamageBonus ?? 0) > 0,
+    );
+    const activeSentientIncisionUnsupportedTarget = Boolean(
+        activeSentientIncisionSelected &&
+        activeCalcWeapon?.selectedAttackUsesSlamDamageBonus !== true &&
+        !getSentientIncisionDamageType(factionOn ? faction : "", activeTargetAssumptions.overguard > 0),
+    );
+    const activeSentientIncisionOverguardTimelineLimit = Boolean(
+        activeSentientIncisionSelected && activeCalcWeapon?.selectedAttackUsesSlamDamageBonus !== true &&
+        activeTargetAssumptions.overguard > 0,
+    );
     const activeAttackModelLimitationBlocksScoring = Boolean(
         activeCalcWeapon?.selectedAttackModelLimitation && !activePelletHitEstimateEnabled,
     );
     const activeFiniteAttackModelLimitationBlocksScoring = Boolean(
-        activeAttackModelLimitationBlocksScoring || activeOverpressuredBurstSnapshotApplies,
+        activeAttackModelLimitationBlocksScoring || activeOverpressuredBurstSnapshotApplies ||
+        activeSentientIncisionUnsupportedTarget || activeSentientIncisionOverguardTimelineLimit,
     );
     const pelletEstimateConditionalState = useMemo(
         () => activePelletHitEstimateEnabled
@@ -4879,10 +4955,6 @@ export default function ModBuilder() {
         if (includeArcaneStats && arcane1) labels.push(`${arcane1.name} (arcane)`);
         return labels;
     }, [activeWeaponState, allSlotsForCap, includeArcaneStats, arcane1]);
-    const activeTargetAssumptions = useMemo(
-        () => getTargetProfileAssumptions(factionOn ? faction : "", targetProfileOverride),
-        [factionOn, faction, targetProfileOverride],
-    );
     const expectedKillRatePerSecond = useMemo(
         () => activeCalcWeapon
             ? estimateGalvanizedPerStatusKillRate(
@@ -4902,6 +4974,7 @@ export default function ModBuilder() {
         () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState: pelletEstimateConditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
+            targetHasOverguard: activeTargetAssumptions.overguard > 0,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
@@ -4920,18 +4993,26 @@ export default function ModBuilder() {
         return calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState: finitePelletEstimateConditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
+            targetHasOverguard: activeTargetAssumptions.overguard > 0,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         });
     }, [activeCalcWeapon, activeMetrics, activeBuildEffects, factionOn, faction, finitePelletEstimateConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride, activeOverpressuredBurstSnapshotApplies]);
-    const activeAttackDpsUnavailable = Boolean(
-        activeAttackModelLimitationBlocksScoring && (activeMetrics?.modded.ammoGateSatisfied ?? true),
+    const activeNonSentientAttackDpsUnavailable = Boolean(
+        (activeAttackModelLimitationBlocksScoring && (activeMetrics?.modded.ammoGateSatisfied ?? true)) ||
+        activeMetrics?.modded.pelletHitEstimate,
+    );
+    const activeAttackDpsUnavailable = Boolean(activeNonSentientAttackDpsUnavailable || activeSentientIncisionUnsupportedTarget);
+    const activeNonSentientSustainedDpsUnavailable = Boolean(
+        activeNonSentientAttackDpsUnavailable ||
+        (activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"),
     );
     const activeSustainedDpsUnavailable = Boolean(
-        activeAttackDpsUnavailable ||
-        (activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"),
+        activeNonSentientSustainedDpsUnavailable ||
+        activeSentientIncisionUnsupportedTarget ||
+        activeSentientIncisionOverguardTimelineLimit,
     );
     const currentBuildExportWithScoreContext = useMemo(() => {
         if (!currentBuildExport) return null;
@@ -4955,14 +5036,25 @@ export default function ModBuilder() {
             calculated,
             scoreAvailability: {
                 targetDamageAndDpsAvailable: !activeAttackDpsUnavailable,
-                ...(activeAttackDpsUnavailable && limitation
-                    ? { reason: limitation.reason, sourceUrl: limitation.sourceUrl }
+                ...(activeAttackDpsUnavailable
+                    ? {
+                        reason: activeSentientIncisionUnsupportedTarget
+                            ? "Sentient Incision needs a supported target faction or active Overguard to choose its adaptive element."
+                            : limitation?.reason ?? "This attack's selected damage effect is not modeled for the current context.",
+                        ...(activeSentientIncisionUnsupportedTarget
+                            ? { sourceUrl: "https://wiki.warframe.com/w/Sentient_Incision" }
+                            : limitation?.sourceUrl ? { sourceUrl: limitation.sourceUrl } : {}),
+                    }
                     : {}),
                 sustainedDpsAvailable: !activeSustainedDpsUnavailable,
                 ...(activeSustainedDpsUnavailable
                     ? {
                         sustainedDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
                             ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual spread and Falloff Distance snapshot is Burst-only."
+                            : activeSentientIncisionUnsupportedTarget
+                                ? "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type."
+                            : activeSentientIncisionOverguardTimelineLimit
+                                ? "Sentient Incision selects Corrosive against the initial Overguard pool, then changes to the target faction element when Overguard breaks; that damage-type timeline is not modeled."
                             : limitation?.reason ?? "Sustained scoring is unavailable for this attack model.",
                     }
                     : {}),
@@ -4971,6 +5063,10 @@ export default function ModBuilder() {
                     ? {
                         dotDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
                             ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual spread and Falloff Distance snapshot is Burst-only, and DoT DPS is unavailable."
+                            : activeSentientIncisionUnsupportedTarget
+                                ? "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type; DoT DPS is unavailable."
+                            : activeSentientIncisionOverguardTimelineLimit
+                                ? "Sentient Incision's adaptive element changes when Overguard breaks; its sustained DoT timeline is not modeled."
                             : limitation?.reason ?? "DoT DPS is unavailable for this attack model.",
                     }
                     : {}),
@@ -4979,12 +5075,16 @@ export default function ModBuilder() {
                     ? {
                         finiteTargetScoringReason: activeOverpressuredBurstSnapshotApplies
                             ? "The user-entered Overpressured Rounds spread and Falloff Distance snapshot applies only to manual Burst; cross-mode kill history is not simulated."
+                            : activeSentientIncisionUnsupportedTarget
+                                ? "Sentient Incision needs a supported target faction or active Overguard to choose its adaptive element."
+                            : activeSentientIncisionOverguardTimelineLimit
+                                ? "Sentient Incision changes from Corrosive to the target faction element when Overguard breaks; finite attack history is not modeled."
                             : limitation?.reason ?? "This attack does not have a supported finite target-scoring model.",
                     }
                     : {}),
             },
         };
-    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeSustainedDpsUnavailable, activeOverpressuredRoundsSelected, activeFiniteAttackModelLimitationBlocksScoring, activeOverpressuredBurstSnapshotApplies, activeCalcWeapon]);
+    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeSustainedDpsUnavailable, activeOverpressuredRoundsSelected, activeFiniteAttackModelLimitationBlocksScoring, activeOverpressuredBurstSnapshotApplies, activeSentientIncisionUnsupportedTarget, activeSentientIncisionOverguardTimelineLimit, activeCalcWeapon]);
     const displayedMath = (reasoningContextAtOptimization === currentReasoningContextKey ? reasoningMath : null) ?? currentBuildExportWithScoreContext?.math ?? null;
     const attackDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
@@ -4993,6 +5093,7 @@ export default function ModBuilder() {
         () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState: { mode: "initial" },
             isEximusTarget: targetProfileOverride?.isEximusTarget,
+            targetHasOverguard: activeTargetAssumptions.overguard > 0,
             statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
             statusStackCaps: activeTargetAssumptions.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
@@ -5003,24 +5104,25 @@ export default function ModBuilder() {
     const meleeAverageDps = useMemo(() => {
         if (
             !weapon || !usesMeleeDamageModel(weapon.category) || !initialTargetMetrics ||
-            !meleeDpsInputs
+            !meleeDpsInputs || activeSentientIncisionOverguardTimelineLimit
         ) return null;
         return calculateMeleeAverageDps(initialTargetMetrics.modded, {
             totalDamageMultiplier: meleeDpsInputs.totalDamageMultiplier,
             totalSlashProcMultiplier: meleeDpsInputs.totalSlashProcMultiplier,
             baseComboLengthSeconds: meleeDpsInputs.baseComboLengthSeconds,
         });
-    }, [weapon, initialTargetMetrics, meleeDpsInputs]);
+    }, [weapon, initialTargetMetrics, meleeDpsInputs, activeSentientIncisionOverguardTimelineLimit]);
     const encounterTargetMetrics = useMemo(
         () => activeCalcWeapon ? calculateBuildForExpectedEncounter(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
             conditionalState: finitePelletEstimateConditionalState,
+            targetHasOverguard: activeTargetAssumptions.overguard > 0,
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps: targetProfileOverride?.statusStackCaps,
             hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
             targetStatusState: "initial",
             ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
         }) : null,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, finitePelletEstimateConditionalState, targetStatusImmunities, targetProfileOverride, expectedKillRatePerSecond],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, finitePelletEstimateConditionalState, activeTargetAssumptions, targetStatusImmunities, targetProfileOverride, expectedKillRatePerSecond],
     );
     const activeProcMixLabel = activeMetrics
         ? Object.entries(activeMetrics.modded.procChanceByType)
@@ -6023,10 +6125,11 @@ export default function ModBuilder() {
             {weapon && tab === "owned"   && <OwnedModsPanel key={weapon.uniqueName} availableMods={trackableMods} />}
             {weapon && tab === "ownedArcanes" && <OwnedArcanesPanel weapon={weapon} />}
             {weapon && tab === "saves"   && <SavedBuildsPanel weapon={weapon} selectedAttackIdx={selectedAttackIdx}
-                scoreUnavailable={activeAttackDpsUnavailable || Boolean(activeMetrics?.modded.pelletHitEstimate)}
+                scoreUnavailable={activeNonSentientAttackDpsUnavailable}
                 scoreUnavailableReason={activeMetrics?.modded.pelletHitEstimate
                     ? "the comparison panel does not apply the editable target-radius and spread assumptions needed for this single-target pellet estimate."
                     : activeCalcWeapon?.selectedAttackModelLimitation?.reason}
+                targetHasOverguard={activeTargetAssumptions.overguard > 0}
                 availableMods={compatMods} currentSlots={slots} currentRanks={ranks}
                 currentPolarities={slotPols} currentCfg={buildCfg}
                 stanceMod={stanceMod} stanceRank={stanceRank} stancePol={stancePol}
@@ -7434,6 +7537,10 @@ export default function ModBuilder() {
                                                                         tooltip: activeSustainedDpsUnavailable
                                                                             ? activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
                                                                                 ? "Overpressured Rounds' next-shot buff and kill-based magazine restore require attack history. The manually entered post-kill spread plus sourced Falloff Distance snapshot can affect one Burst event; sustained DPS is unavailable."
+                                                                                : activeSentientIncisionUnsupportedTarget
+                                                                                    ? "Sentient Incision needs a supported target faction or active Overguard to resolve its adaptive damage type."
+                                                                                : activeSentientIncisionOverguardTimelineLimit
+                                                                                    ? "Burst uses the initial Corrosive snapshot. Sustained DPS is unavailable because the element changes when Overguard breaks."
                                                                                 : "This attack is reference-only with the current inputs. Target damage and DPS are unavailable; see the attack note for supported ways to enable a bounded single-target estimate."
                                                                             : `${BASIC_STAT_TOOLTIPS.sustainedDps}\n\nAt the current values, sustained DPS is ${fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS)}.${activeMetrics.modded.strainInfectionCritDamageBonus > 0 ? "\n\nThe Strain Infection Burst-at-impact cyst assumption is excluded because cyst timing and uptime are not modeled." : ""}${activeMetrics.modded.dreadfulKillshotBonus > 0 ? "\n\nThe Dreadful Killshot current-Health snapshot is excluded from sustained scoring." : ""}${meleeDpsModelNote ? `\n\n${meleeDpsModelNote}` : ""}${phantasmaAltFireModelNote ? `\n\n${phantasmaAltFireModelNote}` : ""}${attackDamageRampNote ? `\n\n${attackDamageRampNote}` : ""}`,
                                                                     },
@@ -7676,9 +7783,25 @@ export default function ModBuilder() {
                                                                         <div><span className="text-slate-500">DoT:</span> {activeSustainedDpsUnavailable
                                                                             ? activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
                                                                                 ? "Unavailable: kill and attack history not modeled"
+                                                                                : activeSentientIncisionUnsupportedTarget
+                                                                                    ? "Unavailable: Sentient Incision needs a supported target faction or active Overguard"
+                                                                                : activeSentientIncisionOverguardTimelineLimit
+                                                                                    ? "Unavailable: adaptive element changes when Overguard breaks"
                                                                                 : "Unavailable for this attack model"
                                                                             : `${fmt(finiteMetrics?.modded.dotDps ?? activeMetrics.modded.dotDps)} DPS steady-state estimate`}</div>
                                                                         <div className="sm:col-span-2"><span className="text-slate-500">Proc mix after immunity:</span> {activeProcMixLabel}</div>
+                                                                        {activeSentientIncisionSelected && (
+                                                                            <div className="sm:col-span-2">
+                                                                                <span className="text-slate-500">Sentient Incision:</span>{" "}
+                                                                                {activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true
+                                                                                    ? "Slam attacks receive no augment bonus."
+                                                                                    : activeSentientIncisionUnsupportedTarget
+                                                                                        ? "Burst scoring is unavailable until a supported target faction or active Overguard is selected."
+                                                                                        : activeMetrics?.modded.sentientIncisionDamageType
+                                                                                            ? `+${fmt(activeMetrics.modded.sentientIncisionDamageBonus * 100, 0)}% isolated ${activeMetrics.modded.sentientIncisionDamageType[0].toUpperCase()}${activeMetrics.modded.sentientIncisionDamageType.slice(1)} damage; it is added after elemental combination and does not scale the matching Status Effect DoT seed.${activeSentientIncisionOverguardTimelineLimit ? " The initial Overguard snapshot uses Corrosive, but the element changes when Overguard breaks, so sustained and finite scoring are unavailable." : ""}`
+                                                                                            : "The adaptive damage type is not active for this weapon context."}
+                                                                            </div>
+                                                                        )}
                                                                     </>
                                                                 )}
                                                                 <div className="sm:col-span-2"><span className="text-slate-500">Modeled pools:</span> Health {fmt(activeTargetAssumptions.health, 0)} ({fmt(activeTargetAssumptions.healthShare * 100, 1)}%) · Shields {fmt(activeTargetAssumptions.shields, 0)} ({fmt(activeTargetAssumptions.shieldShare * 100, 1)}%) · Overguard {fmt(activeTargetAssumptions.overguard, 0)} ({fmt(activeTargetAssumptions.overguardShare * 100, 1)}%) · Armor {fmt(activeTargetAssumptions.armor, 0)} · Total {fmt(activeTargetAssumptions.effectiveHealth, 0)}</div>
@@ -7769,7 +7892,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -7800,7 +7923,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -7827,7 +7950,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -7896,7 +8019,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -7969,7 +8092,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}
@@ -8042,6 +8165,7 @@ export default function ModBuilder() {
                                     const options = {
                                         conditionalState,
                                         isEximusTarget: targetProfileOverride?.isEximusTarget,
+                                        targetHasOverguard: getTargetProfileAssumptions(factionOn ? faction : "", targetProfileOverride).overguard > 0,
                                         statusImmuneTypes: targetProfileOverride?.statusImmuneTypes,
                                         statusStackCaps: targetProfileOverride?.statusStackCaps,
                                         hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
@@ -8053,7 +8177,7 @@ export default function ModBuilder() {
                                             conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
                                         })
                                         : burst;
-                                    return { burst, finite };
+                                    return { attackWeapon, burst, finite };
                                 };
                                 // Damage type rows for a given damage object
                                 const dmgRows = (d: Record<string, number>) => [
@@ -8077,10 +8201,21 @@ export default function ModBuilder() {
 
                                 // Render stats for a single attack
                                 const renderAttackStats = (atkIdx: number, label?: string) => {
-                                    const { burst: result, finite: finiteResult } = calcForAttack(atkIdx);
+                                    const { attackWeapon, burst: result, finite: finiteResult } = calcForAttack(atkIdx);
                                     const stats  = result.modded;
                                     const finiteStats = finiteResult.modded;
                                     const atk    = weapon.attacks[atkIdx];
+                                    const attackSentientIncisionUnsupportedTarget = Boolean(
+                                        activeSentientIncisionSelected && attackWeapon.selectedAttackUsesSlamDamageBonus !== true &&
+                                        !getSentientIncisionDamageType(factionOn ? faction : "", activeTargetAssumptions.overguard > 0),
+                                    );
+                                    const attackSentientIncisionOverguardTimelineLimit = Boolean(
+                                        activeSentientIncisionSelected && attackWeapon.selectedAttackUsesSlamDamageBonus !== true &&
+                                        activeTargetAssumptions.overguard > 0,
+                                    );
+                                    const attackDpsUnavailable = activeNonSentientAttackDpsUnavailable || attackSentientIncisionUnsupportedTarget;
+                                    const attackSustainedDpsUnavailable = activeNonSentientSustainedDpsUnavailable ||
+                                        attackSentientIncisionUnsupportedTarget || attackSentientIncisionOverguardTimelineLimit;
                                     const damageUnit = actionUnitLabel(weapon.category);
                                     const damageUnitLabel = damageUnit[0].toUpperCase() + damageUnit.slice(1);
                                     const avgDamageLabel = averageDamageLabel(weapon.category);
@@ -8199,14 +8334,21 @@ export default function ModBuilder() {
                                             sub: "Galvanized / CO count",
                                             tooltip: "This guaranteed non-damage status adds one unique type for Galvanized direct-damage and Condition Overload effects. The finite encounter applies it after the first hit; special enemy immunity exceptions are not modeled.",
                                         }] : []),
-                                    ].map((item) => activeAttackDpsUnavailable && /DPS/i.test(item.label)
-                                        ? {
+                                    ].map((item) => {
+                                        const sustainedMetric = /Sustained DPS|DoT DPS/i.test(item.label);
+                                        const unavailable = (attackDpsUnavailable && /DPS/i.test(item.label)) ||
+                                            (attackSustainedDpsUnavailable && sustainedMetric);
+                                        if (!unavailable) return item;
+                                        const timelineLimited = attackSentientIncisionOverguardTimelineLimit && sustainedMetric;
+                                        return {
                                             ...item,
                                             value: "Unavailable",
-                                            sub: "reference-only attack",
-                                            tooltip: "This attack is reference-only with the current inputs; its displayed component values are not a scored DPS result.",
-                                        }
-                                        : item);
+                                            sub: timelineLimited ? "adaptive element changes after Overguard breaks" : "reference-only attack",
+                                            tooltip: timelineLimited
+                                                ? "Burst uses the initial Corrosive snapshot. Sustained and DoT DPS are unavailable because Sentient Incision changes to the target faction element when Overguard breaks."
+                                                : "This attack is reference-only with the current inputs; its displayed component values are not a scored DPS result.",
+                                        };
+                                    });
                                     const statusEffectBadges = [
                                         { label: "Viral Health", value: fmt(stats.viralHealthDamageBonus * 100, 0) + "%", sub: "health damage", tooltip: "Extra damage dealt to health from current Viral stacks." },
                                         { label: "Heat Armor Strip", value: fmt(stats.heatArmorStrip * 100, 0) + "%", sub: "armor removed", tooltip: "Armor removed by Heat status effects." },
@@ -8269,7 +8411,7 @@ export default function ModBuilder() {
                                                 </div>
                                             )}
 
-                                            {renderBadgeSection(activeAttackDpsUnavailable ? "Reference Stats" : "All Stats", allMetricBadges)}
+                                            {renderBadgeSection(attackDpsUnavailable ? "Reference Stats" : "All Stats", allMetricBadges)}
 
                                             {/* Damage type breakdown */}
                                             {(() => {
@@ -8279,7 +8421,7 @@ export default function ModBuilder() {
                                                 return (
                                                     <div className="pt-2 border-t border-slate-800/50">
                                                         <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">
-                                                            {activeAttackDpsUnavailable ? "Reference Damage Types" : "Damage Types"}
+                                                            {attackDpsUnavailable ? "Reference Damage Types" : "Damage Types"}
                                                             <span className="normal-case font-normal text-slate-600 ml-1">(hover for status effect)</span>
                                                         </div>
                                                         <div className="flex flex-wrap gap-1.5">
@@ -8294,6 +8436,11 @@ export default function ModBuilder() {
                                                         <div className="text-[9px] text-slate-600 mt-1.5">
                                                             Proc distribution uses the modded damage mix. Hover each type to see its status effect.
                                                         </div>
+                                                        {attackSentientIncisionOverguardTimelineLimit && (
+                                                            <div role="note" className="text-[9px] leading-relaxed text-amber-300 mt-1.5">
+                                                                This damage mix is the initial Overguard Corrosive snapshot. Sentient Incision changes to the target faction element after Overguard breaks.
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })()}
@@ -8309,37 +8456,45 @@ export default function ModBuilder() {
                                             )}
 
                                             {renderBadgeSection(
-                                                "Proc Rate By Type",
+                                                attackSustainedDpsUnavailable ? "Reference Proc Rate By Type" : "Proc Rate By Type",
                                                 procRateRows.map((row) => ({
                                                     label: row.l,
-                                                    value: fmt(row.v, 2) + "/s",
-                                                    tooltip: STATUS_TIPS[row.k],
+                                                    value: attackSustainedDpsUnavailable ? "Unavailable" : fmt(row.v, 2) + "/s",
+                                                    sub: attackSustainedDpsUnavailable ? "not a sustained score" : undefined,
+                                                    tooltip: attackSentientIncisionOverguardTimelineLimit
+                                                        ? "The initial Overguard Corrosive snapshot does not model the later adaptive-element change, so per-type proc rates are unavailable."
+                                                        : STATUS_TIPS[row.k],
                                                     icon: DAMAGE_TYPE_ICON[row.k],
                                                 })),
+                                                attackSustainedDpsUnavailable ? "(rate unavailable)" : undefined,
                                             )}
 
                                             {renderBadgeSection(
-                                                "Expected Stacks By Type",
+                                                attackSustainedDpsUnavailable ? "Reference Expected Stacks By Type" : "Expected Stacks By Type",
                                                 stackRows.map((row) => ({
                                                     label: row.l,
-                                                    value: fmt(row.v, 2),
-                                                    tooltip: STATUS_TIPS[row.k],
+                                                    value: attackSustainedDpsUnavailable ? "Unavailable" : fmt(row.v, 2),
+                                                    sub: attackSustainedDpsUnavailable ? "not a sustained score" : undefined,
+                                                    tooltip: attackSentientIncisionOverguardTimelineLimit
+                                                        ? "Expected stacks require a timeline that updates Sentient Incision's damage type when Overguard breaks."
+                                                        : STATUS_TIPS[row.k],
                                                     icon: DAMAGE_TYPE_ICON[row.k],
                                                 })),
+                                                attackSustainedDpsUnavailable ? "(timeline unavailable)" : undefined,
                                             )}
 
                                             {renderBadgeSection(
-                                                activeAttackDpsUnavailable ? "Reference DoT By Type" : "DoT By Type",
+                                                attackSustainedDpsUnavailable ? "Reference DoT By Type" : "DoT By Type",
                                                 dotDpsRows.map((row) => ({
                                                     label: row.l,
-                                                    value: activeAttackDpsUnavailable ? "Unavailable" : fmt(row.v),
-                                                    sub: activeAttackDpsUnavailable
+                                                    value: attackSustainedDpsUnavailable ? "Unavailable" : fmt(row.v),
+                                                    sub: attackSustainedDpsUnavailable
                                                         ? `${fmt(dotShotRows.find((entry) => entry.k === row.k)?.v ?? 0)} reference / ${damageUnit}`
                                                         : `${fmt(dotShotRows.find((entry) => entry.k === row.k)?.v ?? 0)} / ${damageUnit}`,
                                                     tooltip: STATUS_TIPS[row.k],
                                                     icon: DAMAGE_TYPE_ICON[row.k],
                                                 })),
-                                                activeAttackDpsUnavailable ? "(DPS unavailable)" : "(value = DPS)",
+                                                attackSustainedDpsUnavailable ? "(DPS unavailable)" : "(value = DPS)",
                                             )}
 
                                             {renderBadgeSection(
