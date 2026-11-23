@@ -16,6 +16,51 @@ const ITEMS = ITEMS_RAW as Record<string, {
 }>;
 
 describe("weapon catalog stance inference", () => {
+    it("corrects Kulstar's trigger and bounds the direct-hit rocket sequence", () => {
+        const kulstar = getWeaponCatalog().find((candidate) => candidate.name === "Kulstar");
+        expect(kulstar).toBeDefined();
+        expect(kulstar!.trigger).toBe("Semi-Auto");
+
+        const rocketIndex = kulstar!.attacks.findIndex((attack) => attack.name === "Rocket Impact");
+        const explosionIndex = kulstar!.attacks.findIndex((attack) => attack.name === "Rocket Explosion");
+        const clustersIndex = kulstar!.attacks.findIndex((attack) => attack.name === "Cluster Bombs");
+        const clusterExplosionIndex = kulstar!.attacks.findIndex((attack) => attack.name === "Cluster Bomb Explosion");
+        expect([rocketIndex, explosionIndex, clustersIndex, clusterExplosionIndex].every((index) => index >= 0)).toBe(true);
+
+        const rocket = kulstar!.attacks[rocketIndex]!;
+        const explosion = kulstar!.attacks[explosionIndex]!;
+        const clusters = kulstar!.attacks[clustersIndex]!;
+        const clusterExplosion = kulstar!.attacks[clusterExplosionIndex]!;
+        const sourceUrl = "https://wiki.warframe.com/w/Kulstar";
+        expect(kulstar!.attacks.every((attack) => attack.trigger === "Semi-Auto")).toBe(true);
+        expect(rocket.damage.impact).toBe(200);
+        expect(rocket.lingeringDamageRule).toMatchObject({
+            componentAttackName: "Rocket Explosion",
+            firstTickDelaySeconds: 0,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            sourceUrl,
+        });
+        expect(rocket.scoreBoundaryNote?.reason).toMatch(/three bomblets in a loose arc/i);
+        expect(rocket.scoreBoundaryNote?.reason).toMatch(/Knockdown/i);
+        expect(explosion.damage.blast).toBe(300);
+        expect(explosion.damageFalloff).toMatchObject({
+            startDistanceMeters: 0,
+            endDistanceMeters: 3.9,
+            minimumDamageMultiplier: 0.6,
+            sourceUrl,
+        });
+        expect(clusters.multishot).toBe(3);
+        expect(clusters.multishotLocked).toBe(true);
+        expect(clusters.modelLimitation?.reason).toContain("three bomblets");
+        expect(clusterExplosion.multishotLocked).toBe(true);
+        expect(clusterExplosion.modelLimitation?.reason).toContain("reference-only");
+        expect(withSelectedAttack(kulstar!, rocketIndex).selectedAttackLingeringDamageRule)
+            .toEqual(rocket.lingeringDamageRule);
+        expect(withSelectedAttack(kulstar!, explosionIndex).selectedAttackModelLimitation)
+            .toEqual(explosion.modelLimitation);
+    });
+
     it("links Aegrit's direct hit to one immediate single-target detonation", () => {
         const aegrit = getWeaponCatalog().find((candidate) => candidate.name === "Aegrit");
         expect(aegrit).toBeDefined();

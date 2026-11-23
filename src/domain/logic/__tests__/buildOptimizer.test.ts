@@ -201,6 +201,46 @@ describe("source-backed Aegrit single-bomb optimizer coverage", () => {
     });
 });
 
+describe("source-backed Kulstar rocket optimizer coverage", () => {
+    it("optimizes one direct-hit rocket blast and rejects scattered cluster components", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Kulstar");
+        expect(weapon).toBeDefined();
+        const rocketIndex = weapon!.attacks.findIndex((attack) => attack.name === "Rocket Impact");
+        const explosionIndex = weapon!.attacks.findIndex((attack) => attack.name === "Rocket Explosion");
+        const clustersIndex = weapon!.attacks.findIndex((attack) => attack.name === "Cluster Bombs");
+        const clusterExplosionIndex = weapon!.attacks.findIndex((attack) => attack.name === "Cluster Bomb Explosion");
+        const rocket = withSelectedAttack(weapon!, rocketIndex);
+        const explosion = withSelectedAttack(weapon!, explosionIndex);
+        const clusters = withSelectedAttack(weapon!, clustersIndex);
+        const clusterExplosion = withSelectedAttack(weapon!, clusterExplosionIndex);
+        const options = {
+            targetFaction: "Infested",
+            targetProfileOverride: { health: 1_000, shields: 0, overguard: 0, armor: 0 },
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        } as const;
+
+        expect(rocket.trigger).toBe("Semi-Auto");
+        expect(rocket.selectedAttackModelLimitation).toBeUndefined();
+        expect(() => optimizeBuild(rocket, [], "burst", 0, options)).not.toThrow();
+        const combined = optimizeBuild(rocket, [], "timeToKill", 0, options);
+        const directOnly = optimizeBuild({
+            ...rocket,
+            selectedAttackLingeringDamageRule: undefined,
+        }, [], "timeToKill", 0, options);
+        expect(combined.encounterTimeToKillSeconds).not.toBeNull();
+        expect(combined.encounterTimeToKillSeconds)
+            .toBeLessThan(directOnly.encounterTimeToKillSeconds ?? Number.POSITIVE_INFINITY);
+        expect(() => optimizeBuild(explosion, [], "burst", 0, options))
+            .toThrow(/Select Rocket Impact/);
+        expect(() => optimizeBuild(clusters, [], "burst", 0, options))
+            .toThrow(/cannot determine whether any bomblet hits/i);
+        expect(() => optimizeBuild(clusterExplosion, [], "burst", 0, options))
+            .toThrow(/reference-only/i);
+    });
+});
+
 describe("Beast Claw elemental conversion optimizer legality", () => {
     it("never selects more than one of the mutually exclusive elemental conversion mods", () => {
         const claw = getWeaponCatalog().find((weapon) => weapon.uniqueName.includes("/BeastWeapons/"));
