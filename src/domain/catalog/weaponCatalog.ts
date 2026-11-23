@@ -452,6 +452,14 @@ const BURST_RULE_OVERRIDES: Readonly<Record<string, BurstRuleOverride>> = Object
     "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol|incarnon form": { count: 6, delay: 0.1 },
 });
 
+const VERIFIED_WEAPON_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
+    // The upstream feed labels Kulstar Active, but the current Wiki classifies
+    // the primary trigger as Semi-Auto. Correct the weapon and attack-row
+    // trigger so fire-rate and UI logic use the Wiki-listed mode.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
+    "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": "Semi-Auto",
+});
+
 const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
     // WFCD keeps Battacor's combined Auto-Burst / Auto-Charge weapon trigger
     // on each mode row. Restore the Wiki's per-mode burst and charge triggers.
@@ -844,6 +852,25 @@ const VERIFIED_ATTACK_DAMAGE_RAMP_OVERRIDES: Readonly<Record<string, Readonly<Re
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // Kulstar's linked rocket blast uses the sourced 100%→60% falloff over
+    // its 3.9m radius. Blast Radius mods extend this range.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
+    "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": Object.freeze({
+        "rocket explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 3.9,
+            minimumDamageMultiplier: 0.6,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+        }),
+        "cluster bomb explosion": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 3.9,
+            minimumDamageMultiplier: 0.6,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+        }),
+    }),
     // Aegrit's single-target sequence uses the Detonation row's sourced
     // 100%→30% radial falloff over 9m. Blast Radius mods extend this range.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Aegrit
@@ -1930,6 +1957,21 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackLingeringDamageRule>>
 >> = Object.freeze({
+    // A directly-hit Kulstar rocket explodes on contact; bound one rocket's
+    // impact and centered blast against one target. Rocket flight, manual
+    // mid-air detonation, and the three scattered bomblets are excluded.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
+    "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": Object.freeze({
+        "rocket impact": Object.freeze({
+            componentAttackName: "Rocket Explosion",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+        }),
+    }),
     // Aegrit bombs stick to enemies and can be remotely detonated. Bound one
     // directly-hit bomb as an immediate impact-plus-detonation event against
     // that target; travel time, multiple deployed bombs, and other blast
@@ -2098,6 +2140,24 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // The main blast and cluster attacks are components of one rocket release.
+    // Only the direct-hit rocket blast has a bounded single-target assumption;
+    // the three bomblets spread in a loose arc and are not independently scored.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
+    "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": Object.freeze({
+        "rocket explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+            reason: "Rocket Explosion is the linked blast component of one directly-hit Kulstar rocket. Select Rocket Impact to score the bounded impact-plus-blast event against one target; rocket flight, manual mid-air detonation, and the scattered bomblets are excluded.",
+        }),
+        "cluster bombs": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+            reason: "Each Kulstar rocket releases three bomblets that travel in a loose arc away from the primary explosion. Their count and damage are shown for reference, but the planner cannot determine whether any bomblet hits the selected target; select Rocket Impact for the bounded direct-hit rocket sequence.",
+        }),
+        "cluster bomb explosion": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+            reason: "Each Kulstar rocket releases three bomblets that travel in a loose arc away from the primary explosion and explode on impact. The planner cannot determine whether their blast centers overlap the selected target, so this component is reference-only; select Rocket Impact for the bounded direct-hit rocket sequence.",
+        }),
+    }),
     // Detonation is the linked component of one manually triggered bomb;
     // select Direct Hit for the bounded one-bomb single-target sequence.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Aegrit
@@ -2244,6 +2304,12 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": Object.freeze({
+        "rocket impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+            reason: "The single-target sequence includes one Rocket Impact and its immediate Rocket Explosion when the rocket directly hits the selected target. It omits rocket flight and manual mid-air detonation. Each rocket also releases three bomblets in a loose arc; their damage and coverage are not scored because hits on this target are not guaranteed. The forced Knockdown on Rocket Impact and its status-conditioned follow-up are not credited.",
+        }),
+    }),
     "/Lotus/Weapons/Grineer/ThrowingWeapons/GrnVorStickyBomb/GrnVorStickyBomb": Object.freeze({
         "direct hit": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Aegrit",
@@ -2310,6 +2376,14 @@ const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
 
 /** Current Wiki-verified base multishot for attack rows whose fire modes differ. */
 const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
+    // Each Kulstar rocket always produces three bomblet projectiles; Multishot
+    // changes the number of rockets, not this child-projectile count. The
+    // cluster rows are reference-only because their loose arc prevents a
+    // reliable single-target hit assumption.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
+    "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": Object.freeze({
+        "cluster bombs": 3,
+    }),
     // The upstream snapshot exposes the fully-spooled pellet count as the
     // weapon-level multishot value (and has stale values for Kohm/Kuva Kohm).
     // The Wiki lists one pellet for the Single Pellet row and 12/5 for each
@@ -2385,6 +2459,13 @@ const VERIFIED_ATTACK_MULTISHOT_OVERRIDES: Readonly<Record<string, Readonly<Reco
 
 /** Wiki-confirmed attack components that do not inherit multishot modifiers. */
 const VERIFIED_ATTACK_MULTISHOT_LOCKED_OVERRIDES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    // The number of bomblets per Kulstar rocket is fixed; Multishot only
+    // changes how many rockets are fired.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Kulstar
+    "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol": Object.freeze([
+        "cluster bombs",
+        "cluster bomb explosion",
+    ]),
     // Primary-fire explosions do not receive multishot mods. The radial hit is
     // emitted once per Auto shot even when the direct projectile count rises.
     // Verified 2026-11-20: https://wiki.warframe.com/w/Mausolon
@@ -2566,9 +2647,9 @@ export function getWeaponCatalog(): WeaponEntry[] {
 
         const family = exaltedClass ?? resolveWeaponFamily(cat, item);
         const weaponType = family.weaponType;
-        const trigger    = String(item.trigger ?? "Auto");
         const name = String(item.name);
         const uniqueName = String(item.uniqueName ?? "");
+        const trigger = VERIFIED_WEAPON_TRIGGER_OVERRIDES[uniqueName] ?? String(item.trigger ?? "Auto");
         const rawAttacks = Array.isArray(item.attacks) ? item.attacks as Record<string, unknown>[] : [];
 
         // Parse named attacks — only keep those with distinct names (skip unnamed / single attacks)

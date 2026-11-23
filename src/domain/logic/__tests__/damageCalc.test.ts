@@ -1184,6 +1184,39 @@ describe("source-backed per-attack Auto-Charge profiles", () => {
             sourceUrl: "https://wiki.warframe.com/w/Aegrit",
         });
     });
+
+    it("scores one centered Kulstar rocket blast and keeps child-bomblet count fixed", () => {
+        const kulstar = catalog.find((candidate) => candidate.name === "Kulstar")!;
+        const rocketIndex = kulstar.attacks.findIndex((attack) => attack.name === "Rocket Impact");
+        const explosionIndex = kulstar.attacks.findIndex((attack) => attack.name === "Rocket Explosion");
+        const clustersIndex = kulstar.attacks.findIndex((attack) => attack.name === "Cluster Bombs");
+        const clusterExplosionIndex = kulstar.attacks.findIndex((attack) => attack.name === "Cluster Bomb Explosion");
+        const rocket = calculateBuild(withSelectedAttack(kulstar, rocketIndex), []).modded;
+        const explosion = calculateBuild(withSelectedAttack(kulstar, explosionIndex), []).modded;
+        const clusterAttack = withSelectedAttack(kulstar, clustersIndex);
+        const clusterBase = calculateBuild(clusterAttack, []).modded;
+        const lethalTorrent = getModsForWeapon(kulstar).find((mod) => mod.name === "Lethal Torrent");
+        expect(lethalTorrent).toBeDefined();
+        const clusterModded = calculateBuild(
+            clusterAttack,
+            [lethalTorrent!.effectsByRank[lethalTorrent!.fusionLimit]!],
+        ).modded;
+        const clusterExplosion = calculateBuild(withSelectedAttack(kulstar, clusterExplosionIndex), []).modded;
+
+        expect(rocket.attachedAttackDamageSequence?.rule.componentAttackName).toBe("Rocket Explosion");
+        expect(rocket.attachedAttackDamageSequence?.profile.baseDamageTotal)
+            .toBeCloseTo(explosion.baseDamageTotal, 8);
+        expect(rocket.attachedAttackDamageSequence?.profile.attackDamageFalloff).toMatchObject({
+            distanceMeters: 0,
+            damageMultiplier: 1,
+            endDistanceMeters: 3.9,
+            minimumDamageMultiplier: 0.6,
+            sourceUrl: "https://wiki.warframe.com/w/Kulstar",
+        });
+        expect(clusterBase.multishot).toBe(3);
+        expect(clusterModded.multishot).toBe(3);
+        expect(clusterExplosion.multishot).toBe(1);
+    });
 });
 
 describe("Cull the Weak Wiki modeling", () => {
