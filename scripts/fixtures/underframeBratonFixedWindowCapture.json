@@ -1,0 +1,14 @@
+{
+  "weaponName": "Braton Prime",
+  "attackName": "Normal Attack",
+  "underframeMods": [
+    { "name": "Malignant Force", "rank": 3 },
+    { "name": "High Voltage", "rank": 3 },
+    { "name": "Rime Rounds", "rank": 3 },
+    { "name": "Galvanized Chamber", "rank": 10 },
+    { "name": "Vile Acceleration", "rank": 5 },
+    { "name": "Galvanized Aptitude", "rank": 10 },
+    { "name": "Vital Sense", "rank": 5 },
+    { "name": "Primed Bane of Grineer", "rank": 10 }
+  ]
+}
