@@ -8267,6 +8267,182 @@ describe("build optimizer scoring", () => {
         }
     });
 
+    it("matches seeded Cedo and Broken War five-mod, five-slot R1-R2-owned Expected TTK oracles", { timeout: 900000 }, () => {
+        let seed = 20261155;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+            }
+            return result;
+        };
+        const scenarios = [
+            { weaponName: "Cedo", faction: "Grineer", target: { health: 140_000, shields: 0, overguard: 0, armor: 1_800 }, mode: "realistic" as const },
+            { weaponName: "Broken War", faction: "Infested", target: { health: 95_000, shields: 0, overguard: 0, armor: 300 }, mode: "fullyStacked" as const },
+        ];
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeTruthy();
+            const attacks = weapon!.attacks.filter((attack) =>
+                !attack.modelLimitation && !attack.autoSpoolTimingLimitation,
+            );
+            expect(attacks.length, `${scenario.weaponName} supported attack profiles`).toBeGreaterThan(0);
+            const attack = attacks[Math.floor(random() * attacks.length)]!;
+            const scoringWeapon = withSelectedAttack(weapon!, weapon!.attacks.indexOf(attack));
+            const candidatePool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(weapon!))
+                    .filter((mod) => mod.isPveEligible !== false && mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const candidates: ModEntry[] = [];
+            for (const mod of shuffled(candidatePool)) {
+                if (candidates.some((selected) =>
+                    mod.incompatibilityGroup && selected.incompatibilityGroup === mod.incompatibilityGroup
+                )) continue;
+                candidates.push(mod);
+                if (candidates.length === 5) break;
+            }
+            expect(candidates.length, `${scenario.weaponName} seed ${scenarioIndex} compatible candidate pool`).toBe(5);
+            const ownedModMaxRankByUniqueName = Object.fromEntries(candidates.map((mod) => [
+                mod.uniqueName,
+                Math.min(2, mod.fusionLimit),
+            ]));
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            };
+            const slotCount = 5;
+            const slotPolarities = weapon!.polarities.slice(0, slotCount);
+            const maxFormaCount = scenarioIndex % 2;
+            const conditionalState: ConditionalState = { mode: scenario.mode };
+            const score = (effects: (ModEffect | null)[]) =>
+                debugScoreExpectedEncounter(
+                    scoringWeapon,
+                    effects,
+                    scenario.faction,
+                    scenario.target,
+                    conditionalState,
+                    null,
+                );
+            let exhaustiveBest = score([]);
+            let bestRank = rankExpectedEncounter(exhaustiveBest.timeToKillSeconds, exhaustiveBest.damagePerSecond);
+            let legalRankedLoadoutCount = 0;
+            let maximumLegalSlotCount = 0;
+            let exactScoreCount = 0;
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const maxRank = ownedModMaxRankByUniqueName[ordered[index].uniqueName];
+                    for (let rank = 0; rank <= maxRank; rank++) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, maxFormaCount);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+
+                legalRankedLoadoutCount++;
+                maximumLegalSlotCount = Math.max(maximumLegalSlotCount, ordered.length);
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                exactScoreCount++;
+                const candidate = score(effects);
+                const candidateRank = rankExpectedEncounter(candidate.timeToKillSeconds, candidate.damagePerSecond);
+                if (candidateRank > bestRank) {
+                    exhaustiveBest = candidate;
+                    bestRank = candidateRank;
+                }
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index];
+                    if (ordered.some((mod) =>
+                        mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                    )) continue;
+                    enumerate(
+                        [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                        [...ordered, candidate],
+                    );
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `${scenario.weaponName} seed ${scenarioIndex} legal ranked loadouts`)
+                .toBeGreaterThan(0);
+            expect(maximumLegalSlotCount, `${scenario.weaponName} seed ${scenarioIndex} five-slot loadout`)
+                .toBe(5);
+            expect(exactScoreCount, `${scenario.weaponName} seed ${scenarioIndex} exact legal ranked scores`)
+                .toBe(legalRankedLoadoutCount);
+
+            const result = optimizeBuild(weapon!, candidates, "timeToKill", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride: scenario.target,
+                conditionalState,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: maxFormaCount > 0,
+                maxFormaCount,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModMaxRankByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+                buildForAttack: attack,
+            });
+            const resultEffects = result.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = result.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            const optimizedScore = score(resultEffects);
+            const optimizedRank = rankExpectedEncounter(optimizedScore.timeToKillSeconds, optimizedScore.damagePerSecond);
+            const formaUsed = countPolarityChanges(slotPolarities, result.slotPolarities.slice(0, slotCount));
+
+            expect(result.capacityValid, `${scenario.weaponName} seed ${scenarioIndex} capacity`).toBe(true);
+            expect(formaUsed, `${scenario.weaponName} seed ${scenarioIndex} Forma budget`).toBeLessThanOrEqual(maxFormaCount);
+            for (const [slotIndex, mod] of result.slots.entries()) {
+                if (!mod) continue;
+                expect(result.slotRanks[slotIndex], `${scenario.weaponName} seed ${scenarioIndex} owned rank`)
+                    .toBeLessThanOrEqual(ownedModMaxRankByUniqueName[mod.uniqueName]);
+            }
+            expect(optimizedRank, `${scenario.weaponName} seed ${scenarioIndex} exact ranked five-slot TTK`)
+                .toBeCloseTo(bestRank, 8);
+            expect(optimizedScore.timeToKillSeconds, `${scenario.weaponName} seed ${scenarioIndex} TTK`)
+                .toBe(exhaustiveBest.timeToKillSeconds);
+            expect(optimizedScore.damagePerSecond, `${scenario.weaponName} seed ${scenarioIndex} DPS`)
+                .toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
+        }
+    });
+
     it("matches seeded four-mod, four-slot owned-rank Expected TTK and 5s DPS oracles across weapon classes", { timeout: 600000 }, () => {
         let seed = 20261149;
         const random = () => {
