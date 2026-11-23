@@ -241,6 +241,36 @@ describe("source-backed Kulstar rocket optimizer coverage", () => {
     });
 });
 
+describe("source-backed Vulcax charged-impact optimizer coverage", () => {
+    it("optimizes the bounded Impact-plus-Radial sequence and rejects its standalone component", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Vulcax");
+        expect(weapon).toBeDefined();
+        const impactIndex = weapon!.attacks.findIndex((attack) => attack.name === "Impact");
+        const radialIndex = weapon!.attacks.findIndex((attack) => attack.name === "Radial Attack");
+        const impact = withSelectedAttack(weapon!, impactIndex);
+        const radial = withSelectedAttack(weapon!, radialIndex);
+        const options = {
+            targetFaction: "Corpus",
+            targetProfileOverride: { health: 700, shields: 0, overguard: 0, armor: 0 },
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        } as const;
+
+        expect(impact.selectedAttackModelLimitation).toBeUndefined();
+        expect(() => optimizeBuild(impact, [], "burst", 0, options)).not.toThrow();
+        const combined = optimizeBuild(impact, [], "timeToKill", 0, options);
+        const directOnly = optimizeBuild({
+            ...impact,
+            selectedAttackLingeringDamageRule: undefined,
+        }, [], "timeToKill", 0, options);
+        expect(combined.encounterTimeToKillSeconds).not.toBeNull();
+        expect(combined.encounterTimeToKillSeconds)
+            .toBeLessThan(directOnly.encounterTimeToKillSeconds ?? Number.POSITIVE_INFINITY);
+        expect(() => optimizeBuild(radial, [], "burst", 0, options)).toThrow(/Select Impact/i);
+    });
+});
+
 describe("source-backed single-charge throwables optimizer coverage", () => {
     it("optimizes each detonation row independently without adding mines or blocking Purity scope", () => {
         const catalog = getWeaponCatalog();

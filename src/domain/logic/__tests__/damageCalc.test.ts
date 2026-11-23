@@ -1342,6 +1342,7 @@ describe("source-backed per-attack Auto-Charge profiles", () => {
 
     it("uses each charged attack's trigger, ammo cost, and modded charge cycle", () => {
         const cases = [
+            ["Vulcax", "Impact", 1, 1, true],
             ["Aeolak", "Alt-Fire", 0.3, 10, false],
             ["Aeolak", "Alt-Fire Explosion", 0.3, 10, false],
             ["Quellor", "Alt-Fire", 1.2, 50, true],
@@ -1394,6 +1395,37 @@ describe("source-backed per-attack Auto-Charge profiles", () => {
             expect(withSelectedAttack(weapon, componentIndex).selectedAttackModelLimitation?.reason)
                 .toContain(`Select ${directName}`);
         }
+    });
+
+    it("scores Vulcax's charged Impact with one attached centered radial hit", () => {
+        const vulcax = catalog.find((candidate) => candidate.name === "Vulcax")!;
+        const impactIndex = vulcax.attacks.findIndex((attack) => attack.name === "Impact");
+        const radialIndex = vulcax.attacks.findIndex((attack) => attack.name === "Radial Attack");
+        const selected = withSelectedAttack(vulcax, impactIndex);
+        const stats = calculateBuild(selected, []).modded;
+        const standaloneRadial = withSelectedAttack(vulcax, radialIndex);
+
+        expect(stats.initialAttackDelaySeconds).toBeCloseTo(1, 8);
+        expect(stats.fireRate).toBeCloseTo(0.5, 8);
+        expect(stats.attachedAttackDamageSequence?.rule).toMatchObject({
+            componentAttackName: "Radial Attack",
+            firstTickDelaySeconds: 0,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+        });
+        expect(stats.attachedAttackDamageSequence?.profile.baseDamageTotal).toBeCloseTo(100, 8);
+        expect(stats.attachedAttackDamageSequence?.profile.attackDamageFalloff).toMatchObject({
+            distanceMeters: 0,
+            damageMultiplier: 1,
+            endDistanceMeters: 5,
+            minimumDamageMultiplier: 0.5,
+        });
+        const beyondHitscanRange = calculateBuild(selected, [], "", {
+            conditionalState: { mode: "initial", attackFalloffDistanceMeters: 301 },
+        }).modded;
+        expect(beyondHitscanRange.attackDamageFalloff?.isOutOfRangeMiss).toBe(true);
+        expect(beyondHitscanRange.totalDamage).toBe(0);
+        expect(standaloneRadial.selectedAttackModelLimitation?.reason).toMatch(/Select Impact/i);
     });
 
     it("scores one immediate Penta impact-plus-detonation event against the struck target", () => {

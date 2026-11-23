@@ -1,3 +1,24 @@
+## D3-MECH-VULCAX-SINGLE-SHOT-RADIAL-SEQUENCE-001 — charged Impact plus attached Radial Attack (locally validated; release pending)
+
+### Source behavior and bounded model
+
+The [Vulcax Wiki page](https://wiki.warframe.com/w/Vulcax) lists a 500 Heat hitscan Impact, one ammo per shot, and a 100 Blast Radial Attack with 20% Critical Chance, 2.5× Critical Multiplier, 20% Status Chance, 5m radius, and 100%→50% radial falloff. The page describes one charged Heat shot and presents the radial damage as a separate attack row. [Fire Rate](https://wiki.warframe.com/w/Fire_Rate) lists a 1.00s Vulcax charge time and defines charged cadence as charge time plus the post-charge interval. The direct Impact uses the Wiki's 300m hitscan limit, supported by [Range](https://wiki.warframe.com/w/Range) and [Hitscan](https://wiki.warframe.com/w/Hitscan); this is enforced as a hard cap.
+
+The catalog now links one immediate Radial Attack to each directly hit Impact and scores that bounded event against the struck target. The target is treated as centered at the blast origin, so the attached radial component uses 100% damage; its standalone row retains 0–5m / 50%-minimum falloff and is reference-only to prevent double counting. The link is an explicit inference from the same charged shot and its separately listed radial component, not independent in-game confirmation. Other targets and area coverage are excluded. This models neither companion targeting reliability nor projectile/direct-hit misses.
+
+`weaponCatalog.ts` adds per-row 1.0s charge and 1-round cost overrides, the 300m Impact hit cap, radial falloff, a linked single-target component, a score boundary note, and a standalone-component limitation. Tests cover the catalog source values, initial charge and 0.5 follow-up attacks/sec from the Wiki formula, the 100-damage centered radial component, zero damage at 301m, and finite-target optimization. The optimizer accepts Impact for Burst/Expected TTK and rejects standalone Radial Attack.
+
+### Validation and limits
+
+- Focused Vulcax catalog/calculator/optimizer regressions: 3/3 passed.
+- Full affected catalog and calculator files: 211/211 passed.
+- Focused Vulcax optimizer regression: 1/1 passed; combined TTK beats the direct-only control for the 700-Health / zero-Armor Corpus fixture, and the standalone radial row is rejected.
+- App/test TypeScript, `npm run validate:sources`, and `npm run audit:prerequisites` (162 entries; no unresolved references or cycles) pass.
+- Focused ESLint over all four changed code/test files passes. Production Vite build transforms 987 modules and succeeds in 10.27s to a temporary output directory; the existing large-chunk warning remains.
+- `git -c core.whitespace=cr-at-eol diff --check` passes. Plain `git diff --check` treats this repository's CRLF endings as trailing whitespace.
+
+No full repository suite, live-game hit/charge calibration, Underframe comparison, or current-source IAB visual test was performed. This session exposes no integrated-browser interaction/screenshot control; the previously supplied localhost is documented as stale at `version=2bf6faea`. Do not use an external browser. The working tree is based on `f2a11a19`; the feature and checkpoint edits are uncommitted at this validation point. Reopen this item if an authoritative source or reproducible game observation shows a different charge time, ammo cost, falloff, or impact/radial relationship. Release and current-source visual review remain open.
+
 ## D3-MOD-WEAKPOINT-BONUS-HEAD-PROFILE-001 — bounded head weakpoint bonus support (released in PR [#278](https://github.com/Appl3Tree/Tenno-Hub/pull/278), squash merge `e3c3d776a210f7643d3bc7843dde09997d93cdb4`)
 
 ### Source behavior and selected scope

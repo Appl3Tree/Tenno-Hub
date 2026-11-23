@@ -841,6 +841,12 @@ function getAutoSpoolTimingLimitation(uniqueName: string, attackName: string): W
 }
 
 const ATTACK_CHARGE_TIME_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({
+    // Vulcax fires one charged Impact shot with its attached radial component.
+    // Its listed charge time is 1.00s; Fire Rate still controls the post-charge interval.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Vulcax and
+    // https://wiki.warframe.com/w/Fire_Rate
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon|impact": 1,
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon|radial attack": 1,
     // Battacor's direct beam and its linked explosion are released by the same
     // Wiki-listed 0.4s Auto-Charge trigger. Kill-gated charge stacks are tracked
     // separately as a score limitation below.
@@ -876,6 +882,13 @@ const VERIFIED_WEAPON_RELOAD_TIME_OVERRIDES: Readonly<Record<string, number>> = 
 });
 
 const VERIFIED_ATTACK_AMMO_COST_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
+    // Both rows are representations of one charged Vulcax shot, which costs
+    // one round per release.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Vulcax
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": Object.freeze({
+        "impact": 1,
+        "radial attack": 1,
+    }),
     // Current Wiki weapon tables list 0.5 ammo per beam tick and 2 ammo for
     // each alternate-fire launch (the impact, explosion, and bomblet rows are
     // separate representations of that same launch in this catalog).
@@ -1142,6 +1155,18 @@ function resolveAttackDamageRamp(
 const VERIFIED_ATTACK_DAMAGE_FALLOFF_OVERRIDES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackDamageFalloff>>>
 > = Object.freeze({
+    // Vulcax's centered radial component falls from 100% at the impact point
+    // to 50% at 5m. Blast-radius bonuses extend that distance.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Vulcax
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": Object.freeze({
+        "radial attack": Object.freeze({
+            startDistanceMeters: 0,
+            endDistanceMeters: 5,
+            minimumDamageMultiplier: 0.5,
+            scaleBy: Object.freeze(["blastRadius"] as const),
+            sourceUrl: "https://wiki.warframe.com/w/Vulcax",
+        }),
+    }),
     // Cyngas Archwing Auto-Burst uses a 100%→20% projectile falloff from
     // 1,500m to 3,000m. The current Wiki attributes falloff-distance changes
     // to Projectile Speed.
@@ -1398,6 +1423,18 @@ const VERIFIED_ATTACK_MAXIMUM_RANGE_OVERRIDES: Readonly<
         behavior?: WeaponAttackMaximumRangeBehavior;
     }>>>
 > = Object.freeze({
+    // The direct Impact row is hitscan with the standard listed 300m range.
+    // The radial component has a separate 5m radius and is only scored at the
+    // centered directly-hit target, so its attack-row range stays reference data.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Vulcax,
+    // https://wiki.warframe.com/w/Range, and https://wiki.warframe.com/w/Hitscan
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": Object.freeze({
+        "impact": Object.freeze({
+            meters: 300,
+            sourceUrl: "https://wiki.warframe.com/w/Vulcax",
+            behavior: "hardHitCap",
+        }),
+    }),
     // Archwing Auto's listed 300m Range conflicts with its 1,400–2,800m
     // falloff curve, so that row remains informational. Its charged laser has
     // no direct-falloff conflict and uses the listed 300m as a hit cap.
@@ -2361,6 +2398,21 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackLingeringDamageRule>>
 >> = Object.freeze({
+    // One Vulcax charged hit produces a direct Heat hit and its centered
+    // Blast radial component. Bound the sequence to that directly struck
+    // target; charge-up is modeled separately, with no extra event delay.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Vulcax
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": Object.freeze({
+        "impact": Object.freeze({
+            componentAttackName: "Radial Attack",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Vulcax",
+        }),
+    }),
     // A directly-hit Kulstar rocket explodes on contact; bound one rocket's
     // impact and centered blast against one target. Rocket flight, manual
     // mid-air detonation, and the three scattered bomblets are excluded.
@@ -2600,6 +2652,15 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
         "incarnon form charge radial attack": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Onos",
             reason: "This is the radial component of Onos's final 50-round Heat release after its charging Radiation beam. The preceding ticks, charge timing, and transition are not simulated, so this component is reference-only and excluded from scoring and Auto Optimize.",
+        }),
+    }),
+    // The radial attack is part of the charged Impact shot. Score it by
+    // selecting Impact so the direct and radial damage are not double-counted.
+    // Verified 2026-11-23: https://wiki.warframe.com/w/Vulcax
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": Object.freeze({
+        "radial attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Vulcax",
+            reason: "Radial Attack is the centered blast component of one charged Vulcax Impact shot. Select Impact to score the bounded direct-hit-plus-radial event against one target; the standalone component is reference-only to prevent double counting, and damage to other targets is not scored.",
         }),
     }),
     // Cortege's three-grenade Alt-Fire requires five primary-fire kills and
@@ -2895,6 +2956,12 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon": Object.freeze({
+        "impact": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Vulcax",
+            reason: "This single-target estimate scores one charged Impact hit plus its centered Radial Attack against the directly struck target. It uses the Wiki-listed 1.0s charge time, 300m hitscan cap, and 0–5m radial falloff, but assumes the hit, excludes other enemies and area coverage, and treats the component as occurring immediately on the same release. Select Radial Attack only for its reference stats; it is not scored separately.",
+        }),
+    }),
     "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun": Object.freeze({
         "normal attack": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Cyngas",
