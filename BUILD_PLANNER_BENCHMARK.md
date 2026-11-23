@@ -3415,17 +3415,17 @@ This is exact only inside four seeded seven-mod pools. It expands both tested ob
 
 PR [#255](https://github.com/Appl3Tree/Tenno-Hub/pull/255) squash-merged this test/documentation change as `b820526ca016fb4ea4d61f660fbf63ed157bac50`. GitHub reported no status checks or PR-triggered workflow runs; no application deployment applies.
 
-## D3-OPT-RANK-LIMITED-SIX-MOD-THREE-SLOT-ORACLE-001 — seeded six-mod owned-rank Expected TTK oracle (2026-11-22; bounded)
+## D3-OPT-RANK-LIMITED-SIX-MOD-THREE-SLOT-DUAL-OBJECTIVE-ORACLE-001 — seeded six-mod owned-rank Expected TTK and fixed-window oracle (2026-11-22 / 2026-11-23; bounded)
 
 Reproduce with:
 
 ```sh
-npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded six-mod, three-slot rank-limited Expected TTK oracle across weapon classes" --reporter=dot --configLoader runner
+npx vitest run src/domain/logic/__tests__/buildOptimizer.test.ts -t "seeded six-mod, three-slot rank-limited Expected TTK and five-second DPS oracle" --reporter=dot --configLoader runner
 ```
 
-Seed `20261137` draws six fully modeled, pairwise-compatible mods with owned rank caps from R1–R3 and a supported attack from each of four fixtures: Braton Prime / Grineer / 70,000 Health / 2,400 Armor / Realistic; Lex Prime / shielded Corpus / 36,000 Health + 44,000 Shields / Initial; Cedo / Grineer / 140,000 Health / 1,800 Armor / Realistic; and Broken War / Infested / 95,000 Health / 300 Armor / Fully Stacked. The oracle independently evaluates every legal ordered subset through three slots, every rank tuple through each owned cap, and zero/one-Forma placements with uncatalyzed rank-10 capacity, default polarities, and no Arcane. It compares the finite Expected TTK winner, time, and DPS against the optimizer and asserts capacity, Forma, and owned-rank legality. All four optimizer results match their exact sampled-pool winners.
+Seed `20261137` draws six fully modeled, pairwise-compatible mods with owned rank caps from R1–R3 and a supported attack from each of four fixtures: Braton Prime / Grineer / 70,000 Health / 2,400 Armor / Realistic; Lex Prime / shielded Corpus / 36,000 Health + 44,000 Shields / Initial; Cedo / Grineer / 140,000 Health / 1,800 Armor / Realistic; and Broken War / Infested / 95,000 Health / 300 Armor / Fully Stacked. The oracle independently evaluates every legal ordered subset through three slots, every rank tuple through each owned cap, and zero/one-Forma placements with uncatalyzed rank-10 capacity, default polarities, and no Arcane. It compares both finite Expected TTK and uncapped `[0,5s)` Avg DPS against the optimizer, including time, DPS, and total window damage, and asserts capacity, Forma, owned-rank, and surviving-target legality. The optimizer matches the exact sampled-pool winner for both objectives in all four fixtures.
 
-The focused test passes 1/1 in 108.97s. `npx tsc -p tsconfig.test.json --noEmit --pretty false`, focused ESLint, and `git diff --check` pass. The full suite was not rerun; this is test-only and has no app deployment. PR [#268](https://github.com/Appl3Tree/Tenno-Hub/pull/268) squash-merged as `f7114f7bccae31bddb191a59921ca290c91693b9`. This expands sampled rank-limited candidate breadth from five to six mods at three slots; it does not establish full-catalog/global optimality, joint Arcane search, Underframe parity, or gameplay accuracy.
+The original Expected TTK-only run passed 1/1 in 108.97s. The expanded two-objective regression passes 1/1 in 132.72s. `npx tsc -p tsconfig.test.json --noEmit --incremental false --pretty false`, focused ESLint, and `git diff --check` pass. The repository suite was not rerun; this is test/docs-only and has no application build or deployment. PR [#268](https://github.com/Appl3Tree/Tenno-Hub/pull/268) contains the original Expected TTK coverage. This adds fixed-window scoring to that same seeded sample; it does not establish full-catalog/global optimality, joint Arcane search, Underframe parity, or gameplay accuracy.
 
 ## D3-MECH-WEAKPOINT-TRIGGER-CONDITIONALS-001 — target-aware weak-point hit triggers (merged; deployment unverified)
 
@@ -3663,7 +3663,7 @@ Validation and release: npx vitest run --configLoader runner src/domain/logic/__
 
 ### Open Overpressured Rounds requirements
 
-All six raw rank lines remain unparsed and the mod remains excluded from Auto Optimize. Its Falloff Distance, unknown Spread Decrease, and kill-based Magazine Restore do not contribute to scores. The current estimator is manual-only and disables itself if the augment is equipped. Full support still requires numeric spread evidence, an event timeline for Rifle kills and the next Buckshot, Buckshot-kill ammo restoration, and representative game measurements for hit overlap. The source limitation and the user-approved approximation must remain visible until those are resolved.
+All six raw rank lines remain unparsed and the mod remains excluded from Auto Optimize. Its Falloff Distance, unknown Spread Decrease, and kill-based Magazine Restore do not contribute to scores. The [current Overpressured Rounds Wiki table](https://wiki.warframe.com/w/Overpressured_Rounds) still reports `?` for Spread Decrease at every rank; the [official Update 43.5 notes](https://www.warframe.com/tr/patch-notes/psn/43-5-0) describe the effect only as “decrease Spread.” The general [Accuracy page](https://wiki.warframe.com/w/Accuracy) explains spread as shot deviation but does not map this augment to a numeric EFV-5 cone change. No rank value or conversion is supportable, so the manual estimator continues to disable when the augment is equipped. Full scoring still requires a cross-mode event timeline for Rifle kills and the next Buckshot, Buckshot-kill magazine restoration, and representative game measurements for hit overlap. The source limitation and user-approved manual approximation remain visible until those are resolved.
 
 ## D3-OPT-RANK-LIMITED-FIVE-MOD-FOUR-SLOT-DUAL-OBJECTIVE-ORACLE-001 — seeded five-mod four-slot owned-rank oracle (2026-11-23; released)
 

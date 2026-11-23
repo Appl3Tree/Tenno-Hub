@@ -7613,7 +7613,7 @@ describe("build optimizer scoring", () => {
         }
     });
 
-    it("matches a seeded six-mod, three-slot rank-limited Expected TTK oracle across weapon classes", { timeout: 600000 }, () => {
+    it("matches a seeded six-mod, three-slot rank-limited Expected TTK and five-second DPS oracle across weapon classes", { timeout: 600000 }, () => {
         let seed = 20261137;
         const random = () => {
             seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -7678,6 +7678,11 @@ describe("build optimizer scoring", () => {
             const slotPolarities = weapon!.polarities.slice(0, slotCount);
             const maxFormaCount = scenarioIndex % 2;
             const conditionalState: ConditionalState = { mode: scenario.mode };
+            const windowTarget = {
+                ...scenario.target,
+                health: 1_000_000,
+                shields: scenario.faction === "Corpus" ? 1_000_000 : 0,
+            };
             const energyContext = {
                 warframeMaxEnergy: 1_000,
                 warframeEnergyPercent: scenario.energyPercent,
@@ -7692,8 +7697,19 @@ describe("build optimizer scoring", () => {
                     conditionalState,
                     arcaneEffect,
                 );
+            const scoreWindow = (effects: (ModEffect | null)[], arcaneEffect: Partial<ModEffect> | null) =>
+                debugEvaluateFixedWindowDps(
+                    scoringWeapon,
+                    effects,
+                    scenario.faction,
+                    windowTarget,
+                    conditionalState,
+                    arcaneEffect,
+                );
             let exhaustiveBest = score([], null);
             let bestRank = rankExpectedEncounter(exhaustiveBest.timeToKillSeconds, exhaustiveBest.damagePerSecond);
+            let exhaustiveBestWindow = scoreWindow([], null);
+            let bestWindowDps = exhaustiveBestWindow.damagePerSecond;
             let legalRankedLoadoutCount = 0;
             let maximumLegalSlotCount = 0;
             let exactScoreCount = 0;
@@ -7742,6 +7758,11 @@ describe("build optimizer scoring", () => {
                         exhaustiveBest = candidate;
                         bestRank = candidateRank;
                     }
+                    const windowCandidate = scoreWindow(effects, option.effect);
+                    if (windowCandidate.damagePerSecond > bestWindowDps) {
+                        exhaustiveBestWindow = windowCandidate;
+                        bestWindowDps = windowCandidate.damagePerSecond;
+                    }
                 }
             };
             const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
@@ -7766,6 +7787,8 @@ describe("build optimizer scoring", () => {
                 .toBe(3);
             expect(exactScoreCount, `${scenario.weaponName} seed ${scenarioIndex} exact legal loadout scores`)
                 .toBe(legalRankedLoadoutCount);
+            expect(exhaustiveBestWindow.damageInWindow, `${scenario.weaponName} seed ${scenarioIndex} uncapped five-second damage`)
+                .toBeLessThan(windowTarget.health + windowTarget.shields);
 
             const result = optimizeBuild(weapon!, candidates, "timeToKill", slotCount, {
                 targetFaction: scenario.faction,
@@ -7813,6 +7836,48 @@ describe("build optimizer scoring", () => {
                 .toBe(exhaustiveBest.timeToKillSeconds);
             expect(optimizedScore.damagePerSecond, `${scenario.weaponName} seed ${scenarioIndex} DPS`)
                 .toBeCloseTo(exhaustiveBest.damagePerSecond, 8);
+
+            const windowResult = optimizeBuild(weapon!, candidates, "windowDps", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride: windowTarget,
+                conditionalState,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: maxFormaCount > 0,
+                maxFormaCount,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModMaxRankByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+                warframeArmor: scenario.warframeArmor,
+                ...energyContext,
+                buildForAttack: attack,
+            });
+            const windowEffects = windowResult.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = windowResult.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            const optimizedWindowScore = scoreWindow(windowEffects, null);
+            const windowFormaUsed = countPolarityChanges(
+                slotPolarities,
+                windowResult.slotPolarities.slice(0, slotCount),
+            );
+
+            expect(windowResult.capacityValid, `${scenario.weaponName} seed ${scenarioIndex} five-second capacity`).toBe(true);
+            expect(windowFormaUsed, `${scenario.weaponName} seed ${scenarioIndex} five-second Forma budget`)
+                .toBeLessThanOrEqual(maxFormaCount);
+            for (const [slotIndex, mod] of windowResult.slots.entries()) {
+                if (!mod) continue;
+                expect(windowResult.slotRanks[slotIndex], `${scenario.weaponName} seed ${scenarioIndex} five-second owned rank`)
+                    .toBeLessThanOrEqual(ownedModMaxRankByUniqueName[mod.uniqueName]);
+            }
+            expect(optimizedWindowScore.damagePerSecond, `${scenario.weaponName} seed ${scenarioIndex} exact ranked three-slot five-second DPS`)
+                .toBeCloseTo(bestWindowDps, 8);
+            expect(optimizedWindowScore.damageInWindow, `${scenario.weaponName} seed ${scenarioIndex} five-second damage`)
+                .toBeCloseTo(exhaustiveBestWindow.damageInWindow, 8);
         }
     });
     it("matches seeded five-mod, five-slot R1-owned Expected TTK oracles across weapon classes", { timeout: 300000 }, () => {
