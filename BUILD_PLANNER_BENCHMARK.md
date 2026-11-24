@@ -2140,6 +2140,18 @@ Tenno-Hub separately optimized Sustained DPS for the same target in its Realisti
 
 The script `npm run benchmark:torid-comparison` reproduces Tenno-Hub's common-model replay and carries the captured Underframe native sample values as source observations. This comparison covers one low-level, unarmored, Toxin-shield-bypass target. It does not cover armor, Overguard, Steel Path, alternate Torid attacks, broader weapon quality, or common-model scoring of Underframe Auto Build's hidden winner. The overhaul remains open.
 
+#### Current-source replay of the captured Torid fixture (2026-11-24)
+
+`npm run benchmark:torid-comparison` was rerun against current main at `e127c622`; it reuses the five native Underframe samples captured in the in-app browser on 2026-11-12 and does not recapture or edit the Underframe page. The saved list still replays at 1,800 expected encounter DPS / 4.00s / nine attacks, close to the captured 1,830 Luck Average read and the five-run native mean of 1,855.8 DPS. The current Tenno-Hub optimizer selects Rime Rounds R3, Vigilante Armaments R5, Primed Bane of Corpus R10, Vile Acceleration R5, Magnetic Capacity R3, Galvanized Chamber R10, Galvanized Aptitude R10, and Radiated Reload R3; it is legal at 60/60 capacity with three Forma.
+
+| Current Tenno-Hub evaluation | State | Common scaling score | Expected encounter DPS | TTK | Attacks |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Saved Underframe QA list | Initial | 21,339.43 | 1,800.00 | 4.00s | 9 |
+| Optimizer list replay | Initial | 33,522.41 | 4,476.16 | 4.02s | 9 |
+| Optimizer-selected result | Realistic | 173,190.48 | 12,825.00 | 1.40s | 5 |
+
+The optimizer's Realistic result and fixed Initial replays use different conditional assumptions, so the table is not a direct score comparison between the saved and selected builds. More importantly, Underframe's `Best DPS: 1,788` winner remains hidden; the native samples still come from a saved QA list, not an Auto Build result. This refresh demonstrates current Tenno-Hub scorer consistency and current candidate output for one fixture, not Underframe optimizer parity or gameplay performance. See `scripts/compareToridUnderframe.ts` for the reproducible calculation.
+
 ## Electric/Gas pack-score follow-up (2026-11-12)
 
 The planner's optional custom-target input accepts 0–20 additional same-profile enemies assumed to remain inside the relevant Electricity or Gas status cloud. The optimizer's fast score scales only those two DoT rates by the configured count plus the primary target. It does not change direct damage, and it does not simulate each neighbor's position, defenses, pool depletion, or status history. Gas radius growth by stack is not dynamically calculated. The default is zero, and the math trace labels this as an assumption. Port-80 QA set two nearby enemies, inspected the trace, disabled the target setup, and reloaded the empty planner.
