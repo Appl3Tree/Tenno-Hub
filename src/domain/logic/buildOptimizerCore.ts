@@ -5579,7 +5579,7 @@ export function explainBuild(
             )));
             const heavyName = scoringWeapon.attacks[attackPair.heavyAttackIndex]?.name ?? "Heavy Attack";
             buildHighlights.push(
-                `Tennokai Cycle DPS scores ${regularHits} Normal Attack hit(s) before each ${heavyName} over the expected opportunity/combo timeline. Target faction and initial armor/pool routing affect direct hits; status ticks, pool transitions, melee-range checks, and numeric Heavy Attack wind-up are excluded.`,
+                `Tennokai Cycle DPS scores ${regularHits} Normal Attack hit(s) before each ${heavyName} over the expected opportunity/combo timeline. It applies direct hits and melee Slash Bleed ticks to the current target pools, stops old ticks on death, then repeats an identical target. Other status effects, nearby targets, melee-range checks, and numeric Heavy Attack wind-up are excluded.`,
             );
         }
     }
@@ -5746,7 +5746,7 @@ export function explainBuild(
     const targetDetail = goal === "windowDps" && targetProfileOverride
         ? " using the entered target pools; only damage applied to this target is scored, with neighbor collateral excluded"
         : goal === "tennokaiDps" && targetProfileOverride
-            ? " using the entered target's initial pools and defenses; adjacent targets and pool transitions are excluded"
+            ? " using the entered target pools and defenses; the same target profile repeats after direct or Bleed-tick kills, with adjacent targets excluded"
         : goal !== "meleeDps" && targetProfileOverride
             ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}`
         : "";
@@ -5754,7 +5754,7 @@ export function explainBuild(
         ? "Screening proxy score"
         : goal === "windowDps" ? "Exact 5-second damage rate"
         : goal === "meleeDps" ? "Raw stance DPS estimate"
-        : goal === "tennokaiDps" ? "Initial-defense direct-hit DPS estimate" : "Selected build score";
+        : goal === "tennokaiDps" ? "Four-cycle direct + Slash Bleed DPS estimate" : "Selected build score";
     const encounterSummary = goal === "timeToKill" && explanationOptions.objectiveEncounter
         ? explanationOptions.objectiveEncounter.timeToKillSeconds === null
             ? ` Finite expected encounter reached its safety cap; fallback damage rate ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)}/s.`
@@ -5784,7 +5784,7 @@ export function explainBuild(
         comparisonNote: goal === "meleeDps"
             ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
             : goal === "tennokaiDps"
-                ? "The optimizer compares the same expected four-cycle Normal Attack / Heavy Attack or centered Heavy Slam timeline shown in the Tennokai panel. It applies the target's faction, initial pool routing, armor, and expected critical profile, with one combo point per normal hit; it does not advance pool transitions or status ticks, and excludes numeric Heavy Attack wind-up, adjacent-target damage, and Truth's Flame curse/syndicate effects. Each selected direct-hit event is assumed to connect, so Opportunity's Reach's range is informational while its opportunity-window bonus is scored; Tennokai Status Chance is omitted. For a pool over 24 candidates, a one-cycle score narrows the search to up to 24 mod families, keeps representative ranks, and searches with a 10-state beam; up to 10 finalists are re-scored on four cycles. This bounded cycle score is not finite TTK, five-second DPS, or a global-optimality result."
+                ? "The optimizer compares the same expected four-cycle Normal Attack / Heavy Attack or centered Heavy Slam timeline shown in the Tennokai panel, followed by its full Slash Bleed tail. Direct attacks and ordered Slash ticks apply to current target pools; ticks bypass armor, stop when their target dies, and the next event starts against an identical profile. Relentless Combination contributes its rank-scaled expected combo gains on Slash applications and each landed tick, updating later combo tiers. Tennokai Status Chance affects modeled Slash applications; other status effects remain excluded. Numeric Heavy Attack wind-up, adjacent-target damage, melee range, and Truth's Flame's player-side curse/syndicate effects are not scored. Each selected direct-hit event is assumed to connect, so Opportunity's Reach's range is informational while its opportunity-window bonus is scored. For a pool over 24 candidates, a one-cycle score narrows the search to up to 24 mod families, keeps representative ranks, and searches with a 10-state beam; up to 10 finalists are re-scored on four cycles. This bounded cycle score is not finite TTK, five-second DPS, or a global-optimality result."
             : goal === "timeToKill"
             ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod additions or replacements plus up to ${ENCOUNTER_REFINE_REMOVAL_LIMIT} legal single-mod removals. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls—or when an Arcane-dependent move improves the exact score—the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is exact-scored against the current mod list. For up to ${ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT} varied legal mod changes per pass, a fast Arcane estimate chooses a candidate effect and the complete finite-encounter score evaluates the combined move; small mod/Arcane pools are scored exactly. The Arcane is rechecked as the build changes, for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
             : goal === "windowDps"

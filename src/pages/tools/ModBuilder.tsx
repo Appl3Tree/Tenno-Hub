@@ -401,7 +401,7 @@ const GOAL_OPTIONS: { key: OptimizeGoal; label: string; desc: string }[] = [
     {
         key: "tennokaiDps",
         label: "Tennokai Cycle DPS",
-        desc: "Ranks a supported four-cycle Normal Attack / Heavy Attack or Heavy Slam sequence using the entered normal-hit cadence and target's initial armor, faction, and pool routing. Full-pool optimization uses a one-cycle shortlist and re-scores finalists on four cycles. Status effects, pool transitions, melee range, and numeric Heavy Attack wind-up are excluded.",
+        desc: "Ranks a supported four-cycle Normal Attack / Heavy Attack or Heavy Slam sequence with ordered melee Slash applications and Bleed ticks. Direct hits and ticks deplete the selected pools, stop when a target dies, then continue against identical targets. Full-pool optimization uses a one-cycle shortlist and re-scores finalists on four cycles plus the Bleed tail. Other statuses, melee range, and numeric Heavy Attack wind-up are excluded.",
     },
 ];
 const FACTIONS = getFactionFocusOptions();
@@ -7914,12 +7914,26 @@ export default function ModBuilder() {
                                                                         {activeBuildHasTennokai && tennokaiTimeline && (
                                                                             <div className="sm:col-span-2 rounded-md border border-violet-900/50 bg-violet-950/10 p-2">
                                                                                 <span className="text-violet-300">Manual Tennokai event timeline:</span>{" "}
-                                                                                {tennokaiTimeline.supported
-                                                                                    ? `${tennokaiRegularHitsBetweenHeavy} Normal Attack hit(s) before each ${activeCalcWeapon?.attacks.find((attack) => attack.name === "Heavy Attack") ? "Heavy Attack" : "Heavy Slam"} · ${fmt(tennokaiTimeline.expectedTennokaiHeavyAttackShare * 100, 1)}% expected Tennokai rate · ${fmt(tennokaiTimeline.expectedDamagePerSecondBeforeTargetDefenses)} pre-defense direct DPS · ${fmt(tennokaiTimeline.expectedDamagePerSecondAfterTargetDefenses ?? 0)} direct DPS against initial target defenses over ${tennokaiTimeline.events.length} events${activeBuildEffects.some((effect) => (effect?.tennokaiChainedDamageBonus ?? 0) > 0) ? ` · ${fmt(tennokaiTimeline.events.reduce((total, event) => total + event.activeOpportunityProbability * event.tennokaiTargetKillProbability, 0), 2)} expected Truth's Flame kill chains` : ""}.`
-                                                                                    : tennokaiTimeline.limitation}
-                                                                                {tennokaiTimeline.supported && tennokaiTimeline.notes.length > 0 && (
-                                                                                    <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{tennokaiTimeline.notes.join(" ")}</p>
-                                                                                )}
+                                                                                {tennokaiTimeline.supported ? (
+                                                                                    <>
+                                                                                        <p className="mt-1">
+                                                                                            {tennokaiRegularHitsBetweenHeavy} Normal Attack hit(s) before each {activeCalcWeapon?.attacks.find((attack) => attack.name === "Heavy Attack") ? "Heavy Attack" : "Heavy Slam"} · {fmt(tennokaiTimeline.expectedTennokaiHeavyAttackShare * 100, 1)}% expected Tennokai rate · {fmt(tennokaiTimeline.expectedDamagePerSecondBeforeTargetDefenses)} pre-defense direct + Bleed DPS · {fmt(tennokaiTimeline.expectedDamagePerSecondAfterTargetDefenses ?? 0)} applied target DPS.
+                                                                                        </p>
+                                                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-300">
+                                                                                            {fmt(tennokaiTimeline.expectedSlashApplications, 2)} expected Slash applications · {fmt(tennokaiTimeline.expectedBleedTicks, 2)} expected Bleed ticks · {fmt(tennokaiTimeline.expectedBleedDamageAfterTargetDefenses)} Bleed damage applied
+                                                                                            {activeBuildEffects.some((effect) => (effect?.relentlessCombinationSlashComboChance ?? 0) > 0)
+                                                                                                ? ` · ${fmt(tennokaiTimeline.expectedRelentlessComboPoints, 2)} expected Relentless combo points (${fmt(tennokaiTimeline.expectedRelentlessComboPointsFromSlashApplications, 2)} from applications + ${fmt(tennokaiTimeline.expectedRelentlessComboPointsFromBleedTicks, 2)} from Bleed ticks)`
+                                                                                                : ""}
+                                                                                            {` · ${tennokaiTimeline.expectedBleedTickTargetKills} target(s) killed by Bleed ticks · ${tennokaiTimeline.events.length} attack events over ${fmt(tennokaiTimeline.evaluationDurationSeconds, 1)}s, including the Bleed tail`}
+                                                                                            {activeBuildEffects.some((effect) => (effect?.tennokaiChainedDamageBonus ?? 0) > 0)
+                                                                                                ? ` · ${fmt(tennokaiTimeline.events.reduce((total, event) => total + event.activeOpportunityProbability * event.tennokaiTargetKillProbability, 0), 2)} expected Truth's Flame kill chains`
+                                                                                                : ""}
+                                                                                        </p>
+                                                                                        {tennokaiTimeline.notes.length > 0 && (
+                                                                                            <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{tennokaiTimeline.notes.join(" ")}</p>
+                                                                                        )}
+                                                                                    </>
+                                                                                ) : tennokaiTimeline.limitation}
                                                                             </div>
                                                                         )}
                                                                         <div><span className="text-slate-500">{activeMetrics.modded.attachedAttackDamageSequence ? "Direct attack burst / sustained:" : "Burst / sustained:"}</span> {activeAttackDpsUnavailable ? "Unavailable" : `${fmt(activeMetrics.burstDPS)} / ${activeSustainedDpsUnavailable ? "Unavailable" : fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS)} DPS before target pools`}</div>

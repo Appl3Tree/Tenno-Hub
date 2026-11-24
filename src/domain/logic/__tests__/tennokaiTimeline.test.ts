@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getModsForWeapon } from "../../catalog/modCatalog";
+import { withSelectedAttack } from "../../catalog/weaponRules";
 import { getWeaponCatalog } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
+import { calculateBuild } from "../damageCalc";
+import { calculateDirectDamageToInitialPools } from "../targetDamage";
 import { calculateTennokaiAttackTimeline, simulateTennokaiOpportunityTimeline } from "../tennokaiTimeline";
 
 describe("Tennokai opportunity event timeline", () => {
@@ -120,6 +123,23 @@ describe("Tennokai opportunity event timeline", () => {
         expect(ordinary.events[1].comboPointsAfterEvent).toBe(0);
     });
 
+    it("applies a Bleed combo gain before an attack at the same timestamp", () => {
+        const result = simulateTennokaiOpportunityTimeline({
+            regularHitsBetweenHeavy: 1,
+            regularAttackIntervalSeconds: 0.5,
+            heavyAttackIntervalSeconds: 0.5,
+            baseOpportunityChance: 0,
+            startingComboPoints: 0,
+            initialComboPoints: 0,
+            heavyAttackEfficiency: 0,
+            maxEvents: 2,
+            additionalComboPointGains: [{ timeSeconds: 0.5, comboPoints: 2 }],
+        });
+
+        expect(result.events[1].timeSeconds).toBe(0.5);
+        expect(result.events[1].comboPointsBeforeEvent).toBe(3);
+    });
+
     it("rebuilds only Initial Combo points at the sourced 40-points-per-second rate", () => {
         const result = simulateTennokaiOpportunityTimeline({
             regularHitsBetweenHeavy: 1,
@@ -235,6 +255,117 @@ describe("Tennokai opportunity event timeline", () => {
         const statusHeavy = statusTimeline.events.find((event) => event.attackType === "heavy")!;
         expect(statusHeavy.tennokaiStatusChanceBonus).toBeCloseTo(statusHeavy.activeOpportunityProbability, 8);
         expect(statusHeavy.statusChance).toBeGreaterThan(0);
+    });
+
+    it("scores ordered Slash ticks and Relentless Combination's rank-scaled application/tick gains", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+        const mods = getModsForWeapon(weapon);
+        const mastersEdge = mods.find((mod) => mod.name === "Master's Edge")!;
+        const relentless = mods.find((mod) => mod.name === "Relentless Combination")!;
+        const regularAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const heavyAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        const common = {
+            weapon,
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 20,
+            targetFaction: "Grineer",
+            targetProfile: { health: 1_000_000, shields: 0, overguard: 0, armor: 3_000 },
+            cycles: 1,
+        };
+        const withoutRelentless = calculateTennokaiAttackTimeline({
+            ...common,
+            mods: [mastersEdge.effectsByRank[mastersEdge.fusionLimit]],
+        });
+        const rank0 = calculateTennokaiAttackTimeline({
+            ...common,
+            mods: [mastersEdge.effectsByRank[mastersEdge.fusionLimit], relentless.effectsByRank[0]],
+        });
+        const rank3 = calculateTennokaiAttackTimeline({
+            ...common,
+            mods: [mastersEdge.effectsByRank[mastersEdge.fusionLimit], relentless.effectsByRank[3]],
+        });
+
+        expect(relentless.effectsByRank.map((effect) => effect.relentlessCombinationSlashComboChance))
+            .toEqual([0.25, 0.5, 0.75, 1]);
+        expect(relentless.unparsedStatsByRank?.flat() ?? []).toEqual([]);
+        expect(withoutRelentless.expectedSlashApplications).toBeGreaterThan(0);
+        expect(withoutRelentless.expectedBleedDamageAfterTargetDefenses).toBeGreaterThan(0);
+        expect(rank3.expectedBleedTicks).toBeGreaterThan(0);
+        expect(rank3.expectedRelentlessComboPointsFromSlashApplications).toBeGreaterThan(0);
+        expect(rank3.expectedRelentlessComboPointsFromBleedTicks).toBeGreaterThan(0);
+        expect(rank3.expectedRelentlessComboPoints).toBeCloseTo(
+            rank3.expectedRelentlessComboPointsFromSlashApplications + rank3.expectedRelentlessComboPointsFromBleedTicks,
+            8,
+        );
+        expect(rank0.expectedRelentlessComboPoints).toBeGreaterThan(0);
+        expect(rank3.expectedRelentlessComboPoints).toBeGreaterThan(rank0.expectedRelentlessComboPoints);
+        expect(rank3.events[1].timeSeconds).toBe(rank3.events[0].timeSeconds + 1);
+        expect(rank3.events[1].comboPointsBeforeEvent).toBeGreaterThan(withoutRelentless.events[1].comboPointsBeforeEvent);
+        expect(rank3.events[1].comboPointsBeforeEvent - withoutRelentless.events[1].comboPointsBeforeEvent)
+            .toBeCloseTo(rank3.events[0].expectedSlashApplications * 2, 8);
+        expect(rank3.evaluationDurationSeconds).toBeGreaterThan(rank3.events.at(-1)!.timeSeconds);
+    });
+
+    it("stops Bleed on target death and starts the next attack against the repeated target profile", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+        const mods = getModsForWeapon(weapon);
+        const mastersEdge = mods.find((mod) => mod.name === "Master's Edge")!;
+        const relentless = mods.find((mod) => mod.name === "Relentless Combination")!;
+        const normalAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const normalWeapon = withSelectedAttack(weapon, normalAttackIndex);
+        const stats = calculateBuild(normalWeapon, [mastersEdge.effect, relentless.effectsByRank[3]], "", {
+            conditionalState: { mode: "initial" },
+        }).modded;
+        const direct = calculateDirectDamageToInitialPools({
+            health: 1_000_000,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            faction: "",
+            damageByType: stats.damageBreakdownBeforePerStatus,
+            factionDamageBonus: stats.factionDamageBonus,
+            viralHealthDamageBonus: stats.viralHealthDamageBonus,
+            magneticDefenseDamageBonus: stats.magneticShieldDamageBonus,
+            expectedHitDamageMultiplier: stats.expectedHitDamageMultiplier,
+            expectedProjectiles: stats.multishot,
+            expectedDamageMultiplier: stats.damageWeightedMultishot,
+            singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
+        });
+        const expectedSlashApplications = stats.averageProcsPerShot * (stats.procChanceByType.slash ?? 0);
+        const expectedBleedTick = expectedSlashApplications * stats.slashDotTickDamagePerProc;
+        expect(expectedBleedTick).toBeGreaterThan(0);
+        const directDamage = Object.values(direct.uncappedDamageByPool).reduce((sum, damage) => sum + damage, 0);
+        const targetHealth = directDamage + expectedBleedTick * 0.5;
+        const heavyAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        const result = calculateTennokaiAttackTimeline({
+            weapon,
+            mods: [mastersEdge.effectsByRank[mastersEdge.fusionLimit], relentless.effectsByRank[3]],
+            regularAttackIndex: normalAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 20,
+            targetFaction: "",
+            targetProfile: { health: targetHealth, shields: 0, overguard: 0, armor: 0 },
+            cycles: 1,
+        });
+
+        expect(result.supported).toBe(true);
+        expect(result.expectedBleedTickTargetKills).toBeGreaterThanOrEqual(1);
+        expect(result.events[0].expectedSlashApplications).toBeGreaterThan(0);
+        expect(result.events[1].expectedDamageAfterTargetDefenses ?? 0).toBeGreaterThan(0);
+        const durableTarget = calculateTennokaiAttackTimeline({
+            weapon,
+            mods: [mastersEdge.effectsByRank[mastersEdge.fusionLimit], relentless.effectsByRank[3]],
+            regularAttackIndex: normalAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 20,
+            targetFaction: "",
+            targetProfile: { health: 1_000_000, shields: 0, overguard: 0, armor: 0 },
+            cycles: 1,
+        });
+        expect(result.expectedBleedDamageAfterTargetDefenses)
+            .toBeLessThan(durableTarget.expectedBleedDamageAfterTargetDefenses);
+        expect(result.expectedBleedTicks).toBeLessThan(durableTarget.expectedBleedTicks);
     });
 
     it("applies parsed flat Melee Combo Duration to the opportunity timeline", () => {

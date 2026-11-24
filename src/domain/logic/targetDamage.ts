@@ -855,7 +855,7 @@ export function simulateExpectedWeaponEncounter(
         };
         for (const targetPools of blastCollateralTargets) {
             if (allPoolsEmpty(targetPools)) continue;
-            const damage = applyStatusTickToPools(radialInput, targetPools, "blast", radialDamage);
+            const damage = calculateStatusTickToTargetPools(radialInput, targetPools, "blast", radialDamage);
             addPools(blastCollateralDamageByPool, damage);
             subtractPools(targetPools, damage);
         }
@@ -2145,7 +2145,7 @@ export function simulateExpectedWeaponEncounter(
                 }
             }
             const poolsBeforeTick = { ...remainingPools };
-            const dealt = applyStatusTickToPools({ ...input, ...currentStatusModifiers(now) }, remainingPools, tick.type, tickDamage);
+            const dealt = calculateStatusTickToTargetPools({ ...input, ...currentStatusModifiers(now) }, remainingPools, tick.type, tickDamage);
             addPools(statusDamageByPool, dealt);
             subtractPools(remainingPools, dealt);
             if ((tick.type === "electricity" || tick.type === "gas") &&
@@ -2159,7 +2159,7 @@ export function simulateExpectedWeaponEncounter(
                 };
                 for (const targetPools of electricGasCollateralTargets) {
                     if (allPoolsEmpty(targetPools)) continue;
-                    const collateralDamage = applyStatusTickToPools(
+                    const collateralDamage = calculateStatusTickToTargetPools(
                         collateralInput,
                         targetPools,
                         tick.type,
@@ -2176,7 +2176,7 @@ export function simulateExpectedWeaponEncounter(
                     if (outerRingTickDamage > 0) {
                         for (const targetPools of gasOuterCollateralTargets) {
                             if (allPoolsEmpty(targetPools)) continue;
-                            const collateralDamage = applyStatusTickToPools(
+                            const collateralDamage = calculateStatusTickToTargetPools(
                                 collateralInput,
                                 targetPools,
                                 "gas",
@@ -2611,8 +2611,17 @@ export function simulateDirectAttackSequence(
     }
 }
 
-function applyStatusTickToPools(
-    input: ExpectedWeaponEncounterInput,
+export interface StatusTickTargetInput {
+    faction: string;
+    armor: number;
+    magneticDefenseDamageBonus?: number;
+    viralHealthDamageBonus?: number;
+    toxinBypassesShields?: boolean;
+}
+
+/** Apply one already-calculated status tick to the target's current active pool. */
+export function calculateStatusTickToTargetPools(
+    input: StatusTickTargetInput,
     pools: Record<TargetDamagePool, number>,
     type: StatusDamageType,
     amount: number,
