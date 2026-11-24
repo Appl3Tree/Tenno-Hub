@@ -12291,6 +12291,51 @@ describe("Strain Infection optimizer scope", () => {
     });
 });
 
+describe("Strain Fever optimizer scope", () => {
+    it("allows Helminth Claws Burst with a positive cyst snapshot and blocks unsupported objectives", () => {
+        const claws = getWeaponCatalog().find((weapon) => weapon.name === "Helminth Claws");
+        expect(claws).toBeDefined();
+        const strainFever = getModsForWeapon(claws!).find((mod) => mod.name === "Strain Fever");
+        expect(strainFever).toBeDefined();
+        const shared = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            conditionalState: { mode: "initial" as const, strainInfectionCystsAtImpact: 8 },
+        };
+
+        const supportedBurst = optimizeBuild(claws!, [strainFever!], "burst", 1, shared);
+        const zeroCystBurst = optimizeBuild(claws!, [strainFever!], "burst", 1, {
+            ...shared,
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 0 },
+        });
+        const finite = optimizeBuild(claws!, [strainFever!], "timeToKill", 1, shared);
+        const scaling = optimizeBuild(claws!, [strainFever!], "scaling", 1, shared);
+        const windowDps = optimizeBuild(claws!, [strainFever!], "windowDps", 1, shared);
+
+        expect(supportedBurst.slots.some((mod) => mod?.name === "Strain Fever")).toBe(true);
+        expect(zeroCystBurst.slots.some((mod) => mod?.name === "Strain Fever")).toBe(false);
+        expect(finite.slots.some((mod) => mod?.name === "Strain Fever")).toBe(false);
+        expect(scaling.slots.some((mod) => mod?.name === "Strain Fever")).toBe(false);
+        expect(windowDps.slots.some((mod) => mod?.name === "Strain Fever")).toBe(false);
+
+        const explanation = explainBuild(
+            claws!,
+            [strainFever!],
+            [strainFever!.fusionLimit],
+            "burst",
+            "",
+            undefined,
+            shared.conditionalState,
+        );
+        expect(explanation.buildHighlights.join(" ")).toContain("assumes 8 active cysts at impact");
+        expect(explanation.buildHighlights.join(" ")).toContain("adds 320% additive Damage");
+        expect(explanation.buildHighlights.join(" ")).toContain("+240% note conflicts");
+    });
+});
+
 describe("Dreadful Killshot optimizer scope", () => {
     it("uses the current-health snapshot only for Burst and excludes it from other optimizer goals", () => {
         const basmu = getWeaponCatalog().find((weapon) => weapon.name === "Basmu");
@@ -12507,6 +12552,7 @@ describe("Critical Precision and Unseen Dread optimizer scope", () => {
         expect(explanation.buildHighlights.join(" ")).toContain("Critical Mutation Burst scoring assumes 10 prior kills");
         expect(explanation.buildHighlights.join(" ")).toContain("Stack changes, including grenade-hit reduction, are not simulated");
     });
+
     it("scores Ripkas Critical Chance while disclosing its linked Shotgun reload bonus", () => {
         const ripkas = getWeaponCatalog().find((weapon) => weapon.name === "Ripkas")!;
         const amalgamRipkas = getModsForWeapon(ripkas).find((mod) => mod.name === "Amalgam Ripkas True Steel")!;
