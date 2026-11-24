@@ -579,6 +579,12 @@ describe("Tennokai Cycle DPS objective", () => {
         expect(relentlessCombination).toBeDefined();
         expect(tennokaiEnabler).toBeDefined();
         expect(relentlessCombination!.hasDamageEffect).toBe(true);
+        const contextFreeNotes = getUnmodeledDamageEffectLines(
+            relentlessCombination!,
+            relentlessCombination!.fusionLimit,
+        ).join(" ");
+        expect(contextFreeNotes).toContain("modeled only by Tennokai Cycle DPS");
+        expect(contextFreeNotes).not.toContain("Additional Combo Count Chance can add random combo points");
         expect(getUnmodeledDamageEffectLines(
             relentlessCombination!,
             relentlessCombination!.fusionLimit,

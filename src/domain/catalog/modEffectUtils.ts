@@ -228,7 +228,7 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Combo Duration changes the weapon's combo timeout. This objective does not simulate that timer's expiration, so Auto Optimize skips this mod.");
     }
     if ((effect?.comboCountChanceBonus ?? 0) !== 0 && context?.selectedGoal !== "burst" &&
-        !(context?.selectedGoal === "tennokaiDps" && mod.path === RELENTLESS_COMBINATION_MOD_PATH)) {
+        mod.path !== RELENTLESS_COMBINATION_MOD_PATH) {
         lines.push(context?.selectedGoal === "tennokaiDps"
             ? "Additional Combo Count Chance can add random combo points per qualifying hit. Tennokai Cycle DPS assumes one point per regular hit and does not resolve those random gains, so Auto Optimize skips this mod."
             : "Additional Combo Count Chance can add random combo points per qualifying hit. This objective does not resolve those random gains, so Auto Optimize skips this mod.");
