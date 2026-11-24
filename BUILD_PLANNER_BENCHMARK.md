@@ -4031,3 +4031,7 @@ After these source changes, `damageCalc.test.ts` passes 186/186, including rank 
 ## D3-MOD-CRITICAL-PRECISION-UNSEEN-DREAD-SNAPSHOTS-001 — deployment reconciliation (2026-11-24)
 
 PR [#378](https://github.com/Appl3Tree/Tenno-Hub/pull/378) squash-merged as `3c2e225116cfd61883c1b30e8e33cca36c083f9a`. Pages run [#457](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45445244235) passed Build, Upload Pages artifact, the three-check artifact-index settle step, and Deploy to GitHub Pages. This confirms deployment of the merged source. The localhost request from the workspace still timed out, so rendered current-source review remains open. No live-game accuracy or Underframe parity is claimed.
+
+## Docs checkpoint reconciliation (2026-11-24)
+
+Docs-only PR [#379](https://github.com/Appl3Tree/Tenno-Hub/pull/379) recorded PR #378 and Pages run #457, then Pages run [#458](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45446284739) succeeded for that docs checkpoint. PR #379 changed no application source; snapshot deployment remains the result of run #457.
