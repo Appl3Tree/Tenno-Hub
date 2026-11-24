@@ -276,6 +276,8 @@ export interface ModdedWeaponStats {
     critMultiplier: number;
     /** Relative Critical Damage bonus from selected Strain Infection rank × assumed impact cysts. */
     strainInfectionCritDamageBonus: number;
+    /** Additive Damage bonus from Strain Fever rank × assumed impact cysts on Helminth Claws. */
+    strainFeverDamageBonus: number;
     /** Cyst count used by this one-hit stat view, normalized to 0–8. */
     strainInfectionCystsAtImpact: number;
     /** Additive Damage and Status Chance assumed from Dreadful Killshot in a Basmu Burst snapshot. */
@@ -1640,6 +1642,7 @@ export function calculateBuild(
     let finalCritChanceBonus = 0;
     let critMultBonus = 0;
     let strainInfectionCritDamagePerCyst = 0;
+    let strainFeverDamagePerCyst = 0;
     let dreadfulKillshotDamageAndStatusPer75Health = 0;
     let deadlyManeuversHeadshotCritChanceBonus = 0;
     let criticalPrecisionCritChancePerHeadshot = 0;
@@ -1781,6 +1784,7 @@ export function calculateBuild(
         finalCritChanceBonus += e.finalCritChanceBonus ?? 0;
         critMultBonus += e.critMultBonus ?? 0;
         strainInfectionCritDamagePerCyst += e.strainInfectionCritDamagePerCyst ?? 0;
+        strainFeverDamagePerCyst += e.strainFeverDamagePerCyst ?? 0;
         dreadfulKillshotDamageAndStatusPer75Health += e.dreadfulKillshotDamageAndStatusPer75Health ?? 0;
         deadlyManeuversHeadshotCritChanceBonus += e.deadlyManeuversHeadshotCritChanceBonus ?? 0;
         criticalPrecisionCritChancePerHeadshot += e.criticalPrecisionCritChancePerHeadshot ?? 0;
@@ -1888,6 +1892,11 @@ export function calculateBuild(
         multishotBonus = 0;
         multishotDamageBonus = 0;
     }
+
+    const strainFeverDamageBonus = weapon.category === "Companion" && weapon.tags.includes("HELMINTH_WEAPON")
+        ? strainFeverDamagePerCyst * strainInfectionCystsAtImpact
+        : 0;
+    damageBonus += strainFeverDamageBonus;
 
     const dreadfulKillshotBonus = weapon.name === "Basmu"
         ? dreadfulKillshotBonusFromCurrentHealth(
@@ -3349,6 +3358,7 @@ export function calculateBuild(
         critChance,
         critMultiplier,
         strainInfectionCritDamageBonus,
+        strainFeverDamageBonus,
         strainInfectionCystsAtImpact,
         dreadfulKillshotBonus,
         dreadfulKillshotCurrentHealth,
@@ -3562,6 +3572,7 @@ export function calculateBuild(
         ? averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier
         : 0;
     const hasActiveBurstOnlyDamageSnapshot = modded.strainInfectionCritDamageBonus > 0 ||
+        modded.strainFeverDamageBonus > 0 ||
         modded.dreadfulKillshotBonus > 0 ||
         modded.deadlyManeuversHeadshotCritChanceBonus > 0 ||
         modded.criticalPrecisionCritChanceBonus > 0 ||
