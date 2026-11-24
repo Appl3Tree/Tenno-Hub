@@ -253,6 +253,10 @@ export interface SavedBuildPlannerConfig {
     meleeComboMultiplier?: number;
     /** Editable qualifying regular hit count before each Tennokai Heavy Slam timeline event. */
     tennokaiRegularHitsBetweenHeavy?: number;
+    /** Starting order for the manual Prova Static Discharge cycle estimate. */
+    staticDischargeStartingOrder?: "spinThenOverhead" | "overheadThenSpin";
+    /** User-supplied first-animation duration used to derive 0.2s Static Discharge pulses. */
+    staticDischargeFirstAnimationSeconds?: number;
     /** User-entered ammo charge for Phantasma's alternate fire. */
     phantasmaChargeAmmo?: number;
     /** Assumed target distance used by rank-conditioned weapon effects such as Spring-Loaded Broadhead. */

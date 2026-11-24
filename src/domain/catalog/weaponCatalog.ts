@@ -240,6 +240,11 @@ export interface WeaponAttack {
     damageTotal: number;
 }
 
+const PROVA_HEAVY_ATTACK_PROFILES = new Set([
+    "/Lotus/Weapons/ClanTech/Energy/ElectroProd",
+    "/Lotus/Weapons/ClanTech/Energy/VandalElectroProd",
+]);
+
 export interface WeaponEntry {
     uniqueName: string;
     /** Upstream identity for a selectable profile that derives from another catalog item. */
@@ -3602,6 +3607,51 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 ...(damageRamp ? { damageRamp } : {}),
             };
         });
+        const heavyAttackDamage = n(item.heavyAttackDamage);
+        if (PROVA_HEAVY_ATTACK_PROFILES.has(uniqueName) && heavyAttackDamage > 0 && dmg.total > 0 &&
+            !attacks.some((attack) => /^heavy attack$/i.test(attack.name.trim()))) {
+            // The weapon feed supplies the Heavy Damage total but no separate
+            // row. Prova's Wiki lists only its total Heavy Damage, so preserve
+            // the Normal Attack's physical/elemental ratios and scale them to
+            // that sourced total. Wiki: https://wiki.warframe.com/w/Prova and
+            // https://wiki.warframe.com/w/Prova_Vandal
+            const heavyDamageScale = heavyAttackDamage / dmg.total;
+            const normalAttack = attacks.find((attack) => /^normal attack$/i.test(attack.name.trim()));
+            const heavyDamage: WeaponDamage = {
+                total: heavyAttackDamage,
+                impact: dmg.impact * heavyDamageScale,
+                puncture: dmg.puncture * heavyDamageScale,
+                slash: dmg.slash * heavyDamageScale,
+                heat: dmg.heat * heavyDamageScale,
+                cold: dmg.cold * heavyDamageScale,
+                electricity: dmg.electricity * heavyDamageScale,
+                toxin: dmg.toxin * heavyDamageScale,
+                blast: dmg.blast * heavyDamageScale,
+                radiation: dmg.radiation * heavyDamageScale,
+                gas: dmg.gas * heavyDamageScale,
+                magnetic: dmg.magnetic * heavyDamageScale,
+                viral: dmg.viral * heavyDamageScale,
+                corrosive: dmg.corrosive * heavyDamageScale,
+                void: dmg.void * heavyDamageScale,
+                tau: dmg.tau * heavyDamageScale,
+                true: dmg.true * heavyDamageScale,
+            };
+            attacks.push({
+                name: "Heavy Attack",
+                speed: fireRate,
+                trigger: "Charge",
+                chargeTime: 0.7,
+                chargeTimeAffectedByFireRate: false,
+                isAreaDamage: false,
+                multishot: 1,
+                multishotLocked: true,
+                critChance: normalAttack?.critChance ?? n(item.criticalChance),
+                critMultiplier: normalAttack?.critMultiplier ?? (n(item.criticalMultiplier) || 1.5),
+                statusChance: normalAttack?.statusChance ?? n(item.procChance),
+                damage: heavyDamage,
+                damageTotal: heavyAttackDamage,
+            });
+        }
         const firstAttack = attacks[0];
         const baseAmmoCostPerShot = firstAttack?.ammoCostPerShot ?? Math.max(0.0001, n(item.ammoCost) || 1);
         const burstCount = firstAttack?.burstCount;
