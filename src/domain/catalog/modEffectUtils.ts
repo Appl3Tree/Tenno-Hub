@@ -381,7 +381,7 @@ export function emptyEffect(): ModEffect {
         criticalMutationCritChanceAndDamagePerKill: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
-        multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false,
+        multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false, multishotLocked: false,
         magazineCapacityFlatBonus: 0, magazineBonus: 0,
         reloadSpeedBonus: 0, directHitReloadSpeedBonus: 0, directHitReloadSpeedDurationSeconds: 0,
         overpressuredRoundsFalloffDistanceBonus: 0,

@@ -233,6 +233,8 @@ export interface ModEffect {
     chargeRateBonus: number;
     /** Cannonade mods lock ranged Fire Rate to the weapon's unmodified value. */
     fireRateLocked: boolean;
+    /** Keeps Multishot at its unmodified value while the effect is equipped. */
+    multishotLocked: boolean;
     /** Flat Magazine Capacity added after percentage capacity bonuses. */
     magazineCapacityFlatBonus: number;
     magazineBonus: number;
@@ -1033,6 +1035,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             out.nonCriticalHitDamageProcs = [...(out.nonCriticalHitDamageProcs ?? []), ...((partial.nonCriticalHitDamageProcs ?? []) as NonCriticalHitDamageProc[])];
         } else if (k === "fireRateLocked") {
             out.fireRateLocked = out.fireRateLocked || partial.fireRateLocked === true;
+        } else if (k === "multishotLocked") {
+            out.multishotLocked = out.multishotLocked || partial.multishotLocked === true;
         } else if (k === "impactStatusExtraProcLowFireRateThreshold" || k === "impactStatusExtraProcLowFireRateMultiplier") {
             (out[k] as number) = Math.max(((out[k] as number) ?? 0), ((partial[k] as number) ?? 0));
         } else {
@@ -1517,6 +1521,8 @@ function buildCaches(): ModCaches {
         const rawBaseDrain = Number(item.baseDrain ?? 2);
         const drain = rawBaseDrain + fl;
         const locksFireRate = /fire rate cannot be modified/i.test(String(item.description ?? ""));
+        const locksMultishot = /multishot cannot be modified/i.test(String(item.description ?? "")) ||
+            (levelStats ?? []).some((level) => (level.stats ?? []).some((stat) => /multishot cannot be modified/i.test(stat)));
         const isAura = rawCompat === "AURA" || rawBaseDrain < 0;
         const isStance = String(item.type ?? "") === "Stance Mod" || String(item.type ?? "") === "Posture Mod";
         const isMentorsLegacy = path === MENTOR_LEGACY_PATH;
@@ -1716,6 +1722,13 @@ function buildCaches(): ModCaches {
             // and negative Fire Rate changes while equipped.
             // https://wiki.warframe.com/w/Cannonade_Mods
             effectsByRank.forEach((effect) => { effect.fireRateLocked = true; });
+        }
+        if (locksMultishot) {
+            // Acuity's Wiki-listed restriction keeps Multishot at the weapon's
+            // unmodified value and suppresses other positive or negative changes.
+            // https://wiki.warframe.com/w/Primary_Acuity
+            // https://wiki.warframe.com/w/Pistol_Acuity
+            effectsByRank.forEach((effect) => { effect.multishotLocked = true; });
         }
         if (path === ACID_SHELLS_MOD_PATH) {
             // The generated export currently has stale percent-health and radius
