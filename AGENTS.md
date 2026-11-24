@@ -12,6 +12,8 @@
 
 > **Relentless R0–R3 oracle release reconciliation (2026-11-24):** PR [#367](https://github.com/Appl3Tree/Tenno-Hub/pull/367) squash-merged as `8776f13bb9fd95d39b4426d51c1240a266655d02`; Pages run [#446](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45329119039) succeeded. It extends sampled exact-winner coverage to three slots/R0–R3 and clarifies the Relentless warning outside Tennokai Cycle DPS. The in-app browser queued `http://localhost/Tenno-Hub/` without returning rendered content, so visual review remains open.
 
+> **R0–R3 release docs reconciliation (2026-11-24):** docs-only PR [#368](https://github.com/Appl3Tree/Tenno-Hub/pull/368) squash-merged as `4dcc56bfda7ee5bf08fdbc52144b3e2083e552dc`; Pages run [#447](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45329694075) succeeded through artifact metadata wait and deploy.
+
 > **Current continuation checkpoint:** Read [BUILD_PLANNER_WORK_STATUS.md](./BUILD_PLANNER_WORK_STATUS.md) before continuing Damage 3.0 / Build Planner work. This is the concise current state; the Working Queue below is the detailed history. Do not repeat completed work unless fresh evidence shows a regression.
 
 ## Task List
