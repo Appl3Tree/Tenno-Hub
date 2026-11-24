@@ -4,7 +4,7 @@ Last updated: 2026-11-24
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
-## CURRENT CONTINUATION CHECKPOINT — 2026-11-24 (Critical Mutation snapshot deployed)
+## CURRENT CONTINUATION CHECKPOINT — 2026-11-24 (Critical Mutation deployed; Ripkas correction pending)
 
 - **Latest release:** PR #381 squash-merged as `1b6a872837077c6d0813061b0cd08073f0dd0323`; Pages run [#460](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45457577374) succeeded through Build, Upload Pages artifact, artifact-index settling, and Deploy. This deploys the Critical Mutation Burst snapshot.
 - **Implemented model:** an editable 0–60 prior-kill snapshot applies Critical Mutation's rank value (+5/+10/+15/+20/+25/+30% per kill) to base Critical Chance and Critical Damage, capped at +300% each. It is available only for direct Catabolyst/Coda Catabolyst `Primary` Burst scoring; Burst Auto Optimize can consider the augment only for a positive supported snapshot. State saves/restores and appears in the score explanation. Kill-stack changes (including grenade-hit reduction), reload grenade rows, finite TTK, five-second DPS, and non-Burst objectives remain outside the model.
@@ -12,7 +12,8 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 - **Earlier deployed snapshots:** Critical Precision and Unseen Dread remain deployed in PR #378 / run #457. Their history and area boundaries remain as recorded below.
 - **Workspace:** local branch `codex/relentless-r3-release-reconciliation-20261124`, HEAD `218436b6`, 14 modified files relative to its stale local ref. The remote release was isolated on current `main`; do not publish the cumulative local diff as one feature.
 - **Visual and model limits:** the in-app browser queued `http://localhost/Tenno-Hub/` without rendered content or interaction controls. Current-source rendered review, live-game accuracy, and Underframe parity remain open.
-- **Next action:** continue D3-MOD-AUDIT-TRIAGE-001 and representative exact optimizer checks. Keep D3-OPT-UNDERFRAME-AVG-DPS-SEMANTICS-001 and D3-OPT-UNDERFRAME-MATCHED-CORPUS-001 open; do not claim gameplay validation.
+- **Current Ripkas audit correction:** Amalgam Ripkas True Steel's native Critical Chance remains eligible for Ripkas Burst optimization, while its linked Shotgun Reload Speed and utility Gore remain disclosed but out of the selected weapon damage score. No linked equipment effects transfer. The focused optimizer test passes 1/1; app/test TypeScript, focused ESLint, source validation, and diff check pass. PR #383 is open for isolated review.
+- **Next action:** merge PR #383 and verify its Pages deployment, then then continue D3-MOD-AUDIT-TRIAGE-001 and representative exact optimizer checks. Keep D3-OPT-UNDERFRAME-AVG-DPS-SEMANTICS-001 and D3-OPT-UNDERFRAME-MATCHED-CORPUS-001 open; do not claim gameplay validation.
 
 ## PRIOR CONTINUATION CHECKPOINT — 2026-11-24 (artifact settling passed two fresh runs; rendered review remains open)
 

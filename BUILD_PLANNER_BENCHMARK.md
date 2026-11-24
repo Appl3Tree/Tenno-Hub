@@ -4049,3 +4049,12 @@ After this change, `damageCalc.test.ts` passes 187/187, including rank parsing, 
 ## D3-MOD-CRITICAL-MUTATION-BURST-SNAPSHOT-001 — deployment reconciliation (2026-11-24)
 
 PR #381 squash-merged as `1b6a872837077c6d0813061b0cd08073f0dd0323`. Pages run [#460](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45457577374) succeeded through build, artifact upload, the artifact-index settling step, and deployment. This confirms deployment of the merged snapshot source. Current-source rendered review remains open because the in-app browser queued localhost without returning rendered content; no live-game calibration or Underframe parity is claimed.
+
+
+## D3-MOD-AMALGAM-RIPKAS-TRUE-STEEL-LINKED-EQUIPMENT-001 — scoped linked-effect handling (2026-11-24)
+
+The [Amalgam Ripkas True Steel Wiki page](https://wiki.warframe.com/w/Amalgam_Ripkas_True_Steel) identifies the mod as Ripkas-exclusive and lists its native Critical Chance bonus alongside Reload Speed for Shotguns and Gore Chance. Its maximum rank gives +187% Critical Chance, +20% Shotgun Reload Speed, and +100% Gore Chance. The planner parses the native Ripkas Critical Chance; the coverage audit also flags Shotgun Reload Speed because it applies to separate equipment.
+
+The planner has no linked Ripkas/Shotgun equipment model. For Ripkas scoring, the Mod Builder retains a source-linked disclosure that the parsed Critical Chance can affect Ripkas, while Shotgun Reload Speed belongs to separate equipment and Gore Chance is utility only. The optimizer suppresses only those linked-equipment and utility warning lines for this selected Ripkas profile, so they do not block the native Critical Chance effect. No Shotgun stat is transferred and no gore or loot utility is scored.
+
+The focused optimizer regression verifies that Amalgam Ripkas True Steel is selected for Ripkas Burst from its native Critical Chance while the warning still reports +20% Shotgun Reload Speed, separate Shotgun equipment, utility-only Gore Chance, and the Wiki source. It passes 1/1. App/test TypeScript, focused ESLint, source validation, and diff check pass. The mod-effect audit remains 511/600 parsed with 73 conservative candidates (40 partial / 33 fully unparsed); this mod remains partial because the separate Shotgun effect is intentionally not modeled. The full repository suite was not rerun. Current-source rendered review, live-game accuracy, and Underframe parity remain open. PR #383 contains this isolated source/docs change.
