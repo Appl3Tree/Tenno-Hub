@@ -1122,6 +1122,122 @@ describe("Tennokai Cycle DPS objective", () => {
         }
     });
 
+    it("matches seeded four-slot R0–R2 exact Tennokai winners with Relentless Combination", { timeout: 300_000 }, () => {
+        const scenarios = [
+            { weapon: "Broken War", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
+            { weapon: "Gram Prime", faction: "Corpus", target: { health: 250_000, shields: 250_000, overguard: 0, armor: 0 } },
+            { weapon: "Lesion", faction: "Infested", target: { health: 250_000, shields: 0, overguard: 0, armor: 0 } },
+            { weapon: "Nikana Prime", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
+        ];
+        let seed = 20261164;
+        const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const candidateNames = ["Condition's Perfection", "Opportunity's Reach", "Organ Shatter", "Fury"];
+        const capacityConfig = { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false };
+
+        for (const scenario of scenarios) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === scenario.weapon);
+            expect(weapon, scenario.weapon).toBeDefined();
+            const available = getModsForWeapon(weapon!);
+            const byName = (name: string) => available.find((mod) => mod.name === name);
+            const mastersEdge = byName("Master's Edge");
+            const relentless = byName("Relentless Combination");
+            expect(mastersEdge, `${scenario.weapon} Master's Edge`).toBeDefined();
+            expect(relentless, `${scenario.weapon} Relentless Combination`).toBeDefined();
+            const shuffled = candidateNames.map(byName).filter((mod): mod is ModEntry => mod !== undefined);
+            for (let index = shuffled.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+            }
+            const sampledMods = [mastersEdge!, relentless!, ...shuffled.slice(0, 3)];
+            const ownedRankCaps = Object.fromEntries(sampledMods.map((mod) => [
+                mod.uniqueName,
+                1 + Math.floor(random() * Math.min(2, mod.fusionLimit)),
+            ]));
+            const conditionalState: ConditionalState = {
+                mode: "initial",
+                tennokaiRegularHitsBetweenHeavy: 4 + Math.floor(random() * 17),
+            };
+            const scoringContext = { selectedGoal: "tennokaiDps", selectedWeaponName: weapon!.name };
+            const rankOptions = new Map(sampledMods.map((mod) => [
+                mod.uniqueName,
+                Array.from({ length: ownedRankCaps[mod.uniqueName] + 1 }, (_, rank) => rank).filter((rank) =>
+                    getUnmodeledDamageEffectLines(mod, rank, scoringContext).every((line) =>
+                        line.includes("does not change the score; its opportunity-window bonus is modeled."),
+                    ),
+                ),
+            ]));
+            const exactScores: number[] = [];
+            const visit = (nextIndex: number, selected: Array<{ mod: ModEntry; rank: number }>) => {
+                const placement = assignModsToSlots(
+                    selected.map(({ mod }) => mod),
+                    selected.map(({ rank }) => rank),
+                    weapon!.polarities.slice(0, 4),
+                    4,
+                    false,
+                );
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (placement.slotMods.filter(Boolean).length === selected.length && !capacity.overCapacity) {
+                    exactScores.push(debugScoreBuild(
+                        weapon!,
+                        selected.map(({ mod, rank }) => mod.effectsByRank[rank] ?? mod.effect),
+                        "tennokaiDps",
+                        scenario.faction,
+                        null,
+                        scenario.target,
+                        conditionalState,
+                    ));
+                }
+                if (selected.length >= 4) return;
+                for (let index = nextIndex; index < sampledMods.length; index++) {
+                    const mod = sampledMods[index];
+                    const group = mod.incompatibilityGroup;
+                    if (group && selected.some((entry) => entry.mod.incompatibilityGroup === group)) continue;
+                    for (const rank of rankOptions.get(mod.uniqueName) ?? []) {
+                        visit(index + 1, [...selected, { mod, rank }]);
+                    }
+                }
+            };
+            visit(0, []);
+
+            const optimized = optimizeBuild(weapon!, sampledMods, "tennokaiDps", 4, {
+                targetFaction: scenario.faction,
+                targetProfileOverride: scenario.target,
+                conditionalState,
+                allowNonMaxRank: true,
+                ownedModMaxRankByUniqueName: ownedRankCaps,
+                allowForma: false,
+                capacityConfig,
+            });
+            const optimizerScore = scoreOptimizerResultForConfiguration({
+                weapon: weapon!,
+                result: optimized,
+                goal: "tennokaiDps",
+                targetFaction: scenario.faction,
+                selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+                targetProfileOverride: scenario.target,
+                conditionalState,
+            });
+
+            expect(exactScores.length, `${scenario.weapon} exact pool size`).toBeGreaterThan(40);
+            expect(optimized.capacityValid, `${scenario.weapon} capacity`).toBe(true);
+            expect(optimized.slots.some(Boolean), `${scenario.weapon} build`).toBe(true);
+            for (const [slotIndex, mod] of optimized.slots.entries()) {
+                if (!mod) continue;
+                expect(optimized.slotRanks[slotIndex], `${scenario.weapon} owned rank for ${mod.name}`)
+                    .toBeLessThanOrEqual(ownedRankCaps[mod.uniqueName]);
+            }
+            expect(optimizerScore, `${scenario.weapon} sampled-pool winner`).toBeCloseTo(Math.max(...exactScores), 7);
+        }
+    });
+
     it("keeps a Tennokai enabler in a legal full-pool eight-slot result", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         expect(weapon).toBeDefined();
