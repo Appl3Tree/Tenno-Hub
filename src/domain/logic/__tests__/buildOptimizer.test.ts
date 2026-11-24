@@ -12428,6 +12428,50 @@ describe("Critical Precision and Unseen Dread optimizer scope", () => {
         expect(finite.slots.some((mod) => mod?.name === "Unseen Dread")).toBe(false);
         expect(area.slots.some((mod) => mod?.name === "Unseen Dread")).toBe(false);
     });
+
+    it("offers Critical Mutation only for a positive prior-kill snapshot on the Catabolyst Primary Burst row", () => {
+        const catabolyst = getWeaponCatalog().find((weapon) => weapon.name === "Catabolyst")!;
+        const codaCatabolyst = getWeaponCatalog().find((weapon) => weapon.name === "Coda Catabolyst")!;
+        const criticalMutation = getModsForWeapon(catabolyst).find((mod) => mod.name === "Critical Mutation")!;
+        const directAttack = withSelectedAttack(catabolyst, catabolyst.attacks.findIndex((attack) => attack.name === "Primary"));
+        const reloadGrenade = withSelectedAttack(catabolyst, catabolyst.attacks.findIndex((attack) => attack.name === "Partial Reload Impact"));
+        const codaDirectAttack = withSelectedAttack(codaCatabolyst, codaCatabolyst.attacks.findIndex((attack) => attack.name === "Primary"));
+        const activeOptions = {
+            ...basicOptions,
+            conditionalState: { mode: "initial" as const, criticalMutationPriorKills: 10 },
+        };
+        const active = optimizeBuild(directAttack, [criticalMutation], "burst", 1, activeOptions);
+        const zeroSnapshot = optimizeBuild(directAttack, [criticalMutation], "burst", 1, {
+            ...activeOptions,
+            conditionalState: { mode: "initial" as const, criticalMutationPriorKills: 0 },
+        });
+        const finite = optimizeBuild(directAttack, [criticalMutation], "timeToKill", 1, activeOptions);
+        const coda = optimizeBuild(codaDirectAttack, [criticalMutation], "burst", 1, activeOptions);
+        const explanation = explainBuild(
+            directAttack,
+            [criticalMutation],
+            [criticalMutation.fusionLimit],
+            "burst",
+            "",
+            undefined,
+            activeOptions.conditionalState,
+            basicOptions.targetProfileOverride,
+        );
+
+        expect(active.slots.some((mod) => mod?.name === "Critical Mutation")).toBe(true);
+        expect(coda.slots.some((mod) => mod?.name === "Critical Mutation")).toBe(true);
+        expect(zeroSnapshot.slots.some((mod) => mod?.name === "Critical Mutation")).toBe(false);
+        expect(finite.slots.some((mod) => mod?.name === "Critical Mutation")).toBe(false);
+        expect(getUnmodeledDamageEffectLines(criticalMutation, criticalMutation.fusionLimit, {
+            selectedWeaponName: "Catabolyst",
+            selectedAttackName: reloadGrenade.selectedAttackName,
+            selectedAttackIsAreaDamage: reloadGrenade.selectedAttackIsAreaDamage,
+            criticalMutationPriorKills: 10,
+            selectedGoal: "burst",
+        }).join(" ")).toContain("Primary Burst row only");
+        expect(explanation.buildHighlights.join(" ")).toContain("Critical Mutation Burst scoring assumes 10 prior kills");
+        expect(explanation.buildHighlights.join(" ")).toContain("Stack changes, including grenade-hit reduction, are not simulated");
+    });
 });
 
 describe("seeded Burst and Scaling optimizer oracles", () => {
@@ -12585,4 +12629,5 @@ describe("seeded Burst and Scaling optimizer oracles", () => {
         }
     });
 });
+
 

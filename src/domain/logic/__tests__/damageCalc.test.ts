@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
 
@@ -6046,6 +6046,65 @@ describe("Critical Precision and Unseen Dread Burst snapshots", () => {
     });
 });
 
+describe("Critical Mutation Catabolyst Burst snapshot", () => {
+    const catabolyst = getWeaponCatalog().find((weapon) => weapon.name === "Catabolyst")!;
+    const codaCatabolyst = getWeaponCatalog().find((weapon) => weapon.name === "Coda Catabolyst")!;
+    const criticalMutation = getModsForWeapon(catabolyst).find((mod) => mod.name === "Critical Mutation")!;
+
+    it("parses all ranks and applies the capped prior-kill bonus only to direct Normal Attack Burst", () => {
+        const normalAttackIndex = catabolyst.attacks.findIndex((attack) => attack.name === "Primary");
+        const reloadGrenadeIndex = catabolyst.attacks.findIndex((attack) => attack.name === "Partial Reload Impact");
+        expect(normalAttackIndex).toBeGreaterThanOrEqual(0);
+        expect(reloadGrenadeIndex).toBeGreaterThanOrEqual(0);
+        expect(criticalMutation).toBeDefined();
+
+        const rankZero = criticalMutation.effectsByRank[0]!;
+        const rankFive = criticalMutation.effectsByRank[criticalMutation.fusionLimit]!;
+        const directAttack = withSelectedAttack(catabolyst, normalAttackIndex);
+        const reloadGrenade = withSelectedAttack(catabolyst, reloadGrenadeIndex);
+        const snapshot = { mode: "initial" as const, criticalMutationPriorKills: 10 };
+        const activeMetrics = calculateBuild(directAttack, [rankFive], "", { conditionalState: snapshot });
+        const inactiveMetrics = calculateBuild(directAttack, [rankFive], "", {
+            conditionalState: { mode: "initial", criticalMutationPriorKills: 0 },
+        });
+        const finite = calculateBuildForExpectedEncounter(directAttack, [rankFive], "", { conditionalState: snapshot }).modded;
+        const reloadResult = calculateBuild(reloadGrenade, [rankFive], "", { conditionalState: snapshot }).modded;
+        const codaNormalIndex = codaCatabolyst.attacks.findIndex((attack) => attack.name === "Primary");
+        const codaResult = calculateBuild(withSelectedAttack(codaCatabolyst, codaNormalIndex), [rankFive], "", {
+            conditionalState: snapshot,
+        }).modded;
+
+        expect(criticalMutation.effectsByRank.map((effect) => effect.criticalMutationCritChanceAndDamagePerKill)).toEqual([
+            0.05, 0.1, 0.15, 0.2, 0.25, 0.3,
+        ]);
+        expect(normalizeCriticalMutationPriorKills(-1)).toBe(0);
+        expect(normalizeCriticalMutationPriorKills(60.9)).toBe(60);
+        expect(normalizeCriticalMutationPriorKills(500)).toBe(60);
+        expect(normalizeCriticalMutationPriorKills(Number.NaN)).toBe(0);
+        expect(rankZero.criticalMutationCritChanceAndDamagePerKill).toBe(0.05);
+        expect(activeMetrics.modded.criticalMutationPriorKills).toBe(10);
+        expect(activeMetrics.modded.criticalMutationBonus).toBe(3);
+        expect(activeMetrics.modded.critChance).toBeCloseTo(directAttack.critChance * 4, 10);
+        expect(activeMetrics.modded.critMultiplier).toBeCloseTo(activeMetrics.modded.quantizedBaseCritMultiplier * 4, 10);
+        expect(activeMetrics.burstDPS).toBeGreaterThan(inactiveMetrics.burstDPS);
+        expect(activeMetrics.sustainedDPS).toBeCloseTo(inactiveMetrics.sustainedDPS, 10);
+        expect(finite.criticalMutationBonus).toBe(0);
+        expect(reloadResult.criticalMutationBonus).toBe(0);
+        expect(codaResult.criticalMutationBonus).toBe(3);
+        expect(withoutBurstOnlyConditionalAssumptions(snapshot)).toMatchObject({ criticalMutationPriorKills: 0 });
+        expect(getUnmodeledDamageEffectLines(criticalMutation, criticalMutation.fusionLimit, {
+            selectedWeaponName: "Catabolyst",
+            selectedAttackName: "Primary",
+            selectedAttackIsAreaDamage: false,
+            criticalMutationPriorKills: 1,
+            selectedGoal: "burst",
+        })).toEqual([]);
+        expect(getUnmodeledDamageEffectLines(criticalMutation, criticalMutation.fusionLimit).join(" ")).toContain(
+            "editable 0–60 prior-kill snapshot",
+        );
+    });
+});
+
 describe("Stinging Truth flat magazine capacity", () => {
     it("adds its rank-scaled rounds after percentage Magazine Capacity for Viper variants", () => {
         const weapons = getWeaponCatalog();
@@ -6090,3 +6149,4 @@ describe("Stinging Truth flat magazine capacity", () => {
         expect(combinedWraith.magazineSize).toBe(62); // round(20 × 1.10 + 40)
     });
 });
+

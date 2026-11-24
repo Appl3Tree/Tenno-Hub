@@ -294,6 +294,10 @@ export interface ModdedWeaponStats {
     unseenDreadInvisibilityActive: boolean;
     /** Additive Critical Damage bonus from Unseen Dread while Dread is invisible. */
     unseenDreadCritDamageBonus: number;
+    /** Combined Critical Chance and Critical Damage bonus from Critical Mutation's Burst snapshot. */
+    criticalMutationBonus: number;
+    /** Prior kills represented by Critical Mutation's current Burst snapshot. */
+    criticalMutationPriorKills: number;
     /** Count of selected and external Vigilante pieces, capped at six. */
     vigilanteSetModCount: number;
     /** Count of selected and external Gladiator pieces, capped at six. */
@@ -593,6 +597,8 @@ export interface ConditionalState {
     criticalPrecisionHeadshotProjectiles?: number;
     /** Assume Dread is currently invisible; Unseen Dread Burst snapshot only. */
     unseenDreadInvisibilityActive?: boolean;
+    /** Prior Catabolyst kills for Critical Mutation; direct Normal Attack Burst snapshot only. */
+    criticalMutationPriorKills?: number;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -742,6 +748,14 @@ export function normalizeCriticalPrecisionHeadshotProjectiles(value: number | un
         : 0;
 }
 
+export const MAX_CRITICAL_MUTATION_PRIOR_KILLS = 60;
+
+export function normalizeCriticalMutationPriorKills(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(MAX_CRITICAL_MUTATION_PRIOR_KILLS, Math.floor(value ?? 0)))
+        : 0;
+}
+
 /** Converts Dreadful Killshot's rank value and current-health snapshot to its capped, 20%-quantized bonus. */
 export function dreadfulKillshotBonusFromCurrentHealth(
     per75HealthBonus: number,
@@ -765,6 +779,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         normalizeDeadlyManeuversShotsRemaining(state.deadlyManeuversShotsRemaining) === 0 &&
         normalizeCriticalPrecisionHeadshotProjectiles(state.criticalPrecisionHeadshotProjectiles) === 0 &&
         state.unseenDreadInvisibilityActive !== true &&
+        normalizeCriticalMutationPriorKills(state.criticalMutationPriorKills) === 0 &&
         normalizeOverpressuredRoundsSpreadSnapshot(
             state.overpressuredRoundsSpreadMinimumDegrees,
             state.overpressuredRoundsSpreadMaximumDegrees,
@@ -777,6 +792,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         deadlyManeuversShotsRemaining: 0,
         criticalPrecisionHeadshotProjectiles: 0,
         unseenDreadInvisibilityActive: false,
+        criticalMutationPriorKills: 0,
         overpressuredRoundsSpreadMinimumDegrees: undefined,
         overpressuredRoundsSpreadMaximumDegrees: undefined,
     };
@@ -1564,6 +1580,7 @@ export function calculateBuild(
         conditionalState.criticalPrecisionHeadshotProjectiles,
     );
     const unseenDreadInvisibilityActive = conditionalState.unseenDreadInvisibilityActive === true;
+    const criticalMutationPriorKills = normalizeCriticalMutationPriorKills(conditionalState.criticalMutationPriorKills);
     const attackDamageFalloff = calculateAttackDamageFalloff(
         weapon,
         mods,
@@ -1625,6 +1642,7 @@ export function calculateBuild(
     let deadlyManeuversHeadshotCritChanceBonus = 0;
     let criticalPrecisionCritChancePerHeadshot = 0;
     let unseenDreadCritDamageBonusPerRank = 0;
+    let criticalMutationCritChanceAndDamagePerKill = 0;
     let finalCritMultiplierBonus = 0;
     let headshotMultiplierBonus = 0;
     let bodyshotDamageBonus = 0;
@@ -1764,6 +1782,7 @@ export function calculateBuild(
         deadlyManeuversHeadshotCritChanceBonus += e.deadlyManeuversHeadshotCritChanceBonus ?? 0;
         criticalPrecisionCritChancePerHeadshot += e.criticalPrecisionCritChancePerHeadshot ?? 0;
         unseenDreadCritDamageBonusPerRank += e.unseenDreadCritDamageBonus ?? 0;
+        criticalMutationCritChanceAndDamagePerKill += e.criticalMutationCritChanceAndDamagePerKill ?? 0;
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
         areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
@@ -2420,6 +2439,15 @@ export function calculateBuild(
         ? unseenDreadCritDamageBonusPerRank
         : 0;
     critMultBonus += unseenDreadCritDamageBonus;
+    const isCriticalMutationBurstAttack =
+        (weapon.name === "Catabolyst" || weapon.name === "Coda Catabolyst") &&
+        weapon.selectedAttackName === "Primary" &&
+        weapon.selectedAttackIsAreaDamage === false;
+    const criticalMutationBonus = isCriticalMutationBurstAttack
+        ? Math.min(3, criticalMutationCritChanceAndDamagePerKill * criticalMutationPriorKills)
+        : 0;
+    critChanceBonus += criticalMutationBonus;
+    critMultBonus += criticalMutationBonus;
 
     const comboTiersAboveBase = Math.max(0, meleeComboMultiplier - 1);
     const critChance = weapon.critChance * (1 + critChanceBonus + comboCritChanceBonus * comboTiersAboveBase) + finalCritChanceBonus;
@@ -3327,6 +3355,8 @@ export function calculateBuild(
         criticalPrecisionCritChanceBonus,
         unseenDreadInvisibilityActive: unseenDreadCritDamageBonus > 0,
         unseenDreadCritDamageBonus,
+        criticalMutationBonus,
+        criticalMutationPriorKills: criticalMutationBonus > 0 ? criticalMutationPriorKills : 0,
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
         sacrificialSetModCount,
@@ -3523,7 +3553,8 @@ export function calculateBuild(
         modded.dreadfulKillshotBonus > 0 ||
         modded.deadlyManeuversHeadshotCritChanceBonus > 0 ||
         modded.criticalPrecisionCritChanceBonus > 0 ||
-        modded.unseenDreadCritDamageBonus > 0;
+        modded.unseenDreadCritDamageBonus > 0 ||
+        modded.criticalMutationBonus > 0;
     const sustainedSnapshotFreeDps = hasActiveBurstOnlyDamageSnapshot
         ? calculateBuild(weapon, mods, targetFaction, {
             ...options,
@@ -3620,3 +3651,4 @@ export function estimateFiniteIndependentDotDps(
     );
     return (damagePerTick * expectedProcsPerShot * finiteTicks) / encounterDurationSeconds;
 }
+

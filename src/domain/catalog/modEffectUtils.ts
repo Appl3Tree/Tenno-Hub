@@ -26,6 +26,7 @@ export const COMBAT_RELOAD_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwav
 export const DEADLY_MANEUVERS_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/MagnusNightwaveMod";
 export const CRITICAL_PRECISION_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTiberonAugmentMod";
 export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/NightwaveStalkerBowAugmentMod";
+export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -62,6 +63,8 @@ export interface ScoringEffectContext {
     criticalPrecisionHeadshotProjectiles?: number;
     /** Whether Dread is assumed invisible for Unseen Dread Burst scoring. */
     unseenDreadInvisibilityActive?: boolean;
+    /** Prior Catabolyst kills represented by Critical Mutation's Burst snapshot. */
+    criticalMutationPriorKills?: number;
     /** Current optimization objective; these snapshots are Burst-only. */
     selectedGoal?: string;
 }
@@ -233,6 +236,15 @@ export function getUnmodeledDamageEffectLines(
             lines.push("Unseen Dread adds rank-scaled Critical Damage while Dread is invisible. This planner uses an editable active-invisibility snapshot for direct, single-target Burst scoring only; the three-enemy trigger, invisibility duration/history, area coverage, finite TTK, and 5s DPS are not modeled, so Auto Optimize skips it outside this snapshot.");
         }
     }
+    if (mod.path === CRITICAL_MUTATION_MOD_PATH) {
+        const weaponSupportsSnapshot = context?.selectedWeaponName === "Catabolyst" || context?.selectedWeaponName === "Coda Catabolyst";
+        const isDirectPrimaryAttack = context?.selectedAttackName === "Primary" && context?.selectedAttackIsAreaDamage === false;
+        const hasBurstSnapshot = context?.selectedGoal === "burst" && Number.isFinite(context?.criticalMutationPriorKills) &&
+            (context?.criticalMutationPriorKills ?? 0) > 0;
+        if (!weaponSupportsSnapshot || !isDirectPrimaryAttack || !hasBurstSnapshot) {
+            lines.push("Critical Mutation gains rank-scaled Critical Chance and Critical Damage with kills, up to +300%. This planner uses an editable 0–60 prior-kill snapshot for the direct Catabolyst/Coda Catabolyst Primary Burst row only; stack changes, including grenade-hit reduction, are not simulated. Reload grenade rows, finite TTK, 5s DPS, and non-Burst objectives remain unscored, so Auto Optimize skips it outside this supported snapshot.");
+        }
+    }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         // The Slash keyword appears in the stat line because it determines
         // companion healing; this is not a weapon damage modifier.
@@ -356,6 +368,7 @@ export function emptyEffect(): ModEffect {
         strainInfectionCritDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
         deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,
         unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
+        criticalMutationCritChanceAndDamagePerKill: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false,
@@ -386,4 +399,5 @@ export function emptyEffect(): ModEffect {
         factionDamageBonus: 0, targetFaction: "",
     };
 }
+
 

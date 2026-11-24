@@ -19,6 +19,7 @@ import {
     BRUTE_CONDITIONING_MOD_PATH,
     CHILLING_CLAWS_MOD_PATH,
     COMBUSTION_BEAM_MOD_PATH,
+    CRITICAL_MUTATION_MOD_PATH,
     CRITICAL_PRECISION_MOD_PATH,
     DISABLING_CONDITIONING_MOD_PATH,
     DEADLY_MANEUVERS_MOD_PATH,
@@ -54,6 +55,7 @@ const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.
 const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
 const CRITICAL_PRECISION_CRIT_CHANCE_PER_HEADSHOT_BY_RANK = [0.025, 0.04, 0.055, 0.07, 0.085, 0.1];
 const UNSEEN_DREAD_CRIT_DAMAGE_BONUS_BY_RANK = [0.5, 0.75, 1, 1.25, 1.5, 1.75];
+const CRITICAL_MUTATION_CRIT_CHANCE_AND_DAMAGE_PER_KILL_BY_RANK = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3];
 const OVERPRESSURED_ROUNDS_FALLOFF_DISTANCE_BY_RANK = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
@@ -215,6 +217,8 @@ export interface ModEffect {
     criticalPrecisionCritChancePerHeadshot: number;
     /** Unseen Dread's additive Critical Damage bonus while Dread is invisible, used with a Burst-only snapshot. */
     unseenDreadCritDamageBonus: number;
+    /** Critical Mutation's rank value for both crit stats per prior kill, used in a Burst snapshot. */
+    criticalMutationCritChanceAndDamagePerKill: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
     /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
@@ -1641,6 +1645,22 @@ function buildCaches(): ModCaches {
                 );
             });
         }
+        if (path === CRITICAL_MUTATION_MOD_PATH) {
+            // The manual prior-kill snapshot applies the rank-listed bonus to
+            // Catabolyst's direct Primary Burst row only. Reload grenades and all stack
+            // transitions remain outside the current encounter model.
+            // https://wiki.warframe.com/w/Critical_Mutation
+            CRITICAL_MUTATION_CRIT_CHANCE_AND_DAMAGE_PER_KILL_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.criticalMutationCritChanceAndDamagePerKill = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Each kill increases Critical Chance and Critical Damage by \+?\d+(?:\.\d+)?% up to 300%\. Reduce by \+?\d+(?:\.\d+)?% when fewer than 3 enemies are struck by the grenade explosion\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
+                );
+            });
+        }
         if (path === OVERPRESSURED_ROUNDS_MOD_PATH) {
             // Spread Decrease is still an unknown Wiki value. Preserve the raw
             // augment lines as unparsed so Auto Optimize remains blocked, while
@@ -2372,4 +2392,5 @@ export function getStancesForWeapon(weapon: WeaponEntry): ModEntry[] {
     }
     return normalizeTrainingVariantGroups(out.sort((a, b) => a.name.localeCompare(b.name)));
 }
+
 

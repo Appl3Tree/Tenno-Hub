@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, PRECISION_STRIKE_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -21,6 +21,7 @@ import {
     avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
     normalizeCriticalPrecisionHeadshotProjectiles,
+    normalizeCriticalMutationPriorKills,
     normalizeDeadlyManeuversShotsRemaining,
     withoutBurstOnlyConditionalAssumptions,
     type ConditionalState,
@@ -1545,6 +1546,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
             opts.conditionalState?.criticalPrecisionHeadshotProjectiles,
         ),
         unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
+        criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
         selectedGoal: goal,
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
@@ -1570,6 +1572,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     const isUnseenDread = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.unseenDreadCritDamageBonus ?? 0) > 0,
     );
+    const isCriticalMutation = (mod: ModEntry): boolean => mod.path === CRITICAL_MUTATION_MOD_PATH;
     const deadlyManeuversCanScore = goal === "burst" &&
         (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
         weapon.selectedAttackIsAreaDamage !== true &&
@@ -1581,6 +1584,10 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         normalizeCriticalPrecisionHeadshotProjectiles(opts.conditionalState?.criticalPrecisionHeadshotProjectiles) > 0;
     const unseenDreadCanScore = goal === "burst" && weapon.name === "Dread" &&
         weapon.selectedAttackIsAreaDamage === false && opts.conditionalState?.unseenDreadInvisibilityActive === true;
+    const criticalMutationCanScore = goal === "burst" &&
+        (weapon.name === "Catabolyst" || weapon.name === "Coda Catabolyst") &&
+        weapon.selectedAttackName === "Primary" && weapon.selectedAttackIsAreaDamage === false &&
+        normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills) > 0;
     const isSentientIncision = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.sentientIncisionDamageBonus ?? 0) > 0,
     );
@@ -1591,6 +1598,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         (!isDeadlyManeuvers(mod) || deadlyManeuversCanScore) &&
         (!isCriticalPrecision(mod) || criticalPrecisionCanScore) &&
         (!isUnseenDread(mod) || unseenDreadCanScore) &&
+        (!isCriticalMutation(mod) || criticalMutationCanScore) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
         allowedRanks(mod).some((rank) => getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
@@ -1614,6 +1622,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         if (!mod.hasDamageEffect) continue;
         if (goal !== "burst" && isDreadfulKillshot(mod)) continue;
         if (isDeadlyManeuvers(mod) && !deadlyManeuversCanScore) continue;
+        if (isCriticalMutation(mod) && !criticalMutationCanScore) continue;
         if (!precisionStrikeCanScore && hasPrecisionStrikeEffect(mod)) continue;
         if (mod.isAura) continue; // auras go in the aura slot, not regular slots
         if (sentientIncisionBlockedByOverguard(mod)) continue;
@@ -2216,7 +2225,8 @@ function beamThemeSignature(state: Pick<BeamState, "mods" | "ranks">): string {
             (effect.heavyAttackCritChanceBonus ?? 0) > 0 ||
             (effect.slideAttackCritChanceBonus ?? 0) > 0 ||
             (effect.critMultBonus ?? 0) > 0 ||
-            (effect.strainInfectionCritDamagePerCyst ?? 0) > 0
+            (effect.strainInfectionCritDamagePerCyst ?? 0) > 0 ||
+            (effect.criticalMutationCritChanceAndDamagePerKill ?? 0) > 0
         ) tags.add("crit");
     }
     return [...tags].sort().join("|");
@@ -2914,7 +2924,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "deadlyManeuversHeadshotCritChanceBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
+    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "criticalMutationCritChanceAndDamagePerKill", "deadlyManeuversHeadshotCritChanceBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "chargeRateBonus")) families.push("fire-rate");
@@ -4400,6 +4410,7 @@ function optimizeExilusSlot(
                     opts.conditionalState?.criticalPrecisionHeadshotProjectiles,
                 ),
                 unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
+                criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
                 selectedGoal: goal,
             }).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
@@ -5361,6 +5372,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     addPercent("deadlyManeuversHeadshotCritChanceBonus", "headshot Critical Chance for the next two shots after a dodge (Burst snapshot only)");
     addPercent("critMultBonus", "Critical Damage");
     addPercent("strainInfectionCritDamagePerCyst", "Critical Damage per active Strain Infection cyst (Burst only)");
+    addPercent("criticalMutationCritChanceAndDamagePerKill", "Critical Chance and Critical Damage per prior kill (Burst snapshot only)");
     if (value("finalCritMultiplierBonus") !== 0) {
         parts.push(`${value("finalCritMultiplierBonus") < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(value("finalCritMultiplierBonus")))}× Critical Damage`);
     }
@@ -5671,6 +5683,9 @@ export function explainBuild(
     if (selectedStats.unseenDreadCritDamageBonus > 0) {
         buildHighlights.push(`Unseen Dread Burst scoring assumes Dread is invisible and adds ${formatExplanationPercent(selectedStats.unseenDreadCritDamageBonus)} Critical Damage. The bonus can come from any invisibility source, but the augment's three-enemy trigger and five-second duration/history are not simulated. Area coverage, Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this snapshot.`);
     }
+    if (selectedStats.criticalMutationBonus > 0) {
+        buildHighlights.push(`Critical Mutation Burst scoring assumes ${selectedStats.criticalMutationPriorKills} prior kill${selectedStats.criticalMutationPriorKills === 1 ? "" : "s"}. The selected rank adds ${formatExplanationPercent(selectedStats.criticalMutationBonus)} to base Critical Chance and Critical Damage, capped at +300% for each. Stack changes, including grenade-hit reduction, are not simulated; reload grenade rows, finite TTK, 5s Avg DPS, and non-Burst objectives exclude this snapshot.`);
+    }
     if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
         buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);
     }
@@ -5723,6 +5738,7 @@ export function explainBuild(
                 conditionalState?.criticalPrecisionHeadshotProjectiles,
             ),
             unseenDreadInvisibilityActive: conditionalState?.unseenDreadInvisibilityActive === true,
+            criticalMutationPriorKills: normalizeCriticalMutationPriorKills(conditionalState?.criticalMutationPriorKills),
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
@@ -5836,4 +5852,5 @@ export function explainBuild(
             : `Each row re-scores the complete build with one mod removed. These effects overlap when mods interact; scores use the current optimizer model. When Arcane optimization is enabled, the optimizer checks a small, varied set of legal mod changes together with their Arcane effects, then rechecks the Arcane on the returned list. Small Arcane pools receive exact finite-encounter scoring. This bounded search and its leave-one-out rows do not prove a global optimum.`,
     };
 }
+
 
