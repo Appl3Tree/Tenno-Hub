@@ -1,5 +1,7 @@
 # Warframe Progression Tracker — Codex Working Notes
 
+> **Relentless warning deployment reconciliation (2026-11-24):** PR [#371](https://github.com/Appl3Tree/Tenno-Hub/pull/371) squash-merged as `05f2b3da359970e8f141ea17deec74333218fb63`; Pages run [#451](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45332884418) succeeded. The context-free audit no longer reports the Relentless Combination generic combo-chance warning, while standard scoring retains its Tennokai-only boundary. The in-app browser queued the localhost request without rendering content; visual review remains open.
+
 > **Docs checkpoint deployment (2026-11-24):** docs-only PR [#370](https://github.com/Appl3Tree/Tenno-Hub/pull/370) merged as `04db9cb6ea767076c619420ff9a01e62e3b6e971`; Pages run [#450](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45331225122) succeeded. It records PR #369 / run #448 and confirms that the ordered Relentless Combination Slash/Bleed timeline remains deployed by PR #363 / run #442.
 
 > **Latest checkpoint deployment (2026-11-24):** documentation PR [#369](https://github.com/Appl3Tree/Tenno-Hub/pull/369) merged as `e5d71d20072fd3b45fdac26f759168cd356e0aca`; Pages run [#448](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45330096982) succeeded. The checkpoint records successful docs PR #368 / run #447 and the queued/no-render in-app browser state. No application source changed; the Relentless Combination model remains deployed by PR #363 / run #442.
