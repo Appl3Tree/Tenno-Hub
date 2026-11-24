@@ -339,6 +339,8 @@ export interface ModdedWeaponStats {
     fireRate: number;
     /** True when an equipped Cannonade mod disables ranged Fire Rate modifiers. */
     fireRateLocked: boolean;
+    /** True when the weapon or a selected mod prevents Multishot modifiers. */
+    multishotLocked: boolean;
     /** Fresh-magazine rate; charged bows exclude the post-shot reload interval. */
     burstFireRate: number;
     magazineSize: number;
@@ -1655,6 +1657,7 @@ export function calculateBuild(
     let finalStatusChanceBonus = 0;
     let multishotBonus = 0;
     let multishotDamageBonus = 0;
+    let multishotModLocked = false;
     let fireRateBonus = 0;
     let chargeRateBonus = 0;
     let fireRateLocked = false;
@@ -1790,6 +1793,7 @@ export function calculateBuild(
         finalStatusChanceBonus += e.finalStatusChanceBonus ?? 0;
         multishotBonus += e.multishotBonus ?? 0;
         multishotDamageBonus += e.multishotDamageBonus ?? 0;
+        multishotModLocked ||= e.multishotLocked === true;
         fireRateBonus += e.fireRateBonus ?? 0;
         chargeRateBonus += e.chargeRateBonus ?? 0;
         fireRateLocked ||= e.fireRateLocked === true;
@@ -1877,6 +1881,14 @@ export function calculateBuild(
         directBonusBreakdown.true += e.trueBonus ?? 0;
     }
 
+    const multishotLocked = weapon.selectedAttackMultishotLocked === true || multishotModLocked;
+    if (multishotLocked) {
+        // A weapon attack row or an equipped mod can make Multishot immutable.
+        // Ignore static modifiers before estimating conditional trigger rates.
+        multishotBonus = 0;
+        multishotDamageBonus = 0;
+    }
+
     const dreadfulKillshotBonus = weapon.name === "Basmu"
         ? dreadfulKillshotBonusFromCurrentHealth(
             dreadfulKillshotDamageAndStatusPer75Health,
@@ -1927,7 +1939,7 @@ export function calculateBuild(
         magazineBonus,
         magazineCapacityFlatBonus,
     );
-    const baselineMultishot = weapon.selectedAttackMultishotLocked === true
+    const baselineMultishot = multishotLocked
         ? weapon.multishot
         : weapon.multishot * Math.max(0, 1 + multishotBonus);
     conditionalTriggerContext.weakPointHitRatePerSecond = conditionalTriggerContext.headIsWeakPoint && canHeadshot
@@ -2000,7 +2012,7 @@ export function calculateBuild(
             1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus +
                 comboStatusChanceBonus * comboTiersForTrigger + eligibilityStatusChanceBonus
         ) + finalStatusChanceBonus + eligibilityFinalStatusChanceBonus;
-        const eligibilityMultishot = weapon.multishot * (1 + (weapon.selectedAttackMultishotLocked === true
+        const eligibilityMultishot = weapon.multishot * (1 + (multishotLocked
             ? 0
             : multishotBonus + eligibilityMultishotBonus));
         const eligibilityBaseDamageMultiplier = Math.max(0, 1 + eligibilityDamageBonus);
@@ -2196,10 +2208,9 @@ export function calculateBuild(
     finalStatusChanceBonus += conditionalFinalStatusChanceBonus;
     multishotBonus += conditionalMultishotBonus;
     multishotDamageBonus += conditionalMultishotDamageBonus;
-    if (weapon.selectedAttackMultishotLocked === true) {
-        // Some weapon rows describe a radial component whose projectile count
-        // is fixed by the weapon. Do not let ordinary or conditional multishot
-        // change either that hit count or multishot-specific extra damage.
+    if (multishotLocked) {
+        // Some weapon rows and mods fix the projectile count. Do not let
+        // ordinary or conditional Multishot change hit count or extra-projectile damage.
         multishotBonus = 0;
         multishotDamageBonus = 0;
     }
@@ -2227,7 +2238,7 @@ export function calculateBuild(
     if (nextMagazineMaxStacks > 0) {
         const nextMagStacks = Math.min(nextMagazineMaxStacks, baselineMagazineSize * projectedMultishot * HIT_RATE_ASSUMPTION);
         statusChanceBonus += nextMagazineStatusChancePerShot * nextMagStacks * 0.5;
-        if (weapon.selectedAttackMultishotLocked !== true) {
+        if (!multishotLocked) {
             multishotBonus += nextMagazineMultishotPerShot * nextMagStacks * 0.5;
         }
     }
@@ -3380,6 +3391,7 @@ export function calculateBuild(
         statusDurationMultiplier,
         fireRate,
         fireRateLocked,
+        multishotLocked,
         burstFireRate,
         magazineSize,
         ammoCostPerShot,

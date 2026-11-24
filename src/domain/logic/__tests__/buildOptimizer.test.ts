@@ -2598,6 +2598,41 @@ describe("build optimizer scoring", () => {
         );
         expect(headshotScore).toBeGreaterThan(baseline);
 
+        const splitChamber = mods.find((mod) => mod.name === "Split Chamber");
+        expect(splitChamber).toBeDefined();
+        const acuityScore = debugScoreBuild(
+            weapon!,
+            [primaryAcuity!.effectsByRank[primaryAcuity!.fusionLimit]],
+            "burst",
+            "Grineer",
+            null,
+            target,
+            { mode: "initial" },
+        );
+        const splitChamberOnlyScore = debugScoreBuild(
+            weapon!,
+            [splitChamber!.effectsByRank[splitChamber!.fusionLimit]],
+            "burst",
+            "Grineer",
+            null,
+            target,
+            { mode: "initial" },
+        );
+        const acuityAndSplitChamberScore = debugScoreBuild(
+            weapon!,
+            [
+                primaryAcuity!.effectsByRank[primaryAcuity!.fusionLimit],
+                splitChamber!.effectsByRank[splitChamber!.fusionLimit],
+            ],
+            "burst",
+            "Grineer",
+            null,
+            target,
+            { mode: "initial" },
+        );
+        expect(splitChamberOnlyScore).toBeGreaterThan(baseline);
+        expect(acuityAndSplitChamberScore).toBeCloseTo(acuityScore, 10);
+
         const optimizedHeadWeakpoint = optimizeBuild(weapon!, [primaryAcuity!], "burst", 1, {
             allowForma: false,
             targetFaction: "Grineer",

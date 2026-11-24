@@ -4200,6 +4200,48 @@ describe("damage calculation status eligibility", () => {
         expect(fullyStacked.fireRate).toBeCloseTo(baseFireRate, 10);
     });
 
+    it("locks Multishot for both Acuity mods and ignores positive, negative, conditional, and extra-projectile modifiers", () => {
+        const configurations = [
+            { weaponName: "Braton Prime", acuityName: "Primary Acuity", multishotName: "Split Chamber" },
+            { weaponName: "Lex Prime", acuityName: "Pistol Acuity", multishotName: "Barrel Diffusion" },
+        ];
+        const conditionalMultishot = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onKill" as const,
+                durationSeconds: 20,
+                requiresAiming: false,
+                maxStacks: 1,
+                stats: { multishotBonus: 1 },
+            }],
+        };
+
+        for (const { weaponName, acuityName, multishotName } of configurations) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon).toBeDefined();
+            const mods = getModsForWeapon(weapon!);
+            const acuity = mods.find((candidate) => candidate.name === acuityName);
+            const multishotMod = mods.find((candidate) => candidate.name === multishotName);
+            expect(acuity).toBeDefined();
+            expect(multishotMod).toBeDefined();
+            expect(acuity!.effectsByRank.map((effect) => effect.multishotLocked)).toEqual(
+                Array(acuity!.fusionLimit + 1).fill(true),
+            );
+
+            const baseline = calculateBuild(weapon!, []).modded;
+            const locked = calculateBuild(weapon!, [
+                acuity!.effectsByRank[acuity!.fusionLimit]!,
+                multishotMod!.effectsByRank[multishotMod!.fusionLimit]!,
+                { ...emptyEffect(), multishotBonus: -0.5, multishotDamageBonus: 1 },
+                conditionalMultishot,
+            ], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+
+            expect(locked.multishotLocked).toBe(true);
+            expect(locked.multishot).toBeCloseTo(baseline.multishot, 10);
+            expect(locked.damageWeightedMultishot).toBeCloseTo(baseline.damageWeightedMultishot, 10);
+        }
+    });
+
     it("supports explicit initial, realistic, fully stacked, and externally maintained conditional states", () => {
         const weapon = makeWeapon({ toxin: 100 });
         const conditionalDamage = {
