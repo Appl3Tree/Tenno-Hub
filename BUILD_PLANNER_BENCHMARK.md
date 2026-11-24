@@ -50,7 +50,7 @@ Additional Combo Count Chance is still random: the Tennokai timeline assumes one
 
 Pages runs #435 and #436 both succeeded through `Build` and `Upload Pages artifact`, then failed in `deploy-pages@v4` because GitHub returned zero artifacts for that run. The artifact endpoint later listed one non-expired `github-pages` artifact for #436. Retrying #435's failed job created duplicate artifacts, so #436 was not rerun. PR #358 adds `actions: read` and polls the current run's artifact endpoint for exactly one `github-pages` artifact, retrying for up to 60 seconds before deployment. Workflow YAML parses, the application production build passes, and CRLF-aware diff check passes. Pages run [#437](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45310495589) completed successfully through the metadata wait and deploy steps on merge commit `bd818b16`.
 
-## D3-MOD-RELENTLESS-COMBINATION-SLASH-TICK-001 — ordered Tennokai Slash/Bleed timeline (implementation in progress, 2026-11-24)
+## D3-MOD-RELENTLESS-COMBINATION-SLASH-TICK-001 — ordered Tennokai Slash/Bleed timeline (committed locally; release pending, 2026-11-24)
 
 The current [Relentless Combination Wiki page](https://wiki.warframe.com/w/Relentless_Combination) describes Melee Combo generation from melee-caused Slash procs. The local raw mod record lists +25/+50/+75/+100% chance by rank when Slash Status deals damage. The [Slash Status page](https://wiki.warframe.com/w/Damage/Slash_Damage) gives a one-second first Bleed tick and a six-second base lifetime, with one tick each second. The Wiki's mechanic notes describe combo gain on Slash application and from each subsequent Bleed damage tick; the effect therefore depends on the status lifetime and the target remaining alive.
 
