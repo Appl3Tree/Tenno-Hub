@@ -5868,6 +5868,62 @@ describe("Strain Infection Burst critical damage", () => {
     });
 });
 
+describe("Strain Fever Helminth Claws Burst damage", () => {
+    const helminthClaws = getWeaponCatalog().find((weapon) => weapon.name === "Helminth Claws")!;
+    const strainFever = getModsForWeapon(helminthClaws).find((mod) => mod.name === "Strain Fever")!;
+
+    it("parses each rank's per-cyst Damage and removes the modeled source line from unmatched stats", () => {
+        expect(strainFever.effectsByRank.map((effect) => effect.strainFeverDamagePerCyst)).toEqual([
+            0.1, 0.2, 0.3, 0.4,
+        ]);
+        expect(strainFever.unparsedStatsByRank?.every((lines) =>
+            lines.every((line) => !/^Helminth Charger gains \+\d+(?:\.\d+)?% Damage per Cyst\.?$/i.test(line)),
+        )).toBe(true);
+        expect(getUnmodeledDamageEffectSourceUrl(strainFever)).toBe("https://wiki.warframe.com/w/Strain_Fever");
+    });
+
+    it("adds rank-scaled Damage per cyst on Helminth Claws and stacks additively with Maul", () => {
+        const maxRank = strainFever.effectsByRank[strainFever.fusionLimit]!;
+        const fourCysts = calculateBuild(helminthClaws, [maxRank], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 4 },
+        }).modded;
+        const eightCysts = calculateBuild(helminthClaws, [maxRank], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 8 },
+        }).modded;
+        const maul = { ...emptyEffect(), damageBonus: 1.2 };
+        const withBoth = calculateBuild(helminthClaws, [maxRank, maul], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 8 },
+        }).modded;
+        const withoutEither = calculateBuild(helminthClaws, [], "").modded;
+
+        expect(fourCysts.strainFeverDamageBonus).toBeCloseTo(1.6, 12);
+        expect(eightCysts.strainFeverDamageBonus).toBeCloseTo(3.2, 12);
+        expect(eightCysts.totalDamageBonus - withoutEither.totalDamageBonus).toBeCloseTo(3.2, 12);
+        expect(withBoth.totalDamageBonus - withoutEither.totalDamageBonus).toBeCloseTo(4.4, 12);
+    });
+
+    it("ignores non-Helminth companions and removes the cyst snapshot from finite scoring", () => {
+        const maxRank = strainFever.effectsByRank[strainFever.fusionLimit]!;
+        const nonHelminthCompanion = {
+            ...helminthClaws,
+            tags: helminthClaws.tags.filter((tag) => tag !== "HELMINTH_WEAPON"),
+        };
+        const nonHelminth = calculateBuild(nonHelminthCompanion, [maxRank], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 8 },
+        }).modded;
+        const finiteWithCysts = calculateBuildForExpectedEncounter(helminthClaws, [maxRank], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 8 },
+        }).modded;
+        const finiteWithoutCysts = calculateBuildForExpectedEncounter(helminthClaws, [maxRank], "", {
+            conditionalState: { mode: "initial", strainInfectionCystsAtImpact: 0 },
+        }).modded;
+
+        expect(nonHelminth.strainFeverDamageBonus).toBe(0);
+        expect(finiteWithCysts.strainFeverDamageBonus).toBe(0);
+        expect(finiteWithCysts.totalDamageBonus).toBeCloseTo(finiteWithoutCysts.totalDamageBonus, 12);
+    });
+});
+
 describe("Dreadful Killshot Burst health snapshot", () => {
     const basmu = getWeaponCatalog().find((weapon) => weapon.name === "Basmu")!;
     const dreadfulKillshot = getModsForWeapon(basmu).find((mod) => mod.name === "Dreadful Killshot")!;

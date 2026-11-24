@@ -28,6 +28,7 @@ export const CRITICAL_PRECISION_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nig
 export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/NightwaveStalkerBowAugmentMod";
 export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
+export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -66,6 +67,8 @@ export interface ScoringEffectContext {
     unseenDreadInvisibilityActive?: boolean;
     /** Prior Catabolyst kills represented by Critical Mutation's Burst snapshot. */
     criticalMutationPriorKills?: number;
+    /** Active Strain cysts at impact for Burst-only Strain Infection/Fever snapshots. */
+    strainInfectionCystsAtImpact?: number;
     /** Current optimization objective; these snapshots are Burst-only. */
     selectedGoal?: string;
 }
@@ -246,6 +249,14 @@ export function getUnmodeledDamageEffectLines(
             lines.push("Critical Mutation gains rank-scaled Critical Chance and Critical Damage with kills, up to +300%. This planner uses an editable 0–60 prior-kill snapshot for the direct Catabolyst/Coda Catabolyst Primary Burst row only; stack changes, including grenade-hit reduction, are not simulated. Reload grenade rows, finite TTK, 5s DPS, and non-Burst objectives remain unscored, so Auto Optimize skips it outside this supported snapshot.");
         }
     }
+    if (mod.path === STRAIN_FEVER_MOD_PATH) {
+        const hasSupportedWeapon = context?.selectedWeaponName === "Helminth Claws";
+        const hasBurstSnapshot = context?.selectedGoal === "burst" && Number.isFinite(context?.strainInfectionCystsAtImpact) &&
+            (context?.strainInfectionCystsAtImpact ?? 0) > 0;
+        if (!hasSupportedWeapon || !hasBurstSnapshot) {
+            lines.push("Strain Fever adds rank-scaled Helminth Charger Claw Damage per active cyst. This planner uses the saved 0–8 active-cyst snapshot for Helminth Claws Burst scoring only; cyst growth, eruption timing, and average uptime are not modeled, so Auto Optimize skips it without a positive Burst snapshot. The rank table and Update 37 correction imply +320% at eight cysts, while the Wiki's note says +240%; that note is treated as stale.");
+        }
+    }
     if (mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH && context?.selectedWeaponName === "Ripkas") {
         // The mod's Critical Chance applies to this selected Ripkas profile, but
         // the Wiki's shotgun Reload Speed bonus belongs to a separate weapon.
@@ -330,6 +341,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH) {
         return "https://wiki.warframe.com/w/Amalgam_Ripkas_True_Steel";
     }
+    if (mod.path === STRAIN_FEVER_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Strain_Fever";
+    }
     if (mod.path === RELENTLESS_COMBINATION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Relentless_Combination";
     }
@@ -375,7 +389,7 @@ export function emptyEffect(): ModEffect {
         voidBonus: 0, tauBonus: 0, trueBonus: 0,
         critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0,
-        strainInfectionCritDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
+        strainInfectionCritDamagePerCyst: 0, strainFeverDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
         deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,
         unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
         criticalMutationCritChanceAndDamagePerKill: 0,

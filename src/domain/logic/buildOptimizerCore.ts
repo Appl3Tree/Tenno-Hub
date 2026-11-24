@@ -1550,6 +1550,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         ),
         unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
         criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+        strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
         selectedGoal: goal,
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
@@ -2932,7 +2933,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("fireRateBonus", "chargeRateBonus")) families.push("fire-rate");
     if (has("attackSpeedBonus")) families.push("melee-attack-speed");
-    if (has("damageBonus", "sentientIncisionDamageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs", "dreadfulKillshotDamageAndStatusPer75Health")) families.push("base-damage");
+    if (has("damageBonus", "strainFeverDamagePerCyst", "sentientIncisionDamageBonus", "firstShotMagazineDamageBonus", "nonCriticalHitDamageProcs", "dreadfulKillshotDamageAndStatusPer75Health")) families.push("base-damage");
     if (has("factionDamageBonus")) families.push("faction-damage");
     if (has("nightwatchNapalmEffect")) families.push("weapon-specific-damage");
     if (has(
@@ -4414,6 +4415,7 @@ function optimizeExilusSlot(
                 ),
                 unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
                 criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+                strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
                 selectedGoal: goal,
             }).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
@@ -5375,6 +5377,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     addPercent("deadlyManeuversHeadshotCritChanceBonus", "headshot Critical Chance for the next two shots after a dodge (Burst snapshot only)");
     addPercent("critMultBonus", "Critical Damage");
     addPercent("strainInfectionCritDamagePerCyst", "Critical Damage per active Strain Infection cyst (Burst only)");
+    addPercent("strainFeverDamagePerCyst", "Damage per active Strain cyst on Helminth Claws (Burst only)");
     addPercent("criticalMutationCritChanceAndDamagePerKill", "Critical Chance and Critical Damage per prior kill (Burst snapshot only)");
     if (value("finalCritMultiplierBonus") !== 0) {
         parts.push(`${value("finalCritMultiplierBonus") < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(value("finalCritMultiplierBonus")))}× Critical Damage`);
@@ -5673,6 +5676,9 @@ export function explainBuild(
     if (selectedStats.strainInfectionCritDamageBonus > 0) {
         buildHighlights.push(`Strain Infection Burst scoring assumes ${selectedStats.strainInfectionCystsAtImpact} active cysts at impact and adds ${formatExplanationPercent(selectedStats.strainInfectionCritDamageBonus)} Critical Damage. The selected count stays static within that calculation; cyst growth, erosion timing, and average uptime are not modeled. Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this assumption.`);
     }
+    if (selectedStats.strainFeverDamageBonus > 0) {
+        buildHighlights.push(`Strain Fever Burst scoring for Helminth Claws assumes ${selectedStats.strainInfectionCystsAtImpact} active cysts at impact and adds ${formatExplanationPercent(selectedStats.strainFeverDamageBonus)} additive Damage. The selected count stays static within that calculation; cyst growth, eruption timing, and average uptime are not modeled. Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this assumption. The Wiki's +240% note conflicts with its per-rank values and the Update 37 correction; the planner follows the rank values.`);
+    }
     if (selectedStats.dreadfulKillshotBonus > 0) {
         buildHighlights.push(`Basmu's Dreadful Killshot Burst score assumes ${formatExplanationNumber(selectedStats.dreadfulKillshotCurrentHealth, 0)} current Warframe Health and adds ${formatExplanationPercent(selectedStats.dreadfulKillshotBonus)} each to additive weapon Damage and Status Chance after rounding down to 20% increments (360% cap). Current Health is held static; health buffs and damage taken are not simulated. The assumption applies only to Burst scoring and Burst Auto Optimize; Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude it.`);
     }
@@ -5742,6 +5748,7 @@ export function explainBuild(
             ),
             unseenDreadInvisibilityActive: conditionalState?.unseenDreadInvisibilityActive === true,
             criticalMutationPriorKills: normalizeCriticalMutationPriorKills(conditionalState?.criticalMutationPriorKills),
+            strainInfectionCystsAtImpact: conditionalState?.strainInfectionCystsAtImpact,
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
