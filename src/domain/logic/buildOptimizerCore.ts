@@ -43,10 +43,11 @@ import {
     simulateExpectedWeaponEncounter,
     type ExpectedWeaponEncounterResult,
 } from "./targetDamage";
+import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "./tennokaiTimeline";
 
 export const FIXED_WINDOW_DPS_SECONDS = 5;
 
-export type OptimizeGoal = "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps";
+export type OptimizeGoal = "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps" | "tennokaiDps";
 export type LegacyOptimizeGoal = OptimizeGoal | "damage" | "crit" | "status";
 
 function isFiniteEncounterGoal(goal: OptimizeGoal): boolean {
@@ -71,6 +72,8 @@ export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefine
         case "windowDps":
             return goal;
         case "meleeDps":
+            return goal;
+        case "tennokaiDps":
             return goal;
         default:
             return "burst";
@@ -865,6 +868,7 @@ function scoreEffectsCore(
     conditionalState?: ConditionalState,
     meleeStanceCombo?: MeleeAverageDpsParameters,
     expectedKillRatePerSecond?: number,
+    tennokaiCycles = 4,
 ): OptimizerEffectScore {
     const hasSentientIncision = weapon.category === "Melee" && weapon.selectedAttackUsesSlamDamageBonus !== true &&
         effects.some((effect) => (effect?.sentientIncisionDamageBonus ?? 0) > 0);
@@ -887,6 +891,59 @@ function scoreEffectsCore(
             primaryScore: 0,
             killCadenceScore: 0,
             poolTotal: 0,
+        };
+    }
+
+    if (goal === "tennokaiDps") {
+        const attackPair = findSupportedTennokaiAttackPair(weapon);
+        if (!attackPair) return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: 0 };
+        const scoringTarget = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
+        if (scoringTarget.poolTotal <= 0) {
+            return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: 0 };
+        }
+        const timelineEffects = arcaneEffect
+            ? [...effects, normalizeArcaneEffect(arcaneEffect)]
+            : effects;
+        const timeline = calculateTennokaiAttackTimeline({
+            weapon,
+            mods: timelineEffects,
+            targetFaction,
+            ...attackPair,
+            regularHitsBetweenHeavy: conditionalState?.tennokaiRegularHitsBetweenHeavy ?? 4,
+            conditionalState,
+            damageOptions: {
+                statusImmuneTypes: [...scoringTarget.statusImmuneTypes],
+                statusStackCaps: scoringTarget.statusStackCaps,
+                hitLocation: {
+                    headshotRate: scoringTarget.pools.headshotHitRate,
+                    headshotMultiplier: scoringTarget.pools.headshotMultiplier,
+                    criticalHeadshotMultiplier: scoringTarget.pools.criticalHeadshotMultiplier,
+                    headIsWeakPoint: scoringTarget.pools.headIsWeakPoint,
+                },
+                isEximusTarget: scoringTarget.pools.isEximusTarget,
+                targetHasOverguard: scoringTarget.pools.overguard > 0,
+                expectedKillRatePerSecond,
+                includeDoTTickDetails: false,
+            },
+            targetProfile: {
+                health: scoringTarget.pools.health,
+                shields: scoringTarget.pools.shields,
+                overguard: scoringTarget.pools.overguard,
+                armor: scoringTarget.pools.armor,
+                baseArmorValue: scoringTarget.target.armorBaseValue,
+                armorLevelMultiplier: scoringTarget.target.armorLevelMultiplier,
+                toxinBypassesShields: scoringTarget.pools.toxinBypassesShields,
+            },
+            cycles: tennokaiCycles,
+        });
+        const score = timeline.supported
+            ? timeline.expectedDamagePerSecondAfterTargetDefenses ?? 0
+            : 0;
+        return {
+            score,
+            primaryScore: score,
+            killCadenceScore: score,
+            poolTotal: scoringTarget.poolTotal,
         };
     }
 
@@ -1254,6 +1311,7 @@ function scoreSlots(
     targetProfileOverride?: TargetProfileOverride,
     effectsScratch?: (ModEffect | null)[],
     meleeStanceCombo?: MeleeAverageDpsParameters,
+    tennokaiSearchProxy = false,
 ): number {
     const effects = effectsScratch ?? [];
     effects.length = 0;
@@ -1266,6 +1324,23 @@ function scoreSlots(
         }
         const r = ranks[i] ?? m.fusionLimit;
         effects.push(m.effectsByRank[r] ?? m.effect);
+    }
+    if (goal === "tennokaiDps" && tennokaiSearchProxy) {
+        const searchEffects = effects.some((effect) => effect?.tennokaiEnabled)
+            ? effects
+            : [...effects, { ...emptyEffect(), tennokaiEnabled: true }];
+        return scoreEffectsCore(
+            weapon,
+            searchEffects,
+            goal,
+            targetFaction,
+            arcaneEffect,
+            targetProfileOverride,
+            withoutBurstOnlyConditionalAssumptions(conditionalState),
+            meleeStanceCombo,
+            0,
+            1,
+        ).score;
     }
     return scoreEffects(weapon, effects, goal, targetFaction, arcaneEffect, targetProfileOverride, conditionalState, meleeStanceCombo);
 }
@@ -1420,6 +1495,19 @@ function bestPolarity(mod: ModEntry): string {
 
 interface Candidate { mod: ModEntry; rank: number; groupBit?: bigint; }
 
+function getBlockingOptimizerEffectLines(
+    mod: ModEntry,
+    rank: number,
+    context: Parameters<typeof getUnmodeledDamageEffectLines>[2],
+): string[] {
+    return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
+        !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
+        !(context?.selectedGoal === "tennokaiDps" &&
+            mod.path === "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod" &&
+            line.includes("scores are target-damage-only.")),
+    );
+}
+
 function normalizeOptimizerVariantPath(path: string): string {
     return path
         .replace(/\/(Beginner|Intermediate|Expert)\//g, "/")
@@ -1476,7 +1564,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         !sentientIncisionBlockedByOverguard(mod) && mod.hasDamageEffect && (goal === "burst" || !isDreadfulKillshot(mod)) &&
         (!isDeadlyManeuvers(mod) || deadlyManeuversCanScore) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
-        allowedRanks(mod).some((rank) => getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length === 0);
+        allowedRanks(mod).some((rank) => getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
     for (const mod of allMods) {
         if (!hasSupportedDamageRank(mod)) continue;
@@ -1511,11 +1599,97 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         const familyKey = normalizeOptimizerVariantPath(mod.path);
         if (getOptimizerVariantTier(mod.path) === "flawed" && familyHasStandard.has(familyKey)) continue;
         for (const rank of allowedRanks(mod).sort((a, b) => b - a)) {
-            if (getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext).length > 0) continue;
+            if (getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length > 0) continue;
             out.push({ mod, rank });
         }
     }
     return out;
+}
+
+const TENNOKAI_SEARCH_CANDIDATE_LIMIT = 24;
+
+function shortlistTennokaiCandidates(
+    candidates: Candidate[],
+    weapon: WeaponEntry,
+    targetFaction: string,
+    targetProfileOverride: TargetProfileOverride | undefined,
+    conditionalState: ConditionalState | undefined,
+    preEquippedEffects: (ModEffect | null)[],
+): Candidate[] {
+    const groups = new Map<string, { candidates: Candidate[]; bestScore: number; bestCandidate: Candidate; enablesTennokai: boolean }>();
+    const hasEnablement = preEquippedEffects.some((effect) => effect?.tennokaiEnabled === true);
+    for (const candidate of candidates) {
+        const effect = candidate.mod.effectsByRank[candidate.rank] ?? candidate.mod.effect;
+        const effects = [...preEquippedEffects, effect];
+        if (!hasEnablement && !effect.tennokaiEnabled) {
+            effects.push({ ...emptyEffect(), tennokaiEnabled: true });
+        }
+        const score = scoreEffectsCore(
+            weapon,
+            effects,
+            "tennokaiDps",
+            targetFaction,
+            null,
+            targetProfileOverride,
+            withoutBurstOnlyConditionalAssumptions(conditionalState),
+            undefined,
+            0,
+            1,
+        ).score;
+        const existing = groups.get(candidate.mod.uniqueName);
+        if (existing) {
+            existing.candidates.push(candidate);
+            existing.enablesTennokai ||= effect.tennokaiEnabled === true;
+            if (score > existing.bestScore) {
+                existing.bestScore = score;
+                existing.bestCandidate = candidate;
+            }
+        } else {
+            groups.set(candidate.mod.uniqueName, {
+                candidates: [candidate],
+                bestScore: score,
+                bestCandidate: candidate,
+                enablesTennokai: effect.tennokaiEnabled === true,
+            });
+        }
+    }
+    const rankedGroups = [...groups.entries()].map(([uniqueName, group]) => ({ uniqueName, ...group }))
+        .sort((left, right) => right.bestScore - left.bestScore || left.uniqueName.localeCompare(right.uniqueName));
+    const selected = new Map<string, typeof rankedGroups[number]>();
+    const addGroup = (group: typeof rankedGroups[number] | undefined) => {
+        if (!group || selected.size >= TENNOKAI_SEARCH_CANDIDATE_LIMIT) return;
+        selected.set(group.uniqueName, group);
+    };
+
+    // Keep every supported opportunity mod represented before filling the
+    // shortlist with high-scoring general damage mods.
+    for (const group of rankedGroups.filter((candidate) => candidate.enablesTennokai)) addGroup(group);
+
+    // Keep one leading candidate from each independent damage theme so the
+    // reduced beam still sees elemental, critical, and faction alternatives.
+    const themeLeaders = new Map<string, typeof rankedGroups[number]>();
+    for (const group of rankedGroups) {
+        const theme = beamThemeSignature({ mods: [group.bestCandidate.mod], ranks: [group.bestCandidate.rank] });
+        const previous = themeLeaders.get(theme);
+        if (!previous || group.bestScore > previous.bestScore) themeLeaders.set(theme, group);
+    }
+    for (const group of [...themeLeaders.values()].sort((left, right) => right.bestScore - left.bestScore)) addGroup(group);
+    for (const group of rankedGroups) addGroup(group);
+
+    const shortlisted: Candidate[] = [];
+    for (const group of selected.values()) {
+        const variants = [...group.candidates];
+        const ranks = [...variants].sort((left, right) => left.rank - right.rank);
+        const best = group.bestCandidate;
+        const selectedVariants = new Set<Candidate>([
+            best,
+            ranks[0],
+            ranks[ranks.length - 1],
+            ranks[Math.floor((ranks.length - 1) / 2)],
+        ]);
+        shortlisted.push(...selectedVariants);
+    }
+    return shortlisted;
 }
 
 // ── Polarity-aware slot assignment ────────────────────────────────────────────
@@ -1985,13 +2159,17 @@ function beamStateSignature(state: BeamState, allowForma: boolean): string {
     return getBeamStateSignature(state.mods, state.ranks, allowForma);
 }
 
-function beamThemeSignature(state: BeamState): string {
+function beamThemeSignature(state: Pick<BeamState, "mods" | "ranks">): string {
     const tags = new Set<string>();
     for (let index = 0; index < state.mods.length; index++) {
         const mod = state.mods[index];
         if (!mod) continue;
         const rank = state.ranks[index] ?? mod.fusionLimit;
         const effect = mod.effectsByRank[rank] ?? mod.effect;
+        if (effect.tennokaiEnabled) tags.add("tennokai");
+        if ((effect.tennokaiOpportunityChanceBonus ?? 0) > 0 || (effect.tennokaiOpportunityEveryHits ?? 0) > 0) {
+            tags.add("tennokai-opportunity");
+        }
         if ((effect.coldBonus ?? 0) > 0) tags.add("cold");
         if ((effect.heatBonus ?? 0) > 0) tags.add("heat");
         if ((effect.toxinBonus ?? 0) > 0) tags.add("toxin");
@@ -2022,10 +2200,12 @@ function beamSearch(
     goal: OptimizeGoal,
     slotCount: number,
     opts: OptimizerOptions,
+    useTennokaiSearchProxy = false,
 ): {
     mods: ModEntry[];
     ranks: number[];
     expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }>;
+    tennokaiSearchSeeds: Array<{ mods: ModEntry[]; ranks: number[] }>;
     scoreCache: Map<string, number>;
 } {
     const {
@@ -2068,6 +2248,14 @@ function beamSearch(
         ? extraCapacitySlots.reduce((total, extra) => total + effectiveDrain(extra.mod, extra.polarity, extra.rank), 0)
         : 0;
     const scoreEffectsScratch: (ModEffect | null)[] = [];
+    const beamWidth = useTennokaiSearchProxy ? 10 : BEAM_WIDTH;
+    const beamWidthPerFilledCount = useTennokaiSearchProxy ? 6 : BEAM_WIDTH_PER_FILLED_COUNT;
+    const beamWidthPerTheme = useTennokaiSearchProxy ? 3 : BEAM_WIDTH_PER_THEME;
+    const stateHasTennokaiEnablement = (state: BeamState) => state.mods.some((mod, index) => {
+        if (!mod) return false;
+        const rank = state.ranks[index] ?? mod.fusionLimit;
+        return mod.effectsByRank[rank]?.tennokaiEnabled === true || mod.effect.tennokaiEnabled === true;
+    }) || preEquippedEffects.some((effect) => effect?.tennokaiEnabled === true);
 
     const insertFormaSaving = (savings: number[], saving: number): number[] => {
         let insertAt = 0;
@@ -2124,6 +2312,7 @@ function beamSearch(
             opts.targetProfileOverride,
             scoreEffectsScratch,
             opts.meleeStanceCombo,
+            useTennokaiSearchProxy,
         ),
         filledCount: lockedSlots.filter(Boolean).length,
         capacityUsed: initialCapacityUsed,
@@ -2239,6 +2428,7 @@ function beamSearch(
                     opts.targetProfileOverride,
                     scoreEffectsScratch,
                     opts.meleeStanceCombo,
+                    useTennokaiSearchProxy,
                 );
             }
             deduped.set(signature, candidate);
@@ -2253,7 +2443,7 @@ function beamSearch(
         const diversified: BeamState[] = [];
         for (const states of byFilledCount.values()) {
             states.sort((a, b) => b.score - a.score);
-            diversified.push(...states.slice(0, BEAM_WIDTH_PER_FILLED_COUNT));
+            diversified.push(...states.slice(0, beamWidthPerFilledCount));
         }
 
         const byTheme = new Map<string, BeamState[]>();
@@ -2264,11 +2454,17 @@ function beamSearch(
         }
         for (const states of byTheme.values()) {
             states.sort((a, b) => b.score - a.score);
-            diversified.push(...states.slice(0, BEAM_WIDTH_PER_THEME));
+            diversified.push(...states.slice(0, beamWidthPerTheme));
         }
 
-        diversified.sort((a, b) => b.score - a.score);
-        beam = diversified.slice(0, BEAM_WIDTH);
+        diversified.sort((a, b) => {
+            if (useTennokaiSearchProxy) {
+                const enablementDifference = Number(stateHasTennokaiEnablement(b)) - Number(stateHasTennokaiEnablement(a));
+                if (enablementDifference !== 0) return enablementDifference;
+            }
+            return b.score - a.score;
+        });
+        beam = diversified.slice(0, beamWidth);
     }
 
     const best = beam[0];
@@ -2279,6 +2475,20 @@ function beamSearch(
         if (m) { resultMods.push(m); resultRanks.push(best.ranks[i] ?? m.fusionLimit); }
     }
     const expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [];
+    const tennokaiSearchSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [];
+    if (useTennokaiSearchProxy && beam.length > 0) {
+        const maxFilledCount = Math.max(...beam.map((state) => state.filledCount));
+        const finalists = beam.filter((state) => state.filledCount === maxFilledCount && stateHasTennokaiEnablement(state));
+        const fallbackFinalists = finalists.length > 0
+            ? finalists
+            : beam.filter((state) => state.filledCount === maxFilledCount);
+        for (const state of fallbackFinalists.slice(0, 10)) {
+            tennokaiSearchSeeds.push({
+                mods: state.mods.flatMap((mod) => mod ? [mod] : []),
+                ranks: state.mods.flatMap((mod, index) => mod ? [state.ranks[index] ?? mod.fusionLimit] : []),
+            });
+        }
+    }
     if (isFiniteEncounterGoal(goal) && !lockedSlots.some(Boolean) && beam.length > 1) {
         const maxFilledCount = Math.max(...beam.map((state) => state.filledCount));
         const finalists = beam.filter((state) => state.filledCount === maxFilledCount);
@@ -2314,7 +2524,7 @@ function beamSearch(
         const signature = getBeamStateSignature(state.mods, state.ranks, true);
         if (!scoreCache.has(signature)) scoreCache.set(signature, state.score);
     }
-    return { mods: resultMods, ranks: resultRanks, expectedEncounterSeeds, scoreCache };
+    return { mods: resultMods, ranks: resultRanks, expectedEncounterSeeds, tennokaiSearchSeeds, scoreCache };
 }
 
 function refineBuildSet(
@@ -4147,7 +4357,7 @@ function optimizeExilusSlot(
     for (const mod of eligibleExilus) {
         const minRank = opts.allowNonMaxRank ? 0 : mod.fusionLimit;
         for (let r = mod.fusionLimit; r >= minRank; r--) {
-            if (getUnmodeledDamageEffectLines(mod, r, {
+            if (getBlockingOptimizerEffectLines(mod, r, {
                 headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
                 selectedAttackName: weapon.selectedAttackName,
                 selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
@@ -4336,14 +4546,49 @@ function optimizeBuildInternal(
     // Effective options used inside beam search
     const effectiveOpts: OptimizerOptions = { ...opts, capacityConfig: capCfg };
 
-    const candidates = buildCandidates(availableMods, goal, effectiveOpts, weapon);
+    const allCandidates = buildCandidates(availableMods, goal, effectiveOpts, weapon);
+    const useTennokaiSearchProxy = goal === "tennokaiDps" && allCandidates.length > TENNOKAI_SEARCH_CANDIDATE_LIMIT;
+    const candidates = useTennokaiSearchProxy
+        ? shortlistTennokaiCandidates(
+            allCandidates,
+            scoringWeapon,
+            targetFaction,
+            opts.targetProfileOverride,
+            opts.conditionalState,
+            preEquippedEffects,
+        )
+        : allCandidates;
     const hasLockedMainSlots = lockedSlots.some(Boolean);
 
     // Phase 1: Beam search — find best set of mods
-    const initial = beamSearch(scoringWeapon, candidates, goal, slotCount, effectiveOpts);
+    const initial = beamSearch(scoringWeapon, candidates, goal, slotCount, effectiveOpts, useTennokaiSearchProxy);
     let mods = initial.mods;
     let ranks = initial.ranks;
-    if (!hasLockedMainSlots && !isFiniteEncounterGoal(goal)) {
+    if (useTennokaiSearchProxy && initial.tennokaiSearchSeeds.length > 0) {
+        let bestSeedScore = Number.NEGATIVE_INFINITY;
+        for (const seed of initial.tennokaiSearchSeeds) {
+            const seedEffects = [
+                ...preEquippedEffects,
+                ...seed.mods.map((mod, index) => mod.effectsByRank[seed.ranks[index]] ?? mod.effect),
+            ];
+            const score = scoreEffects(
+                scoringWeapon,
+                seedEffects,
+                goal,
+                targetFaction,
+                undefined,
+                opts.targetProfileOverride,
+                opts.conditionalState,
+                opts.meleeStanceCombo,
+            );
+            if (score > bestSeedScore) {
+                bestSeedScore = score;
+                mods = seed.mods;
+                ranks = seed.ranks;
+            }
+        }
+    }
+    if (!hasLockedMainSlots && !isFiniteEncounterGoal(goal) && goal !== "tennokaiDps") {
         ({ mods, ranks } = refineBuildSet(
             scoringWeapon,
             initial.mods,
@@ -4475,7 +4720,7 @@ function optimizeBuildInternal(
         : null;
 
     if (!hasLockedMainSlots) {
-        if (!isFiniteEncounterGoal(goal)) {
+        if (!isFiniteEncounterGoal(goal) && goal !== "tennokaiDps") {
             const refinedWithContext = refineBuildSet(
                 scoringWeapon,
                 slotMods.filter((m): m is ModEntry => !!m),
@@ -4568,7 +4813,7 @@ function optimizeBuildInternal(
             effectiveOpts.meleeStanceCombo,
         );
 
-    let greedyImproved = !isFiniteEncounterGoal(goal);
+    let greedyImproved = !isFiniteEncounterGoal(goal) && goal !== "tennokaiDps";
     while (greedyImproved && slotMods.some((mod) => !mod)) {
         greedyImproved = false;
         const baseScore = scoreFinalMainSlots(slotMods, slotRanks);
@@ -4733,7 +4978,7 @@ function optimizeBuildInternal(
 
     // For proxy objectives, Arcane choice and mod refinement use the same score
     // function. Reconcile them after slot placement and the final empty-slot pass.
-    if (!isFiniteEncounterGoal(goal) && optimizeArcane && !hasLockedMainSlots) {
+    if (!isFiniteEncounterGoal(goal) && goal !== "tennokaiDps" && optimizeArcane && !hasLockedMainSlots) {
         for (let pass = 0; pass < ARCANE_MOD_JOINT_REFINE_PASSES; pass++) {
             const selectedArcane = optimizeArcaneSlot(
                 scoringWeapon,
@@ -5042,6 +5287,7 @@ function goalLabel(goal: OptimizeGoal): string {
         case "timeToKill": return "Expected TTK";
         case "windowDps": return "Fixed-window DPS (5s)";
         case "meleeDps": return "Wiki Stance DPS";
+        case "tennokaiDps": return "Tennokai Cycle DPS";
     }
 }
 
@@ -5144,7 +5390,10 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     if (value("blastRadiusBonus") !== 0) parts.push(signedPercent(value("blastRadiusBonus"), "blast radius"));
     if (value("beamRangeBonus") !== 0) parts.push(signedPercent(value("beamRangeBonus"), "beam range"));
     if (value("rangeBonus") !== 0) parts.push(signedPercent(value("rangeBonus"), "weapon range"));
-    if (value("comboDurationBonus") !== 0) parts.push(signedPercent(value("comboDurationBonus"), "Melee Combo Duration"));
+    if (value("comboDurationBonus") !== 0) {
+        const duration = value("comboDurationBonus");
+        parts.push(`${duration < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(duration))}s Melee Combo Duration`);
+    }
     if (value("initialComboBonus") !== 0) parts.push(`+${formatExplanationNumber(value("initialComboBonus"), 0)} starting Melee Combo points`);
     if (value("comboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("comboCountChanceBonus"))} chance to gain an extra Melee Combo point`);
     if (value("firstShotMagazineDamageBonus") !== 0) {
@@ -5319,6 +5568,18 @@ export function explainBuild(
     const selectedStats = calculateBuild(scoringWeapon, selectedEffects, targetFaction, statsOptions).modded;
     const changed = (before: number, after: number) => Math.abs(before - after) > 1e-9;
     const buildHighlights: string[] = [];
+    if (goal === "tennokaiDps") {
+        const attackPair = findSupportedTennokaiAttackPair(scoringWeapon);
+        if (attackPair) {
+            const regularHits = Math.max(1, Math.min(20, Math.floor(
+                conditionalState?.tennokaiRegularHitsBetweenHeavy ?? 4,
+            )));
+            const heavyName = scoringWeapon.attacks[attackPair.heavyAttackIndex]?.name ?? "Heavy Attack";
+            buildHighlights.push(
+                `Tennokai Cycle DPS scores ${regularHits} Normal Attack hit(s) before each ${heavyName} over the expected opportunity/combo timeline. Target faction and initial armor/pool routing affect direct hits; status ticks, pool transitions, melee-range checks, and numeric Heavy Attack wind-up are excluded.`,
+            );
+        }
+    }
     if (selectedStats.sentientIncisionDamageType && selectedStats.sentientIncisionDamageBonus > 0) {
         buildHighlights.push(
             `Sentient Incision adds ${formatExplanationPercent(selectedStats.sentientIncisionDamageBonus)} isolated ${selectedStats.sentientIncisionDamageType[0].toUpperCase()}${selectedStats.sentientIncisionDamageType.slice(1)} damage for the selected target. The bonus is added after elemental combination and does not scale the matching DoT seed. ${targetAssumptions.overguard > 0 ? "Because this target starts with Overguard, Burst uses its Corrosive snapshot; finite TTK, sustained, and fixed-window scoring are unavailable because the element changes when Overguard breaks." : "The target has no initial Overguard, so this selected faction element remains fixed during the modeled encounter."}`,
@@ -5481,13 +5742,16 @@ export function explainBuild(
         );
     const targetDetail = goal === "windowDps" && targetProfileOverride
         ? " using the entered target pools; only damage applied to this target is scored, with neighbor collateral excluded"
+        : goal === "tennokaiDps" && targetProfileOverride
+            ? " using the entered target's initial pools and defenses; adjacent targets and pool transitions are excluded"
         : goal !== "meleeDps" && targetProfileOverride
             ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}`
         : "";
     const scoreLabel = goal === "timeToKill"
         ? "Screening proxy score"
         : goal === "windowDps" ? "Exact 5-second damage rate"
-        : goal === "meleeDps" ? "Raw stance DPS estimate" : "Selected build score";
+        : goal === "meleeDps" ? "Raw stance DPS estimate"
+        : goal === "tennokaiDps" ? "Initial-defense direct-hit DPS estimate" : "Selected build score";
     const encounterSummary = goal === "timeToKill" && explanationOptions.objectiveEncounter
         ? explanationOptions.objectiveEncounter.timeToKillSeconds === null
             ? ` Finite expected encounter reached its safety cap; fallback damage rate ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)}/s.`
@@ -5516,6 +5780,8 @@ export function explainBuild(
         buildHighlights,
         comparisonNote: goal === "meleeDps"
             ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
+            : goal === "tennokaiDps"
+                ? "The optimizer compares the same expected four-cycle Normal Attack / Heavy Attack or centered Heavy Slam timeline shown in the Tennokai panel. It applies the target's faction, initial pool routing, armor, and expected critical profile, with one combo point per normal hit; it does not advance pool transitions or status ticks, and excludes numeric Heavy Attack wind-up, adjacent-target damage, and Truth's Flame curse/syndicate effects. Each selected direct-hit event is assumed to connect, so Opportunity's Reach's range is informational while its opportunity-window bonus is scored; Tennokai Status Chance is omitted. For a pool over 24 candidates, a one-cycle score narrows the search to up to 24 mod families, keeps representative ranks, and searches with a 10-state beam; up to 10 finalists are re-scored on four cycles. This bounded cycle score is not finite TTK, five-second DPS, or a global-optimality result."
             : goal === "timeToKill"
             ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod additions or replacements plus up to ${ENCOUNTER_REFINE_REMOVAL_LIMIT} legal single-mod removals. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls—or when an Arcane-dependent move improves the exact score—the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is exact-scored against the current mod list. For up to ${ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT} varied legal mod changes per pass, a fast Arcane estimate chooses a candidate effect and the complete finite-encounter score evaluates the combined move; small mod/Arcane pools are scored exactly. The Arcane is rechecked as the build changes, for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
             : goal === "windowDps"

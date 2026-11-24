@@ -115,6 +115,26 @@ const COMPAT_MAP: Record<string, string> = {
 
 export interface ModEffect {
     damageBonus: number;
+    /** Enables the weapon's Tennokai opportunity system. */
+    tennokaiEnabled: boolean;
+    /** Relative opportunity chance increase (0.5 means +50% of base chance). */
+    tennokaiOpportunityChanceBonus: number;
+    /** Guaranteed opportunity cadence in qualifying melee hits; zero means random chance. */
+    tennokaiOpportunityEveryHits: number;
+    /** Damage bonus applied only to a Tennokai Heavy Attack. */
+    tennokaiDamageBonus: number;
+    /** Critical Damage bonus applied only to a Tennokai Heavy Attack. */
+    tennokaiCritDamageBonus: number;
+    /** Status Chance bonus applied only to a Tennokai Heavy Attack. */
+    tennokaiStatusChanceBonus: number;
+    /** Total opportunity window in seconds when a Tennokai opportunity is active. */
+    tennokaiOpportunityWindowSeconds: number;
+    /** Added melee reach for a Tennokai Heavy Attack. */
+    tennokaiRangeBonusMeters: number;
+    /** Additional Tennokai damage bonus after a Tennokai kill. */
+    tennokaiChainedDamageBonus: number;
+    /** Additional opportunity duration after a Tennokai kill. */
+    tennokaiChainedOpportunitySeconds: number;
     /** Sentient Incision's isolated, target-selected elemental damage fraction. */
     sentientIncisionDamageBonus?: number;
     /** Spring-Loaded Broadhead's multiplicative damage bonus for one hit beyond its rank distance threshold. */
@@ -228,6 +248,7 @@ export interface ModEffect {
     bodyshotDamageBonus: number;
     weakPointDamageBonus: number;
     weakPointCritChanceBonus: number;
+    /** Flat seconds added to the melee combo inactivity timeout. */
     comboDurationBonus: number;
     initialComboBonus: number;
     comboCountChanceBonus: number;
@@ -616,6 +637,55 @@ function parseTriggeredStatLine(raw: string): Partial<ModEffect> {
     };
 }
 
+function parseTennokaiLine(raw: string): Partial<ModEffect> {
+    const clean = stripColorTags(raw).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+    if (/^Enables Tennokai\.?$/i.test(clean)) return { tennokaiEnabled: true };
+
+    const line = clean.replace(/^Enables Tennokai\.?\s*/i, "");
+    if (!line) return {};
+
+    let match = line.match(/^Opportunities occur every\s+(?:<LOWER_IS_BETTER>)?(\d+) melee hits instead of at random\.?$/i);
+    if (match) return { tennokaiEnabled: true, tennokaiOpportunityEveryHits: Number(match[1]) };
+
+    match = line.match(/^Increases opportunity chance by \+?(\d+(?:\.\d+)?)% and (?:critical damage|heavy attack critical damage) by \+?(\d+(?:\.\d+)?)% for Tennokai attacks\.?$/i);
+    if (match) {
+        return {
+            tennokaiEnabled: true,
+            tennokaiOpportunityChanceBonus: Number(match[1]) / 100,
+            tennokaiCritDamageBonus: Number(match[2]) / 100,
+        };
+    }
+
+    match = line.match(/^Increases (?:heavy attack )?critical damage by \+?(\d+(?:\.\d+)?)% for Tennokai attacks\.?$/i);
+    if (match) return { tennokaiEnabled: true, tennokaiCritDamageBonus: Number(match[1]) / 100 };
+
+    match = line.match(/^Increases status chance by \+?(\d+(?:\.\d+)?)% on Tennokai attacks\.?$/i);
+    if (match) return { tennokaiEnabled: true, tennokaiStatusChanceBonus: Number(match[1]) / 100 };
+
+    match = line.match(/^Increases Tennokai damage by \+?(\d+(?:\.\d+)?)%\.?$/i);
+    if (match) return { tennokaiEnabled: true, tennokaiDamageBonus: Number(match[1]) / 100 };
+
+    match = line.match(/^Increases opportunity window to (\d+(?:\.\d+)?)s and melee range by (\d+(?:\.\d+)?)m for Tennokai attacks\.?$/i);
+    if (match) {
+        return {
+            tennokaiEnabled: true,
+            tennokaiOpportunityWindowSeconds: Number(match[1]),
+            tennokaiRangeBonusMeters: Number(match[2]),
+        };
+    }
+
+    match = line.match(/^Tennokai kills grant an additional (\d+(?:\.\d+)?)s Tennokai opportunity and increase Tennokai damage by \+?(\d+(?:\.\d+)?)%\.?$/i);
+    if (match) {
+        return {
+            tennokaiEnabled: true,
+            tennokaiChainedOpportunitySeconds: Number(match[1]),
+            tennokaiChainedDamageBonus: Number(match[2]) / 100,
+        };
+    }
+
+    return {};
+}
+
 function parseRampingLine(raw: string): Partial<ModEffect> {
     const clean = stripColorTags(raw).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
 
@@ -889,7 +959,7 @@ function parseFlatNumericLine(raw: string): Partial<ModEffect> {
     match = clean.match(/^\+?(\d+(?:\.\d+)?)m\s*Beam Range$/i);
     if (match) return { beamRangeBonus: parseFloat(match[1]) / 12 };
 
-    match = clean.match(/^\+?(\d+(?:\.\d+)?)s\s*Combo Duration$/i);
+    match = clean.match(/^([+-]?\d+(?:\.\d+)?)s\s*Combo Duration$/i);
     if (match) return { comboDurationBonus: parseFloat(match[1]) };
 
     match = clean.match(/^\+?(\d+(?:\.\d+)?)\s*Initial Combo$/i);
@@ -928,6 +998,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             out.elementalDamageConversion = partial.elementalDamageConversion ?? out.elementalDamageConversion;
         } else if (k === "knockdownOnMeleeHit") {
             out.knockdownOnMeleeHit = out.knockdownOnMeleeHit || partial.knockdownOnMeleeHit === true;
+        } else if (k === "tennokaiEnabled") {
+            out.tennokaiEnabled = out.tennokaiEnabled || partial.tennokaiEnabled === true;
         } else if (k === "independentStatusProcChanceByType") {
             const merged = { ...(out.independentStatusProcChanceByType ?? {}) };
             for (const [type, chance] of Object.entries(partial.independentStatusProcChanceByType ?? {}) as Array<[WeaponForcedProcType, number]>) {
@@ -951,7 +1023,7 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
 
 function hasDamageEffect(e: ModEffect): boolean {
     return Object.entries(e).some(([k, v]) => {
-        if (k === "targetFaction" || v == null || v === false) return false;
+        if (k === "targetFaction" || k === "tennokaiEnabled" || v == null || v === false) return false;
         if (Array.isArray(v)) return v.length > 0;
         if (typeof v === "number") return Number.isFinite(v) && v !== 0;
         if (typeof v === "string") return v.length > 0;
@@ -1435,11 +1507,11 @@ function buildCaches(): ModCaches {
              bucket === "Melee" || bucket === "Archgun" || bucket === "Archmelee" || bucket === "Augment");
         const isExilus = !!item.isExilus || isWeaponUtility;
 
-        // Build effects at every rank 0..fusionLimit
-        // The Wiki lists Mentor's Legacy as a rank-0 Tennokai-enabling mod,
-        // while the upstream item export omits its otherwise empty rankStats.
-        // Keep it selectable in the manual melee picker; Tennokai cadence and
-        // its attack-specific effects remain explicitly unmodeled.
+        // Build effects at every rank 0..fusionLimit.
+        // Mentor's Legacy is listed as a rank-0 Tennokai-enabling mod, while
+        // the upstream item export omits its otherwise empty rankStats.
+        // Keep it selectable in the manual melee picker and synthesize the
+        // enable flag; the attack timeline is still explicitly unscored.
         const parsedLevelStats = levelStats?.length
             ? levelStats
             : isMentorsLegacy
@@ -1452,6 +1524,7 @@ function buildCaches(): ModCaches {
             for (const rawStat of (ls.stats ?? [])) {
                 for (const s of explodeStatLines(rawStat)) {
                     const parsedEffects = [
+                        parseTennokaiLine(s),
                         parseRampingLine(s),
                         parseComboScaledLine(s),
                         parseTriggeredStatLine(s),

@@ -24,6 +24,8 @@ export const OVERPRESSURED_ROUNDS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/N
 export const PRECISION_STRIKE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/GrnGrenadeLauncherArbitrationMod";
 export const COMBAT_RELOAD_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTigrisAugmentMod";
 export const DEADLY_MANEUVERS_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/MagnusNightwaveMod";
+const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
+const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -117,14 +119,21 @@ export function getUnmodeledDamageEffectLines(
     rank: number,
     context?: ScoringEffectContext,
 ): string[] {
+    const truthFlameCycleScope = mod.path === TRUTH_FLAME_MOD_PATH && context?.selectedGoal === "tennokaiDps";
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
-        .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH && DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+        .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH &&
+            !(truthFlameCycleScope && /^CURSE:/i.test(line)) &&
+            DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
     if (hasUnparsedTruthSyndicateStat(mod.unparsedStatsByRank?.[rank])) {
         // Syndicate augments gain this combat effect from weapon-earned Affinity.
         // Its radial damage and encounter timing are not represented by the single-target score.
         // https://wiki.warframe.com/w/Syndicates
         // https://wiki.warframe.com/w/Weapon_Augment
-        lines.push("Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled, so Auto Optimize skips this mod.");
+        lines.push(truthFlameCycleScope
+            ? "Tennokai Cycle DPS models Truth's Flame's kill chain by repeating the selected target profile, but excludes its player-side Heat curse and Truth syndicate effects; scores are target-damage-only."
+            : mod.path === TRUTH_FLAME_MOD_PATH
+                ? "Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled. Standard goals exclude Truth's Flame; Tennokai Cycle DPS models its direct kill chain across repeated targets but omits this side effect."
+                : "Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled, so Auto Optimize skips this mod.");
     }
     if (mod.path === VOLATILE_VARIANT_MOD_PATH) {
         lines.push("Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.");
@@ -200,13 +209,29 @@ export function getUnmodeledDamageEffectLines(
         // https://wiki.warframe.com/w/Bloodthirst
         lines.push("Bloodthirst heals the companion for each active Slash stack per hit; companion healing is outside the damage score, so Auto Optimize skips this mod.");
     }
-    if (lines.some((line) => /\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b/i.test(line))) {
-        lines.push("Tennokai opportunity timing and attack-chain cadence are not modeled or scored.");
+    if (mod.path === RELENTLESS_COMBINATION_MOD_PATH) {
+        lines.push("Relentless Combination adds combo from melee Slash applications and has a rank-scaled 25–100% chance to add combo for each Bleed damage tick. This scorer does not advance Slash application/tick history or stop those ticks when a target dies, so Auto Optimize skips the mod.");
+    }
+    if (context?.selectedGoal !== "tennokaiDps" &&
+        lines.some((line) => /\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b/i.test(line))) {
+        lines.push("The manual Tennokai panel models supported Normal Attack / Heavy Attack or Heavy Slam cycles. Standard single-attack scores and Auto Optimize still omit this event history; unsupported weapon-specific sequences remain unscored.");
     }
     if (lines.some((line) => /\bentropy\b/i.test(line))) {
         lines.push("Entropy syndicate side effect is not modeled.");
     }
     const effect = mod.effectsByRank?.[rank] ?? mod.effect;
+    if (effect?.tennokaiEnabled) {
+        if (context?.selectedGoal === "tennokaiDps") {
+            if ((effect.tennokaiStatusChanceBonus ?? 0) > 0) {
+                lines.push("Tennokai Cycle DPS scores direct hits and does not resolve Status Effect application or ticks, so Tennokai Status Chance does not affect this objective and Auto Optimize skips this mod.");
+            }
+            if ((effect.tennokaiRangeBonusMeters ?? 0) > 0) {
+                lines.push("Opportunity's Reach adds Tennokai melee range. The direct-hit timeline assumes each selected event connects with its target, so this range bonus does not change the score; its opportunity-window bonus is modeled.");
+            }
+        } else {
+            lines.push("Tennokai rank stats feed the manual event timeline and dedicated Tennokai Cycle DPS objective for supported direct-hit cycles, including opportunity timing, event-local Heavy Attack bonuses, and combo retention. Truth's Flame uses a selected-target expected-damage threshold for its repeated-target chain there. Standard single-attack objectives and their Auto Optimize searches exclude Tennokai history; unsupported timing, status-tick kills, range, and player-side curse/syndicate effects remain unscored.");
+        }
+    }
     return [...new Set([...lines, ...getUnmodeledScoringEffectLines(effect, context)])];
 }
 
@@ -239,6 +264,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === DEADLY_MANEUVERS_MOD_PATH) {
         return "https://wiki.warframe.com/w/Deadly_Maneuvers";
     }
+    if (mod.path === RELENTLESS_COMBINATION_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Relentless_Combination";
+    }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Sentient_Incision";
     }
@@ -250,7 +278,18 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
 
 export function emptyEffect(): ModEffect {
     return {
-        damageBonus: 0, sentientIncisionDamageBonus: 0, firstShotMagazineDamageBonus: 0, lastShotMagazineDamageBonus: 0,
+        damageBonus: 0,
+        tennokaiEnabled: false,
+        tennokaiOpportunityChanceBonus: 0,
+        tennokaiOpportunityEveryHits: 0,
+        tennokaiDamageBonus: 0,
+        tennokaiCritDamageBonus: 0,
+        tennokaiStatusChanceBonus: 0,
+        tennokaiOpportunityWindowSeconds: 0,
+        tennokaiRangeBonusMeters: 0,
+        tennokaiChainedDamageBonus: 0,
+        tennokaiChainedOpportunitySeconds: 0,
+        sentientIncisionDamageBonus: 0, firstShotMagazineDamageBonus: 0, lastShotMagazineDamageBonus: 0,
         springLoadedBroadheadDamageBonus: 0,
         springLoadedBroadheadMinDistanceMeters: 0,
         sentientSurgeMagazineRefillPerKill: 0,

@@ -229,6 +229,14 @@ export interface ModdedWeaponStats {
      * Galvanized Aptitude as additive within this bracket rather than as a separate multiplier.
      */
     totalDamageBonus: number;
+    /** Tennokai-only bonuses applied to the current active Heavy Attack event. */
+    tennokaiAttackActive: boolean;
+    tennokaiAttackProbability: number;
+    tennokaiKillChainActive: boolean;
+    tennokaiDamageBonus: number;
+    tennokaiChainedDamageBonus: number;
+    tennokaiCritDamageBonus: number;
+    tennokaiStatusChanceBonus: number;
     /** Target-matched faction damage bonus fraction, e.g. 0.3 for ×1.3. */
     factionDamageBonus: number;
     /** Timed hit-triggered damage stacks that the finite encounter can ramp from their selected initial state. */
@@ -579,6 +587,18 @@ export interface ConditionalState {
     externalHeatFactionDamageBonus?: number;
     /** User-entered melee combo tier; selected heavy attacks use it, but post-attack combo consumption/rebuild is not simulated. */
     meleeComboMultiplier?: number;
+    /** Internal event-profile flag: this selected Heavy Attack consumes an active Tennokai opportunity. */
+    tennokaiAttackActive?: boolean;
+    /** Internal expected-state probability that this selected Heavy Attack consumes an opportunity (0–1). */
+    tennokaiAttackProbability?: number;
+    /** Internal event-profile flag: a prior Tennokai kill has activated Truth's Flame's damage chain. */
+    tennokaiKillChainActive?: boolean;
+    /** Internal expected-state probability that Truth's Flame's damage chain is active (0–1). */
+    tennokaiKillChainProbability?: number;
+    /** Internal timeline override preserving Initial/Realistic conditional mode while changing combo between events. */
+    meleeComboPointsAtImpact?: number;
+    /** Editable normal-hit count between Heavy Attacks for the Tennokai cycle objective. */
+    tennokaiRegularHitsBetweenHeavy?: number;
     /** User-selected ammo consumed by one Phantasma charged alternate-fire attack. */
     phantasmaChargeAmmo?: number;
     /** Assumed target distance for source effects with an explicit range condition. */
@@ -1494,6 +1514,19 @@ export function calculateBuild(
         ? options.statusImmuneTypes
         : new Set(options.statusImmuneTypes ?? []);
     const conditionalState = options.conditionalState ?? DEFAULT_CONDITIONAL_STATE;
+    const tennokaiAttackProbability = usesMeleeDamageModel(weapon.category) &&
+        weapon.selectedAttackUsesMeleeComboMultiplier === true
+        ? Math.max(0, Math.min(1, Number.isFinite(conditionalState.tennokaiAttackProbability)
+            ? conditionalState.tennokaiAttackProbability ?? 0
+            : conditionalState.tennokaiAttackActive === true ? 1 : 0))
+        : 0;
+    const tennokaiAttackActive = tennokaiAttackProbability > 0;
+    const tennokaiKillChainProbability = tennokaiAttackActive
+        ? Math.max(0, Math.min(1, Number.isFinite(conditionalState.tennokaiKillChainProbability)
+            ? conditionalState.tennokaiKillChainProbability ?? 0
+            : conditionalState.tennokaiKillChainActive === true ? 1 : 0))
+        : 0;
+    const tennokaiKillChainActive = tennokaiKillChainProbability > 0;
     const strainInfectionCystsAtImpact = normalizeStrainInfectionCystCount(
         conditionalState.strainInfectionCystsAtImpact,
     );
@@ -1536,6 +1569,10 @@ export function calculateBuild(
     const ignoresReloadAndMagazine = !!weapon.isExalted || !!weapon.selectedAttackIsIncarnon;
     const supportsAmmoEfficiency = !usesMeleeDamageModel(weapon.category) && !weapon.isExalted && !weapon.selectedAttackIsIncarnon;
     let damageBonus = 0;
+    let tennokaiDamageBonus = 0;
+    let tennokaiChainedDamageBonus = 0;
+    let tennokaiCritDamageBonus = 0;
+    let tennokaiStatusChanceBonus = 0;
     let physicalDamageConversion: ModEffect["physicalDamageConversion"];
     let elementalDamageConversion: ModEffect["elementalDamageConversion"];
     let forcedImpactProcsPerMeleeHit = 0;
@@ -1629,6 +1666,21 @@ export function calculateBuild(
             }
             : selectedEffect;
         damageBonus += e.damageBonus ?? 0;
+        if (
+            tennokaiAttackActive &&
+            e.tennokaiEnabled === true
+        ) {
+            const eventBonusWeight = tennokaiAttackProbability;
+            const chainedBonusWeight = eventBonusWeight * tennokaiKillChainProbability;
+            tennokaiDamageBonus += (e.tennokaiDamageBonus ?? 0) * eventBonusWeight;
+            damageBonus += (e.tennokaiDamageBonus ?? 0) * eventBonusWeight;
+            tennokaiChainedDamageBonus += (e.tennokaiChainedDamageBonus ?? 0) * chainedBonusWeight;
+            damageBonus += (e.tennokaiChainedDamageBonus ?? 0) * chainedBonusWeight;
+            tennokaiCritDamageBonus += (e.tennokaiCritDamageBonus ?? 0) * eventBonusWeight;
+            tennokaiStatusChanceBonus += (e.tennokaiStatusChanceBonus ?? 0) * eventBonusWeight;
+            critMultBonus += (e.tennokaiCritDamageBonus ?? 0) * eventBonusWeight;
+            statusChanceBonus += (e.tennokaiStatusChanceBonus ?? 0) * eventBonusWeight;
+        }
         if (weapon.category === "Melee" && weapon.selectedAttackUsesSlamDamageBonus !== true) {
             sentientIncisionDamageBonus += e.sentientIncisionDamageBonus ?? 0;
         }
@@ -2236,16 +2288,24 @@ export function calculateBuild(
     const requestedComboMultiplier = Number.isFinite(conditionalState.meleeComboMultiplier)
         ? clampMeleeComboMultiplier(weapon, conditionalState.meleeComboMultiplier ?? 1)
         : 1;
+    const timelineComboPoints = Number.isFinite(conditionalState.meleeComboPointsAtImpact)
+        ? Math.max(0, conditionalState.meleeComboPointsAtImpact ?? 0)
+        : null;
+    const timelineComboMultiplier = timelineComboPoints === null
+        ? null
+        : getInitialMeleeComboMultiplier(weapon, timelineComboPoints);
     const meleeComboMultiplier = usesMeleeDamageModel(weapon.category)
-        ? conditionalState.mode === "initial"
+        ? timelineComboMultiplier ?? (conditionalState.mode === "initial"
             ? initialComboMultiplier
-            : Math.max(initialComboMultiplier, requestedComboMultiplier)
+            : Math.max(initialComboMultiplier, requestedComboMultiplier))
         : 1;
     const heavyAttackEfficiency = usesMeleeDamageModel(weapon.category)
         ? Math.max(0, Math.min(0.9, mods.reduce((sum, effect) => sum + (effect?.heavyAttackEfficiencyBonus ?? 0), 0)))
         : 0;
     const meleeComboPointsBeforeHeavyAttack = usesMeleeDamageModel(weapon.category)
-        ? initialComboMultiplier >= requestedComboMultiplier
+        ? timelineComboPoints !== null
+            ? timelineComboPoints
+            : initialComboMultiplier >= requestedComboMultiplier
             ? initialComboCount
             : getMeleeComboPointsAtTier(weapon, meleeComboMultiplier)
         : 0;
@@ -3179,6 +3239,13 @@ export function calculateBuild(
         singleProjectileDamageBonus: springLoadedBroadheadDamageBonus,
         singleProjectileDamageMinDistanceMeters: springLoadedBroadheadMinDistanceMeters,
         totalDamageBonus: damageBonus,
+        tennokaiAttackActive,
+        tennokaiAttackProbability,
+        tennokaiKillChainActive,
+        tennokaiDamageBonus,
+        tennokaiChainedDamageBonus,
+        tennokaiCritDamageBonus,
+        tennokaiStatusChanceBonus,
         factionDamageBonus,
         timedConditionalDamageStacks,
         averageShotDamage,

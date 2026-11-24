@@ -34,6 +34,7 @@ import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arca
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, FIXED_WINDOW_DPS_SECONDS, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
@@ -396,6 +397,11 @@ const GOAL_OPTIONS: { key: OptimizeGoal; label: string; desc: string }[] = [
         key: "meleeDps",
         label: "Wiki Stance DPS",
         desc: "Ranks melee builds by the selected Wiki Neutral-combo estimate in Initial state: direct combo damage plus forced Slash over approximate timing. It applies the selected faction mod, but does not score target defenses or full stance/status histories.",
+    },
+    {
+        key: "tennokaiDps",
+        label: "Tennokai Cycle DPS",
+        desc: "Ranks a supported four-cycle Normal Attack / Heavy Attack or Heavy Slam sequence using the entered normal-hit cadence and target's initial armor, faction, and pool routing. Full-pool optimization uses a one-cycle shortlist and re-scores finalists on four cycles. Status effects, pool transitions, melee range, and numeric Heavy Attack wind-up are excluded.",
     },
 ];
 const FACTIONS = getFactionFocusOptions();
@@ -3856,6 +3862,7 @@ export default function ModBuilder() {
     const [externalHeatFactionDamageBonusPercentInput, setExternalHeatFactionDamageBonusPercentInput] = useState("0");
     const [playerSlidingAtImpact, setPlayerSlidingAtImpact] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
+    const [tennokaiRegularHitsBetweenHeavy, setTennokaiRegularHitsBetweenHeavy] = useState(4);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
     const [targetDistanceMeters, setTargetDistanceMeters] = useState<number | undefined>(undefined);
     const [attackFalloffDistanceMeters, setAttackFalloffDistanceMeters] = useState<number | undefined>(undefined);
@@ -3907,11 +3914,12 @@ export default function ModBuilder() {
         externalHeatFactionDamageBonus: parseExternalHeatBonusPercentInput(externalHeatFactionDamageBonusPercentInput) / 100,
         playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
         meleeComboMultiplier,
+        tennokaiRegularHitsBetweenHeavy,
         phantasmaChargeAmmo,
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -4142,6 +4150,7 @@ export default function ModBuilder() {
             ),
             playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
             meleeComboMultiplier,
+            tennokaiRegularHitsBetweenHeavy,
             phantasmaChargeAmmo,
             targetDistanceMeters,
             attackFalloffDistanceMeters,
@@ -4199,6 +4208,7 @@ export default function ModBuilder() {
         playerSlidingAtImpact,
         supportsKineticKiller,
         meleeComboMultiplier,
+        tennokaiRegularHitsBetweenHeavy,
         phantasmaChargeAmmo,
         targetDistanceMeters,
         attackFalloffDistanceMeters,
@@ -5004,6 +5014,46 @@ export default function ModBuilder() {
         }) : null,
         [activeCalcWeapon, activeBuildEffects, factionOn, faction, pelletEstimateConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride],
     );
+    const activeBuildHasTennokai = activeBuildEffects.some((effect) => effect?.tennokaiEnabled === true);
+    const tennokaiAttackPair = activeCalcWeapon ? findSupportedTennokaiAttackPair(activeCalcWeapon) : null;
+    const tennokaiGoalAvailable = tennokaiAttackPair !== null;
+    useEffect(() => {
+        if (goal === "tennokaiDps" && weapon && !tennokaiGoalAvailable) setGoal("burst");
+    }, [goal, weapon, tennokaiGoalAvailable]);
+    const tennokaiTimeline = useMemo(() => {
+        if (!activeCalcWeapon) return null;
+        const supportedPair = findSupportedTennokaiAttackPair(activeCalcWeapon);
+        const regularAttackIndex = supportedPair?.regularAttackIndex ?? activeCalcWeapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const heavyAttackIndex = supportedPair?.heavyAttackIndex ?? activeCalcWeapon.attacks.findIndex((attack) =>
+            attack.name === "Heavy Attack" || attack.name === "Heavy Slam Attack",
+        );
+        return calculateTennokaiAttackTimeline({
+            weapon: activeCalcWeapon,
+            mods: activeBuildEffects,
+            targetFaction: factionOn ? faction : "",
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: tennokaiRegularHitsBetweenHeavy,
+            conditionalState,
+            damageOptions: {
+                isEximusTarget: targetProfileOverride?.isEximusTarget,
+                targetHasOverguard: activeTargetAssumptions.overguard > 0,
+                statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
+                statusStackCaps: activeTargetAssumptions.statusStackCaps,
+                hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
+            },
+            targetProfile: {
+                health: activeTargetAssumptions.health,
+                shields: activeTargetAssumptions.shields,
+                overguard: activeTargetAssumptions.overguard,
+                armor: activeTargetAssumptions.armor,
+                baseArmorValue: targetProfileOverride?.armorBaseValue ?? activeTargetAssumptions.armor,
+                armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+                toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
+            },
+            cycles: 8,
+        });
+    }, [activeCalcWeapon, activeBuildEffects, factionOn, faction, tennokaiRegularHitsBetweenHeavy, conditionalState, targetProfileOverride, activeTargetAssumptions]);
     const finiteMetrics = useMemo(() => {
         if (!activeCalcWeapon || !activeMetrics || (
             activeMetrics.modded.strainInfectionCritDamageBonus <= 0 &&
@@ -5406,7 +5456,14 @@ export default function ModBuilder() {
 
     async function handleOptimize() {
         if (!weapon) return;
-        if (selectedAttackOutOfRange) {
+        const optimizerTennokaiAttackPair = goal === "tennokaiDps"
+            ? findSupportedTennokaiAttackPair(weapon)
+            : null;
+        if (goal === "tennokaiDps" && !optimizerTennokaiAttackPair) {
+            setOptimizerNotice("Tennokai Cycle DPS needs one supported Normal Attack plus a direct Heavy Attack or centered Heavy Slam row.");
+            return;
+        }
+        if (selectedAttackOutOfRange && goal !== "tennokaiDps") {
             setOptimizerNotice("The selected attack misses at the configured distance. Move the target inside its hit limit before optimizing.");
             return;
         }
@@ -5420,7 +5477,7 @@ export default function ModBuilder() {
             return;
         }
         const selectedAttackModelLimitation = weapon.attacks[selectedAttackIdx]?.modelLimitation;
-        if (selectedAttackModelLimitation) {
+        if (selectedAttackModelLimitation && goal !== "tennokaiDps") {
             setOptimizerNotice(
                 `Auto Optimize is unavailable for ${weapon.attacks[selectedAttackIdx]?.name ?? weapon.name}: ` +
                 `${selectedAttackModelLimitation.reason} Wiki: ${selectedAttackModelLimitation.sourceUrl}`,
@@ -5572,15 +5629,18 @@ export default function ModBuilder() {
                 valenceElement: ValenceElement,
                 incarnonCandidate: IncarnonCandidateConfig,
             ) => {
+                const attackIdxForObjective = goal === "tennokaiDps"
+                    ? optimizerTennokaiAttackPair!.regularAttackIndex
+                    : selectedAttackIdx;
                 const candidateCfg: BuildCfg = {
                     ...buildCfg,
                     valenceElement,
                     incarnonUnlockedTier: incarnonCandidate.unlockedTier,
                     incarnonSelectedOptionsByTier: incarnonCandidate.selectedOptionsByTier,
                 };
-                const weaponState = applyWeaponConfig(weapon, selectedAttackIdx, candidateCfg);
+                const weaponState = applyWeaponConfig(weapon, attackIdxForObjective, candidateCfg);
                 const weaponForOpt = weaponState.weaponWithIntrinsicOptions;
-                const atk = weaponForOpt.attacks.length > 1 ? weaponForOpt.attacks[selectedAttackIdx] : null;
+                const atk = weaponForOpt.attacks.length > 1 ? weaponForOpt.attacks[attackIdxForObjective] : null;
 
                 // If allowCatalyst, override capacityCfg to hasCatalyst:true
                 const capForOpt = capacityCfg;
@@ -5633,7 +5693,7 @@ export default function ModBuilder() {
                     appliedResult,
                     appliedCatalyst,
                     baseExtraCapacitySlots,
-                    score: scoreOptimizerResult(weaponForOpt, selectedAttackIdx, appliedResult, [
+                    score: scoreOptimizerResult(weaponForOpt, attackIdxForObjective, appliedResult, [
                         ...weaponState.activeIncarnonEffects,
                         ...lockedExternalEffects,
                     ], true, optimizerMeleeStanceCombo),
@@ -5983,7 +6043,7 @@ export default function ModBuilder() {
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
         setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
         if (plannerConfig) {
-            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill" || plannerConfig.goal === "windowDps" || plannerConfig.goal === "meleeDps") setGoal(plannerConfig.goal);
+            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill" || plannerConfig.goal === "windowDps" || plannerConfig.goal === "meleeDps" || plannerConfig.goal === "tennokaiDps") setGoal(plannerConfig.goal);
             const conditionalModes: ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
             if (plannerConfig.conditionalMode && conditionalModes.includes(plannerConfig.conditionalMode)) {
                 setConditionalMode(plannerConfig.conditionalMode);
@@ -6020,6 +6080,9 @@ export default function ModBuilder() {
             setMeleeComboMultiplier(Number.isFinite(plannerConfig.meleeComboMultiplier)
                 ? clampMeleeComboMultiplier(weapon, plannerConfig.meleeComboMultiplier ?? 1)
                 : 1);
+            setTennokaiRegularHitsBetweenHeavy(Number.isFinite(plannerConfig.tennokaiRegularHitsBetweenHeavy)
+                ? Math.max(1, Math.min(20, Math.floor(plannerConfig.tennokaiRegularHitsBetweenHeavy ?? 4)))
+                : 4);
             setPhantasmaChargeAmmo(Number.isFinite(plannerConfig.phantasmaChargeAmmo)
                 ? Math.max(2, Math.min(50, Math.round(plannerConfig.phantasmaChargeAmmo ?? 2)))
                 : 2);
@@ -6199,7 +6262,10 @@ export default function ModBuilder() {
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2 justify-end">
                                             <div className="flex flex-wrap gap-1.5">
-                                                {GOAL_OPTIONS.filter((option) => option.key !== "meleeDps" || meleeDpsGoalAvailable).map(g => (
+                                                {GOAL_OPTIONS.filter((option) =>
+                                                    (option.key !== "meleeDps" || meleeDpsGoalAvailable) &&
+                                                    (option.key !== "tennokaiDps" || tennokaiGoalAvailable),
+                                                ).map(g => (
                                                     <GoalChip
                                                         key={g.key}
                                                         label={g.label}
@@ -6846,6 +6912,23 @@ export default function ModBuilder() {
                                                         />
                                                     </label>
                                                 )}
+                                                {weapon && usesMeleeDamageModel(weapon.category) && activeBuildHasTennokai && (
+                                                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                        <span>Normal hits before Heavy Attack</span>
+                                                        <input
+                                                            aria-label="Normal hits between Tennokai Heavy Attacks"
+                                                            type="number"
+                                                            min={1}
+                                                            max={20}
+                                                            step={1}
+                                                            value={tennokaiRegularHitsBetweenHeavy}
+                                                            onChange={(event) => setTennokaiRegularHitsBetweenHeavy(
+                                                                Math.max(1, Math.min(20, Math.floor(Number(event.target.value) || 1))),
+                                                            )}
+                                                            className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none"
+                                                        />
+                                                    </label>
+                                                )}
                                                 <span className="text-[10px] text-slate-500">
                                                     {conditionalMode === "realistic"
                                                         ? "Realistic uses modeled trigger assumptions; ability casts, airborne states, aim-gliding, and invisibility default to zero uptime. Fully stacked or external-stack scenarios can activate them."
@@ -6867,7 +6950,7 @@ export default function ModBuilder() {
                                                 </p>
                                             )}
                                             {weapon && usesMeleeDamageModel(weapon.category) && (
-                                                <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses static Initial Combo mods and supported weapon passives, and ignores this field. Conditional Initial Combo bonuses apply when their selected state is active. Kill-triggered effects without a mechanic-specific model use shared uptime/stack estimates. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). Direct-hit TTK then steps combo after each heavy hit and rebuilds Initial Combo at 40 points/s. It does not model combo generated by hits, Tennokai, stance sequences, heavy-attack wind-up, or enemies hit per swing. DPS, the finite status encounter, and optimizer scores hold the starting tier.</p>
+                                                    <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses static Initial Combo mods and supported weapon passives, and ignores this field. Conditional Initial Combo bonuses apply when their selected state is active. Kill-triggered effects without a mechanic-specific model use shared uptime/stack estimates. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). The separate Tennokai panel shows an expected repeated Normal Attack / Heavy Attack cycle when a Tennokai mod is equipped; the Tennokai Cycle DPS objective uses a bounded four-cycle version of that timeline. Expected TTK and 5s Avg DPS still use their existing single-attack/status encounter models and do not include Tennokai history.</p>
                                             )}
                                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                                                 {([
@@ -7827,6 +7910,17 @@ export default function ModBuilder() {
                                                                         )}
                                                                         {activeTargetEncounter && (
                                                                             <div className="sm:col-span-2"><span className="text-slate-500">Expected status applications in encounter:</span> {activeEncounterStatusSummary}</div>
+                                                                        )}
+                                                                        {activeBuildHasTennokai && tennokaiTimeline && (
+                                                                            <div className="sm:col-span-2 rounded-md border border-violet-900/50 bg-violet-950/10 p-2">
+                                                                                <span className="text-violet-300">Manual Tennokai event timeline:</span>{" "}
+                                                                                {tennokaiTimeline.supported
+                                                                                    ? `${tennokaiRegularHitsBetweenHeavy} Normal Attack hit(s) before each ${activeCalcWeapon?.attacks.find((attack) => attack.name === "Heavy Attack") ? "Heavy Attack" : "Heavy Slam"} · ${fmt(tennokaiTimeline.expectedTennokaiHeavyAttackShare * 100, 1)}% expected Tennokai rate · ${fmt(tennokaiTimeline.expectedDamagePerSecondBeforeTargetDefenses)} pre-defense direct DPS · ${fmt(tennokaiTimeline.expectedDamagePerSecondAfterTargetDefenses ?? 0)} direct DPS against initial target defenses over ${tennokaiTimeline.events.length} events${activeBuildEffects.some((effect) => (effect?.tennokaiChainedDamageBonus ?? 0) > 0) ? ` · ${fmt(tennokaiTimeline.events.reduce((total, event) => total + event.activeOpportunityProbability * event.tennokaiTargetKillProbability, 0), 2)} expected Truth's Flame kill chains` : ""}.`
+                                                                                    : tennokaiTimeline.limitation}
+                                                                                {tennokaiTimeline.supported && tennokaiTimeline.notes.length > 0 && (
+                                                                                    <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{tennokaiTimeline.notes.join(" ")}</p>
+                                                                                )}
+                                                                            </div>
                                                                         )}
                                                                         <div><span className="text-slate-500">{activeMetrics.modded.attachedAttackDamageSequence ? "Direct attack burst / sustained:" : "Burst / sustained:"}</span> {activeAttackDpsUnavailable ? "Unavailable" : `${fmt(activeMetrics.burstDPS)} / ${activeSustainedDpsUnavailable ? "Unavailable" : fmt(finiteMetrics?.sustainedDPS ?? activeMetrics.sustainedDPS)} DPS before target pools`}</div>
                                                                         <div><span className="text-slate-500">DoT:</span> {activeSustainedDpsUnavailable

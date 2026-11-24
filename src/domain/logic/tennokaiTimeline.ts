@@ -1,0 +1,737 @@
+/**
+ * Mean-field opportunity history for a repeated direct-hit melee cycle.
+ * Each modeled event is one qualifying melee hit against one target. The
+ * caller is responsible for excluding attack rows with unsupported
+ * multi-strike, multi-target, Gunblade, or ability-wave behavior.
+ */
+
+import type { ModEffect } from "../catalog/modCatalog";
+import type { WeaponEntry } from "../catalog/weaponCatalog";
+import { getMeleeComboRules, withSelectedAttack } from "../catalog/weaponRules";
+import {
+    calculateBuild,
+    DEFAULT_CONDITIONAL_STATE,
+    type ConditionalState,
+    type DamageCalculationOptions,
+    type ModdedWeaponStats,
+} from "./damageCalc";
+import { calculateDirectDamageToInitialPools } from "./targetDamage";
+import type { DirectTargetDamageInput, TargetDamagePool } from "./targetDamage";
+
+export type TennokaiTargetProfile = Pick<
+    DirectTargetDamageInput,
+    | "health"
+    | "shields"
+    | "overguard"
+    | "armor"
+    | "baseArmorValue"
+    | "armorLevelMultiplier"
+    | "armorDamageReductionMultiplier"
+    | "toxinBypassesShields"
+>;
+
+export interface TennokaiOpportunityTimelineInput {
+    /** Number of regular direct-hit attacks before each Heavy Attack. */
+    regularHitsBetweenHeavy: number;
+    /** Time between regular attacks after the first event, in seconds. */
+    regularAttackIntervalSeconds: number;
+    /** Time from the final regular hit to the following Heavy Attack, in seconds. */
+    heavyAttackIntervalSeconds: number;
+    /** Expected opportunity chance per qualifying hit before the rank bonus. */
+    baseOpportunityChance?: number;
+    /** Relative rank increase, where 0.5 means +50% of the base chance. */
+    opportunityChanceBonus?: number;
+    /** Active opportunity lifetime; defaults to the sourced two-second window. */
+    opportunityWindowSeconds?: number;
+    /** Guaranteed opportunity cadence in qualifying hits; overrides random chance. */
+    guaranteedOpportunityEveryHits?: number;
+    /** Number of attack events to schedule. */
+    maxEvents: number;
+    /** Combo points on the weapon before the first event. */
+    startingComboPoints?: number;
+    /** Combo points that one qualifying regular hit adds. The bounded default is one point. */
+    comboPointsPerRegularHit?: number;
+    /** Heavy Attack Efficiency as a fraction, capped to the game's 90% limit. */
+    heavyAttackEfficiency?: number;
+    /** Initial Combo points that regenerate at 40 points per second after Heavy Attacks. */
+    initialComboPoints?: number;
+    /** Combo points required per tier; weapon-specific values can be supplied by the caller. */
+    comboPointsPerTier?: number;
+    /** Highest combo multiplier available to this weapon. */
+    maximumComboMultiplier?: number;
+    /** Combo duration before the counter resets to Initial Combo. */
+    comboDurationSeconds?: number;
+    /** Whether a Tennokai kill refreshes the opportunity and unlocks chained damage. */
+    truthFlameEnabled?: boolean;
+    /** Additional opportunity lifetime from a Tennokai kill; Truth's Flame lists 4 seconds. */
+    truthChainOpportunitySeconds?: number;
+    /** Conditional kill probability for each event if that event is Tennokai-active. */
+    tennokaiKillProbabilityByEvent?: readonly number[];
+}
+
+export interface TennokaiOpportunityTimelineEvent {
+    index: number;
+    timeSeconds: number;
+    attackType: "regular" | "heavy";
+    qualifyingHitNumber: number;
+    /** Probability an active opportunity is available immediately before this attack. */
+    activeOpportunityProbability: number;
+    /** Probability this event itself produces a new opportunity after resolving. */
+    generatedOpportunityProbability: number;
+    /** Probability an opportunity remains available after this event resolves. */
+    activeOpportunityProbabilityAfterEvent: number;
+    /** Expected combo points immediately before this event. */
+    comboPointsBeforeEvent: number;
+    /** Integer combo tier used by the event-local damage profile. */
+    comboMultiplierBeforeEvent: number;
+    /** Expected combo points immediately after this event resolves. */
+    comboPointsAfterEvent: number;
+    /** Integer combo tier after this event resolves. */
+    comboMultiplierAfterEvent: number;
+    /** Conditional probability the damage chain is active, given an opportunity at this event. */
+    tennokaiKillChainProbability: number;
+}
+
+export interface TennokaiOpportunityTimelineResult {
+    events: TennokaiOpportunityTimelineEvent[];
+    expectedTennokaiHeavyAttacks: number;
+    heavyAttacks: number;
+}
+
+export interface TennokaiAttackTimelineInput {
+    weapon: WeaponEntry;
+    mods: readonly (ModEffect | null)[];
+    targetFaction?: string;
+    regularAttackIndex: number;
+    /** Catalog row for Heavy Attack or Heavy Slam Attack; Heavy Slam is the currently available row. */
+    heavyAttackIndex: number;
+    regularHitsBetweenHeavy: number;
+    conditionalState?: ConditionalState;
+    damageOptions?: Omit<DamageCalculationOptions, "conditionalState">;
+    /** Current target pools used only for Truth's Flame's direct-kill chain estimate. */
+    targetProfile?: TennokaiTargetProfile;
+    /** Number of full regular/Heavy cycles to score; bounded to 1–100. */
+    cycles?: number;
+}
+
+export interface TennokaiScoredEvent extends TennokaiOpportunityTimelineEvent {
+    expectedDamageBeforeTargetDefenses: number;
+    /** Uncapped direct damage after routing and defense multipliers for the selected target's initial pools. */
+    expectedDamageAfterTargetDefenses: number | null;
+    /** Expected-direct-hit threshold result, conditional on this being a Tennokai Heavy Attack. */
+    tennokaiTargetKillProbability: number;
+    statusChance: number;
+    criticalChance: number;
+    criticalMultiplier: number;
+    tennokaiDamageBonus: number;
+    tennokaiCritDamageBonus: number;
+    tennokaiStatusChanceBonus: number;
+}
+
+export interface TennokaiAttackTimelineResult {
+    supported: boolean;
+    limitation: string | null;
+    events: TennokaiScoredEvent[];
+    expectedDamageBeforeTargetDefenses: number;
+    expectedDamagePerSecondBeforeTargetDefenses: number;
+    /** Expected direct DPS against the target's initial pool routing and defense state, without overkill capping. */
+    expectedDamagePerSecondAfterTargetDefenses: number | null;
+    expectedTennokaiHeavyAttackShare: number;
+    regularHitsBetweenHeavy: number;
+    opportunityChancePerHit: number;
+    opportunityWindowSeconds: number;
+    opportunityRangeBonusMeters: number;
+    comboGainAssumptionPointsPerRegularHit: number;
+    notes: string[];
+}
+
+interface OpportunityState {
+    expiresAt: number;
+    chainDamageActive: boolean;
+    probability: number;
+}
+
+const NONE_EXPIRY = Number.NEGATIVE_INFINITY;
+const EPSILON = 1e-9;
+
+function finiteNonNegative(value: number | undefined, fallback: number): number {
+    return Number.isFinite(value) ? Math.max(0, value ?? fallback) : fallback;
+}
+
+function normalizeEventCount(value: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(20_000, Math.floor(value))) : 0;
+}
+
+function mergeStates(states: OpportunityState[]): OpportunityState[] {
+    const probabilities = new Map<string, OpportunityState>();
+    for (const state of states) {
+        if (state.probability <= Number.EPSILON) continue;
+        const key = `${state.expiresAt}:${state.chainDamageActive ? 1 : 0}`;
+        const previous = probabilities.get(key);
+        if (previous) previous.probability += state.probability;
+        else probabilities.set(key, { ...state });
+    }
+    return [...probabilities.values()];
+}
+
+function expireStates(states: OpportunityState[], timeSeconds: number): OpportunityState[] {
+    return mergeStates(states.map((state) => state.expiresAt <= timeSeconds + EPSILON
+        ? { ...state, expiresAt: NONE_EXPIRY }
+        : state));
+}
+
+function activeProbability(states: OpportunityState[]): number {
+    return Math.min(1, states.reduce((sum, state) => sum + (
+        state.expiresAt === NONE_EXPIRY ? 0 : state.probability
+    ), 0));
+}
+
+function chainProbabilityDuringOpportunity(states: OpportunityState[]): number {
+    const active = activeProbability(states);
+    if (active <= Number.EPSILON) return 0;
+    const activeAndChained = states.reduce((sum, state) => sum + (
+        state.expiresAt !== NONE_EXPIRY && state.chainDamageActive ? state.probability : 0
+    ), 0);
+    return Math.max(0, Math.min(1, activeAndChained / active));
+}
+
+function rollOpportunity(
+    states: OpportunityState[],
+    timeSeconds: number,
+    chance: number,
+    guaranteed: boolean,
+    opportunityWindowSeconds: number,
+): OpportunityState[] {
+    const expiry = timeSeconds + opportunityWindowSeconds;
+    if (guaranteed || chance >= 1) {
+        // Preserve the probability split for Truth's Flame's persistent chain
+        // while refreshing each state's single active opportunity marker.
+        return mergeStates(states.map((state) => ({
+            ...state,
+            expiresAt: Math.max(state.expiresAt, expiry),
+        })));
+    }
+    if (chance <= 0) return states;
+    const next: OpportunityState[] = [];
+    for (const state of states) {
+        next.push({ expiresAt: state.expiresAt, chainDamageActive: state.chainDamageActive, probability: state.probability * (1 - chance) });
+        next.push({
+            expiresAt: Math.max(state.expiresAt, expiry),
+            chainDamageActive: state.chainDamageActive,
+            probability: state.probability * chance,
+        });
+    }
+    return mergeStates(next);
+}
+
+/**
+ * Simulate the active-opportunity probability at every event in a repeated
+ * regular-hit/Heavy-Attack cycle. This is an expected-state timeline, not a
+ * Monte Carlo trace. A new opportunity roll refreshes the active marker.
+ */
+export function simulateTennokaiOpportunityTimeline(
+    input: TennokaiOpportunityTimelineInput,
+): TennokaiOpportunityTimelineResult {
+    const regularHitsBetweenHeavy = Math.max(1, normalizeEventCount(input.regularHitsBetweenHeavy));
+    const regularInterval = finiteNonNegative(input.regularAttackIntervalSeconds, 0);
+    const heavyInterval = finiteNonNegative(input.heavyAttackIntervalSeconds, 0);
+    const opportunityWindowSeconds = finiteNonNegative(input.opportunityWindowSeconds, 2) || 2;
+    const cadence = Math.max(0, normalizeEventCount(input.guaranteedOpportunityEveryHits ?? 0));
+    const chance = Math.min(1, finiteNonNegative(input.baseOpportunityChance, 0.15) *
+        (1 + finiteNonNegative(input.opportunityChanceBonus, 0)));
+    const eventLimit = normalizeEventCount(input.maxEvents);
+    let states: OpportunityState[] = [{ expiresAt: NONE_EXPIRY, chainDamageActive: false, probability: 1 }];
+    const events: TennokaiOpportunityTimelineEvent[] = [];
+    let qualifyingHitNumber = 0;
+    let expectedTennokaiHeavyAttacks = 0;
+    let heavyAttacks = 0;
+    const pointsPerTier = finiteNonNegative(input.comboPointsPerTier, 20) || 20;
+    const maximumComboMultiplier = Math.max(1, normalizeEventCount(input.maximumComboMultiplier ?? 12));
+    const comboDurationSeconds = finiteNonNegative(input.comboDurationSeconds, 5);
+    const initialComboPoints = finiteNonNegative(input.initialComboPoints, 0);
+    const startingComboPoints = Math.max(initialComboPoints, finiteNonNegative(input.startingComboPoints, initialComboPoints));
+    const regularHitComboPoints = finiteNonNegative(input.comboPointsPerRegularHit, 1);
+    const heavyAttackEfficiency = Math.min(0.9, finiteNonNegative(input.heavyAttackEfficiency, 0));
+    let initialComboPointsRemaining = Math.min(initialComboPoints, startingComboPoints);
+    let earnedComboPoints = Math.max(0, startingComboPoints - initialComboPointsRemaining);
+    let lastComboGainAt = Number.NEGATIVE_INFINITY;
+    let lastInitialComboRegenAt = Number.NEGATIVE_INFINITY;
+    let canRegenInitialCombo = false;
+
+    const comboTier = (points: number) => Math.max(1, Math.min(
+        maximumComboMultiplier,
+        1 + Math.floor(Math.max(0, points) / pointsPerTier),
+    ));
+
+    for (let index = 0; index < eventLimit; index++) {
+        const cycleLength = regularHitsBetweenHeavy + 1;
+        const cycleIndex = Math.floor(index / cycleLength);
+        const positionInCycle = index % cycleLength;
+        const isHeavy = positionInCycle === regularHitsBetweenHeavy;
+        const cycleDuration = regularHitsBetweenHeavy * regularInterval + heavyInterval;
+        const timeSeconds = cycleIndex * cycleDuration + (isHeavy
+            ? Math.max(0, regularHitsBetweenHeavy - 1) * regularInterval + heavyInterval
+            : positionInCycle * regularInterval);
+
+        states = expireStates(states, timeSeconds);
+        if (Number.isFinite(lastComboGainAt) && timeSeconds - lastComboGainAt > comboDurationSeconds + EPSILON) {
+            initialComboPointsRemaining = initialComboPoints;
+            earnedComboPoints = 0;
+        }
+        if (canRegenInitialCombo && Number.isFinite(lastInitialComboRegenAt) && timeSeconds > lastInitialComboRegenAt) {
+            initialComboPointsRemaining = Math.min(
+                initialComboPoints,
+                initialComboPointsRemaining + (timeSeconds - lastInitialComboRegenAt) * 40,
+            );
+            lastInitialComboRegenAt = timeSeconds;
+        }
+        const availableProbability = activeProbability(states);
+        const chainProbability = chainProbabilityDuringOpportunity(states);
+        const comboPointsBeforeEvent = initialComboPointsRemaining + earnedComboPoints;
+        const comboMultiplierBeforeEvent = comboTier(comboPointsBeforeEvent);
+        if (isHeavy) {
+            heavyAttacks++;
+            expectedTennokaiHeavyAttacks += availableProbability;
+            const truthFlameEnabled = input.truthFlameEnabled === true;
+            const killProbability = truthFlameEnabled
+                ? Math.max(0, Math.min(1, input.tennokaiKillProbabilityByEvent?.[index] ?? 0))
+                : 0;
+            const chainOpportunitySeconds = finiteNonNegative(input.truthChainOpportunitySeconds, 4) || 4;
+            // A successful Tennokai heavy consumes the current flash, then
+            // Truth's Flame immediately creates a new timed opportunity.
+            states = mergeStates(states.flatMap((state) => {
+                const hasOpportunity = state.expiresAt !== NONE_EXPIRY;
+                const consumed = { ...state, expiresAt: NONE_EXPIRY };
+                if (!hasOpportunity || !truthFlameEnabled || killProbability <= 0) return [hasOpportunity ? consumed : state];
+                const successfulKillProbability = state.probability * killProbability;
+                const failedKillProbability = state.probability * (1 - killProbability);
+                return [
+                    ...(successfulKillProbability > 0 ? [{
+                        expiresAt: timeSeconds + chainOpportunitySeconds,
+                        chainDamageActive: true,
+                        probability: successfulKillProbability,
+                    }] : []),
+                    ...(failedKillProbability > 0 ? [{
+                        ...consumed,
+                        probability: failedKillProbability,
+                    }] : []),
+                ];
+            }));
+            const expectedRetention = availableProbability * (truthFlameEnabled ? killProbability : 1) +
+                (1 - availableProbability) * heavyAttackEfficiency;
+            initialComboPointsRemaining *= expectedRetention;
+            earnedComboPoints *= expectedRetention;
+            canRegenInitialCombo = true;
+            lastInitialComboRegenAt = timeSeconds;
+        } else {
+            earnedComboPoints += regularHitComboPoints;
+        }
+
+        qualifyingHitNumber++;
+        const guaranteed = cadence > 0 && qualifyingHitNumber % cadence === 0;
+        states = rollOpportunity(
+            states,
+            timeSeconds,
+            cadence > 0 ? 0 : chance,
+            guaranteed,
+            opportunityWindowSeconds,
+        );
+        events.push({
+            index,
+            timeSeconds,
+            attackType: isHeavy ? "heavy" : "regular",
+            qualifyingHitNumber,
+            activeOpportunityProbability: availableProbability,
+            generatedOpportunityProbability: guaranteed ? 1 : cadence > 0 ? 0 : chance,
+            activeOpportunityProbabilityAfterEvent: activeProbability(states),
+            comboPointsBeforeEvent,
+            comboMultiplierBeforeEvent,
+            comboPointsAfterEvent: initialComboPointsRemaining + earnedComboPoints,
+            comboMultiplierAfterEvent: comboTier(initialComboPointsRemaining + earnedComboPoints),
+            tennokaiKillChainProbability: chainProbability,
+        });
+        lastComboGainAt = timeSeconds;
+    }
+
+    return { events, expectedTennokaiHeavyAttacks, heavyAttacks };
+}
+function buildEventStats(
+    input: TennokaiAttackTimelineInput,
+    regularWeapon: WeaponEntry,
+    heavyWeapon: WeaponEntry,
+    event: TennokaiOpportunityTimelineEvent,
+    tennokaiProbability: number,
+    chainProbability: number,
+): ModdedWeaponStats {
+    const eventWeapon = event.attackType === "regular" ? regularWeapon : heavyWeapon;
+    return calculateBuild(eventWeapon, [...input.mods], input.targetFaction ?? "", {
+        ...(input.damageOptions ?? {}),
+        conditionalState: {
+            ...(input.conditionalState ?? DEFAULT_CONDITIONAL_STATE),
+            meleeComboPointsAtImpact: event.comboPointsBeforeEvent,
+            tennokaiAttackProbability: event.attackType === "heavy" ? tennokaiProbability : 0,
+            tennokaiKillChainProbability: event.attackType === "heavy" ? chainProbability : 0,
+        },
+    }).modded;
+}
+
+function initialTargetPools(target: TennokaiTargetProfile): Record<TargetDamagePool, number> {
+    return {
+        health: Math.max(0, target.health),
+        shields: Math.max(0, target.shields),
+        overguard: Math.max(0, target.overguard),
+    };
+}
+
+function targetDamageForStats(
+    stats: ModdedWeaponStats,
+    target: TennokaiTargetProfile,
+    remaining: Record<TargetDamagePool, number>,
+    faction: string,
+) {
+    const armorStrip = 1 - ((1 - stats.heatArmorStrip) * (1 - stats.corrosiveArmorStrip));
+    return calculateDirectDamageToInitialPools({
+        ...target,
+        health: remaining.health,
+        shields: remaining.shields,
+        overguard: remaining.overguard,
+        armorDamageReductionMultiplier: (target.armorDamageReductionMultiplier ?? 1) * (1 - armorStrip),
+        damageByType: stats.damageBreakdownBeforePerStatus,
+        faction,
+        factionDamageBonus: stats.factionDamageBonus,
+        viralHealthDamageBonus: stats.viralHealthDamageBonus,
+        magneticDefenseDamageBonus: stats.magneticShieldDamageBonus,
+        expectedHitDamageMultiplier: stats.expectedHitDamageMultiplier,
+        expectedProjectiles: stats.multishot,
+        expectedDamageMultiplier: stats.damageWeightedMultishot,
+        singleProjectileDamageBonus: stats.singleProjectileDamageBonus,
+    });
+}
+
+function targetPoolsAreDestroyed(
+    remaining: Record<TargetDamagePool, number>,
+    uncappedDamage: Record<TargetDamagePool, number>,
+): boolean {
+    return (["overguard", "shields", "health"] as const).every((pool) =>
+        remaining[pool] <= EPSILON || uncappedDamage[pool] + EPSILON >= remaining[pool]);
+}
+
+export function findSupportedTennokaiAttackPair(
+    weapon: WeaponEntry,
+): { regularAttackIndex: number; heavyAttackIndex: number } | null {
+    if (weapon.category !== "Melee" && weapon.category !== "Arch-Melee") return null;
+    if (/\b(?:gunblade|glaive)\b/i.test(`${weapon.weaponType} ${weapon.name}`)) return null;
+    const regularAttackIndex = weapon.attacks.findIndex((attack) =>
+        /^normal attack$/i.test(attack.name.trim()) &&
+        (attack.multishot ?? weapon.multishot) <= 1 &&
+        attack.isAreaDamage !== true &&
+        !attack.modelLimitation,
+    );
+    if (regularAttackIndex < 0) return null;
+    const heavyCandidates = weapon.attacks
+        .map((attack, index) => ({ attack, index }))
+        .filter(({ attack }) => /^(?:heavy attack|heavy slam attack)$/i.test(attack.name.trim()))
+        .sort((left, right) => Number(/slam/i.test(left.attack.name)) - Number(/slam/i.test(right.attack.name)));
+    const heavyAttackIndex = heavyCandidates.find(({ attack }) => {
+        const isSlam = /^heavy slam attack$/i.test(attack.name.trim());
+        return (attack.multishot ?? weapon.multishot) <= 1 &&
+            (attack.isAreaDamage !== true || isSlam) &&
+            !attack.modelLimitation;
+    })?.index;
+    return heavyAttackIndex === undefined ? null : { regularAttackIndex, heavyAttackIndex };
+}
+
+function reduceTargetPools(
+    remaining: Record<TargetDamagePool, number>,
+    damage: Record<TargetDamagePool, number>,
+): Record<TargetDamagePool, number> {
+    return {
+        overguard: Math.max(0, remaining.overguard - damage.overguard),
+        shields: Math.max(0, remaining.shields - damage.shields),
+        health: Math.max(0, remaining.health - damage.health),
+    };
+}
+
+function estimateTruthKillProbabilities(
+    input: TennokaiAttackTimelineInput,
+    events: readonly TennokaiOpportunityTimelineEvent[],
+    regularWeapon: WeaponEntry,
+    heavyWeapon: WeaponEntry,
+): number[] {
+    const target = input.targetProfile;
+    const killProbabilities = Array.from({ length: events.length }, () => 0);
+    if (!target) return killProbabilities;
+
+    const originalPools = initialTargetPools(target);
+    let remaining = { ...originalPools };
+    const faction = input.targetFaction ?? "";
+    for (const event of events) {
+        const chain = event.tennokaiKillChainProbability;
+        if (event.attackType === "heavy" && event.activeOpportunityProbability > EPSILON) {
+            const tennokaiStats = buildEventStats(input, regularWeapon, heavyWeapon, event, 1, chain);
+            const conditionalDamage = targetDamageForStats(tennokaiStats, target, remaining, faction);
+            if (targetPoolsAreDestroyed(remaining, conditionalDamage.uncappedDamageByPool)) {
+                killProbabilities[event.index] = 1;
+            }
+        }
+
+        const expectedStats = buildEventStats(
+            input,
+            regularWeapon,
+            heavyWeapon,
+            event,
+            event.attackType === "heavy" ? event.activeOpportunityProbability : 0,
+            chain,
+        );
+        const expectedDamage = targetDamageForStats(expectedStats, target, remaining, faction);
+        const afterHit = reduceTargetPools(remaining, expectedDamage.damageByPool);
+        if (targetPoolsAreDestroyed(remaining, expectedDamage.uncappedDamageByPool)) {
+            remaining = { ...originalPools };
+            continue;
+        }
+
+        const tennokaiKillWeight = event.attackType === "heavy"
+            ? event.activeOpportunityProbability * killProbabilities[event.index]
+            : 0;
+        remaining = {
+            overguard: afterHit.overguard * (1 - tennokaiKillWeight) + originalPools.overguard * tennokaiKillWeight,
+            shields: afterHit.shields * (1 - tennokaiKillWeight) + originalPools.shields * tennokaiKillWeight,
+            health: afterHit.health * (1 - tennokaiKillWeight) + originalPools.health * tennokaiKillWeight,
+        };
+    }
+    return killProbabilities;
+}
+
+/**
+ * Score a bounded direct-hit regular/Heavy Attack cycle. Opportunity,
+ * combo-retention, and Tennokai-only mod stats are represented as expected
+ * event-local values. The caller must not interpret the raw output as
+ * target-specific damage, finite TTK, or optimizer evidence.
+ */
+export function calculateTennokaiAttackTimeline(
+    input: TennokaiAttackTimelineInput,
+): TennokaiAttackTimelineResult {
+    const unsupported = (limitation: string): TennokaiAttackTimelineResult => ({
+        supported: false,
+        limitation,
+        events: [],
+        expectedDamageBeforeTargetDefenses: 0,
+        expectedDamagePerSecondBeforeTargetDefenses: 0,
+        expectedDamagePerSecondAfterTargetDefenses: null,
+        expectedTennokaiHeavyAttackShare: 0,
+        regularHitsBetweenHeavy: Math.max(1, Math.floor(input.regularHitsBetweenHeavy || 1)),
+        opportunityChancePerHit: 0,
+        opportunityWindowSeconds: 2,
+        opportunityRangeBonusMeters: 0,
+        comboGainAssumptionPointsPerRegularHit: 1,
+        notes: [],
+    });
+
+    if (input.weapon.category !== "Melee" && input.weapon.category !== "Arch-Melee") {
+        return unsupported("Tennokai is supported only for melee weapon profiles.");
+    }
+    if (/\b(?:gunblade|glaive)\b/i.test(`${input.weapon.weaponType} ${input.weapon.name}`)) {
+        return unsupported("Gunblade and Glaive event rows need weapon-specific trigger, impact, and detonation history.");
+    }
+    const regularAttack = input.weapon.attacks[input.regularAttackIndex];
+    const heavyAttack = input.weapon.attacks[input.heavyAttackIndex];
+    if (!regularAttack || !/^normal attack$/i.test(regularAttack.name.trim())) {
+        return unsupported("Choose a catalogued Normal Attack row for qualifying regular hits.");
+    }
+    const isHeavyAttackRow = /^heavy attack$/i.test(heavyAttack?.name.trim() ?? "");
+    const isHeavySlamAttackRow = /^heavy slam attack$/i.test(heavyAttack?.name.trim() ?? "");
+    if (!heavyAttack || (!isHeavyAttackRow && !isHeavySlamAttackRow)) {
+        return unsupported("Choose a catalogued Heavy Attack or Heavy Slam Attack row; weapon-specific projectile sequences need separate timing models.");
+    }
+    if ((regularAttack.multishot ?? input.weapon.multishot) > 1 ||
+        (heavyAttack.multishot ?? input.weapon.multishot) > 1) {
+        return unsupported("Multi-strike attack rows are excluded because their component hits do not map to one qualifying Tennokai event.");
+    }
+    if (regularAttack.isAreaDamage === true || regularAttack.modelLimitation ||
+        (heavyAttack.isAreaDamage === true && !isHeavySlamAttackRow) || heavyAttack.modelLimitation) {
+        return unsupported("The selected attack rows are area or otherwise model-limited; this timeline accepts one direct target only.");
+    }
+    if (!input.mods.some((effect) => effect?.tennokaiEnabled === true)) {
+        return unsupported("Equip a Tennokai-enabling mod to activate the opportunity timeline.");
+    }
+
+    const regularWeapon = withSelectedAttack(input.weapon, input.regularAttackIndex);
+    const heavyWeapon = withSelectedAttack(input.weapon, input.heavyAttackIndex);
+    const conditionalState = input.conditionalState ?? DEFAULT_CONDITIONAL_STATE;
+    const options = input.damageOptions ?? {};
+    const regularBaseStats = calculateBuild(regularWeapon, [...input.mods], input.targetFaction ?? "", {
+        ...options,
+        conditionalState: { ...conditionalState, tennokaiAttackProbability: 0, tennokaiKillChainProbability: 0 },
+    }).modded;
+    const heavyBaseStats = calculateBuild(heavyWeapon, [...input.mods], input.targetFaction ?? "", {
+        ...options,
+        conditionalState: { ...conditionalState, tennokaiAttackProbability: 0, tennokaiKillChainProbability: 0 },
+    }).modded;
+    const effectRows = input.mods.filter((effect): effect is ModEffect => effect !== null);
+    const comboDurationBonusSeconds = effectRows.reduce(
+        (total, effect) => total + (effect.comboDurationBonus ?? 0),
+        0,
+    );
+    // The base inactivity timeout is five seconds. The generated mod records
+    // express supported combo-duration changes as flat seconds; percentage
+    // penalties remain unparsed and are disclosed on the affected mod card.
+    const comboDurationSeconds = Math.max(0, 5 + comboDurationBonusSeconds);
+    const guaranteedOpportunityEveryHits = Math.min(...effectRows
+        .map((effect) => effect.tennokaiOpportunityEveryHits ?? 0)
+        .filter((hits) => hits > 0), Number.POSITIVE_INFINITY);
+    const opportunityChanceBonus = effectRows.reduce(
+        (total, effect) => total + (effect.tennokaiOpportunityChanceBonus ?? 0),
+        0,
+    );
+    const opportunityChancePerHit = guaranteedOpportunityEveryHits < Number.POSITIVE_INFINITY
+        ? 0
+        : Math.min(1, 0.15 * (1 + opportunityChanceBonus));
+    const opportunityWindowSeconds = effectRows.reduce(
+        (maximum, effect) => Math.max(maximum, effect.tennokaiOpportunityWindowSeconds ?? 0),
+        2,
+    );
+    const opportunityRangeBonusMeters = effectRows.reduce(
+        (maximum, effect) => Math.max(maximum, effect.tennokaiRangeBonusMeters ?? 0),
+        0,
+    );
+    const rules = getMeleeComboRules(input.weapon);
+    const hitsBetweenHeavy = Math.max(1, Math.min(20, Math.floor(
+        Number.isFinite(input.regularHitsBetweenHeavy) ? input.regularHitsBetweenHeavy : 1,
+    )));
+    const cycles = Math.max(1, Math.min(100, Math.floor(Number.isFinite(input.cycles) ? input.cycles ?? 8 : 8)));
+    const maxEvents = (hitsBetweenHeavy + 1) * cycles;
+    const regularInterval = 1 / Math.max(0.0001, regularBaseStats.fireRate);
+    // The source lists faster Tennokai wind-up but not a numeric attack-row
+    // wind-up value; the estimate therefore leaves wind-up out of this interval.
+    const heavyInterval = 1 / Math.max(0.0001, heavyBaseStats.fireRate);
+    const scheduleInput = {
+        regularHitsBetweenHeavy: hitsBetweenHeavy,
+        regularAttackIntervalSeconds: regularInterval,
+        heavyAttackIntervalSeconds: heavyInterval,
+        opportunityChanceBonus,
+        opportunityWindowSeconds,
+        ...(guaranteedOpportunityEveryHits < Number.POSITIVE_INFINITY
+            ? { guaranteedOpportunityEveryHits }
+            : {}),
+        startingComboPoints: heavyBaseStats.meleeComboPointsBeforeHeavyAttack,
+        initialComboPoints: heavyBaseStats.meleeInitialComboPoints,
+        heavyAttackEfficiency: heavyBaseStats.heavyAttackEfficiency,
+        comboDurationSeconds,
+        comboPointsPerTier: rules.pointsPerTier,
+        maximumComboMultiplier: rules.maxMultiplier,
+        maxEvents,
+    };
+    const truthFlameEnabled = effectRows.some((effect) => (effect.tennokaiChainedDamageBonus ?? 0) > 0);
+    const truthChainOpportunitySeconds = effectRows.reduce(
+        (maximum, effect) => Math.max(maximum, effect.tennokaiChainedOpportunitySeconds ?? 0),
+        4,
+    );
+    const modelTruthChain = truthFlameEnabled && input.targetProfile !== undefined;
+    let killProbabilities = Array.from({ length: maxEvents }, () => 0);
+    let timeline = simulateTennokaiOpportunityTimeline({
+        ...scheduleInput,
+        truthFlameEnabled: modelTruthChain,
+        truthChainOpportunitySeconds,
+        tennokaiKillProbabilityByEvent: killProbabilities,
+    });
+    if (modelTruthChain) {
+        for (let pass = 0; pass < 5; pass++) {
+            const nextKillProbabilities = estimateTruthKillProbabilities(
+                input,
+                timeline.events,
+                regularWeapon,
+                heavyWeapon,
+            );
+            if (nextKillProbabilities.every((value, index) => value === killProbabilities[index])) break;
+            killProbabilities = nextKillProbabilities;
+            timeline = simulateTennokaiOpportunityTimeline({
+                ...scheduleInput,
+                truthFlameEnabled: true,
+                truthChainOpportunitySeconds,
+                tennokaiKillProbabilityByEvent: killProbabilities,
+            });
+        }
+    }
+    const events: TennokaiScoredEvent[] = timeline.events.map((event) => {
+        const profile = buildEventStats(
+            input,
+            regularWeapon,
+            heavyWeapon,
+            event,
+            event.attackType === "heavy" ? event.activeOpportunityProbability : 0,
+            event.tennokaiKillChainProbability,
+        );
+        const targetDamage = input.targetProfile
+            ? targetDamageForStats(
+                profile,
+                input.targetProfile,
+                initialTargetPools(input.targetProfile),
+                input.targetFaction ?? "",
+            )
+            : null;
+        return {
+            ...event,
+            expectedDamageBeforeTargetDefenses: profile.totalDamage,
+            expectedDamageAfterTargetDefenses: targetDamage
+                ? Object.values(targetDamage.uncappedDamageByPool).reduce((total, damage) => total + damage, 0)
+                : null,
+            tennokaiTargetKillProbability: killProbabilities[event.index] ?? 0,
+            statusChance: profile.statusChance,
+            criticalChance: profile.critChance,
+            criticalMultiplier: profile.critMultiplier,
+            tennokaiDamageBonus: profile.tennokaiDamageBonus,
+            tennokaiCritDamageBonus: profile.tennokaiCritDamageBonus,
+            tennokaiStatusChanceBonus: profile.tennokaiStatusChanceBonus,
+        };
+    });
+    const expectedDamageBeforeTargetDefenses = events.reduce(
+        (total, event) => total + event.expectedDamageBeforeTargetDefenses,
+        0,
+    );
+    const expectedDamageAfterTargetDefenses = input.targetProfile
+        ? events.reduce((total, event) => total + (event.expectedDamageAfterTargetDefenses ?? 0), 0)
+        : null;
+    const cycleDuration = hitsBetweenHeavy * regularInterval + heavyInterval;
+    const totalDuration = Math.ceil(events.length / (hitsBetweenHeavy + 1)) * cycleDuration;
+    const heavyEvents = events.filter((event) => event.attackType === "heavy");
+    const expectedTennokaiHeavyAttacks = heavyEvents.reduce(
+        (total, event) => total + event.activeOpportunityProbability,
+        0,
+    );
+    return {
+        supported: true,
+        limitation: null,
+        events,
+        expectedDamageBeforeTargetDefenses,
+        expectedDamagePerSecondBeforeTargetDefenses: totalDuration > 0
+            ? expectedDamageBeforeTargetDefenses / totalDuration
+            : 0,
+        expectedDamagePerSecondAfterTargetDefenses: expectedDamageAfterTargetDefenses !== null && totalDuration > 0
+            ? expectedDamageAfterTargetDefenses / totalDuration
+            : null,
+        expectedTennokaiHeavyAttackShare: heavyEvents.length > 0
+            ? expectedTennokaiHeavyAttacks / heavyEvents.length
+            : 0,
+        regularHitsBetweenHeavy: hitsBetweenHeavy,
+        opportunityChancePerHit,
+        opportunityWindowSeconds,
+        opportunityRangeBonusMeters,
+        comboGainAssumptionPointsPerRegularHit: 1,
+        notes: [
+            "One repeated direct target is assumed, with one qualifying regular hit per Normal Attack event and one combo point per hit; stance-specific combo generation is not represented.",
+            `The combo counter expires after ${comboDurationSeconds}s without a qualifying hit; parsed flat Melee Combo Duration modifiers are included, while percentage-based duration modifiers remain unsupported.`,
+            "Pre-defense DPS is an expected hit estimate. Target-aware DPS applies the selected faction, initial pool routing, armor, and critical assumptions without overkill capping; it holds the initial target state for each event and does not advance pool breaks, shield gates, or status ticks.",
+            isHeavySlamAttackRow
+                ? "The Heavy Slam Attack row is scored against one centered target; nearby-target coverage and jump/position timing are excluded."
+                : "Heavy-attack wind-up is omitted because the selected attack rows do not provide a verified numeric wind-up duration; the Tennokai speed bonus is also not quantified.",
+            ...(opportunityRangeBonusMeters > 0
+                ? ["Opportunity's Reach range bonus is reported but not applied because the weapon's base melee range and target distance are not part of this profile."]
+                : []),
+            ...(truthFlameEnabled && modelTruthChain
+                ? ["Truth's Flame repeats identical target pools and uses a deterministic expected-direct-hit threshold for Tennokai kills; hit/critical randomness and status-tick kills are excluded. The damage chain stays active after the first kill. Failed-kill combo resets are modeled; its Heat curse and Truth syndicate effect are not."]
+                : truthFlameEnabled
+                    ? ["Truth's Flame's repeated-target kill chain is not scored without target pools. Failed-kill combo resets, the Heat curse, and the Truth syndicate effect are not modeled."]
+                : []),
+        ],
+    };
+}
