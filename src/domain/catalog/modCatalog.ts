@@ -45,6 +45,7 @@ import {
 
 const ALL = ALL_RAW as Record<string, unknown>[];
 const STRAIN_INFECTION_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/MeleeStrainInfectionMod";
+const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
@@ -254,6 +255,8 @@ export interface ModEffect {
     comboDurationBaseBonus: number;
     initialComboBonus: number;
     comboCountChanceBonus: number;
+    /** Relentless Combination's chance per melee Slash application and Bleed tick. */
+    relentlessCombinationSlashComboChance: number;
     heavyAttackEfficiencyBonus: number;
     heavyAttackWindUpBonus: number;
     lifeStealBonus: number;
@@ -883,6 +886,9 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "beam range") return { beamRangeBonus: scaled };
     if (rest === "heavy attack efficiency") return { heavyAttackEfficiencyBonus: scaled };
     if (rest === "heavy attack wind up speed") return { heavyAttackWindUpBonus: scaled };
+    if (rest === "chance to increase melee combo counter when slash status deals damage") {
+        return { comboCountChanceBonus: scaled };
+    }
     if (rest === "combo count chance" || rest === "additional combo count chance") return { comboCountChanceBonus: scaled };
     if (rest === "final status chance") return { finalStatusChanceBonus: scaled };
     if (rest.includes("headshot multiplier") || rest.includes("headshot damage")) return { headshotMultiplierBonus: scaled };
@@ -1547,6 +1553,11 @@ function buildCaches(): ModCaches {
             unparsedStatsByRank.push([...unparsedStats]);
             return e;
         });
+        if (path === RELENTLESS_COMBINATION_MOD_PATH) {
+            for (const effect of effectsByRank) {
+                effect.relentlessCombinationSlashComboChance = effect.comboCountChanceBonus;
+            }
+        }
         if (path === STRAIN_INFECTION_MOD_PATH) {
             // Only the per-cyst rank value is modeled. The cyst count is a saved
             // Burst-at-impact assumption; the set's growth and eruption timeline

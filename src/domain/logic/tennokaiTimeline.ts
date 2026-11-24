@@ -8,6 +8,7 @@
 import type { ModEffect } from "../catalog/modCatalog";
 import type { WeaponEntry } from "../catalog/weaponCatalog";
 import { getMeleeComboRules, withSelectedAttack } from "../catalog/weaponRules";
+import { STATUS_EFFECT_RULES, countStatusDamageTicks } from "./damageRuleset";
 import {
     calculateBuild,
     DEFAULT_CONDITIONAL_STATE,
@@ -15,7 +16,7 @@ import {
     type DamageCalculationOptions,
     type ModdedWeaponStats,
 } from "./damageCalc";
-import { calculateDirectDamageToInitialPools } from "./targetDamage";
+import { calculateDirectDamageToInitialPools, calculateStatusTickToTargetPools } from "./targetDamage";
 import type { DirectTargetDamageInput, TargetDamagePool } from "./targetDamage";
 
 export type TennokaiTargetProfile = Pick<
@@ -67,6 +68,15 @@ export interface TennokaiOpportunityTimelineInput {
     truthChainOpportunitySeconds?: number;
     /** Conditional kill probability for each event if that event is Tennokai-active. */
     tennokaiKillProbabilityByEvent?: readonly number[];
+    /** Expected extra combo events from Slash applications and scheduled Bleed ticks. */
+    additionalComboPointGains?: readonly TennokaiComboPointGainEvent[];
+}
+
+export interface TennokaiComboPointGainEvent {
+    timeSeconds: number;
+    comboPoints: number;
+    /** Slash application gains happen after the direct attack at this event index. */
+    afterAttackEventIndex?: number;
 }
 
 export interface TennokaiOpportunityTimelineEvent {
@@ -108,7 +118,7 @@ export interface TennokaiAttackTimelineInput {
     regularHitsBetweenHeavy: number;
     conditionalState?: ConditionalState;
     damageOptions?: Omit<DamageCalculationOptions, "conditionalState">;
-    /** Current target pools used only for Truth's Flame's direct-kill chain estimate. */
+    /** Current target pools for direct/tick scoring, death resets, and Truth's Flame's direct-kill chain. */
     targetProfile?: TennokaiTargetProfile;
     /** Number of full regular/Heavy cycles to score; bounded to 1–100. */
     cycles?: number;
@@ -126,6 +136,8 @@ export interface TennokaiScoredEvent extends TennokaiOpportunityTimelineEvent {
     tennokaiDamageBonus: number;
     tennokaiCritDamageBonus: number;
     tennokaiStatusChanceBonus: number;
+    expectedSlashApplications: number;
+    expectedRelentlessComboPointsFromSlashApplication: number;
 }
 
 export interface TennokaiAttackTimelineResult {
@@ -134,8 +146,24 @@ export interface TennokaiAttackTimelineResult {
     events: TennokaiScoredEvent[];
     expectedDamageBeforeTargetDefenses: number;
     expectedDamagePerSecondBeforeTargetDefenses: number;
-    /** Expected direct DPS against the target's initial pool routing and defense state, without overkill capping. */
+    /** Expected direct and Bleed damage applied to target pools across repeated identical targets. */
     expectedDamagePerSecondAfterTargetDefenses: number | null;
+    /** Expected Slash tick damage applied to target pools over the full Bleed tail. */
+    expectedBleedDamageAfterTargetDefenses: number;
+    /** Expected number of melee Slash applications that landed before target death. */
+    expectedSlashApplications: number;
+    /** Expected Relentless Combination points from Slash applications and landed Bleed ticks. */
+    expectedRelentlessComboPoints: number;
+    /** Expected combo points from Slash applications only. */
+    expectedRelentlessComboPointsFromSlashApplications: number;
+    /** Expected combo points from Bleed damage ticks only. */
+    expectedRelentlessComboPointsFromBleedTicks: number;
+    /** Expected landed per-stack Bleed tick events across the schedule and tail. */
+    expectedBleedTicks: number;
+    /** Count of repeated identical targets killed by a Bleed tick. */
+    expectedBleedTickTargetKills: number;
+    /** Scored attack schedule plus the longest selected Slash duration tail. */
+    evaluationDurationSeconds: number;
     expectedTennokaiHeavyAttackShare: number;
     regularHitsBetweenHeavy: number;
     opportunityChancePerHit: number;
@@ -258,6 +286,39 @@ export function simulateTennokaiOpportunityTimeline(
     let lastComboGainAt = Number.NEGATIVE_INFINITY;
     let lastInitialComboRegenAt = Number.NEGATIVE_INFINITY;
     let canRegenInitialCombo = false;
+    const timedComboGains = (input.additionalComboPointGains ?? [])
+        .filter((gain) => gain.afterAttackEventIndex === undefined &&
+            Number.isFinite(gain.timeSeconds) && Number.isFinite(gain.comboPoints) && gain.comboPoints > 0)
+        .slice()
+        .sort((left, right) => left.timeSeconds - right.timeSeconds);
+    const comboGainsAfterAttack = new Map<number, number>();
+    for (const gain of input.additionalComboPointGains ?? []) {
+        if (!Number.isInteger(gain.afterAttackEventIndex) || !Number.isFinite(gain.comboPoints) || gain.comboPoints <= 0) continue;
+        const eventIndex = gain.afterAttackEventIndex!;
+        comboGainsAfterAttack.set(eventIndex, (comboGainsAfterAttack.get(eventIndex) ?? 0) + gain.comboPoints);
+    }
+    let nextTimedComboGain = 0;
+
+    const advanceComboClock = (timeSeconds: number) => {
+        if (Number.isFinite(lastComboGainAt) && timeSeconds - lastComboGainAt > comboDurationSeconds + EPSILON) {
+            initialComboPointsRemaining = initialComboPoints;
+            earnedComboPoints = 0;
+        }
+        if (canRegenInitialCombo && Number.isFinite(lastInitialComboRegenAt) && timeSeconds > lastInitialComboRegenAt) {
+            initialComboPointsRemaining = Math.min(
+                initialComboPoints,
+                initialComboPointsRemaining + (timeSeconds - lastInitialComboRegenAt) * 40,
+            );
+            lastInitialComboRegenAt = timeSeconds;
+        }
+    };
+
+    const addComboPointsAt = (timeSeconds: number, points: number) => {
+        if (points <= 0) return;
+        advanceComboClock(timeSeconds);
+        earnedComboPoints += points;
+        lastComboGainAt = timeSeconds;
+    };
 
     const comboTier = (points: number) => Math.max(1, Math.min(
         maximumComboMultiplier,
@@ -275,17 +336,15 @@ export function simulateTennokaiOpportunityTimeline(
             : positionInCycle * regularInterval);
 
         states = expireStates(states, timeSeconds);
-        if (Number.isFinite(lastComboGainAt) && timeSeconds - lastComboGainAt > comboDurationSeconds + EPSILON) {
-            initialComboPointsRemaining = initialComboPoints;
-            earnedComboPoints = 0;
+        advanceComboClock(timeSeconds);
+        while (timedComboGains[nextTimedComboGain] &&
+            timedComboGains[nextTimedComboGain].timeSeconds <= timeSeconds + EPSILON) {
+            const gain = timedComboGains[nextTimedComboGain++];
+            addComboPointsAt(gain.timeSeconds, gain.comboPoints);
         }
-        if (canRegenInitialCombo && Number.isFinite(lastInitialComboRegenAt) && timeSeconds > lastInitialComboRegenAt) {
-            initialComboPointsRemaining = Math.min(
-                initialComboPoints,
-                initialComboPointsRemaining + (timeSeconds - lastInitialComboRegenAt) * 40,
-            );
-            lastInitialComboRegenAt = timeSeconds;
-        }
+        // A Bleed tick at an attack's timestamp lands first. Slash applications
+        // from the attack itself are applied after the event below.
+        advanceComboClock(timeSeconds);
         const availableProbability = activeProbability(states);
         const chainProbability = chainProbabilityDuringOpportunity(states);
         const comboPointsBeforeEvent = initialComboPointsRemaining + earnedComboPoints;
@@ -327,6 +386,8 @@ export function simulateTennokaiOpportunityTimeline(
         } else {
             earnedComboPoints += regularHitComboPoints;
         }
+
+        addComboPointsAt(timeSeconds, comboGainsAfterAttack.get(index) ?? 0);
 
         qualifyingHitNumber++;
         const guaranteed = cadence > 0 && qualifyingHitNumber % cadence === 0;
@@ -453,54 +514,258 @@ function reduceTargetPools(
     };
 }
 
-function estimateTruthKillProbabilities(
+interface SlashBleedCohort {
+    nextTickAt: number;
+    ticksRemaining: number;
+    expectedStacks: number;
+    damagePerTick: number;
+    viralHealthDamageBonus: number;
+    magneticShieldDamageBonus: number;
+}
+
+interface TennokaiSlashTimelinePass {
+    events: TennokaiScoredEvent[];
+    comboPointGains: TennokaiComboPointGainEvent[];
+    killProbabilities: number[];
+    expectedDamageBeforeTargetDefenses: number;
+    expectedDamageAfterTargetDefenses: number | null;
+    expectedBleedDamageAfterTargetDefenses: number;
+    expectedSlashApplications: number;
+    expectedRelentlessComboPoints: number;
+    expectedRelentlessComboPointsFromSlashApplications: number;
+    expectedRelentlessComboPointsFromBleedTicks: number;
+    expectedBleedTicks: number;
+    expectedBleedTickTargetKills: number;
+    evaluationDurationSeconds: number;
+}
+
+function expectedSlashApplications(stats: ModdedWeaponStats): number {
+    return Math.max(0, stats.averageProcsPerShot * (stats.procChanceByType.slash ?? 0));
+}
+
+function simulateTennokaiSlashTimeline(
     input: TennokaiAttackTimelineInput,
-    events: readonly TennokaiOpportunityTimelineEvent[],
+    timeline: TennokaiOpportunityTimelineResult,
     regularWeapon: WeaponEntry,
     heavyWeapon: WeaponEntry,
-): number[] {
+    relentlessChance: number,
+    evaluationDurationSeconds: number,
+): TennokaiSlashTimelinePass {
     const target = input.targetProfile;
-    const killProbabilities = Array.from({ length: events.length }, () => 0);
-    if (!target) return killProbabilities;
-
-    const originalPools = initialTargetPools(target);
-    let remaining = { ...originalPools };
+    const originalPools = target ? initialTargetPools(target) : null;
+    let remainingPools = originalPools ? { ...originalPools } : null;
+    const bleedCohorts: SlashBleedCohort[] = [];
+    const comboPointGains: TennokaiComboPointGainEvent[] = [];
+    const killProbabilities = Array.from({ length: timeline.events.length }, () => 0);
+    const eventSummaries: TennokaiScoredEvent[] = [];
+    let expectedDamageBeforeTargetDefenses = 0;
+    let expectedDamageAfterTargetDefenses = 0;
+    let expectedBleedDamageAfterTargetDefenses = 0;
+    let expectedSlashApplicationsTotal = 0;
+    let expectedRelentlessComboPoints = 0;
+    let expectedRelentlessComboPointsFromSlashApplications = 0;
+    let expectedRelentlessComboPointsFromBleedTicks = 0;
+    let expectedBleedTicks = 0;
+    let expectedBleedTickTargetKills = 0;
     const faction = input.targetFaction ?? "";
-    for (const event of events) {
-        const chain = event.tennokaiKillChainProbability;
-        if (event.attackType === "heavy" && event.activeOpportunityProbability > EPSILON) {
-            const tennokaiStats = buildEventStats(input, regularWeapon, heavyWeapon, event, 1, chain);
-            const conditionalDamage = targetDamageForStats(tennokaiStats, target, remaining, faction);
-            if (targetPoolsAreDestroyed(remaining, conditionalDamage.uncappedDamageByPool)) {
-                killProbabilities[event.index] = 1;
+    const comparisonEpsilon = 1e-9;
+
+    const processDueBleedTicks = (untilSeconds: number) => {
+        while (bleedCohorts.length > 0) {
+            const tickTime = Math.min(...bleedCohorts.map((cohort) => cohort.nextTickAt));
+            if (tickTime > untilSeconds + comparisonEpsilon) break;
+            const dueCohorts = bleedCohorts.filter((cohort) => Math.abs(cohort.nextTickAt - tickTime) <= comparisonEpsilon);
+            const tickDamage = dueCohorts.reduce(
+                (sum, cohort) => sum + cohort.expectedStacks * cohort.damagePerTick,
+                0,
+            );
+            const tickStacks = dueCohorts.reduce((sum, cohort) => sum + cohort.expectedStacks, 0);
+            expectedBleedTicks += tickStacks;
+            if (tickDamage > 0) {
+                expectedDamageBeforeTargetDefenses += tickDamage;
+                if (relentlessChance > 0 && tickStacks > 0) {
+                    const comboPoints = tickStacks * relentlessChance;
+                    comboPointGains.push({ timeSeconds: tickTime, comboPoints });
+                    expectedRelentlessComboPoints += comboPoints;
+                    expectedRelentlessComboPointsFromBleedTicks += comboPoints;
+                }
+                if (target && remainingPools) {
+                    const weightedViralBonus = tickStacks > 0
+                        ? dueCohorts.reduce((sum, cohort) => sum + cohort.expectedStacks * cohort.viralHealthDamageBonus, 0) / tickStacks
+                        : 0;
+                    const weightedMagneticBonus = tickStacks > 0
+                        ? dueCohorts.reduce((sum, cohort) => sum + cohort.expectedStacks * cohort.magneticShieldDamageBonus, 0) / tickStacks
+                        : 0;
+                    const applied = calculateStatusTickToTargetPools({
+                        faction,
+                        armor: target.armor,
+                        viralHealthDamageBonus: weightedViralBonus,
+                        magneticDefenseDamageBonus: weightedMagneticBonus,
+                        toxinBypassesShields: target.toxinBypassesShields,
+                    }, remainingPools, "slash", tickDamage);
+                    expectedBleedDamageAfterTargetDefenses += Object.values(applied).reduce((sum, damage) => sum + damage, 0);
+                    expectedDamageAfterTargetDefenses += Object.values(applied).reduce((sum, damage) => sum + damage, 0);
+                    remainingPools = reduceTargetPools(remainingPools, applied);
+                }
+            }
+
+            for (const cohort of dueCohorts) {
+                cohort.ticksRemaining--;
+                cohort.nextTickAt += 1;
+            }
+            for (let index = bleedCohorts.length - 1; index >= 0; index--) {
+                if (bleedCohorts[index].ticksRemaining <= 0) bleedCohorts.splice(index, 1);
+            }
+
+            if (remainingPools && targetPoolsAreDestroyed(remainingPools, { health: 0, shields: 0, overguard: 0 })) {
+                expectedBleedTickTargetKills++;
+                remainingPools = originalPools ? { ...originalPools } : null;
+                // Bleed instances stay on the defeated enemy and do not transfer to its replacement.
+                bleedCohorts.length = 0;
+            }
+        }
+    };
+
+    for (const event of timeline.events) {
+        // A previously applied Slash ticks before an attack at the same timestamp.
+        processDueBleedTicks(event.timeSeconds);
+        const opportunityProbability = event.attackType === "heavy"
+            ? event.activeOpportunityProbability
+            : 0;
+        const branches: Array<{ probability: number; stats: ModdedWeaponStats; tennokai: boolean }> = [];
+        if (opportunityProbability < 1 - Number.EPSILON) {
+            branches.push({
+                probability: 1 - opportunityProbability,
+                stats: buildEventStats(input, regularWeapon, heavyWeapon, event, 0, 0),
+                tennokai: false,
+            });
+        }
+        if (opportunityProbability > Number.EPSILON) {
+            branches.push({
+                probability: opportunityProbability,
+                stats: buildEventStats(input, regularWeapon, heavyWeapon, event, 1, event.tennokaiKillChainProbability),
+                tennokai: true,
+            });
+        }
+        if (branches.length === 0) {
+            branches.push({ probability: 1, stats: buildEventStats(input, regularWeapon, heavyWeapon, event, 0, 0), tennokai: false });
+        }
+
+        let eventRawDamage = 0;
+        let eventAppliedDamage = 0;
+        let eventSlashApplications = 0;
+        let eventSlashApplicationComboPoints = 0;
+        let eventKillWeight = 0;
+        const nextPools: Record<TargetDamagePool, number> | null = remainingPools ? { health: 0, shields: 0, overguard: 0 } : null;
+
+        for (const branch of branches) {
+            if (branch.probability <= Number.EPSILON) continue;
+            eventRawDamage += branch.probability * branch.stats.totalDamage;
+            let branchDamage: ReturnType<typeof targetDamageForStats> | null = null;
+            let branchKilled = false;
+            if (target && remainingPools) {
+                branchDamage = targetDamageForStats(branch.stats, target, remainingPools, faction);
+                branchKilled = targetPoolsAreDestroyed(remainingPools, branchDamage.uncappedDamageByPool);
+                eventAppliedDamage += branch.probability * Object.values(branchDamage.damageByPool)
+                    .reduce((sum, damage) => sum + damage, 0);
+                if (branch.tennokai && branchKilled) killProbabilities[event.index] = 1;
+                const branchPools = branchKilled
+                    ? originalPools!
+                    : reduceTargetPools(remainingPools, branchDamage.damageByPool);
+                if (nextPools) {
+                    for (const pool of ["health", "shields", "overguard"] as const) {
+                        nextPools[pool] += branch.probability * branchPools[pool];
+                    }
+                }
+                if (branchKilled) eventKillWeight += branch.probability;
+            }
+            if (!branchKilled) {
+                const applications = expectedSlashApplications(branch.stats);
+                if (applications > 0) {
+                    const weightedApplications = branch.probability * applications;
+                    eventSlashApplications += weightedApplications;
+                    const tickCount = countStatusDamageTicks(
+                        "slash",
+                        STATUS_EFFECT_RULES.slash.durationSeconds * branch.stats.statusDurationMultiplier,
+                    );
+                    const tickDamage = Math.max(0, branch.stats.slashDotTickDamagePerProc);
+                    if (tickCount > 0 && tickDamage > 0) {
+                        bleedCohorts.push({
+                            nextTickAt: event.timeSeconds + (STATUS_EFFECT_RULES.slash.firstTickSeconds ?? 1),
+                            ticksRemaining: tickCount,
+                            expectedStacks: weightedApplications,
+                            damagePerTick: tickDamage,
+                            viralHealthDamageBonus: branch.stats.viralHealthDamageBonus,
+                            magneticShieldDamageBonus: branch.stats.magneticShieldDamageBonus,
+                        });
+                    }
+                    if (relentlessChance > 0) {
+                        const comboPoints = weightedApplications * relentlessChance;
+                        eventSlashApplicationComboPoints += comboPoints;
+                        expectedRelentlessComboPoints += comboPoints;
+                        expectedRelentlessComboPointsFromSlashApplications += comboPoints;
+                        comboPointGains.push({
+                            timeSeconds: event.timeSeconds,
+                            comboPoints,
+                            afterAttackEventIndex: event.index,
+                        });
+                    }
+                }
             }
         }
 
-        const expectedStats = buildEventStats(
-            input,
-            regularWeapon,
-            heavyWeapon,
-            event,
-            event.attackType === "heavy" ? event.activeOpportunityProbability : 0,
-            chain,
-        );
-        const expectedDamage = targetDamageForStats(expectedStats, target, remaining, faction);
-        const afterHit = reduceTargetPools(remaining, expectedDamage.damageByPool);
-        if (targetPoolsAreDestroyed(remaining, expectedDamage.uncappedDamageByPool)) {
-            remaining = { ...originalPools };
-            continue;
+        if (remainingPools && nextPools) {
+            remainingPools = nextPools;
+            // A kill branch cancels every Bleed instance on the defeated target.
+            if (eventKillWeight >= 1 - Number.EPSILON) bleedCohorts.length = 0;
+            else if (eventKillWeight > 0) {
+                for (const cohort of bleedCohorts) cohort.expectedStacks *= 1 - eventKillWeight;
+                for (let index = bleedCohorts.length - 1; index >= 0; index--) {
+                    if (bleedCohorts[index].expectedStacks <= Number.EPSILON) bleedCohorts.splice(index, 1);
+                }
+            }
         }
 
-        const tennokaiKillWeight = event.attackType === "heavy"
-            ? event.activeOpportunityProbability * killProbabilities[event.index]
-            : 0;
-        remaining = {
-            overguard: afterHit.overguard * (1 - tennokaiKillWeight) + originalPools.overguard * tennokaiKillWeight,
-            shields: afterHit.shields * (1 - tennokaiKillWeight) + originalPools.shields * tennokaiKillWeight,
-            health: afterHit.health * (1 - tennokaiKillWeight) + originalPools.health * tennokaiKillWeight,
-        };
+        expectedDamageBeforeTargetDefenses += eventRawDamage;
+        if (target) expectedDamageAfterTargetDefenses += eventAppliedDamage;
+        expectedSlashApplicationsTotal += eventSlashApplications;
+        const expectedStatusChance = branches.reduce((sum, branch) => sum + branch.probability * branch.stats.statusChance, 0);
+        const expectedCriticalChance = branches.reduce((sum, branch) => sum + branch.probability * branch.stats.critChance, 0);
+        const expectedCriticalMultiplier = branches.reduce((sum, branch) => sum + branch.probability * branch.stats.critMultiplier, 0);
+        const tennokaiBranch = branches.find((branch) => branch.tennokai);
+        const branchProbability = tennokaiBranch?.probability ?? 0;
+        eventSummaries.push({
+            ...event,
+            expectedDamageBeforeTargetDefenses: eventRawDamage,
+            expectedDamageAfterTargetDefenses: target ? eventAppliedDamage : null,
+            tennokaiTargetKillProbability: killProbabilities[event.index] ?? 0,
+            statusChance: expectedStatusChance,
+            criticalChance: expectedCriticalChance,
+            criticalMultiplier: expectedCriticalMultiplier,
+            tennokaiDamageBonus: (tennokaiBranch?.stats.tennokaiDamageBonus ?? 0) * branchProbability,
+            tennokaiCritDamageBonus: (tennokaiBranch?.stats.tennokaiCritDamageBonus ?? 0) * branchProbability,
+            tennokaiStatusChanceBonus: (tennokaiBranch?.stats.tennokaiStatusChanceBonus ?? 0) * branchProbability,
+            expectedSlashApplications: eventSlashApplications,
+            expectedRelentlessComboPointsFromSlashApplication: eventSlashApplicationComboPoints,
+        });
     }
-    return killProbabilities;
+    processDueBleedTicks(Number.POSITIVE_INFINITY);
+
+    return {
+        events: eventSummaries,
+        comboPointGains,
+        killProbabilities,
+        expectedDamageBeforeTargetDefenses,
+        expectedDamageAfterTargetDefenses: target ? expectedDamageAfterTargetDefenses : null,
+        expectedBleedDamageAfterTargetDefenses,
+        expectedSlashApplications: expectedSlashApplicationsTotal,
+        expectedRelentlessComboPoints,
+        expectedRelentlessComboPointsFromSlashApplications,
+        expectedRelentlessComboPointsFromBleedTicks,
+        expectedBleedTicks,
+        expectedBleedTickTargetKills,
+        evaluationDurationSeconds,
+    };
 }
 
 /**
@@ -519,6 +784,14 @@ export function calculateTennokaiAttackTimeline(
         expectedDamageBeforeTargetDefenses: 0,
         expectedDamagePerSecondBeforeTargetDefenses: 0,
         expectedDamagePerSecondAfterTargetDefenses: null,
+        expectedBleedDamageAfterTargetDefenses: 0,
+        expectedSlashApplications: 0,
+        expectedRelentlessComboPoints: 0,
+        expectedRelentlessComboPointsFromSlashApplications: 0,
+        expectedRelentlessComboPointsFromBleedTicks: 0,
+        expectedBleedTicks: 0,
+        expectedBleedTickTargetKills: 0,
+        evaluationDurationSeconds: 0,
         expectedTennokaiHeavyAttackShare: 0,
         regularHitsBetweenHeavy: Math.max(1, Math.floor(input.regularHitsBetweenHeavy || 1)),
         opportunityChancePerHit: 0,
@@ -633,72 +906,75 @@ export function calculateTennokaiAttackTimeline(
         4,
     );
     const modelTruthChain = truthFlameEnabled && input.targetProfile !== undefined;
+    const relentlessChance = Math.min(1, effectRows.reduce(
+        (total, effect) => total + (effect.relentlessCombinationSlashComboChance ?? 0),
+        0,
+    ));
+    const cycleDuration = hitsBetweenHeavy * regularInterval + heavyInterval;
+    const maximumSlashDurationSeconds = Math.max(
+        STATUS_EFFECT_RULES.slash.durationSeconds * regularBaseStats.statusDurationMultiplier,
+        STATUS_EFFECT_RULES.slash.durationSeconds * heavyBaseStats.statusDurationMultiplier,
+    );
+    const evaluationDurationSeconds = cycles * cycleDuration + maximumSlashDurationSeconds;
     let killProbabilities = Array.from({ length: maxEvents }, () => 0);
+    let additionalComboPointGains: TennokaiComboPointGainEvent[] = [];
     let timeline = simulateTennokaiOpportunityTimeline({
         ...scheduleInput,
         truthFlameEnabled: modelTruthChain,
         truthChainOpportunitySeconds,
         tennokaiKillProbabilityByEvent: killProbabilities,
     });
-    if (modelTruthChain) {
-        for (let pass = 0; pass < 5; pass++) {
-            const nextKillProbabilities = estimateTruthKillProbabilities(
-                input,
-                timeline.events,
-                regularWeapon,
-                heavyWeapon,
-            );
-            if (nextKillProbabilities.every((value, index) => value === killProbabilities[index])) break;
-            killProbabilities = nextKillProbabilities;
+    let slashTimeline = simulateTennokaiSlashTimeline(
+        input,
+        timeline,
+        regularWeapon,
+        heavyWeapon,
+        relentlessChance,
+        evaluationDurationSeconds,
+    );
+    let converged = relentlessChance <= 0 && !modelTruthChain;
+    const passLimit = relentlessChance > 0 || modelTruthChain ? 12 : 1;
+    for (let pass = 0; pass < passLimit; pass++) {
+        if (pass > 0) {
             timeline = simulateTennokaiOpportunityTimeline({
                 ...scheduleInput,
-                truthFlameEnabled: true,
+                truthFlameEnabled: modelTruthChain,
                 truthChainOpportunitySeconds,
                 tennokaiKillProbabilityByEvent: killProbabilities,
+                additionalComboPointGains,
             });
+            slashTimeline = simulateTennokaiSlashTimeline(
+                input,
+                timeline,
+                regularWeapon,
+                heavyWeapon,
+                relentlessChance,
+                evaluationDurationSeconds,
+            );
         }
+        const comboStable = slashTimeline.comboPointGains.length === additionalComboPointGains.length &&
+            slashTimeline.comboPointGains.every((gain, index) => {
+                const prior = additionalComboPointGains[index];
+                return prior !== undefined &&
+                    prior.afterAttackEventIndex === gain.afterAttackEventIndex &&
+                    Math.abs(prior.timeSeconds - gain.timeSeconds) <= 1e-7 &&
+                    Math.abs(prior.comboPoints - gain.comboPoints) <= 1e-7;
+            });
+        const killsStable = slashTimeline.killProbabilities.length === killProbabilities.length &&
+            slashTimeline.killProbabilities.every((probability, index) =>
+                Math.abs(probability - (killProbabilities[index] ?? 0)) <= 1e-7,
+            );
+        if (comboStable && killsStable) {
+            converged = true;
+            break;
+        }
+        additionalComboPointGains = slashTimeline.comboPointGains;
+        killProbabilities = slashTimeline.killProbabilities;
     }
-    const events: TennokaiScoredEvent[] = timeline.events.map((event) => {
-        const profile = buildEventStats(
-            input,
-            regularWeapon,
-            heavyWeapon,
-            event,
-            event.attackType === "heavy" ? event.activeOpportunityProbability : 0,
-            event.tennokaiKillChainProbability,
-        );
-        const targetDamage = input.targetProfile
-            ? targetDamageForStats(
-                profile,
-                input.targetProfile,
-                initialTargetPools(input.targetProfile),
-                input.targetFaction ?? "",
-            )
-            : null;
-        return {
-            ...event,
-            expectedDamageBeforeTargetDefenses: profile.totalDamage,
-            expectedDamageAfterTargetDefenses: targetDamage
-                ? Object.values(targetDamage.uncappedDamageByPool).reduce((total, damage) => total + damage, 0)
-                : null,
-            tennokaiTargetKillProbability: killProbabilities[event.index] ?? 0,
-            statusChance: profile.statusChance,
-            criticalChance: profile.critChance,
-            criticalMultiplier: profile.critMultiplier,
-            tennokaiDamageBonus: profile.tennokaiDamageBonus,
-            tennokaiCritDamageBonus: profile.tennokaiCritDamageBonus,
-            tennokaiStatusChanceBonus: profile.tennokaiStatusChanceBonus,
-        };
-    });
-    const expectedDamageBeforeTargetDefenses = events.reduce(
-        (total, event) => total + event.expectedDamageBeforeTargetDefenses,
-        0,
-    );
-    const expectedDamageAfterTargetDefenses = input.targetProfile
-        ? events.reduce((total, event) => total + (event.expectedDamageAfterTargetDefenses ?? 0), 0)
-        : null;
-    const cycleDuration = hitsBetweenHeavy * regularInterval + heavyInterval;
-    const totalDuration = Math.ceil(events.length / (hitsBetweenHeavy + 1)) * cycleDuration;
+    if (!converged) {
+        return unsupported("The expected Slash / combo / target-kill timeline did not converge within 12 passes for this build.");
+    }
+    const events = slashTimeline.events;
     const heavyEvents = events.filter((event) => event.attackType === "heavy");
     const expectedTennokaiHeavyAttacks = heavyEvents.reduce(
         (total, event) => total + event.activeOpportunityProbability,
@@ -708,13 +984,21 @@ export function calculateTennokaiAttackTimeline(
         supported: true,
         limitation: null,
         events,
-        expectedDamageBeforeTargetDefenses,
-        expectedDamagePerSecondBeforeTargetDefenses: totalDuration > 0
-            ? expectedDamageBeforeTargetDefenses / totalDuration
+        expectedDamageBeforeTargetDefenses: slashTimeline.expectedDamageBeforeTargetDefenses,
+        expectedDamagePerSecondBeforeTargetDefenses: slashTimeline.evaluationDurationSeconds > 0
+            ? slashTimeline.expectedDamageBeforeTargetDefenses / slashTimeline.evaluationDurationSeconds
             : 0,
-        expectedDamagePerSecondAfterTargetDefenses: expectedDamageAfterTargetDefenses !== null && totalDuration > 0
-            ? expectedDamageAfterTargetDefenses / totalDuration
+        expectedDamagePerSecondAfterTargetDefenses: slashTimeline.expectedDamageAfterTargetDefenses !== null && slashTimeline.evaluationDurationSeconds > 0
+            ? slashTimeline.expectedDamageAfterTargetDefenses / slashTimeline.evaluationDurationSeconds
             : null,
+        expectedBleedDamageAfterTargetDefenses: slashTimeline.expectedBleedDamageAfterTargetDefenses,
+        expectedSlashApplications: slashTimeline.expectedSlashApplications,
+        expectedRelentlessComboPoints: slashTimeline.expectedRelentlessComboPoints,
+        expectedRelentlessComboPointsFromSlashApplications: slashTimeline.expectedRelentlessComboPointsFromSlashApplications,
+        expectedRelentlessComboPointsFromBleedTicks: slashTimeline.expectedRelentlessComboPointsFromBleedTicks,
+        expectedBleedTicks: slashTimeline.expectedBleedTicks,
+        expectedBleedTickTargetKills: slashTimeline.expectedBleedTickTargetKills,
+        evaluationDurationSeconds: slashTimeline.evaluationDurationSeconds,
         expectedTennokaiHeavyAttackShare: heavyEvents.length > 0
             ? expectedTennokaiHeavyAttacks / heavyEvents.length
             : 0,
@@ -724,12 +1008,17 @@ export function calculateTennokaiAttackTimeline(
         opportunityRangeBonusMeters,
         comboGainAssumptionPointsPerRegularHit: 1,
         notes: [
-            "One repeated direct target is assumed, with one qualifying regular hit per Normal Attack event and one combo point per hit; stance-specific combo generation is not represented.",
+            "One qualifying regular hit per Normal Attack event adds one combo point; stance-specific combo generation remains outside this cycle.",
             `The combo counter expires after ${comboDurationSeconds}s without a qualifying hit; the weapon's ${baseComboDurationSeconds}s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.`,
-            ...(effectRows.some((effect) => (effect.comboCountChanceBonus ?? 0) !== 0)
+            ...(relentlessChance > 0
+                ? [`Relentless Combination adds an expected ${Math.round(relentlessChance * 100)}% combo point per eligible melee Slash application and each landed Bleed tick; each gain updates later event combo tiers and refreshes the combo timer.`]
+                : []),
+            ...(effectRows.some((effect) => (effect.comboCountChanceBonus ?? 0) !== 0 &&
+                (effect.relentlessCombinationSlashComboChance ?? 0) === 0)
                 ? ["Additional Combo Count Chance is not simulated; the timeline keeps its one-point-per-regular-hit assumption."]
                 : []),
-            "Pre-defense DPS is an expected hit estimate. Target-aware DPS applies the selected faction, initial pool routing, armor, and critical assumptions without overkill capping; it holds the initial target state for each event and does not advance pool breaks, shield gates, or status ticks.",
+            `Slash applications schedule up to ${countStatusDamageTicks("slash", maximumSlashDurationSeconds)} Bleed ticks at one-second intervals, starting one second later. Each Slash stack keeps its own source damage; ticks affect the target's active pool and bypass armor. When direct damage or a Bleed tick kills a target, its remaining Bleed stops and the next event starts against an identical target profile. The score includes a ${maximumSlashDurationSeconds.toFixed(1)}s Bleed tail after the attack cycles; other status types are not scored.`,
+            "Target-aware Cycle DPS applies the selected faction, initial armor and pool routing, caps damage to each target, and repeats the same profile after a kill. Expected status applications and combo gains are mean-field values; hit, status, and critical rolls are not sampled.",
             isHeavySlamAttackRow
                 ? "The Heavy Slam Attack row is scored against one centered target; nearby-target coverage and jump/position timing are excluded."
                 : "Heavy-attack wind-up is omitted because the selected attack rows do not provide a verified numeric wind-up duration; the Tennokai speed bonus is also not quantified.",
@@ -737,7 +1026,7 @@ export function calculateTennokaiAttackTimeline(
                 ? ["Opportunity's Reach range bonus is reported but not applied because the weapon's base melee range and target distance are not part of this profile."]
                 : []),
             ...(truthFlameEnabled && modelTruthChain
-                ? ["Truth's Flame repeats identical target pools and uses a deterministic expected-direct-hit threshold for Tennokai kills; hit/critical randomness and status-tick kills are excluded. The damage chain stays active after the first kill. Failed-kill combo resets are modeled; its Heat curse and Truth syndicate effect are not."]
+                ? ["Truth's Flame repeats identical target pools and activates its chain on a direct Tennokai Heavy Attack kill; Slash tick kills reset the target but do not activate the chain. Failed-kill combo resets are modeled; its Heat curse and Truth syndicate effect are not."]
                 : truthFlameEnabled
                     ? ["Truth's Flame's repeated-target kill chain is not scored without target pools. Failed-kill combo resets, the Heat curse, and the Truth syndicate effect are not modeled."]
                 : []),

@@ -523,15 +523,15 @@ describe("Tennokai Cycle DPS objective", () => {
         expect(optimized.slots.some((mod) => mod?.name === "Opportunity's Reach")).toBe(true);
     });
 
-    it("keeps Tennokai Status Chance out of the direct-hit-only objective", () => {
+    it("scores Tennokai Status Chance through modeled Slash Bleed applications", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         const conditionPerfection = getModsForWeapon(weapon!).find((mod) => mod.name === "Condition's Perfection");
         expect(conditionPerfection).toBeDefined();
         expect(getUnmodeledDamageEffectLines(conditionPerfection!, conditionPerfection!.fusionLimit, {
             selectedGoal: "tennokaiDps",
-        }).join(" ")).toContain("does not resolve Status Effect application or ticks");
+        }).join(" ")).not.toContain("does not resolve Status Effect application or ticks");
         const optimized = optimizeBuild(weapon!, [conditionPerfection!], "tennokaiDps", 1);
-        expect(optimized.slots.every((mod) => mod === null)).toBe(true);
+        expect(optimized.slots.some((mod) => mod?.name === "Condition's Perfection")).toBe(true);
     });
 
     it("optimizes Truth's Flame's repeated-target Tennokai chain and discloses omitted player-side effects", () => {
@@ -570,22 +570,73 @@ describe("Tennokai Cycle DPS objective", () => {
         })).toBeGreaterThan(0);
     });
 
-    it("explains why Relentless Combination waits for Slash tick history", () => {
+    it("models Relentless Combination Slash events in Tennokai Cycle DPS", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         expect(weapon).toBeDefined();
-        const relentlessCombination = getModsForWeapon(weapon!).find((mod) => mod.name === "Relentless Combination");
+        const mods = getModsForWeapon(weapon!);
+        const relentlessCombination = mods.find((mod) => mod.name === "Relentless Combination");
+        const tennokaiEnabler = mods.find((mod) => mod.name === "Condition's Perfection");
         expect(relentlessCombination).toBeDefined();
-        expect(relentlessCombination!.hasDamageEffect).toBe(false);
+        expect(tennokaiEnabler).toBeDefined();
+        expect(relentlessCombination!.hasDamageEffect).toBe(true);
         expect(getUnmodeledDamageEffectLines(
             relentlessCombination!,
             relentlessCombination!.fusionLimit,
             { selectedGoal: "tennokaiDps" },
-        ).join(" ")).toContain("does not advance Slash application/tick history");
+        ).join(" ")).not.toContain("Auto Optimize skips this mod");
         expect(getUnmodeledDamageEffectSourceUrl(relentlessCombination!)).toBe(
             "https://wiki.warframe.com/w/Relentless_Combination",
         );
-        const optimized = optimizeBuild(weapon!, [relentlessCombination!], "tennokaiDps", 1);
-        expect(optimized.slots).toEqual([null]);
+        const conditionalState: ConditionalState = {
+            mode: "initial",
+            tennokaiRegularHitsBetweenHeavy: 20,
+        };
+        const target = { health: 1_000_000, shields: 0, overguard: 0, armor: 0 };
+        const optimizerOptions = {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            allowNonMaxRank: true,
+            allowForma: false,
+            capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+        };
+        const optimized = optimizeBuild(weapon!, [relentlessCombination!, tennokaiEnabler!], "tennokaiDps", 2, optimizerOptions);
+        const baseline = optimizeBuild(weapon!, [tennokaiEnabler!], "tennokaiDps", 1, optimizerOptions);
+        const optimizedScore = scoreOptimizerResultForConfiguration({
+            weapon: weapon!,
+            result: optimized,
+            goal: "tennokaiDps",
+            targetFaction: "Grineer",
+            selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+            targetProfileOverride: target,
+            conditionalState,
+        });
+        const baselineScore = scoreOptimizerResultForConfiguration({
+            weapon: weapon!,
+            result: baseline,
+            goal: "tennokaiDps",
+            targetFaction: "Grineer",
+            selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+            targetProfileOverride: target,
+            conditionalState,
+        });
+        const exactScores: number[] = [];
+        for (const relentlessRank of [null, ...relentlessCombination!.effectsByRank]) {
+            for (const enablerRank of [null, ...tennokaiEnabler!.effectsByRank]) {
+                exactScores.push(debugScoreBuild(
+                    weapon!,
+                    [relentlessRank, enablerRank],
+                    "tennokaiDps",
+                    "Grineer",
+                    null,
+                    target,
+                    conditionalState,
+                ));
+            }
+        }
+        expect(optimized.slots.some((mod) => mod?.name === "Relentless Combination")).toBe(true);
+        expect(optimizedScore).toBeGreaterThan(baselineScore);
+        expect(optimizedScore).toBeCloseTo(Math.max(...exactScores), 7);
     });
 
     it("parses True Punishment's duration penalty and blocks its unmodeled random combo gain", () => {

@@ -211,7 +211,7 @@ export function getUnmodeledDamageEffectLines(
         // https://wiki.warframe.com/w/Bloodthirst
         lines.push("Bloodthirst heals the companion for each active Slash stack per hit; companion healing is outside the damage score, so Auto Optimize skips this mod.");
     }
-    if (mod.path === RELENTLESS_COMBINATION_MOD_PATH) {
+    if (mod.path === RELENTLESS_COMBINATION_MOD_PATH && context?.selectedGoal !== "tennokaiDps") {
         lines.push("Relentless Combination adds combo from melee Slash applications and has a rank-scaled 25–100% chance to add combo for each Bleed damage tick. This scorer does not advance Slash application/tick history or stop those ticks when a target dies, so Auto Optimize skips the mod.");
     }
     if (context?.selectedGoal !== "tennokaiDps" &&
@@ -227,16 +227,14 @@ export function getUnmodeledDamageEffectLines(
     if (hasComboDurationEffect && context?.selectedGoal !== "tennokaiDps" && context?.selectedGoal !== "burst") {
         lines.push("Combo Duration changes the weapon's combo timeout. This objective does not simulate that timer's expiration, so Auto Optimize skips this mod.");
     }
-    if ((effect?.comboCountChanceBonus ?? 0) !== 0 && context?.selectedGoal !== "burst") {
+    if ((effect?.comboCountChanceBonus ?? 0) !== 0 && context?.selectedGoal !== "burst" &&
+        !(context?.selectedGoal === "tennokaiDps" && mod.path === RELENTLESS_COMBINATION_MOD_PATH)) {
         lines.push(context?.selectedGoal === "tennokaiDps"
             ? "Additional Combo Count Chance can add random combo points per qualifying hit. Tennokai Cycle DPS assumes one point per regular hit and does not resolve those random gains, so Auto Optimize skips this mod."
             : "Additional Combo Count Chance can add random combo points per qualifying hit. This objective does not resolve those random gains, so Auto Optimize skips this mod.");
     }
     if (effect?.tennokaiEnabled) {
         if (context?.selectedGoal === "tennokaiDps") {
-            if ((effect.tennokaiStatusChanceBonus ?? 0) > 0) {
-                lines.push("Tennokai Cycle DPS scores direct hits and does not resolve Status Effect application or ticks, so Tennokai Status Chance does not affect this objective and Auto Optimize skips this mod.");
-            }
             if ((effect.tennokaiRangeBonusMeters ?? 0) > 0) {
                 lines.push("Opportunity's Reach adds Tennokai melee range. The direct-hit timeline assumes each selected event connects with its target, so this range bonus does not change the score; its opportunity-window bonus is modeled.");
             }
@@ -336,6 +334,7 @@ export function emptyEffect(): ModEffect {
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
         headshotMultiplierBonus: 0, bodyshotDamageBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
         comboDurationBonus: 0, comboDurationBaseBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
+        relentlessCombinationSlashComboChance: 0,
         heavyAttackEfficiencyBonus: 0, heavyAttackWindUpBonus: 0,
         lifeStealBonus: 0, ammoEfficiencyBonus: 0, directDamagePerStatusBonus: 0,
         conditionOverloadDamagePerStatusBonus: 0,
