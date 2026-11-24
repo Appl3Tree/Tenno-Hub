@@ -30,6 +30,7 @@ import {
     PRECISION_CONDITIONING_MOD_PATH,
     SEPSIS_CLAWS_MOD_PATH,
     SHOCKING_CLAWS_MOD_PATH,
+    STRAIN_FEVER_MOD_PATH,
     VOLATILE_VARIANT_MOD_PATH,
     VULCAN_BLITZ_MOD_PATH,
 } from "./modEffectUtils";
@@ -50,6 +51,7 @@ const ALL = ALL_RAW as Record<string, unknown>[];
 const STRAIN_INFECTION_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/MeleeStrainInfectionMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
+const STRAIN_FEVER_DAMAGE_PER_CYST_BY_RANK = [0.1, 0.2, 0.3, 0.4];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
 const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
@@ -209,6 +211,8 @@ export interface ModEffect {
     critMultBonus: number;
     /** Burst-only relative Critical Damage per assumed active Strain cyst at impact. */
     strainInfectionCritDamagePerCyst: number;
+    /** Burst-only additive Damage per active Strain cyst on Helminth Claws. */
+    strainFeverDamagePerCyst: number;
     /** Basmu Dreadful Killshot rank value; actual Damage/Status bonuses use an editable Burst-only current-Health snapshot. */
     dreadfulKillshotDamageAndStatusPer75Health: number;
     /** Deadly Maneuvers rank value; headshot Critical Chance uses an editable 0–2 shot Burst snapshot on Magnus. */
@@ -1587,6 +1591,21 @@ function buildCaches(): ModCaches {
                 effect.strainInfectionCritDamagePerCyst = bonus;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Melee Attacks gain \+\d+(?:\.\d+)?% Critical Damage per Cyst\.?$/i.test(line),
+                );
+            });
+        }
+        if (path === STRAIN_FEVER_MOD_PATH) {
+            // The rank table and Update 37 patch note list per-cyst Damage.
+            // The Wiki's +240% note conflicts with its rank data at eight cysts;
+            // follow the rank text and corrected per-cyst behavior.
+            // https://wiki.warframe.com/w/Strain_Fever
+            // https://www.warframe.com/en/patch-notes/switch/37-0-0
+            STRAIN_FEVER_DAMAGE_PER_CYST_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.strainFeverDamagePerCyst = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Helminth Charger gains \+\d+(?:\.\d+)?% Damage per Cyst\.?$/i.test(line),
                 );
             });
         }
