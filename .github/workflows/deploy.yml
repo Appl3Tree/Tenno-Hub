@@ -55,35 +55,44 @@ jobs:
         with:
           path: dist
 
-      # Artifact contents can upload before the workflow-run artifact API lists
-      # them. deploy-pages queries that API immediately, so wait for its index
-      # to expose exactly one fresh Pages artifact before starting deployment.
-      - name: Wait for Pages artifact metadata
+      # The public Actions REST artifact list can update before the internal
+      # ArtifactService queried by deploy-pages@v4. Require three consecutive
+      # five-second-spaced listings so both indexes have time to settle.
+      - name: Wait for Pages artifact indexes to settle
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for attempt in $(seq 1 12); do
+          consecutive_visible=0
+          for attempt in $(seq 1 15); do
             artifact_count=$(gh api \
               -H "Accept: application/vnd.github+json" \
               "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
               --jq '[.artifacts[] | select(.name == "github-pages" and .expired == false)] | length')
 
             if [ "$artifact_count" -eq 1 ]; then
-              echo "GitHub lists exactly one available github-pages artifact."
-              exit 0
-            fi
-
-            if [ "$artifact_count" -gt 1 ]; then
+              consecutive_visible=$((consecutive_visible + 1))
+              echo "GitHub lists one github-pages artifact ($consecutive_visible/3 consecutive checks)."
+              if [ "$consecutive_visible" -ge 3 ]; then
+                echo "Artifact metadata remained visible for 10 seconds."
+                exit 0
+              fi
+            elif [ "$artifact_count" -gt 1 ]; then
               echo "::error::Expected one github-pages artifact, found $artifact_count."
               exit 1
+            else
+              consecutive_visible=0
+              if [ "$attempt" -lt 15 ]; then
+                echo "Pages artifact metadata is not visible yet (attempt $attempt/15); retrying in 5 seconds."
+              else
+                echo "Pages artifact metadata is still not visible on the last attempt (15/15)."
+              fi
             fi
 
-            echo "Pages artifact metadata is not visible yet (attempt $attempt/12); retrying in 5 seconds."
-            sleep 5
+            if [ "$attempt" -lt 15 ]; then sleep 5; fi
           done
 
-          echo "::error::github-pages artifact metadata stayed unavailable for 60 seconds."
+          echo "::error::github-pages artifact metadata did not remain stable for three checks within 70 seconds."
           exit 1
 
       - name: Deploy to GitHub Pages
