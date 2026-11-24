@@ -238,6 +238,8 @@ export interface SavedBuildPlannerConfig {
     criticalPrecisionHeadshotProjectiles?: number;
     /** Assume Dread is invisible for the Unseen Dread single-target Burst snapshot. */
     unseenDreadInvisibilityActive?: boolean;
+    /** Prior kills for Critical Mutation's Catabolyst Primary Burst snapshot. */
+    criticalMutationPriorKills?: number;
     /** Named external status types assumed active for Condition Overload and eligible direct-hit bonuses. */
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */
@@ -321,4 +323,5 @@ export interface SavedBuild {
     plannerConfig?: SavedBuildPlannerConfig;
     createdAt: string;
 }
+
 
