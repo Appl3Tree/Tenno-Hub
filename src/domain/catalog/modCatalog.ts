@@ -250,6 +250,8 @@ export interface ModEffect {
     weakPointCritChanceBonus: number;
     /** Flat seconds added to the melee combo inactivity timeout. */
     comboDurationBonus: number;
+    /** Signed fraction of the weapon's base combo duration added by a percentage stat. */
+    comboDurationBaseBonus: number;
     initialComboBonus: number;
     comboCountChanceBonus: number;
     heavyAttackEfficiencyBonus: number;
@@ -869,6 +871,7 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "charge rate") return { chargeRateBonus: scaled };
     if (rest.startsWith("fire rate") || rest.startsWith("fire/charge rate")) return { fireRateBonus: scaled };
     if (rest === "attack speed") return { attackSpeedBonus: scaled };
+    if (rest === "combo duration") return { comboDurationBaseBonus: scaled };
     if (rest === "magazine capacity" || rest === "clip size") return { magazineBonus: scaled };
     if (rest === "reload speed") return { reloadSpeedBonus: scaled };
     if (rest === "status duration") return { statusDurationBonus: scaled };

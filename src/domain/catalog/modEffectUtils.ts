@@ -26,6 +26,8 @@ export const COMBAT_RELOAD_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwav
 export const DEADLY_MANEUVERS_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/MagnusNightwaveMod";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
+const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
+const CORRUPT_CHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/DualStat/CorruptedHeavyDamageChargeSpeedMod";
 
 const DAMAGE_RELEVANT_UNPARSED_STAT = /damage|critical|\bcrit\b|status\s+(?:chance|effects?|damage|duration)|multishot|projectile|fire rate|attack speed|charge rate|ammo efficiency|magazine|reload|combo|headshot|weak point|punch through|beam range|blast range|blast radius|\brange\b|\bentropy\b|\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b|\b(?:impact|puncture|slash|heat|cold|electricity|toxin|blast|gas|magnetic|viral|corrosive|radiation|void|tau)\b/i;
 
@@ -220,6 +222,16 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Entropy syndicate side effect is not modeled.");
     }
     const effect = mod.effectsByRank?.[rank] ?? mod.effect;
+    const hasComboDurationEffect = (effect?.comboDurationBonus ?? 0) !== 0 ||
+        (effect?.comboDurationBaseBonus ?? 0) !== 0;
+    if (hasComboDurationEffect && context?.selectedGoal !== "tennokaiDps" && context?.selectedGoal !== "burst") {
+        lines.push("Combo Duration changes the weapon's combo timeout. This objective does not simulate that timer's expiration, so Auto Optimize skips this mod.");
+    }
+    if ((effect?.comboCountChanceBonus ?? 0) !== 0 && context?.selectedGoal !== "burst") {
+        lines.push(context?.selectedGoal === "tennokaiDps"
+            ? "Additional Combo Count Chance can add random combo points per qualifying hit. Tennokai Cycle DPS assumes one point per regular hit and does not resolve those random gains, so Auto Optimize skips this mod."
+            : "Additional Combo Count Chance can add random combo points per qualifying hit. This objective does not resolve those random gains, so Auto Optimize skips this mod.");
+    }
     if (effect?.tennokaiEnabled) {
         if (context?.selectedGoal === "tennokaiDps") {
             if ((effect.tennokaiStatusChanceBonus ?? 0) > 0) {
@@ -266,6 +278,12 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === RELENTLESS_COMBINATION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Relentless_Combination";
+    }
+    if (mod.path === TRUE_PUNISHMENT_MOD_PATH) {
+        return "https://wiki.warframe.com/w/True_Punishment";
+    }
+    if (mod.path === CORRUPT_CHARGE_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Corrupt_Charge";
     }
     if (mod.path === SENTIENT_INCISION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Sentient_Incision";
@@ -317,7 +335,7 @@ export function emptyEffect(): ModEffect {
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
         headshotMultiplierBonus: 0, bodyshotDamageBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
-        comboDurationBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
+        comboDurationBonus: 0, comboDurationBaseBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
         heavyAttackEfficiencyBonus: 0, heavyAttackWindUpBonus: 0,
         lifeStealBonus: 0, ammoEfficiencyBonus: 0, directDamagePerStatusBonus: 0,
         conditionOverloadDamagePerStatusBonus: 0,
