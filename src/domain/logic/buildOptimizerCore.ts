@@ -5392,7 +5392,10 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     if (value("rangeBonus") !== 0) parts.push(signedPercent(value("rangeBonus"), "weapon range"));
     if (value("comboDurationBonus") !== 0) {
         const duration = value("comboDurationBonus");
-        parts.push(`${duration < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(duration))}s Melee Combo Duration`);
+        parts.push(`${duration < 0 ? "−" : "+"}${formatExplanationNumber(Math.abs(duration))}s Combo Duration`);
+    }
+    if (value("comboDurationBaseBonus") !== 0) {
+        parts.push(signedPercent(value("comboDurationBaseBonus"), "weapon-base Combo Duration"));
     }
     if (value("initialComboBonus") !== 0) parts.push(`+${formatExplanationNumber(value("initialComboBonus"), 0)} starting Melee Combo points`);
     if (value("comboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("comboCountChanceBonus"))} chance to gain an extra Melee Combo point`);

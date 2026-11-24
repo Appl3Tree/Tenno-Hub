@@ -242,13 +242,16 @@ describe("Tennokai opportunity event timeline", () => {
         const mods = getModsForWeapon(weapon);
         const mastersEdge = mods.find((mod) => mod.name === "Master's Edge")!;
         const driftingContact = mods.find((mod) => mod.name === "Drifting Contact")!;
+        const corruptCharge = mods.find((mod) => mod.name === "Corrupt Charge")!;
+        const truePunishment = mods.find((mod) => mod.name === "True Punishment")!;
         const regularAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
         const heavyAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
 
         expect(driftingContact.effect.comboDurationBonus).toBe(10);
+        expect(corruptCharge.effect.comboDurationBaseBonus).toBe(-0.5);
         const result = calculateTennokaiAttackTimeline({
             weapon,
-            mods: [mastersEdge.effect, driftingContact.effect],
+            mods: [mastersEdge.effect, driftingContact.effect, corruptCharge.effect],
             regularAttackIndex,
             heavyAttackIndex,
             regularHitsBetweenHeavy: 1,
@@ -257,8 +260,30 @@ describe("Tennokai opportunity event timeline", () => {
 
         expect(result.supported).toBe(true);
         expect(result.notes).toContain(
-            "The combo counter expires after 15s without a qualifying hit; parsed flat Melee Combo Duration modifiers are included, while percentage-based duration modifiers remain unsupported.",
+            "The combo counter expires after 12.5s without a qualifying hit; the weapon's 5s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.",
         );
+
+        const minimumDuration = calculateTennokaiAttackTimeline({
+            weapon,
+            mods: [mastersEdge.effect, corruptCharge.effect, truePunishment.effect],
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 1,
+            cycles: 1,
+        });
+        expect(minimumDuration.notes).toContain(
+            "The combo counter expires after 0.1s without a qualifying hit; the weapon's 5s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.",
+        );
+        expect(minimumDuration.notes).toContain(
+            "Additional Combo Count Chance is not simulated; the timeline keeps its one-point-per-regular-hit assumption.",
+        );
+    });
+
+    it("uses the weapon-exported base combo duration for melee exceptions", () => {
+        const weapons = getWeaponCatalog();
+        expect(weapons.find((weapon) => weapon.name === "Guandao Prime")?.meleeComboDurationSeconds).toBe(6);
+        expect(weapons.find((weapon) => weapon.name === "Pulmonars")?.meleeComboDurationSeconds).toBe(9);
+        expect(weapons.find((weapon) => weapon.name === "Vitrica")?.meleeComboDurationSeconds).toBe(10);
     });
 
     it("estimates Truth's Flame kills against repeated selected target pools", () => {

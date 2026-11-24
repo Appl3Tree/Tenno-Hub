@@ -297,6 +297,8 @@ export interface WeaponEntry {
     stanceClass?: string;
     /** All supported melee stance families for the weapon. */
     stanceClasses?: string[];
+    /** Base timeout before an unused melee combo counter expires. */
+    meleeComboDurationSeconds?: number;
     /** Hidden compatibility tags inferred from the source data. */
     tags: string[];
     /** True for progenitor weapons that can carry a Valence Bonus (Kuva/Tenet/Coda). */
@@ -3641,6 +3643,14 @@ export function getWeaponCatalog(): WeaponEntry[] {
             stancePolarity: typeof item.stancePolarity === "string" ? String(item.stancePolarity) : undefined,
             stanceClass: stanceClasses[0],
             stanceClasses,
+            // WFCD's comboDuration field carries Wiki ComboDur values, including
+            // weapon-specific base timers (default 5s). Keep those for the
+            // Tennokai timer instead of assuming every weapon has the default.
+            // https://wiki.warframe.com/w/Module:Weapons/data
+            ...((cat === "Melee" || cat === "Arch-Melee") &&
+                typeof item.comboDuration === "number" && Number.isFinite(item.comboDuration)
+                ? { meleeComboDurationSeconds: Math.max(0.1, item.comboDuration) }
+                : {}),
             tags: inferWeaponTags(item, exaltedType),
             isProgenitorWeapon: isProgenitorWeapon(name, uniqueName),
             ...(PERIGALE_GALE_FORCE_UNIQUE_NAMES.has(uniqueName) ? { hasGaleForceAmmoPassive: true } : {}),

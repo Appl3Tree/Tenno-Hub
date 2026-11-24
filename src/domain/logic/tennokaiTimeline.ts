@@ -153,6 +153,7 @@ interface OpportunityState {
 
 const NONE_EXPIRY = Number.NEGATIVE_INFINITY;
 const EPSILON = 1e-9;
+const MIN_COMBO_DURATION_SECONDS = 0.1;
 
 function finiteNonNegative(value: number | undefined, fallback: number): number {
     return Number.isFinite(value) ? Math.max(0, value ?? fallback) : fallback;
@@ -572,10 +573,15 @@ export function calculateTennokaiAttackTimeline(
         (total, effect) => total + (effect.comboDurationBonus ?? 0),
         0,
     );
-    // The base inactivity timeout is five seconds. The generated mod records
-    // express supported combo-duration changes as flat seconds; percentage
-    // penalties remain unparsed and are disclosed on the affected mod card.
-    const comboDurationSeconds = Math.max(0, 5 + comboDurationBonusSeconds);
+    const comboDurationBaseBonus = effectRows.reduce(
+        (total, effect) => total + (effect.comboDurationBaseBonus ?? 0),
+        0,
+    );
+    const baseComboDurationSeconds = getMeleeComboRules(input.weapon).baseDurationSeconds;
+    const comboDurationSeconds = Math.max(
+        MIN_COMBO_DURATION_SECONDS,
+        baseComboDurationSeconds * (1 + comboDurationBaseBonus) + comboDurationBonusSeconds,
+    );
     const guaranteedOpportunityEveryHits = Math.min(...effectRows
         .map((effect) => effect.tennokaiOpportunityEveryHits ?? 0)
         .filter((hits) => hits > 0), Number.POSITIVE_INFINITY);
@@ -719,7 +725,10 @@ export function calculateTennokaiAttackTimeline(
         comboGainAssumptionPointsPerRegularHit: 1,
         notes: [
             "One repeated direct target is assumed, with one qualifying regular hit per Normal Attack event and one combo point per hit; stance-specific combo generation is not represented.",
-            `The combo counter expires after ${comboDurationSeconds}s without a qualifying hit; parsed flat Melee Combo Duration modifiers are included, while percentage-based duration modifiers remain unsupported.`,
+            `The combo counter expires after ${comboDurationSeconds}s without a qualifying hit; the weapon's ${baseComboDurationSeconds}s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.`,
+            ...(effectRows.some((effect) => (effect.comboCountChanceBonus ?? 0) !== 0)
+                ? ["Additional Combo Count Chance is not simulated; the timeline keeps its one-point-per-regular-hit assumption."]
+                : []),
             "Pre-defense DPS is an expected hit estimate. Target-aware DPS applies the selected faction, initial pool routing, armor, and critical assumptions without overkill capping; it holds the initial target state for each event and does not advance pool breaks, shield gates, or status ticks.",
             isHeavySlamAttackRow
                 ? "The Heavy Slam Attack row is scored against one centered target; nearby-target coverage and jump/position timing are excluded."

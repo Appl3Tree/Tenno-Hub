@@ -5,6 +5,8 @@ export interface MeleeComboRules {
     pointsPerTier: number;
     /** Maximum multiplier tier available to this weapon. */
     maxMultiplier: number;
+    /** Base timeout before combo-duration mods. */
+    baseDurationSeconds: number;
 }
 
 /** Initial Combo points rebuild after a Heavy Attack at this Wiki-listed rate. */
@@ -20,13 +22,16 @@ export function isBurstTriggerType(trigger: string): boolean {
 }
 
 /** Current weapon-specific exceptions to the standard 20-point, 12x combo ladder. */
-export function getMeleeComboRules(weapon: Pick<WeaponEntry, "category" | "name">): MeleeComboRules {
-    if (!usesMeleeDamageModel(weapon.category)) return { pointsPerTier: 20, maxMultiplier: 1 };
+export function getMeleeComboRules(weapon: Pick<WeaponEntry, "category" | "name" | "meleeComboDurationSeconds">): MeleeComboRules {
+    const baseDurationSeconds = Number.isFinite(weapon.meleeComboDurationSeconds)
+        ? Math.max(0.1, weapon.meleeComboDurationSeconds ?? 5)
+        : 5;
+    if (!usesMeleeDamageModel(weapon.category)) return { pointsPerTier: 20, maxMultiplier: 1, baseDurationSeconds };
 
     const name = weapon.name.trim().toLowerCase();
-    if (name === "venka prime") return { pointsPerTier: 20, maxMultiplier: 13 };
-    if (name === "dex nikana") return { pointsPerTier: 11, maxMultiplier: 11 };
-    return { pointsPerTier: 20, maxMultiplier: 12 };
+    if (name === "venka prime") return { pointsPerTier: 20, maxMultiplier: 13, baseDurationSeconds };
+    if (name === "dex nikana") return { pointsPerTier: 11, maxMultiplier: 11, baseDurationSeconds };
+    return { pointsPerTier: 20, maxMultiplier: 12, baseDurationSeconds };
 }
 
 /** Wiki-listed weapon passives that supply Initial Combo before any mods. */

@@ -588,6 +588,22 @@ describe("Tennokai Cycle DPS objective", () => {
         expect(optimized.slots).toEqual([null]);
     });
 
+    it("parses True Punishment's duration penalty and blocks its unmodeled random combo gain", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const truePunishment = getModsForWeapon(weapon!).find((mod) => mod.name === "True Punishment");
+        expect(truePunishment).toBeDefined();
+        expect(truePunishment!.effect.comboDurationBaseBonus).toBe(-0.5);
+        expect(truePunishment!.effect.comboCountChanceBonus).toBe(1);
+        expect(getUnmodeledDamageEffectSourceUrl(truePunishment!)).toBe("https://wiki.warframe.com/w/True_Punishment");
+        expect(getUnmodeledDamageEffectLines(truePunishment!, truePunishment!.fusionLimit, {
+            selectedGoal: "tennokaiDps",
+        }).join(" ")).toContain("assumes one point per regular hit");
+
+        const optimized = optimizeBuild(weapon!, [truePunishment!], "tennokaiDps", 1);
+        expect(optimized.slots).toEqual([null]);
+    });
+
     it("matches seeded two-slot R0–R1 exact winners across melee weapon and faction strata", () => {
         const scenarios = [
             { weapon: "Broken War", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
@@ -2047,8 +2063,8 @@ describe("build optimizer scoring", () => {
             [amalgamBodyCount!.fusionLimit],
             "burst",
         );
-        expect(explanation.steps[0]?.why).toContain("+15s Melee Combo Duration");
-        expect(explanation.steps[0]?.why).not.toContain("+1500% Melee Combo Duration");
+        expect(explanation.steps[0]?.why).toContain("+15s Combo Duration");
+        expect(explanation.steps[0]?.why).not.toContain("+1500% Combo Duration");
         for (let rank = 0; rank <= amalgamBodyCount!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(amalgamBodyCount!, rank)).toContain(
                 "Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; it also notes these procs can trigger Shattering Impact. That armor-strip interaction, neighboring-target proc history, and stagger utility are not modeled, so Auto Optimize skips this mod.",
@@ -2924,7 +2940,7 @@ describe("build optimizer scoring", () => {
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
-    it("excludes partially parsed mods when a remaining damage-related line is unsupported", () => {
+    it("scores Corrupt Charge's initial combo in Burst and keeps its timer effect out of untimed scoring", () => {
         const weapon = getWeaponCatalog().find((entry) => entry.name === "Broken War");
         expect(weapon).toBeDefined();
         const corruptCharge = filterBuilderExpertVariants(getModsForWeapon(weapon!))
@@ -2932,13 +2948,37 @@ describe("build optimizer scoring", () => {
         expect(corruptCharge).toBeDefined();
         expect(corruptCharge!.hasDamageEffect).toBe(true);
         expect(corruptCharge!.effect.initialComboBonus).toBe(30);
-        expect(getUnmodeledDamageEffectLines(corruptCharge!, corruptCharge!.fusionLimit))
-            .toContain("-50% Combo Duration");
+        expect(corruptCharge!.effect.comboDurationBaseBonus).toBe(-0.5);
+        expect(getUnmodeledDamageEffectSourceUrl(corruptCharge!)).toBe("https://wiki.warframe.com/w/Corrupt_Charge");
+        expect(getUnmodeledDamageEffectLines(corruptCharge!, corruptCharge!.fusionLimit, {
+            selectedGoal: "timeToKill",
+        }).join(" ")).toContain("does not simulate that timer's expiration");
 
-        const result = optimizeBuild(weapon!, [corruptCharge!], "burst", 1, { allowForma: false });
+        const heavySlamIndex = weapon!.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        const heavySlamWeapon = withSelectedAttack(weapon!, heavySlamIndex);
+        const burstExplanation = explainBuild(
+            heavySlamWeapon,
+            [corruptCharge!],
+            [corruptCharge!.fusionLimit],
+            "burst",
+        );
+        expect(burstExplanation.steps[0]?.why).toContain("−50% weapon-base Combo Duration");
 
-        expect(result.mods).toEqual([]);
-        expect(result.slots.filter(Boolean)).toHaveLength(0);
+        const result = optimizeBuild(
+            heavySlamWeapon,
+            [corruptCharge!],
+            "burst",
+            1,
+            { allowForma: false },
+        );
+
+        expect(result.mods.map((mod) => mod?.name)).toContain("Corrupt Charge");
+
+        const unsupportedFinite = optimizeBuild(weapon!, [corruptCharge!], "timeToKill", 1, {
+            allowForma: false,
+            targetFaction: "Grineer",
+        });
+        expect(unsupportedFinite.slots).toEqual([null]);
     });
 
     it("keeps Volatile Variant out of automatic builds until its direct-hit explosion behavior is modeled", () => {
