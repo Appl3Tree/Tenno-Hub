@@ -12,6 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -53,6 +54,37 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
+      # Artifact contents can upload before the workflow-run artifact API lists
+      # them. deploy-pages queries that API immediately, so wait for its index
+      # to expose exactly one fresh Pages artifact before starting deployment.
+      - name: Wait for Pages artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 12); do
+            artifact_count=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
+              --jq '[.artifacts[] | select(.name == "github-pages" and .expired == false)] | length')
+
+            if [ "$artifact_count" -eq 1 ]; then
+              echo "GitHub lists exactly one available github-pages artifact."
+              exit 0
+            fi
+
+            if [ "$artifact_count" -gt 1 ]; then
+              echo "::error::Expected one github-pages artifact, found $artifact_count."
+              exit 1
+            fi
+
+            echo "Pages artifact metadata is not visible yet (attempt $attempt/12); retrying in 5 seconds."
+            sleep 5
+          done
+
+          echo "::error::github-pages artifact metadata stayed unavailable for 60 seconds."
+          exit 1
 
       - name: Deploy to GitHub Pages
         id: deployment
