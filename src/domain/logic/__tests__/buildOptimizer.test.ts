@@ -464,6 +464,256 @@ describe("Wiki stance DPS objective", () => {
     });
 });
 
+describe("Tennokai Cycle DPS objective", () => {
+    it("scores a supported target-aware cycle and Auto Optimize can choose a Tennokai damage mod", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const mastersEdge = getModsForWeapon(weapon!).find((mod) => mod.name === "Master's Edge");
+        expect(mastersEdge).toBeDefined();
+        const conditionalState: ConditionalState = {
+            mode: "initial",
+            tennokaiRegularHitsBetweenHeavy: 2,
+        };
+        const target = { health: 100_000, shields: 0, overguard: 0, armor: 3_000 };
+        const score = debugScoreBuild(
+            weapon!,
+            [mastersEdge!.effectsByRank[mastersEdge!.fusionLimit]],
+            "tennokaiDps",
+            "Grineer",
+            null,
+            target,
+            conditionalState,
+        );
+        expect(score).toBeGreaterThan(0);
+
+        const optimized = optimizeBuild(
+            weapon!,
+            [mastersEdge!],
+            "tennokaiDps",
+            1,
+            {
+                targetFaction: "Grineer",
+                targetProfileOverride: target,
+                conditionalState,
+                capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+            },
+        );
+        expect(optimized.slots.some((mod) => mod?.name === "Master's Edge")).toBe(true);
+        expect(scoreOptimizerResultForConfiguration({
+            weapon: weapon!,
+            result: optimized,
+            goal: "tennokaiDps",
+            targetFaction: "Grineer",
+            selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+            targetProfileOverride: target,
+            conditionalState,
+        })).toBeGreaterThan(0);
+    });
+
+    it("scores Opportunity's Reach window while disclosing the contact assumption for its range", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        const opportunityReach = getModsForWeapon(weapon!).find((mod) => mod.name === "Opportunity's Reach");
+        expect(opportunityReach).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(opportunityReach!, opportunityReach!.fusionLimit, {
+            selectedGoal: "tennokaiDps",
+        }).join(" ")).toContain("its opportunity-window bonus is modeled");
+        const optimized = optimizeBuild(weapon!, [opportunityReach!], "tennokaiDps", 1, {
+            conditionalState: { mode: "initial", tennokaiRegularHitsBetweenHeavy: 20 },
+        });
+        expect(optimized.slots.some((mod) => mod?.name === "Opportunity's Reach")).toBe(true);
+    });
+
+    it("keeps Tennokai Status Chance out of the direct-hit-only objective", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        const conditionPerfection = getModsForWeapon(weapon!).find((mod) => mod.name === "Condition's Perfection");
+        expect(conditionPerfection).toBeDefined();
+        expect(getUnmodeledDamageEffectLines(conditionPerfection!, conditionPerfection!.fusionLimit, {
+            selectedGoal: "tennokaiDps",
+        }).join(" ")).toContain("does not resolve Status Effect application or ticks");
+        const optimized = optimizeBuild(weapon!, [conditionPerfection!], "tennokaiDps", 1);
+        expect(optimized.slots.every((mod) => mod === null)).toBe(true);
+    });
+
+    it("optimizes Truth's Flame's repeated-target Tennokai chain and discloses omitted player-side effects", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const truthFlame = getModsForWeapon(weapon!).find((mod) => mod.name === "Truth's Flame");
+        expect(truthFlame).toBeDefined();
+        const notes = getUnmodeledDamageEffectLines(truthFlame!, truthFlame!.fusionLimit, {
+            selectedGoal: "tennokaiDps",
+            selectedWeaponName: weapon!.name,
+        });
+        expect(notes.join(" ")).toContain("repeating the selected target profile");
+        expect(notes.join(" ")).toContain("excludes its player-side Heat curse and Truth syndicate effects");
+        expect(notes.join(" ")).not.toContain("Auto Optimize skips this mod");
+
+        const target = { health: 1, shields: 0, overguard: 0, armor: 0 };
+        const conditionalState: ConditionalState = {
+            mode: "initial",
+            tennokaiRegularHitsBetweenHeavy: 1,
+        };
+        const optimized = optimizeBuild(weapon!, [truthFlame!], "tennokaiDps", 1, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+        });
+        expect(optimized.slots.some((mod) => mod?.name === "Truth's Flame")).toBe(true);
+        expect(scoreOptimizerResultForConfiguration({
+            weapon: weapon!,
+            result: optimized,
+            goal: "tennokaiDps",
+            targetFaction: "Grineer",
+            selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+            targetProfileOverride: target,
+            conditionalState,
+        })).toBeGreaterThan(0);
+    });
+
+    it("explains why Relentless Combination waits for Slash tick history", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const relentlessCombination = getModsForWeapon(weapon!).find((mod) => mod.name === "Relentless Combination");
+        expect(relentlessCombination).toBeDefined();
+        expect(relentlessCombination!.hasDamageEffect).toBe(false);
+        expect(getUnmodeledDamageEffectLines(
+            relentlessCombination!,
+            relentlessCombination!.fusionLimit,
+            { selectedGoal: "tennokaiDps" },
+        ).join(" ")).toContain("does not advance Slash application/tick history");
+        expect(getUnmodeledDamageEffectSourceUrl(relentlessCombination!)).toBe(
+            "https://wiki.warframe.com/w/Relentless_Combination",
+        );
+        const optimized = optimizeBuild(weapon!, [relentlessCombination!], "tennokaiDps", 1);
+        expect(optimized.slots).toEqual([null]);
+    });
+
+    it("matches seeded two-slot R0–R1 exact winners across melee weapon and faction strata", () => {
+        const scenarios = [
+            { weapon: "Broken War", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
+            { weapon: "Gram Prime", faction: "Corpus", target: { health: 250_000, shields: 250_000, overguard: 0, armor: 0 } },
+            { weapon: "Lesion", faction: "Infested", target: { health: 250_000, shields: 0, overguard: 0, armor: 0 } },
+            { weapon: "Nikana Prime", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
+        ];
+        let seed = 20261158;
+        const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const candidateNames = [
+            "Dreamer's Wrath",
+            "Discipline's Merit",
+            "Opportunity's Reach",
+            "Organ Shatter",
+            "Killing Blow",
+            "Fury",
+        ];
+
+        for (const scenario of scenarios) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === scenario.weapon);
+            expect(weapon, scenario.weapon).toBeDefined();
+            const available = getModsForWeapon(weapon!);
+            const byName = (name: string) => available.find((mod) => mod.name === name);
+            const tennokaiEnabler = byName("Master's Edge");
+            expect(tennokaiEnabler, `${scenario.weapon} Master's Edge`).toBeDefined();
+            const randomPool = candidateNames.map(byName).filter((mod): mod is ModEntry => mod !== undefined);
+            const shuffled = [...randomPool];
+            for (let index = shuffled.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+            }
+            const sampledMods = [tennokaiEnabler!, ...shuffled.slice(0, 4)];
+            const ownedRankCaps = Object.fromEntries(sampledMods.map((mod) => [mod.uniqueName, Math.floor(random() * 2)]));
+            const conditionalState: ConditionalState = {
+                mode: "initial",
+                tennokaiRegularHitsBetweenHeavy: 9,
+            };
+            const scoringContext = { selectedGoal: "tennokaiDps", selectedWeaponName: weapon!.name };
+            const rankOptions = new Map(sampledMods.map((mod) => [
+                mod.uniqueName,
+                Array.from({ length: ownedRankCaps[mod.uniqueName] + 1 }, (_, rank) => rank).filter((rank) =>
+                    getUnmodeledDamageEffectLines(mod, rank, scoringContext).every((line) =>
+                        line.includes("does not change the score; its opportunity-window bonus is modeled."),
+                    ),
+                ),
+            ]));
+            const exactScores: number[] = [];
+            const visit = (nextIndex: number, selected: Array<{ mod: ModEntry; rank: number }>) => {
+                exactScores.push(debugScoreBuild(
+                    weapon!,
+                    selected.map(({ mod, rank }) => mod.effectsByRank[rank] ?? mod.effect),
+                    "tennokaiDps",
+                    scenario.faction,
+                    null,
+                    scenario.target,
+                    conditionalState,
+                ));
+                if (selected.length >= 2) return;
+                for (let index = nextIndex; index < sampledMods.length; index++) {
+                    const mod = sampledMods[index];
+                    if (selected.some((entry) => entry.mod.incompatibilityGroup === mod.incompatibilityGroup)) continue;
+                    for (const rank of rankOptions.get(mod.uniqueName) ?? []) {
+                        visit(index + 1, [...selected, { mod, rank }]);
+                    }
+                }
+            };
+            visit(0, []);
+
+            const optimized = optimizeBuild(weapon!, sampledMods, "tennokaiDps", 2, {
+                targetFaction: scenario.faction,
+                targetProfileOverride: scenario.target,
+                conditionalState,
+                allowNonMaxRank: true,
+                ownedModMaxRankByUniqueName: ownedRankCaps,
+                allowForma: false,
+                capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+            });
+            const optimizerScore = scoreOptimizerResultForConfiguration({
+                weapon: weapon!,
+                result: optimized,
+                goal: "tennokaiDps",
+                targetFaction: scenario.faction,
+                selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+                targetProfileOverride: scenario.target,
+                conditionalState,
+            });
+            expect(exactScores.length, `${scenario.weapon} exact pool size`).toBeGreaterThan(10);
+            expect(optimized.capacityValid, `${scenario.weapon} capacity`).toBe(true);
+            expect(optimized.slots.some(Boolean), `${scenario.weapon} build`).toBe(true);
+            expect(optimizerScore, `${scenario.weapon} sampled-pool winner`).toBeCloseTo(Math.max(...exactScores), 7);
+        }
+    });
+
+    it("keeps a Tennokai enabler in a legal full-pool eight-slot result", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(weapon).toBeDefined();
+        const target = { health: 250_000, shields: 0, overguard: 0, armor: 3_000 };
+        const conditionalState: ConditionalState = {
+            mode: "initial",
+            tennokaiRegularHitsBetweenHeavy: 4,
+        };
+        const optimized = optimizeBuild(weapon!, getModsForWeapon(weapon!), "tennokaiDps", 8, {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            allowForma: false,
+            capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+        });
+        const optimizerScore = scoreOptimizerResultForConfiguration({
+            weapon: weapon!,
+            result: optimized,
+            goal: "tennokaiDps",
+            targetFaction: "Grineer",
+            selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+            targetProfileOverride: target,
+            conditionalState,
+        });
+        expect(optimized.capacityValid).toBe(true);
+        expect(optimized.slots.some((mod) => ["Master's Edge", "Dreamer's Wrath", "Discipline's Merit", "Opportunity's Reach"].includes(mod?.name ?? ""))).toBe(true);
+        expect(optimizerScore).toBeGreaterThan(0);
+    });
+});
+
 describe("attack falloff optimizer propagation", () => {
     it("selects a range mod only when the configured distance makes its falloff extension valuable", () => {
         const attack = {
@@ -1791,6 +2041,14 @@ describe("build optimizer scoring", () => {
         expect(getUnmodeledDamageEffectSourceUrl(amalgamBodyCount!)).toBe("https://wiki.warframe.com/w/Amalgam_Furax_Body_Count");
         expect(amalgamBodyCount!.effect.fireRateBonus).toBeCloseTo(0.45);
         expect(amalgamBodyCount!.effect.comboDurationBonus).toBeCloseTo(15);
+        const explanation = explainBuild(
+            furax!,
+            [amalgamBodyCount!],
+            [amalgamBodyCount!.fusionLimit],
+            "burst",
+        );
+        expect(explanation.steps[0]?.why).toContain("+15s Melee Combo Duration");
+        expect(explanation.steps[0]?.why).not.toContain("+1500% Melee Combo Duration");
         for (let rank = 0; rank <= amalgamBodyCount!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(amalgamBodyCount!, rank)).toContain(
                 "Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; it also notes these procs can trigger Shattering Impact. That armor-strip interaction, neighboring-target proc history, and stagger utility are not modeled, so Auto Optimize skips this mod.",
@@ -3478,6 +3736,7 @@ describe("build optimizer scoring", () => {
         expect(normalizeOptimizeGoal("status")).toBe("burst");
         expect(normalizeOptimizeGoal("scaling")).toBe("scaling");
         expect(normalizeOptimizeGoal("timeToKill")).toBe("timeToKill");
+        expect(normalizeOptimizeGoal("tennokaiDps")).toBe("tennokaiDps");
         expect(rankExpectedEncounter(0.8, 100)).toBeGreaterThan(rankExpectedEncounter(0.9, 1000));
         expect(rankExpectedEncounter(590, 1)).toBeGreaterThan(rankExpectedEncounter(null, 100000));
     });

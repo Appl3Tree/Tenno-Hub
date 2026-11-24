@@ -217,7 +217,7 @@ export interface SavedBuildTargetConfig {
 }
 
 export interface SavedBuildPlannerConfig {
-    goal?: "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps";
+    goal?: "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps" | "tennokaiDps";
     conditionalMode?: "initial" | "realistic" | "fullyStacked" | "custom";
     externalConditionalStacks?: number;
     /** Distinct additional status types assumed active for Condition Overload (including Tau). */
@@ -245,6 +245,8 @@ export interface SavedBuildPlannerConfig {
     /** Assume Kinetic Killer's sliding-at-impact condition is active for each scored Furax attack. */
     playerSlidingAtImpact?: boolean;
     meleeComboMultiplier?: number;
+    /** Editable qualifying regular hit count before each Tennokai Heavy Slam timeline event. */
+    tennokaiRegularHitsBetweenHeavy?: number;
     /** User-entered ammo charge for Phantasma's alternate fire. */
     phantasmaChargeAmmo?: number;
     /** Assumed target distance used by rank-conditioned weapon effects such as Spring-Loaded Broadhead. */

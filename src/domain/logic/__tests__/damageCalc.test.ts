@@ -279,7 +279,7 @@ describe("Eximus Advantage Wiki effect", () => {
 });
 
 describe("Tennokai mod catalog coverage", () => {
-    it("keeps Mentor's Legacy selectable and labels unsupported Tennokai timing", () => {
+    it("parses all seven rank effects but keeps their attack timeline out of scoring", () => {
         const meleeWeapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         expect(meleeWeapon).toBeDefined();
         const meleeMods = getModsForWeapon(meleeWeapon!);
@@ -299,16 +299,104 @@ describe("Tennokai mod catalog coverage", () => {
         expect(mentor).toMatchObject({ fusionLimit: 0, isExilus: true, hasDamageEffect: false });
         expect(mentor.statsTextByRank).toEqual(["Enables Tennokai."]);
 
+        const maxRankEffects = tennokaiMods.map((mod) => mod!.effectsByRank[mod!.fusionLimit]);
+        expect(maxRankEffects[0]).toMatchObject({
+            tennokaiEnabled: true,
+            tennokaiStatusChanceBonus: 1,
+        });
+        expect(maxRankEffects[1]).toMatchObject({
+            tennokaiEnabled: true,
+            tennokaiOpportunityEveryHits: 4,
+        });
+        expect(maxRankEffects[2]).toMatchObject({
+            tennokaiEnabled: true,
+            tennokaiOpportunityChanceBonus: 0.5,
+            tennokaiCritDamageBonus: 0.32,
+        });
+        expect(maxRankEffects[3]).toMatchObject({
+            tennokaiEnabled: true,
+            tennokaiDamageBonus: 0.6,
+        });
+        expect(maxRankEffects[5]).toMatchObject({
+            tennokaiEnabled: true,
+            tennokaiOpportunityWindowSeconds: 4,
+            tennokaiRangeBonusMeters: 3,
+        });
+        expect(maxRankEffects[6]).toMatchObject({
+            tennokaiEnabled: true,
+            tennokaiChainedOpportunitySeconds: 4,
+            tennokaiChainedDamageBonus: 1.2,
+        });
+
         for (const mod of tennokaiMods) {
             expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit)).toContain(
-                "Tennokai opportunity timing and attack-chain cadence are not modeled or scored.",
+                "Tennokai rank stats feed the manual event timeline and dedicated Tennokai Cycle DPS objective for supported direct-hit cycles, including opportunity timing, event-local Heavy Attack bonuses, and combo retention. Truth's Flame uses a selected-target expected-damage threshold for its repeated-target chain there. Standard single-attack objectives and their Auto Optimize searches exclude Tennokai history; unsupported timing, status-tick kills, range, and player-side curse/syndicate effects remain unscored.",
             );
         }
         const truthsFlame = tennokaiMods[6]!;
         expect(getUnmodeledDamageEffectLines(truthsFlame, truthsFlame.fusionLimit)).toContain(
-            "Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled, so Auto Optimize skips this mod.",
+            "Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled. Standard goals exclude Truth's Flame; Tennokai Cycle DPS models its direct kill chain across repeated targets but omits this side effect.",
         );
         expect(getUnmodeledDamageEffectSourceUrl(truthsFlame)).toBe("https://wiki.warframe.com/w/Syndicates");
+    });
+});
+
+describe("Tennokai event-local rank effects", () => {
+    const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+    const heavyAttackIndex = weapon.attacks.findIndex((attack) => /heavy/i.test(attack.name));
+    const normalAttackIndex = weapon.attacks.findIndex((attack) => /normal attack/i.test(attack.name));
+
+    function statsFor(
+        modName: string,
+        attackIndex: number,
+        tennokaiAttackActive: boolean,
+        tennokaiKillChainActive = false,
+    ) {
+        const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === modName)!;
+        const effect = mod.effectsByRank[mod.fusionLimit];
+        return calculateBuild(withSelectedAttack(weapon, attackIndex), [effect], "", {
+            conditionalState: {
+                mode: "initial",
+                tennokaiAttackActive,
+                tennokaiKillChainActive,
+            },
+        }).modded;
+    }
+
+    it("applies Tennokai damage, critical damage, and status chance only on an active Heavy Attack", () => {
+        expect(heavyAttackIndex).toBeGreaterThanOrEqual(0);
+        expect(normalAttackIndex).toBeGreaterThanOrEqual(0);
+
+        const baseHeavy = calculateBuild(withSelectedAttack(weapon, heavyAttackIndex), [], "").modded;
+        const masterEdgeInactive = statsFor("Master's Edge", heavyAttackIndex, false);
+        const masterEdgeActive = statsFor("Master's Edge", heavyAttackIndex, true);
+        const masterEdgeNormal = statsFor("Master's Edge", normalAttackIndex, true);
+        expect(masterEdgeInactive.totalDamage).toBeCloseTo(baseHeavy.totalDamage, 8);
+        expect(masterEdgeActive.totalDamage).toBeGreaterThan(baseHeavy.totalDamage);
+        expect(masterEdgeNormal.totalDamage).toBeCloseTo(
+            calculateBuild(withSelectedAttack(weapon, normalAttackIndex), [], "").modded.totalDamage,
+            8,
+        );
+
+        const conditionBase = calculateBuild(withSelectedAttack(weapon, heavyAttackIndex), [], "").modded;
+        const conditionActive = statsFor("Condition's Perfection", heavyAttackIndex, true);
+        expect(statsFor("Condition's Perfection", heavyAttackIndex, false).statusChance).toBeCloseTo(conditionBase.statusChance, 8);
+        expect(conditionActive.statusChance).toBeGreaterThan(conditionBase.statusChance);
+
+        const dreamerBase = calculateBuild(withSelectedAttack(weapon, heavyAttackIndex), [], "").modded;
+        const dreamerActive = statsFor("Dreamer's Wrath", heavyAttackIndex, true);
+        expect(statsFor("Dreamer's Wrath", heavyAttackIndex, false).critMultiplier).toBeCloseTo(dreamerBase.critMultiplier, 8);
+        expect(dreamerActive.critMultiplier).toBeGreaterThan(dreamerBase.critMultiplier);
+    });
+
+    it("applies Truth's Flame's chain damage only after a Tennokai kill state is active", () => {
+        expect(heavyAttackIndex).toBeGreaterThanOrEqual(0);
+        const base = calculateBuild(withSelectedAttack(weapon, heavyAttackIndex), [], "").modded;
+        const modInactive = statsFor("Truth's Flame", heavyAttackIndex, true, false);
+        const modChained = statsFor("Truth's Flame", heavyAttackIndex, true, true);
+
+        expect(modInactive.totalDamage).toBeCloseTo(base.totalDamage, 8);
+        expect(modChained.totalDamage).toBeGreaterThan(base.totalDamage);
     });
 });
 
