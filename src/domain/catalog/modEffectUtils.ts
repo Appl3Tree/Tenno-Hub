@@ -212,7 +212,7 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Bloodthirst heals the companion for each active Slash stack per hit; companion healing is outside the damage score, so Auto Optimize skips this mod.");
     }
     if (mod.path === RELENTLESS_COMBINATION_MOD_PATH && context?.selectedGoal !== "tennokaiDps") {
-        lines.push("Relentless Combination adds combo from melee Slash applications and has a rank-scaled 25–100% chance to add combo for each Bleed damage tick. This scorer does not advance Slash application/tick history or stop those ticks when a target dies, so Auto Optimize skips the mod.");
+        lines.push("Relentless Combination's Slash application and Bleed-tick combo gains are modeled only by Tennokai Cycle DPS. Standard weapon-scoring objectives do not advance those events or stop ticks on target death, so Auto Optimize skips this mod outside Tennokai Cycle DPS.");
     }
     if (context?.selectedGoal !== "tennokaiDps" &&
         lines.some((line) => /\btennokai\b|opportunity\s+(?:chance|window)|melee hits?\b/i.test(line))) {
