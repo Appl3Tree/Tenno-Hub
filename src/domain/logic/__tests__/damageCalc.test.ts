@@ -4215,6 +4215,11 @@ describe("damage calculation status eligibility", () => {
                 stats: { multishotBonus: 1 },
             }],
         };
+        const nextMagazineMultishot = {
+            ...emptyEffect(),
+            nextMagazineMultishotPerShot: 0.2,
+            nextMagazineMaxStacks: 5,
+        };
 
         for (const { weaponName, acuityName, multishotName } of configurations) {
             const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
@@ -4234,11 +4239,22 @@ describe("damage calculation status eligibility", () => {
                 multishotMod!.effectsByRank[multishotMod!.fusionLimit]!,
                 { ...emptyEffect(), multishotBonus: -0.5, multishotDamageBonus: 1 },
                 conditionalMultishot,
+                nextMagazineMultishot,
             ], "", { conditionalState: { mode: "fullyStacked" } }).modded;
 
             expect(locked.multishotLocked).toBe(true);
             expect(locked.multishot).toBeCloseTo(baseline.multishot, 10);
             expect(locked.damageWeightedMultishot).toBeCloseTo(baseline.damageWeightedMultishot, 10);
+
+            const weaponAttackLocked = { ...weapon!, selectedAttackMultishotLocked: true };
+            const attackBaseline = calculateBuild(weaponAttackLocked, []).modded;
+            const attackLocked = calculateBuild(weaponAttackLocked, [
+                multishotMod!.effectsByRank[multishotMod!.fusionLimit]!,
+                conditionalMultishot,
+                nextMagazineMultishot,
+            ], "", { conditionalState: { mode: "fullyStacked" } }).modded;
+            expect(attackLocked.multishotLocked).toBe(true);
+            expect(attackLocked.multishot).toBeCloseTo(attackBaseline.multishot, 10);
         }
     });
 
