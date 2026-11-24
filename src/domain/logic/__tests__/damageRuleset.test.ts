@@ -69,15 +69,17 @@ describe("Damage 3.0 shared rules", () => {
         )).toBe(true);
     });
 
-    it("records Tennokai's Wiki sources and unmodeled cadence boundary", () => {
+    it("records Tennokai's source-backed timeline and its unmodeled cadence boundaries", () => {
         expect(DAMAGE_RULESET.sources.tennokai).toBe("https://wiki.warframe.com/w/Melee#Tennokai");
         expect(DAMAGE_RULESET.sources.tennokaiMods).toBe("https://wiki.warframe.com/w/Tennokai_Mods");
         expect(DAMAGE_RULESET.sources.truthsFlame).toBe("https://wiki.warframe.com/w/Truth%27s_Flame");
         expect(DAMAGE_RULESET.knownLimitations.some((entry) =>
             entry.includes("qualifying direct melee hits") &&
             entry.includes("15% base chance and 2-second window") &&
-            entry.includes("Tennokai-only damage/crit/status bonuses") &&
-            entry.includes("affected ranks are excluded from Auto Optimize"),
+            entry.includes("manual Tennokai panel models a bounded Normal Attack / Heavy Attack or Heavy Slam cycle") &&
+            entry.includes("standard Burst/Sustained/TTK objectives and Auto Optimize still exclude this timeline") &&
+            entry.includes("stance-specific combo generation") &&
+            entry.includes("Truth's Flame's Heat curse and Truth syndicate effect remain unmodeled"),
         )).toBe(true);
     });
 

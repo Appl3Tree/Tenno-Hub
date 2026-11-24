@@ -20,6 +20,7 @@ import {
     calculateMeleeAverageDps,
     avgHitDamageMultiplier,
     DEFAULT_CONDITIONAL_STATE,
+    normalizeCriticalPrecisionHeadshotProjectiles,
     normalizeDeadlyManeuversShotsRemaining,
     withoutBurstOnlyConditionalAssumptions,
     type ConditionalState,
@@ -984,6 +985,8 @@ function scoreEffectsCore(
         }
     }
     let allEffects = initialEffects;
+    let previewModded: ReturnType<typeof calculateBuild>["modded"] | null = null;
+    let canReusePreview = false;
     // Initial-state scoring disables combat-triggered conditionals in
     // calculateBuild; explicit target-status conditions remain user supplied.
     // Resolve weapon-generated required damage statuses only when those effects
@@ -997,6 +1000,7 @@ function scoreEffectsCore(
             };
         });
         const preview = calculateBuild(weapon, ungatedEffects, targetFaction, damageOptions);
+        previewModded = preview.modded;
         allEffects = initialEffects.map((effect) => {
             if (!effect?.conditionalEffects?.length) return effect;
             return {
@@ -1011,8 +1015,13 @@ function scoreEffectsCore(
                 ),
             };
         });
+        canReusePreview = !allEffects.some((effect) =>
+            effect?.conditionalEffects?.some((conditional) => !!conditional.requiredStatusType),
+        );
     }
-    const { modded } = calculateBuild(weapon, allEffects, targetFaction, damageOptions);
+    const modded = previewModded && canReusePreview
+        ? previewModded
+        : calculateBuild(weapon, allEffects, targetFaction, damageOptions).modded;
 
     const { pools, poolTotal, shares, healthTypeMultipliers } = scoringTarget;
     if (poolTotal <= 0) return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal };
@@ -1524,6 +1533,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     const scoringEffectContext = {
         headIsWeakPoint: scoringTargetAssumptions.headIsWeakPoint,
         selectedAttackName: weapon.selectedAttackName,
+        selectedAttackTrigger: weapon.trigger,
         selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
         targetFaction,
         targetHasOverguard: scoringTargetAssumptions.overguard > 0,
@@ -1531,6 +1541,10 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         selectedWeaponName: weapon.name,
         selectedAttackHeadshotRate: scoringTargetAssumptions.headshotHitRate,
         deadlyManeuversShotsRemaining: normalizeDeadlyManeuversShotsRemaining(opts.conditionalState?.deadlyManeuversShotsRemaining),
+        criticalPrecisionHeadshotProjectiles: normalizeCriticalPrecisionHeadshotProjectiles(
+            opts.conditionalState?.criticalPrecisionHeadshotProjectiles,
+        ),
+        unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
         selectedGoal: goal,
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
@@ -1550,11 +1564,23 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     const isDeadlyManeuvers = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.deadlyManeuversHeadshotCritChanceBonus ?? 0) > 0,
     );
+    const isCriticalPrecision = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
+        (effect.criticalPrecisionCritChancePerHeadshot ?? 0) > 0,
+    );
+    const isUnseenDread = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
+        (effect.unseenDreadCritDamageBonus ?? 0) > 0,
+    );
     const deadlyManeuversCanScore = goal === "burst" &&
         (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
         weapon.selectedAttackIsAreaDamage !== true &&
         scoringTargetAssumptions.headshotHitRate > 0 &&
         normalizeDeadlyManeuversShotsRemaining(opts.conditionalState?.deadlyManeuversShotsRemaining) > 0;
+    const criticalPrecisionCanScore = goal === "burst" && weapon.trigger === "Burst" && weapon.selectedAttackIsAreaDamage === false &&
+        ((weapon.name === "Tiberon" && weapon.selectedAttackName === "Normal Attack") ||
+            (weapon.name === "Tiberon Prime" && weapon.selectedAttackName === "Burst")) &&
+        normalizeCriticalPrecisionHeadshotProjectiles(opts.conditionalState?.criticalPrecisionHeadshotProjectiles) > 0;
+    const unseenDreadCanScore = goal === "burst" && weapon.name === "Dread" &&
+        weapon.selectedAttackIsAreaDamage === false && opts.conditionalState?.unseenDreadInvisibilityActive === true;
     const isSentientIncision = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.sentientIncisionDamageBonus ?? 0) > 0,
     );
@@ -1563,6 +1589,8 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     const hasSupportedDamageRank = (mod: ModEntry): boolean =>
         !sentientIncisionBlockedByOverguard(mod) && mod.hasDamageEffect && (goal === "burst" || !isDreadfulKillshot(mod)) &&
         (!isDeadlyManeuvers(mod) || deadlyManeuversCanScore) &&
+        (!isCriticalPrecision(mod) || criticalPrecisionCanScore) &&
+        (!isUnseenDread(mod) || unseenDreadCanScore) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
         allowedRanks(mod).some((rank) => getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
@@ -4360,6 +4388,7 @@ function optimizeExilusSlot(
             if (getBlockingOptimizerEffectLines(mod, r, {
                 headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
                 selectedAttackName: weapon.selectedAttackName,
+                selectedAttackTrigger: weapon.trigger,
                 selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
                 targetFaction,
                 targetHasOverguard: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).overguard > 0,
@@ -4367,6 +4396,10 @@ function optimizeExilusSlot(
                 selectedWeaponName: weapon.name,
                 selectedAttackHeadshotRate: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headshotHitRate,
                 deadlyManeuversShotsRemaining: normalizeDeadlyManeuversShotsRemaining(opts.conditionalState?.deadlyManeuversShotsRemaining),
+                criticalPrecisionHeadshotProjectiles: normalizeCriticalPrecisionHeadshotProjectiles(
+                    opts.conditionalState?.criticalPrecisionHeadshotProjectiles,
+                ),
+                unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
                 selectedGoal: goal,
             }).length > 0) continue;
             const candidatePolarity = opts.allowForma ? bestPolarity(mod) : exilusPolarity;
@@ -5632,6 +5665,12 @@ export function explainBuild(
         const shots = selectedStats.deadlyManeuversShotsRemaining;
         buildHighlights.push(`Deadly Maneuvers Burst scoring assumes ${shots} buffed shot${shots === 1 ? "" : "s"} remain after a dodge. Its rank-listed +${formatExplanationPercent(selectedStats.deadlyManeuversHeadshotCritChanceBonus)} headshot Critical Chance is applied multiplicatively after other bonuses (×${formatExplanationNumber(1 + selectedStats.deadlyManeuversHeadshotCritChanceBonus, 0)} on each buffed headshot), and the score averages that state across the next two shots. The configured headshot share controls how often those shots use the bonus. Dodge timing and shot history are not simulated; Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this snapshot.`);
     }
+    if (selectedStats.criticalPrecisionCritChanceBonus > 0) {
+        buildHighlights.push(`Critical Precision Burst scoring assumes ${selectedStats.criticalPrecisionHeadshotProjectiles} prior headshot projectiles. The selected rank adds ${formatExplanationPercent(selectedStats.criticalPrecisionCritChanceBonus)} to base Critical Chance, additively with similar mods and capped at +500%. Missed-burst decay and shot history are not simulated; non-Burst scoring objectives exclude this snapshot.`);
+    }
+    if (selectedStats.unseenDreadCritDamageBonus > 0) {
+        buildHighlights.push(`Unseen Dread Burst scoring assumes Dread is invisible and adds ${formatExplanationPercent(selectedStats.unseenDreadCritDamageBonus)} Critical Damage. The bonus can come from any invisibility source, but the augment's three-enemy trigger and five-second duration/history are not simulated. Area coverage, Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this snapshot.`);
+    }
     if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
         buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);
     }
@@ -5672,6 +5711,7 @@ export function explainBuild(
         const unmodeledLines = getUnmodeledDamageEffectLines(mod, rank, {
             headIsWeakPoint: targetAssumptions.headIsWeakPoint,
             selectedAttackName: weapon.selectedAttackName,
+            selectedAttackTrigger: weapon.trigger,
             selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
             targetFaction,
             targetHasOverguard: targetAssumptions.overguard > 0,
@@ -5679,6 +5719,10 @@ export function explainBuild(
             selectedWeaponName: weapon.name,
             selectedAttackHeadshotRate: targetAssumptions.headshotHitRate,
             deadlyManeuversShotsRemaining: normalizeDeadlyManeuversShotsRemaining(conditionalState?.deadlyManeuversShotsRemaining),
+            criticalPrecisionHeadshotProjectiles: normalizeCriticalPrecisionHeadshotProjectiles(
+                conditionalState?.criticalPrecisionHeadshotProjectiles,
+            ),
+            unseenDreadInvisibilityActive: conditionalState?.unseenDreadInvisibilityActive === true,
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";

@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
 
@@ -5946,6 +5946,103 @@ describe("Deadly Maneuvers Burst shot snapshot", () => {
         expect(noHeadshots.averageShotDamage).toBeCloseTo(noHeadshotBase.averageShotDamage, 10);
         expect(otherWeapon.averageShotDamage).toBeCloseTo(base.averageShotDamage, 10);
         expect(stripped).toMatchObject({ deadlyManeuversShotsRemaining: 0 });
+    });
+});
+
+describe("Critical Precision and Unseen Dread Burst snapshots", () => {
+    const weapons = getWeaponCatalog();
+    const tiberon = weapons.find((weapon) => weapon.name === "Tiberon")!;
+    const tiberonPrime = weapons.find((weapon) => weapon.name === "Tiberon Prime")!;
+    const dread = weapons.find((weapon) => weapon.name === "Dread")!;
+    const criticalPrecision = getModsForWeapon(tiberon).find((mod) => mod.name === "Critical Precision")!;
+    const unseenDread = getModsForWeapon(dread).find((mod) => mod.name === "Unseen Dread")!;
+
+    it("adds Critical Precision to base Critical Chance only on its Burst rows and strips it from finite scores", () => {
+        const tiberonBurstIndex = tiberon.attacks.findIndex((attack) => attack.trigger === "Burst");
+        const primeBurstIndex = tiberonPrime.attacks.findIndex((attack) => attack.name === "Burst" && attack.trigger === "Burst");
+        const primeNonBurstIndex = tiberonPrime.attacks.findIndex((attack) => attack.name !== "Burst");
+        expect(tiberonBurstIndex).toBeGreaterThanOrEqual(0);
+        expect(primeBurstIndex).toBeGreaterThanOrEqual(0);
+        expect(primeNonBurstIndex).toBeGreaterThanOrEqual(0);
+
+        const rankFive = criticalPrecision.effectsByRank[criticalPrecision.fusionLimit]!;
+        const snapshot = { mode: "initial" as const, criticalPrecisionHeadshotProjectiles: 200 };
+        const selectedTiberonBurst = withSelectedAttack(tiberon, tiberonBurstIndex);
+        const selectedPrimeBurst = withSelectedAttack(tiberonPrime, primeBurstIndex);
+        const selectedPrimeNonBurst = withSelectedAttack(tiberonPrime, primeNonBurstIndex);
+        const tiberonResult = calculateBuild(selectedTiberonBurst, [rankFive], "", { conditionalState: snapshot }).modded;
+        const tiberonPrimeResult = calculateBuild(selectedPrimeBurst, [rankFive], "", { conditionalState: snapshot }).modded;
+        const nonBurstResult = calculateBuild(selectedPrimeNonBurst, [rankFive], "", { conditionalState: snapshot }).modded;
+        const finiteResult = calculateBuildForExpectedEncounter(selectedTiberonBurst, [rankFive], "", { conditionalState: snapshot }).modded;
+        const snapshotMetrics = calculateBuild(selectedTiberonBurst, [rankFive], "", { conditionalState: snapshot });
+        const baselineMetrics = calculateBuild(selectedTiberonBurst, [rankFive], "", {
+            conditionalState: { mode: "initial", criticalPrecisionHeadshotProjectiles: 0 },
+        });
+        const stripped = withoutBurstOnlyConditionalAssumptions(snapshot);
+
+        expect(criticalPrecision.effectsByRank[0]?.criticalPrecisionCritChancePerHeadshot).toBe(0.025);
+        expect(rankFive.criticalPrecisionCritChancePerHeadshot).toBe(0.1);
+        expect(normalizeCriticalPrecisionHeadshotProjectiles(-1)).toBe(0);
+        expect(normalizeCriticalPrecisionHeadshotProjectiles(200.9)).toBe(200);
+        expect(normalizeCriticalPrecisionHeadshotProjectiles(Number.NaN)).toBe(0);
+        expect(getUnmodeledDamageEffectLines(criticalPrecision, criticalPrecision.fusionLimit, {
+            selectedWeaponName: "Tiberon",
+            selectedAttackName: "Normal Attack",
+            selectedAttackTrigger: "Burst",
+            selectedAttackIsAreaDamage: false,
+            criticalPrecisionHeadshotProjectiles: 1,
+            selectedGoal: "burst",
+        })).toEqual([]);
+        expect(getUnmodeledDamageEffectLines(criticalPrecision, criticalPrecision.fusionLimit, {
+            selectedWeaponName: "Tiberon Prime",
+            selectedAttackName: "Semi-Auto",
+            selectedAttackTrigger: "Burst",
+            selectedAttackIsAreaDamage: false,
+            criticalPrecisionHeadshotProjectiles: 1,
+            selectedGoal: "burst",
+        })).toHaveLength(1);
+        expect(tiberonResult.criticalPrecisionCritChanceBonus).toBe(5);
+        expect(snapshotMetrics.burstDPS).toBeGreaterThan(baselineMetrics.burstDPS);
+        expect(snapshotMetrics.sustainedDPS).toBeCloseTo(baselineMetrics.sustainedDPS, 10);
+        expect(tiberonPrimeResult.criticalPrecisionCritChanceBonus).toBe(5);
+        expect(nonBurstResult.criticalPrecisionCritChanceBonus).toBe(0);
+        expect(finiteResult.criticalPrecisionCritChanceBonus).toBe(0);
+        expect(stripped).toMatchObject({ criticalPrecisionHeadshotProjectiles: 0 });
+    });
+
+    it("adds Unseen Dread Critical Damage only for its active direct-hit snapshot and strips it from finite scores", () => {
+        const rankFive = unseenDread.effectsByRank[unseenDread.fusionLimit]!;
+        const dreadAttackIndex = dread.attacks.findIndex((attack) => attack.isAreaDamage === false);
+        const directDread = withSelectedAttack(dread, dreadAttackIndex);
+        const activeState = { mode: "initial" as const, unseenDreadInvisibilityActive: true };
+        const active = calculateBuild(directDread, [rankFive], "", { conditionalState: activeState }).modded;
+        const inactive = calculateBuild(directDread, [rankFive], "", {
+            conditionalState: { mode: "initial", unseenDreadInvisibilityActive: false },
+        }).modded;
+        const finite = calculateBuildForExpectedEncounter(directDread, [rankFive], "", { conditionalState: activeState }).modded;
+        const activeMetrics = calculateBuild(directDread, [rankFive], "", { conditionalState: activeState });
+        const baselineMetrics = calculateBuild(directDread, [rankFive], "", {
+            conditionalState: { mode: "initial", unseenDreadInvisibilityActive: false },
+        });
+        const areaWeapon = { ...directDread, selectedAttackIsAreaDamage: true };
+
+        expect(unseenDread.effectsByRank.map((effect) => effect.unseenDreadCritDamageBonus)).toEqual([
+            0.5, 0.75, 1, 1.25, 1.5, 1.75,
+        ]);
+        expect(active.unseenDreadCritDamageBonus).toBe(1.75);
+        expect(active.critMultiplier).toBeCloseTo(active.quantizedBaseCritMultiplier * (1 + 1.75), 10);
+        expect(activeMetrics.burstDPS).toBeGreaterThan(baselineMetrics.burstDPS);
+        expect(activeMetrics.sustainedDPS).toBeCloseTo(baselineMetrics.sustainedDPS, 10);
+        expect(inactive.unseenDreadCritDamageBonus).toBe(0);
+        expect(finite.unseenDreadCritDamageBonus).toBe(0);
+        expect(calculateBuild(areaWeapon, [rankFive], "", { conditionalState: activeState }).modded.unseenDreadCritDamageBonus).toBe(0);
+        expect(getUnmodeledDamageEffectLines(unseenDread, unseenDread.fusionLimit, {
+            selectedWeaponName: "Dread",
+            selectedAttackName: "Normal Attack",
+            selectedAttackIsAreaDamage: false,
+            unseenDreadInvisibilityActive: true,
+            selectedGoal: "burst",
+        })).toEqual([]);
     });
 });
 

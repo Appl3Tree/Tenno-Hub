@@ -96,6 +96,7 @@ if (capturedBaseline?.attackName && capturedBaseline.attackName.toLowerCase() !=
     throw new Error(`Captured baseline attack ${capturedBaseline.attackName} does not match ${attackName}`);
 }
 const jointArcane = option("joint-arcane", "false").toLowerCase() === "true";
+const optimizerOnly = process.argv.includes("--optimizer-only");
 if (jointArcane && capturedBaseline) {
     throw new Error("--joint-arcane=true audits the optimizer baseline; omit --baseline-file");
 }
@@ -346,26 +347,28 @@ function consider(
     });
 }
 
-for (let index = 0; index < baselineEntries.length; index++) {
-    const outgoing = baselineEntries[index]?.mod.name;
-    consider(baselineEntries.filter((_, entryIndex) => entryIndex !== index), { kind: "remove", outgoing });
-    for (const candidate of eligibleCandidates) {
-        if (candidate.uniqueName === baselineEntries[index]?.mod.uniqueName) continue;
-        consider(
-            baselineEntries.map((entry, entryIndex) => entryIndex === index
-                ? { mod: candidate, rank: candidate.fusionLimit }
-                : entry),
-            { kind: "replace", outgoing, incoming: candidate.name },
-        );
+if (!optimizerOnly) {
+    for (let index = 0; index < baselineEntries.length; index++) {
+        const outgoing = baselineEntries[index]?.mod.name;
+        consider(baselineEntries.filter((_, entryIndex) => entryIndex !== index), { kind: "remove", outgoing });
+        for (const candidate of eligibleCandidates) {
+            if (candidate.uniqueName === baselineEntries[index]?.mod.uniqueName) continue;
+            consider(
+                baselineEntries.map((entry, entryIndex) => entryIndex === index
+                    ? { mod: candidate, rank: candidate.fusionLimit }
+                    : entry),
+                { kind: "replace", outgoing, incoming: candidate.name },
+            );
+        }
     }
-}
-if (baselineEntries.length < slotCount) {
-    for (const candidate of eligibleCandidates) {
-        if (baselineEntries.some((entry) => entry.mod.uniqueName === candidate.uniqueName)) continue;
-        consider(
-            [...baselineEntries, { mod: candidate, rank: candidate.fusionLimit }],
-            { kind: "add", incoming: candidate.name },
-        );
+    if (baselineEntries.length < slotCount) {
+        for (const candidate of eligibleCandidates) {
+            if (baselineEntries.some((entry) => entry.mod.uniqueName === candidate.uniqueName)) continue;
+            consider(
+                [...baselineEntries, { mod: candidate, rank: candidate.fusionLimit }],
+                { kind: "add", incoming: candidate.name },
+            );
+        }
     }
 }
 
@@ -377,7 +380,9 @@ console.log(JSON.stringify({
     method: {
         objective: `deterministic applied single-target damage divided by ${FIXED_WINDOW_DPS_SECONDS}s`,
         scoringWindow: `[0, ${FIXED_WINDOW_DPS_SECONDS}s)`,
-        oneModNeighborhood: "One max-rank mod addition, removal, or replacement; only legal unique-mod/incompatibility and capacity assignments within the configured Forma limit are scored.",
+        oneModNeighborhood: optimizerOnly
+            ? "Skipped by --optimizer-only; this run measures optimizer search only."
+            : "One max-rank mod addition, removal, or replacement; only legal unique-mod/incompatibility and capacity assignments within the configured Forma limit are scored.",
         arcanePolicy: jointArcane
             ? "Each baseline and legal one-mod neighbor is exactly re-scored with no Arcane and every modeled rank of every compatible Arcane; the best score is retained."
             : "Arcanes are disabled unless --joint-arcane=true is supplied.",

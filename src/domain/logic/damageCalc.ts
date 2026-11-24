@@ -286,6 +286,14 @@ export interface ModdedWeaponStats {
     deadlyManeuversHeadshotCritChanceBonus: number;
     /** Remaining buffed shots represented by this Burst snapshot (0–2). */
     deadlyManeuversShotsRemaining: number;
+    /** Critical Precision Burst snapshot's prior headshot-projectile count (0–200). */
+    criticalPrecisionHeadshotProjectiles: number;
+    /** Base Critical Chance bonus from Critical Precision, capped at +500%. */
+    criticalPrecisionCritChanceBonus: number;
+    /** Whether Dread's Unseen Dread invisibility snapshot is active for Burst. */
+    unseenDreadInvisibilityActive: boolean;
+    /** Additive Critical Damage bonus from Unseen Dread while Dread is invisible. */
+    unseenDreadCritDamageBonus: number;
     /** Count of selected and external Vigilante pieces, capped at six. */
     vigilanteSetModCount: number;
     /** Count of selected and external Gladiator pieces, capped at six. */
@@ -581,6 +589,10 @@ export interface ConditionalState {
     dreadfulKillshotCurrentHealth?: number;
     /** Remaining Deadly Maneuvers shots after a dodge (0–2); Burst snapshot only. */
     deadlyManeuversShotsRemaining?: number;
+    /** Prior Critical Precision headshot projectiles (0–200); Tiberon Burst snapshot only. */
+    criticalPrecisionHeadshotProjectiles?: number;
+    /** Assume Dread is currently invisible; Unseen Dread Burst snapshot only. */
+    unseenDreadInvisibilityActive?: boolean;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -722,6 +734,14 @@ export function normalizeDeadlyManeuversShotsRemaining(value: number | undefined
         : 0;
 }
 
+export const MAX_CRITICAL_PRECISION_HEADSHOT_PROJECTILES = 200;
+
+export function normalizeCriticalPrecisionHeadshotProjectiles(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(MAX_CRITICAL_PRECISION_HEADSHOT_PROJECTILES, Math.floor(value ?? 0)))
+        : 0;
+}
+
 /** Converts Dreadful Killshot's rank value and current-health snapshot to its capped, 20%-quantized bonus. */
 export function dreadfulKillshotBonusFromCurrentHealth(
     per75HealthBonus: number,
@@ -743,6 +763,8 @@ export function withoutBurstOnlyConditionalAssumptions(
         normalizeStrainInfectionCystCount(state.strainInfectionCystsAtImpact) === 0 &&
         normalizeDreadfulKillshotCurrentHealth(state.dreadfulKillshotCurrentHealth) === 0 &&
         normalizeDeadlyManeuversShotsRemaining(state.deadlyManeuversShotsRemaining) === 0 &&
+        normalizeCriticalPrecisionHeadshotProjectiles(state.criticalPrecisionHeadshotProjectiles) === 0 &&
+        state.unseenDreadInvisibilityActive !== true &&
         normalizeOverpressuredRoundsSpreadSnapshot(
             state.overpressuredRoundsSpreadMinimumDegrees,
             state.overpressuredRoundsSpreadMaximumDegrees,
@@ -753,6 +775,8 @@ export function withoutBurstOnlyConditionalAssumptions(
         strainInfectionCystsAtImpact: 0,
         dreadfulKillshotCurrentHealth: 0,
         deadlyManeuversShotsRemaining: 0,
+        criticalPrecisionHeadshotProjectiles: 0,
+        unseenDreadInvisibilityActive: false,
         overpressuredRoundsSpreadMinimumDegrees: undefined,
         overpressuredRoundsSpreadMaximumDegrees: undefined,
     };
@@ -1536,6 +1560,10 @@ export function calculateBuild(
     const deadlyManeuversShotsRemaining = normalizeDeadlyManeuversShotsRemaining(
         conditionalState.deadlyManeuversShotsRemaining,
     );
+    const criticalPrecisionHeadshotProjectiles = normalizeCriticalPrecisionHeadshotProjectiles(
+        conditionalState.criticalPrecisionHeadshotProjectiles,
+    );
+    const unseenDreadInvisibilityActive = conditionalState.unseenDreadInvisibilityActive === true;
     const attackDamageFalloff = calculateAttackDamageFalloff(
         weapon,
         mods,
@@ -1595,6 +1623,8 @@ export function calculateBuild(
     let strainInfectionCritDamagePerCyst = 0;
     let dreadfulKillshotDamageAndStatusPer75Health = 0;
     let deadlyManeuversHeadshotCritChanceBonus = 0;
+    let criticalPrecisionCritChancePerHeadshot = 0;
+    let unseenDreadCritDamageBonusPerRank = 0;
     let finalCritMultiplierBonus = 0;
     let headshotMultiplierBonus = 0;
     let bodyshotDamageBonus = 0;
@@ -1732,6 +1762,8 @@ export function calculateBuild(
         strainInfectionCritDamagePerCyst += e.strainInfectionCritDamagePerCyst ?? 0;
         dreadfulKillshotDamageAndStatusPer75Health += e.dreadfulKillshotDamageAndStatusPer75Health ?? 0;
         deadlyManeuversHeadshotCritChanceBonus += e.deadlyManeuversHeadshotCritChanceBonus ?? 0;
+        criticalPrecisionCritChancePerHeadshot += e.criticalPrecisionCritChancePerHeadshot ?? 0;
+        unseenDreadCritDamageBonusPerRank += e.unseenDreadCritDamageBonus ?? 0;
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
         areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
@@ -2375,6 +2407,20 @@ export function calculateBuild(
     const procSeedDamageRatio = moddedMultishot > 0
         ? (damageWeightedMultishot + springLoadedBroadheadDamageBonus) / moddedMultishot
         : 1;
+    const isCriticalPrecisionBurstAttack = weapon.trigger === "Burst" && weapon.selectedAttackIsAreaDamage === false && (
+        (weapon.name === "Tiberon" && weapon.selectedAttackName === "Normal Attack") ||
+        (weapon.name === "Tiberon Prime" && weapon.selectedAttackName === "Burst")
+    );
+    const criticalPrecisionCritChanceBonus = isCriticalPrecisionBurstAttack
+        ? Math.min(5, criticalPrecisionCritChancePerHeadshot * criticalPrecisionHeadshotProjectiles)
+        : 0;
+    critChanceBonus += criticalPrecisionCritChanceBonus;
+    const unseenDreadCritDamageBonus = weapon.name === "Dread" &&
+        weapon.selectedAttackIsAreaDamage === false && unseenDreadInvisibilityActive
+        ? unseenDreadCritDamageBonusPerRank
+        : 0;
+    critMultBonus += unseenDreadCritDamageBonus;
+
     const comboTiersAboveBase = Math.max(0, meleeComboMultiplier - 1);
     const critChance = weapon.critChance * (1 + critChanceBonus + comboCritChanceBonus * comboTiersAboveBase) + finalCritChanceBonus;
     const externalVigilanteSetModCount = Number.isFinite(conditionalState.externalVigilanteSetModCount)
@@ -3275,6 +3321,12 @@ export function calculateBuild(
             (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
             canHeadshot && deadlyManeuversHeadshotCritChanceBonus > 0
         ) ? deadlyManeuversShotsRemaining : 0,
+        criticalPrecisionHeadshotProjectiles: (
+            isCriticalPrecisionBurstAttack && criticalPrecisionCritChancePerHeadshot > 0
+        ) ? criticalPrecisionHeadshotProjectiles : 0,
+        criticalPrecisionCritChanceBonus,
+        unseenDreadInvisibilityActive: unseenDreadCritDamageBonus > 0,
+        unseenDreadCritDamageBonus,
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
         sacrificialSetModCount,
@@ -3467,8 +3519,20 @@ export function calculateBuild(
     const burstDPS = ammoGateSatisfied
         ? averageShotDamage * burstFireRate * damageRampMultipliers.freshMagazineAverage * magazineAverageDamageMultiplier
         : 0;
+    const hasActiveBurstOnlyDamageSnapshot = modded.strainInfectionCritDamageBonus > 0 ||
+        modded.dreadfulKillshotBonus > 0 ||
+        modded.deadlyManeuversHeadshotCritChanceBonus > 0 ||
+        modded.criticalPrecisionCritChanceBonus > 0 ||
+        modded.unseenDreadCritDamageBonus > 0;
+    const sustainedSnapshotFreeDps = hasActiveBurstOnlyDamageSnapshot
+        ? calculateBuild(weapon, mods, targetFaction, {
+            ...options,
+            conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState),
+        }).sustainedDPS
+        : undefined;
     const sustainedDPS = ammoGateSatisfied
-        ? averageShotDamageWithoutDeadlyManeuvers * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier
+        ? sustainedSnapshotFreeDps ??
+            averageShotDamageWithoutDeadlyManeuvers * fireRate * magazineDutyCycle * damageRampMultipliers.sustainedAverage * magazineAverageDamageMultiplier
         : 0;
 
     return { modded, burstDPS, sustainedDPS };

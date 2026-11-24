@@ -24,6 +24,8 @@ export const OVERPRESSURED_ROUNDS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/N
 export const PRECISION_STRIKE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/GrnGrenadeLauncherArbitrationMod";
 export const COMBAT_RELOAD_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTigrisAugmentMod";
 export const DEADLY_MANEUVERS_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/MagnusNightwaveMod";
+export const CRITICAL_PRECISION_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTiberonAugmentMod";
+export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/NightwaveStalkerBowAugmentMod";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -42,6 +44,8 @@ export interface ScoringEffectContext {
     selectedAttackIsAreaDamage?: boolean;
     /** Name of the selected attack row for source-specific trigger boundaries. */
     selectedAttackName?: string;
+    /** Trigger type of the selected attack row. */
+    selectedAttackTrigger?: string;
     /** Selected target faction used by target-adaptive effects. */
     targetFaction?: string;
     /** Whether the scored attack begins against a target with an Overguard pool. */
@@ -54,7 +58,11 @@ export interface ScoringEffectContext {
     selectedAttackHeadshotRate?: number;
     /** Current remaining Deadly Maneuvers shots, used only for Burst scoring. */
     deadlyManeuversShotsRemaining?: number;
-    /** Current optimization objective; Deadly Maneuvers is Burst-only. */
+    /** Prior Critical Precision headshot projectiles, used only for Burst scoring. */
+    criticalPrecisionHeadshotProjectiles?: number;
+    /** Whether Dread is assumed invisible for Unseen Dread Burst scoring. */
+    unseenDreadInvisibilityActive?: boolean;
+    /** Current optimization objective; these snapshots are Burst-only. */
     selectedGoal?: string;
 }
 
@@ -205,6 +213,26 @@ export function getUnmodeledDamageEffectLines(
             lines.push("Deadly Maneuvers' dodge-triggered bonus applies to the next two Magnus/Magnus Prime shots. This planner uses an editable 0–2 remaining-shot snapshot for single-target Burst only; without a Burst snapshot and configured headshot share, the effect is unscored and Auto Optimize skips it. Dodge timing, shot history, and finite TTK / 5s DPS are not modeled.");
         }
     }
+    if (mod.path === CRITICAL_PRECISION_MOD_PATH) {
+        const weaponSupportsSnapshot = context?.selectedWeaponName === "Tiberon" || context?.selectedWeaponName === "Tiberon Prime";
+        const isBurstAttack = context?.selectedAttackTrigger === "Burst" && (
+            (context?.selectedWeaponName === "Tiberon" && context?.selectedAttackName === "Normal Attack") ||
+            (context?.selectedWeaponName === "Tiberon Prime" && context?.selectedAttackName === "Burst")
+        );
+        const hasBurstSnapshot = context?.selectedGoal === "burst" &&
+            Number.isFinite(context?.criticalPrecisionHeadshotProjectiles) &&
+            (context?.criticalPrecisionHeadshotProjectiles ?? 0) > 0;
+        if (!weaponSupportsSnapshot || !isBurstAttack || !hasBurstSnapshot || context?.selectedAttackIsAreaDamage !== false) {
+            lines.push("Critical Precision adds rank-scaled base Critical Chance per prior headshot projectile, up to +500%. This planner uses an editable 0–200 prior-headshot snapshot only for Tiberon Burst and Tiberon Prime Burst scoring; missed-burst decay and non-Burst objectives are not modeled, so Auto Optimize skips it outside this supported snapshot.");
+        }
+    }
+    if (mod.path === UNSEEN_DREAD_MOD_PATH) {
+        const weaponSupportsSnapshot = context?.selectedWeaponName === "Dread";
+        const hasBurstSnapshot = context?.selectedGoal === "burst" && context?.unseenDreadInvisibilityActive === true;
+        if (!weaponSupportsSnapshot || context?.selectedAttackIsAreaDamage !== false || !hasBurstSnapshot) {
+            lines.push("Unseen Dread adds rank-scaled Critical Damage while Dread is invisible. This planner uses an editable active-invisibility snapshot for direct, single-target Burst scoring only; the three-enemy trigger, invisibility duration/history, area coverage, finite TTK, and 5s DPS are not modeled, so Auto Optimize skips it outside this snapshot.");
+        }
+    }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         // The Slash keyword appears in the stat line because it determines
         // companion healing; this is not a weapon damage modifier.
@@ -274,6 +302,12 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === DEADLY_MANEUVERS_MOD_PATH) {
         return "https://wiki.warframe.com/w/Deadly_Maneuvers";
     }
+    if (mod.path === CRITICAL_PRECISION_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Critical_Precision";
+    }
+    if (mod.path === UNSEEN_DREAD_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Unseen_Dread";
+    }
     if (mod.path === RELENTLESS_COMBINATION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Relentless_Combination";
     }
@@ -320,7 +354,8 @@ export function emptyEffect(): ModEffect {
         critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0,
         strainInfectionCritDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
-        deadlyManeuversHeadshotCritChanceBonus: 0, finalCritMultiplierBonus: 0,
+        deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,
+        unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false,

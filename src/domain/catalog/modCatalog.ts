@@ -19,11 +19,13 @@ import {
     BRUTE_CONDITIONING_MOD_PATH,
     CHILLING_CLAWS_MOD_PATH,
     COMBUSTION_BEAM_MOD_PATH,
+    CRITICAL_PRECISION_MOD_PATH,
     DISABLING_CONDITIONING_MOD_PATH,
     DEADLY_MANEUVERS_MOD_PATH,
     emptyEffect,
     NIGHTWATCH_NAPALM_MOD_PATH,
     OVERPRESSURED_ROUNDS_MOD_PATH,
+    UNSEEN_DREAD_MOD_PATH,
     PRECISION_CONDITIONING_MOD_PATH,
     SEPSIS_CLAWS_MOD_PATH,
     SHOCKING_CLAWS_MOD_PATH,
@@ -50,6 +52,8 @@ const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
 const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
+const CRITICAL_PRECISION_CRIT_CHANCE_PER_HEADSHOT_BY_RANK = [0.025, 0.04, 0.055, 0.07, 0.085, 0.1];
+const UNSEEN_DREAD_CRIT_DAMAGE_BONUS_BY_RANK = [0.5, 0.75, 1, 1.25, 1.5, 1.75];
 const OVERPRESSURED_ROUNDS_FALLOFF_DISTANCE_BY_RANK = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
@@ -207,6 +211,10 @@ export interface ModEffect {
     dreadfulKillshotDamageAndStatusPer75Health: number;
     /** Deadly Maneuvers rank value; headshot Critical Chance uses an editable 0–2 shot Burst snapshot on Magnus. */
     deadlyManeuversHeadshotCritChanceBonus: number;
+    /** Critical Precision's rank value added to base Critical Chance per prior headshot projectile, capped at +500%. */
+    criticalPrecisionCritChancePerHeadshot: number;
+    /** Unseen Dread's additive Critical Damage bonus while Dread is invisible, used with a Burst-only snapshot. */
+    unseenDreadCritDamageBonus: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
     /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
@@ -1597,6 +1605,37 @@ function buildCaches(): ModCaches {
                 effect.deadlyManeuversHeadshotCritChanceBonus = bonus;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^On Dodge, gain \+?\d+(?:\.\d+)?% Headshot Critical Chance for your next 2 shots\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
+                );
+            });
+        }
+        if (path === CRITICAL_PRECISION_MOD_PATH) {
+            // The editable count represents prior headshot projectiles. Its
+            // rank bonus adds to base Critical Chance mods and caps at +500%;
+            // missed-burst decay and shot history are intentionally omitted.
+            // https://wiki.warframe.com/w/Critical_Precision
+            CRITICAL_PRECISION_CRIT_CHANCE_PER_HEADSHOT_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.criticalPrecisionCritChancePerHeadshot = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Burst Fire Only: Headshots increase Critical Chance by \+?\d+(?:\.\d+)?% up to 500%\. Missing with all shots in a burst removes up to 100% of this bonus Critical Chance\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
+                );
+            });
+        }
+        if (path === UNSEEN_DREAD_MOD_PATH) {
+            // This is a static Burst snapshot of invisibility on Dread; the
+            // three-enemy trigger and five-second duration are not simulated.
+            // https://wiki.warframe.com/w/Unseen_Dread
+            UNSEEN_DREAD_CRIT_DAMAGE_BONUS_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.unseenDreadCritDamageBonus = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Become invisible for 5 seconds when you strike 3 or more enemies with a single projectile\. Deal \+?\d+(?:\.\d+)?% more Critical Damage with Dread while invisible\.?$/i.test(
                         stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
                     ),
                 );
