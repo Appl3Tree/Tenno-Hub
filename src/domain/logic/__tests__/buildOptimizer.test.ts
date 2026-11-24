@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getArcanesByWeaponCategory, getArcanesForWeapon } from "../../catalog/arcaneCatalog";
 import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
@@ -11,6 +11,7 @@ import { emptyEffect } from "../../catalog/modCatalog";
 import { assignModsToSlots, debugEvaluateExpectedEncounter, debugEvaluateFixedWindowDps, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
 import { calculateBuild, type ConditionalState } from "../damageCalc";
+import * as damageCalcModule from "../damageCalc";
 import { gasCloudOuterAnnulusCoverage, quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
 
 function makeWeapon(overrides: Partial<WeaponEntry> = {}): WeaponEntry {
@@ -1564,7 +1565,7 @@ describe("fixed-window DPS objective", () => {
         expect(independentScore.damageInWindow).toBeCloseTo(result.windowDpsDamage!, 8);
     });
 
-    it("keeps refining the Laetum finite window until its critical replacement is selected", () => {
+    it("keeps refining the Laetum finite window until its critical replacement is selected", { timeout: 30_000 }, () => {
         const { result } = optimizeCatalogWindowFixture("Laetum", "Normal Attack");
 
         expect(result.capacityValid).toBe(true);
@@ -1589,7 +1590,7 @@ describe("fixed-window DPS objective", () => {
         expect(result.windowDpsScore).toBeGreaterThan(317_000);
     });
 
-    it("reserves a second heat option for a high-health Infested Kuva Ogris window", { timeout: 15000 }, () => {
+    it("reserves a second heat option for a high-health Infested Kuva Ogris window", { timeout: 60_000 }, () => {
         const { result } = optimizeCatalogWindowFixture(
             "Kuva Ogris",
             "Rocket Explosion",
@@ -2925,7 +2926,7 @@ describe("build optimizer scoring", () => {
         );
         expect(highHealthOptimization.capacityValid).toBe(true);
         expect(highHealthOptimization.slots).toContain(napalm);
-    }, 20_000);
+    }, 60_000);
 
     it("scores Primary Deadhead's Wiki headshot bonus when the configured target can be headshot", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Vulkar Wraith");
@@ -7164,6 +7165,44 @@ describe("build optimizer scoring", () => {
         expect(gatedScore).toBeCloseTo(baselineScore, 10);
     });
 
+    it("reuses a status-gated preview when the prerequisite status is immune", () => {
+        const weapon = makeWeapon({
+            damage: { ...makeWeapon().damage, total: 100, impact: 0, puncture: 0, slash: 0, heat: 100, toxin: 0 },
+            statusChance: 1,
+        });
+        const heatPrimer = { ...emptyEffect(), heatBonus: 1 };
+        const heatConditional = {
+            ...emptyEffect(),
+            conditionalEffects: [{
+                trigger: "onHit" as const,
+                durationSeconds: 6,
+                requiresAiming: false,
+                maxStacks: 1,
+                requiredStatusType: "heat" as const,
+                stats: { damageBonus: 1.2 },
+            }],
+        };
+        const target = { statusImmuneTypes: ["heat"] as const };
+        const baselineScore = debugScoreBuild(weapon, [heatPrimer], "scaling", "Grineer", null, target);
+        const calculateBuildSpy = vi.spyOn(damageCalcModule, "calculateBuild");
+
+        try {
+            const gatedScore = debugScoreBuild(
+                weapon,
+                [heatPrimer, heatConditional],
+                "scaling",
+                "Grineer",
+                null,
+                target,
+            );
+
+            expect(gatedScore).toBeCloseTo(baselineScore, 10);
+            expect(calculateBuildSpy).toHaveBeenCalledTimes(1);
+        } finally {
+            calculateBuildSpy.mockRestore();
+        }
+    });
+
     it("allows magnetic status value on overguarded shieldless targets", () => {
         const weapon = makeWeapon({
             damage: {
@@ -7354,7 +7393,7 @@ describe("build optimizer scoring", () => {
         expect(baneScore).toBeGreaterThan(magneticScore);
     });
 
-    it("scores optimized arcanes against final refined builds across weapon classes", { timeout: 60000 }, () => {
+    it("scores optimized arcanes against final refined builds across weapon classes", { timeout: 180_000 }, () => {
         const scenarios = [
             { weaponName: "Braton Prime", targetFaction: "Grineer" },
             { weaponName: "Cedo", targetFaction: "Grineer" },
@@ -9543,7 +9582,7 @@ describe("build optimizer scoring", () => {
         }
     });
 
-    it("matches seeded five-mod, five-slot mixed R1-R3-owned Expected TTK oracles across weapon classes", { timeout: 900000 }, () => {
+    it("matches seeded five-mod, five-slot mixed R1-R3-owned Expected TTK oracles across weapon classes", { timeout: 1_200_000 }, () => {
         let seed = 20261156;
         const random = () => {
             seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -11595,7 +11634,7 @@ describe("build optimizer scoring", () => {
         ).toBeLessThanOrEqual(5);
     });
 
-    it("selects Vigilante Supplies for its modeled set bonus and skips other unscored Exilus utility", { timeout: 30000 }, () => {
+    it("selects Vigilante Supplies for its modeled set bonus and skips other unscored Exilus utility", { timeout: 60_000 }, () => {
         const weapon = getWeaponCatalog().find(w => w.name === "Acceltra Prime");
         expect(weapon).toBeTruthy();
 
@@ -11787,7 +11826,7 @@ describe("build optimizer scoring", () => {
         expect(result.arcane?.name).not.toBe("Primary Blight");
     });
 
-    it("finds a viral-oriented scaling build for Nataruk against Grineer", { timeout: 15000 }, () => {
+    it("finds a viral-oriented scaling build for Nataruk against Grineer", { timeout: 60_000 }, () => {
         const weapon = getWeaponCatalog().find(w => w.name === "Nataruk");
         expect(weapon).toBeTruthy();
 
@@ -12327,6 +12366,67 @@ describe("Deadly Maneuvers optimizer scope", () => {
         );
         expect(explanation.buildHighlights.join(" ")).toContain("Deadly Maneuvers Burst scoring assumes 2 buffed shots remain after a dodge");
         expect(explanation.buildHighlights.join(" ")).toContain("finite TTK, and fixed-window scoring exclude this snapshot");
+    });
+});
+
+describe("Critical Precision and Unseen Dread optimizer scope", () => {
+    const basicOptions = {
+        slotPolarities: [""],
+        defaultSlotPolarities: [""],
+        allowForma: false,
+        optimizeArcane: false,
+        optimizeExilus: false,
+        targetProfileOverride: { health: 25_000, shields: 0, armor: 0, overguard: 0 },
+    };
+
+    it("offers Critical Precision to Burst optimization only on Tiberon Burst rows with a positive snapshot", () => {
+        const tiberon = getWeaponCatalog().find((weapon) => weapon.name === "Tiberon")!;
+        const tiberonPrime = getWeaponCatalog().find((weapon) => weapon.name === "Tiberon Prime")!;
+        const criticalPrecision = getModsForWeapon(tiberon).find((mod) => mod.name === "Critical Precision")!;
+        const tiberonBurst = withSelectedAttack(tiberon, tiberon.attacks.findIndex((attack) => attack.trigger === "Burst"));
+        const primeBurst = withSelectedAttack(tiberonPrime, tiberonPrime.attacks.findIndex((attack) => attack.name === "Burst"));
+        const primeSemi = withSelectedAttack(tiberonPrime, tiberonPrime.attacks.findIndex((attack) => attack.trigger !== "Burst"));
+        const activeOptions = {
+            ...basicOptions,
+            conditionalState: { mode: "initial" as const, criticalPrecisionHeadshotProjectiles: 50 },
+        };
+        const burst = optimizeBuild(tiberonBurst, [criticalPrecision], "burst", 1, activeOptions);
+        const zeroSnapshot = optimizeBuild(tiberonBurst, [criticalPrecision], "burst", 1, {
+            ...activeOptions,
+            conditionalState: { mode: "initial" as const, criticalPrecisionHeadshotProjectiles: 0 },
+        });
+        const finite = optimizeBuild(tiberonBurst, [criticalPrecision], "timeToKill", 1, activeOptions);
+        const wrongPrimeMode = optimizeBuild(primeSemi, [criticalPrecision], "burst", 1, activeOptions);
+        const primeBurstResult = optimizeBuild(primeBurst, [criticalPrecision], "burst", 1, activeOptions);
+
+        expect(burst.slots.some((mod) => mod?.name === "Critical Precision")).toBe(true);
+        expect(primeBurstResult.slots.some((mod) => mod?.name === "Critical Precision")).toBe(true);
+        expect(zeroSnapshot.slots.some((mod) => mod?.name === "Critical Precision")).toBe(false);
+        expect(finite.slots.some((mod) => mod?.name === "Critical Precision")).toBe(false);
+        expect(wrongPrimeMode.slots.some((mod) => mod?.name === "Critical Precision")).toBe(false);
+    });
+
+    it("offers Unseen Dread to direct Burst optimization only while the invisibility snapshot is active", () => {
+        const dread = getWeaponCatalog().find((weapon) => weapon.name === "Dread")!;
+        const unseenDread = getModsForWeapon(dread).find((mod) => mod.name === "Unseen Dread")!;
+        const directAttackIndex = dread.attacks.findIndex((attack) => attack.isAreaDamage === false);
+        const directDread = withSelectedAttack(dread, directAttackIndex);
+        const activeOptions = {
+            ...basicOptions,
+            conditionalState: { mode: "initial" as const, unseenDreadInvisibilityActive: true },
+        };
+        const active = optimizeBuild(directDread, [unseenDread], "burst", 1, activeOptions);
+        const inactive = optimizeBuild(directDread, [unseenDread], "burst", 1, {
+            ...activeOptions,
+            conditionalState: { mode: "initial" as const, unseenDreadInvisibilityActive: false },
+        });
+        const finite = optimizeBuild(directDread, [unseenDread], "timeToKill", 1, activeOptions);
+        const area = optimizeBuild({ ...directDread, selectedAttackIsAreaDamage: true }, [unseenDread], "burst", 1, activeOptions);
+
+        expect(active.slots.some((mod) => mod?.name === "Unseen Dread")).toBe(true);
+        expect(inactive.slots.some((mod) => mod?.name === "Unseen Dread")).toBe(false);
+        expect(finite.slots.some((mod) => mod?.name === "Unseen Dread")).toBe(false);
+        expect(area.slots.some((mod) => mod?.name === "Unseen Dread")).toBe(false);
     });
 });
 

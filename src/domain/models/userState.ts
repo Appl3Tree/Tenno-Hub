@@ -234,6 +234,10 @@ export interface SavedBuildPlannerConfig {
     dreadfulKillshotCurrentHealth?: number;
     /** Deadly Maneuvers remaining shots after a dodge (0–2), used for Magnus Burst only. */
     deadlyManeuversShotsRemaining?: number;
+    /** Critical Precision prior headshot projectiles (0–200), used for Tiberon Burst only. */
+    criticalPrecisionHeadshotProjectiles?: number;
+    /** Assume Dread is invisible for the Unseen Dread single-target Burst snapshot. */
+    unseenDreadInvisibilityActive?: boolean;
     /** Named external status types assumed active for Condition Overload and eligible direct-hit bonuses. */
     externalStatusTypes?: string[];
     /** Assume the target starts Heat-afflicted by another source. */

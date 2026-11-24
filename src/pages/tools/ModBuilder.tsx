@@ -33,7 +33,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
@@ -62,6 +62,10 @@ function getTargetHitLocationProfile(
         criticalHeadshotMultiplier: target.criticalHeadshotMultiplier,
         headIsWeakPoint: target.headIsWeakPoint,
     };
+}
+
+function hasBurstOnlyConditionalAssumption(state: ConditionalState | undefined): boolean {
+    return withoutBurstOnlyConditionalAssumptions(state) !== state;
 }
 
 // ── Polarity icons ────────────────────────────────────────────────────────────
@@ -899,6 +903,12 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
         (stats?.deadlyManeuversHeadshotCritChanceBonus ?? 0) > 0
             ? `Deadly Maneuvers assumes ${stats?.deadlyManeuversShotsRemaining ?? 0} buffed shot(s) remain after a dodge; Burst averages the next two shots at the configured headshot share. Dodge and shot history are not modeled.`
             : "",
+        (stats?.criticalPrecisionCritChanceBonus ?? 0) > 0
+            ? `Critical Precision assumes ${stats?.criticalPrecisionHeadshotProjectiles ?? 0} prior headshot projectiles and adds +${fmt((stats?.criticalPrecisionCritChanceBonus ?? 0) * 100, 1)}% to base Critical Chance. Missed-burst decay and shot history are not modeled.`
+            : "",
+        (stats?.unseenDreadCritDamageBonus ?? 0) > 0
+            ? `Unseen Dread assumes Dread is invisible and adds +${fmt((stats?.unseenDreadCritDamageBonus ?? 0) * 100, 0)}% Critical Damage. The three-enemy trigger and invisibility duration/history are not modeled.`
+            : "",
         payload.scoreAvailability?.finiteTargetScoringAvailable === false &&
             payload.scoreAvailability.finiteTargetScoringReason?.toLowerCase().includes("overpressured rounds")
             ? "Overpressured Rounds uses a user-entered post-kill spread snapshot plus the selected rank's sourced Falloff Distance bonus for one Buckshot event in Burst only; kill timing, buff consumption, sustained/DoT DPS, and finite target scoring are unavailable."
@@ -1271,6 +1281,8 @@ function sumEffects(effects: (ModEffect | null)[]) {
         acc.strainInfectionCritDamagePerCyst += effect.strainInfectionCritDamagePerCyst ?? 0;
         acc.dreadfulKillshotDamageAndStatusPer75Health += effect.dreadfulKillshotDamageAndStatusPer75Health ?? 0;
         acc.deadlyManeuversHeadshotCritChanceBonus += effect.deadlyManeuversHeadshotCritChanceBonus ?? 0;
+        acc.criticalPrecisionCritChancePerHeadshot += effect.criticalPrecisionCritChancePerHeadshot ?? 0;
+        acc.unseenDreadCritDamageBonus += effect.unseenDreadCritDamageBonus ?? 0;
         acc.finalCritMultiplierBonus += effect.finalCritMultiplierBonus ?? 0;
         acc.statusChanceBonus += effect.statusChanceBonus ?? 0;
         acc.areaDamageStatusChanceBonus += effect.areaDamageStatusChanceBonus ?? 0;
@@ -1316,6 +1328,8 @@ function sumEffects(effects: (ModEffect | null)[]) {
         strainInfectionCritDamagePerCyst: 0,
         dreadfulKillshotDamageAndStatusPer75Health: 0,
         deadlyManeuversHeadshotCritChanceBonus: 0,
+        criticalPrecisionCritChancePerHeadshot: 0,
+        unseenDreadCritDamageBonus: 0,
         finalCritMultiplierBonus: 0,
         statusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
@@ -1593,7 +1607,7 @@ function buildMathBreakdown(
     });
     const stats = result.modded;
     const finiteConditionalState = withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState;
-    const finiteResult = stats.strainInfectionCritDamageBonus > 0
+    const finiteResult = hasBurstOnlyConditionalAssumption(conditionalState)
         ? calculateBuild(weapon, effects, targetFaction, {
             conditionalState: finiteConditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
@@ -1685,6 +1699,12 @@ function buildMathBreakdown(
         `Wiki hit-location profile = ${fmt(effectiveHeadshotRate * 100, 2)}% assumed headshots; body factor ${fmt(Math.max(0, 1 + (stats.hitLocation.bodyshotDamageBonus ?? 0)), 5)}, head location ${fmt(stats.hitLocation.headshotMultiplier ?? 1, 5)} × (1 + headshot bonus ${fmt(stats.headshotMultiplierBonus, 5)}) = ${fmt((stats.hitLocation.headshotMultiplier ?? 1) * Math.max(0, 1 + stats.headshotMultiplierBonus), 5)}, critical-headshot factor ${fmt(stats.hitLocation.criticalHeadshotMultiplier ?? 2, 5)}. Area/radial and non-firearm attacks use 0% headshots.`,
         ...(stats.deadlyManeuversHeadshotCritChanceBonus > 0
             ? [`Deadly Maneuvers Burst snapshot = ${stats.deadlyManeuversShotsRemaining} buffed shot(s) remain; rank bonus +${fmt(stats.deadlyManeuversHeadshotCritChanceBonus * 100, 0)}% applies multiplicatively after other bonuses (×${fmt(1 + stats.deadlyManeuversHeadshotCritChanceBonus, 0)}) to headshot Critical Chance. The next two shots are averaged at the configured ${fmt(effectiveHeadshotRate * 100, 2)}% headshot share. Dodge and shot history are not modeled. Wiki: https://wiki.warframe.com/w/Deadly_Maneuvers`]
+            : []),
+        ...(stats.criticalPrecisionCritChanceBonus > 0
+            ? [`Critical Precision Burst snapshot = ${stats.criticalPrecisionHeadshotProjectiles} prior headshot projectiles × +${fmt(totals.criticalPrecisionCritChancePerHeadshot * 100, 1)}% base Critical Chance per projectile, capped at +500% = +${fmt(stats.criticalPrecisionCritChanceBonus * 100, 1)}% base Critical Chance. It adds to similar base Critical Chance mods. Missed-burst decay and shot history are not modeled. Wiki: https://wiki.warframe.com/w/Critical_Precision`]
+            : []),
+        ...(stats.unseenDreadCritDamageBonus > 0
+            ? [`Unseen Dread Burst snapshot = Dread is invisible; +${fmt(totals.unseenDreadCritDamageBonus * 100, 0)}% Critical Damage. The three-enemy trigger and five-second duration/history are not modeled. Area coverage, finite TTK, and 5s DPS exclude this snapshot. Wiki: https://wiki.warframe.com/w/Unseen_Dread`]
             : []),
         `Status DoT seeds inherit the inducing hit's headshot multiplier; Meticulous Aim's bodyshot penalty is squared for Slash, Heat, Toxin, and Blast. Weak-point-only damage/critical bonuses remain unmodeled. Sources: https://wiki.warframe.com/w/Enemy_Body_Parts · https://wiki.warframe.com/w/Critical_Multiplier · https://wiki.warframe.com/w/Meticulous_Aim`,
     ];
@@ -2313,7 +2333,7 @@ function buildExportPayload(args: {
         hitLocation: getTargetHitLocationProfile(targetFaction ?? "", targetProfileOverride),
         ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
     });
-    const finiteCalculated = calculated.modded.strainInfectionCritDamageBonus > 0
+    const finiteCalculated = hasBurstOnlyConditionalAssumption(conditionalState)
         ? calculateBuild(calcWeapon, effects, targetFaction ?? "", {
             conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
             isEximusTarget: targetProfileOverride?.isEximusTarget,
@@ -2628,6 +2648,7 @@ interface SlotProps {
     index: number; label?: string;
     headIsWeakPoint?: boolean;
     selectedAttackName?: string;
+    selectedAttackTrigger?: string;
     selectedAttackIsAreaDamage?: boolean;
     targetFaction?: string;
     targetHasOverguard?: boolean;
@@ -2635,6 +2656,8 @@ interface SlotProps {
     selectedWeaponName?: string;
     selectedAttackHeadshotRate?: number;
     deadlyManeuversShotsRemaining?: number;
+    criticalPrecisionHeadshotProjectiles?: number;
+    unseenDreadInvisibilityActive?: boolean;
     selectedGoal?: string;
     mod: ModEntry | null; rank: number; slotPolarity: string;
     compatMods: ModEntry[]; usedGroups: Set<string>;
@@ -2655,7 +2678,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2685,7 +2708,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, selectedGoal };
+    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, selectedGoal };
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
@@ -3462,6 +3485,12 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
         if (stats.modded.deadlyManeuversHeadshotCritChanceBonus > 0) {
             rows.push(["Deadly Maneuvers Burst snapshot", `${stats.modded.deadlyManeuversShotsRemaining} buffed shot(s), ×${fmt(1 + stats.modded.deadlyManeuversHeadshotCritChanceBonus, 0)} headshot Critical Chance`]);
         }
+        if (stats.modded.criticalPrecisionCritChanceBonus > 0) {
+            rows.push(["Critical Precision Burst snapshot", `${stats.modded.criticalPrecisionHeadshotProjectiles} prior headshot projectiles, +${fmt(stats.modded.criticalPrecisionCritChanceBonus * 100, 1)}% base Critical Chance`]);
+        }
+        if (stats.modded.unseenDreadCritDamageBonus > 0) {
+            rows.push(["Unseen Dread Burst snapshot", `invisible, +${fmt(stats.modded.unseenDreadCritDamageBonus * 100, 0)}% Critical Damage`]);
+        }
         for (const [key, value] of Object.entries(stats.modded.rawDamageBreakdown)) {
             if ((value ?? 0) > 0) rows.push([key[0].toUpperCase() + key.slice(1), fmt(value ?? 0, 1)]);
         }
@@ -3519,7 +3548,7 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                                 targetFaction,
                                 options,
                             );
-                            const finiteStats = stats.modded.strainInfectionCritDamageBonus > 0
+                            const finiteStats = hasBurstOnlyConditionalAssumption(conditionalState)
                                 ? calculateBuild(weaponState.selectedWeapon, effects, targetFaction, {
                                     ...options,
                                     conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
@@ -3560,7 +3589,7 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                                 !getSentientIncisionDamageType(targetFaction, targetHasOverguard);
                             const options = { conditionalState, isEximusTarget: targetProfileOverride?.isEximusTarget, targetHasOverguard: getTargetProfileAssumptions(targetFaction, targetProfileOverride).overguard > 0, statusImmuneTypes: targetProfileOverride?.statusImmuneTypes, statusStackCaps: targetProfileOverride?.statusStackCaps, hitLocation: getTargetHitLocationProfile(targetFaction, targetProfileOverride) };
                             const result = calculateBuild(weaponState.selectedWeapon, effects, targetFaction, options);
-                            const finiteResult = result.modded.strainInfectionCritDamageBonus > 0
+                            const finiteResult = hasBurstOnlyConditionalAssumption(conditionalState)
                                 ? calculateBuild(weaponState.selectedWeapon, effects, targetFaction, {
                                     ...options,
                                     conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
@@ -3855,6 +3884,8 @@ export default function ModBuilder() {
     const [strainInfectionCystsAtImpact, setStrainInfectionCystsAtImpact] = useState(0);
     const [dreadfulKillshotCurrentHealth, setDreadfulKillshotCurrentHealth] = useState(0);
     const [deadlyManeuversShotsRemaining, setDeadlyManeuversShotsRemaining] = useState(0);
+    const [criticalPrecisionHeadshotProjectiles, setCriticalPrecisionHeadshotProjectiles] = useState(0);
+    const [unseenDreadInvisibilityActive, setUnseenDreadInvisibilityActive] = useState(false);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
     const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
@@ -3908,6 +3939,8 @@ export default function ModBuilder() {
         strainInfectionCystsAtImpact,
         dreadfulKillshotCurrentHealth,
         deadlyManeuversShotsRemaining,
+        criticalPrecisionHeadshotProjectiles,
+        unseenDreadInvisibilityActive,
         externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         externalHeatElementalDamageBonus: parseExternalHeatBonusPercentInput(externalHeatElementalDamageBonusPercentInput) / 100,
@@ -3919,7 +3952,7 @@ export default function ModBuilder() {
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -4140,6 +4173,8 @@ export default function ModBuilder() {
             strainInfectionCystsAtImpact,
             dreadfulKillshotCurrentHealth,
             deadlyManeuversShotsRemaining,
+            criticalPrecisionHeadshotProjectiles,
+            unseenDreadInvisibilityActive,
             externalStatusTypes,
             targetStartsWithHeat,
             externalHeatElementalDamageBonusPercent: parseExternalHeatBonusPercentInput(
@@ -4201,6 +4236,8 @@ export default function ModBuilder() {
         strainInfectionCystsAtImpact,
         dreadfulKillshotCurrentHealth,
         deadlyManeuversShotsRemaining,
+        criticalPrecisionHeadshotProjectiles,
+        unseenDreadInvisibilityActive,
         externalStatusTypes,
         targetStartsWithHeat,
         externalHeatElementalDamageBonusPercentInput,
@@ -6066,6 +6103,10 @@ export default function ModBuilder() {
             setStrainInfectionCystsAtImpact(normalizeStrainInfectionCystCount(plannerConfig.strainInfectionCystsAtImpact));
             setDreadfulKillshotCurrentHealth(normalizeDreadfulKillshotCurrentHealth(plannerConfig.dreadfulKillshotCurrentHealth));
             setDeadlyManeuversShotsRemaining(normalizeDeadlyManeuversShotsRemaining(plannerConfig.deadlyManeuversShotsRemaining));
+            setCriticalPrecisionHeadshotProjectiles(normalizeCriticalPrecisionHeadshotProjectiles(
+                plannerConfig.criticalPrecisionHeadshotProjectiles,
+            ));
+            setUnseenDreadInvisibilityActive(plannerConfig.unseenDreadInvisibilityActive === true);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
             setExternalStatusTypes(restoredExternalStatusTypes);
             setExternalStatusTypesOpen(restoredExternalStatusTypes.length > 0);
@@ -6520,6 +6561,49 @@ export default function ModBuilder() {
                                                             Enter 0–2 remaining shots after a dodge. With the augment equipped, its rank-listed +100% to +400% Critical Chance applies multiplicatively after other bonuses on headshots; Burst averages the next two shots using the configured headshot share. Dodge timing and shot history are not simulated. Scaling, sustained DPS, finite TTK, Expected TTK, and 5s Avg DPS ignore this snapshot.
                                                         </p>
                                                         <a href="https://wiki.warframe.com/w/Deadly_Maneuvers" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Deadly Maneuvers</a>
+                                                    </div>
+                                                )}
+                                                {activeCalcWeapon && ((activeCalcWeapon.name === "Tiberon" && activeCalcWeapon.trigger === "Burst") ||
+                                                    (activeCalcWeapon.name === "Tiberon Prime" && activeCalcWeapon.selectedAttackName === "Burst")) &&
+                                                    activeCalcWeapon.trigger === "Burst" && activeCalcWeapon.selectedAttackIsAreaDamage === false && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Critical Precision prior headshot projectiles</span>
+                                                            <input
+                                                                aria-label="Critical Precision prior headshot projectiles"
+                                                                type="number"
+                                                                min={0}
+                                                                max={200}
+                                                                step={1}
+                                                                value={criticalPrecisionHeadshotProjectiles}
+                                                                onChange={(event) => setCriticalPrecisionHeadshotProjectiles(
+                                                                    normalizeCriticalPrecisionHeadshotProjectiles(Number(event.target.value)),
+                                                                )}
+                                                                className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                            />
+                                                        </label>
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                                            Enter 0–200 headshot projectiles recorded before this Burst. With Critical Precision equipped, each adds the selected rank's bonus to base Critical Chance, additively with similar mods and capped at +500%. Missed-burst decay and shot history are not simulated. Only Burst and Burst Auto Optimize use this snapshot; finite TTK and 5s DPS exclude it.
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Critical_Precision" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Critical Precision</a>
+                                                    </div>
+                                                )}
+                                                {activeCalcWeapon?.name === "Dread" && activeCalcWeapon.selectedAttackIsAreaDamage === false && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Assume Dread is invisible</span>
+                                                            <input
+                                                                aria-label="Assume Dread is invisible for Unseen Dread"
+                                                                type="checkbox"
+                                                                checked={unseenDreadInvisibilityActive}
+                                                                onChange={(event) => setUnseenDreadInvisibilityActive(event.target.checked)}
+                                                                className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-sky-500"
+                                                            />
+                                                        </label>
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                                            With Unseen Dread equipped, the selected rank adds Critical Damage while Dread is invisible. The Wiki says invisibility from any source qualifies. The 3-enemy trigger and 5-second duration/history are not simulated; this snapshot applies only to direct single-target Burst and Burst Auto Optimize. Area coverage, finite TTK, and 5s DPS exclude it.
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Unseen_Dread" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Unseen Dread</a>
                                                     </div>
                                                 )}
                                                 {activeCalcWeapon?.category === 'Melee' && activeCalcWeapon.selectedAttackUsesSlamDamageBonus === true && (
@@ -7860,6 +7944,12 @@ export default function ModBuilder() {
                                                                         {activeMetrics.modded.deadlyManeuversHeadshotCritChanceBonus > 0 && (
                                                                             <div className="sm:col-span-2"><span className="text-slate-500">Deadly Maneuvers Burst snapshot:</span> {activeMetrics.modded.deadlyManeuversShotsRemaining} buffed shot(s) remain · ×{fmt(1 + activeMetrics.modded.deadlyManeuversHeadshotCritChanceBonus, 0)} headshot Critical Chance on each buffed shot · configured headshot share {fmt((activeMetrics.modded.hitLocation.headshotRate ?? 0) * 100, 1)}%. The next two shots are averaged.</div>
                                                                         )}
+                                                                        {activeMetrics.modded.criticalPrecisionCritChanceBonus > 0 && (
+                                                                            <div className="sm:col-span-2"><span className="text-slate-500">Critical Precision Burst snapshot:</span> {activeMetrics.modded.criticalPrecisionHeadshotProjectiles} prior headshot projectiles · +{fmt(activeMetrics.modded.criticalPrecisionCritChanceBonus * 100, 1)}% base Critical Chance, additive with similar mods and capped at +500%. Missed-burst decay is not modeled.</div>
+                                                                        )}
+                                                                        {activeMetrics.modded.unseenDreadCritDamageBonus > 0 && (
+                                                                            <div className="sm:col-span-2"><span className="text-slate-500">Unseen Dread Burst snapshot:</span> Dread is assumed invisible · +{fmt(activeMetrics.modded.unseenDreadCritDamageBonus * 100, 0)}% Critical Damage. The three-enemy trigger and five-second duration are not simulated.</div>
+                                                                        )}
                                                                         <div><span className="text-slate-500">{activeAttackDpsUnavailable ? "Reference per-attack damage:" : "Selected-state direct/attack:"}</span> {fmt(activeMetrics?.modded.averageShotDamage ?? 0)} {activeAttackDpsUnavailable ? "mean damage, not scored" : "mean damage before target pools"}</div>
                                                                         {activeTargetAttackDamage && (
                                                                             <div className="sm:col-span-2">
@@ -7870,7 +7960,7 @@ export default function ModBuilder() {
                                                                         )}
                                                                         {activeTargetAttackSequence && (
                                                                             <div className="sm:col-span-2">
-                                                                                <span className="text-slate-500">{activeMetrics.modded.strainInfectionCritDamageBonus > 0 || activeMetrics.modded.dreadfulKillshotBonus > 0 ? "Finite direct-hit-only sequence (Burst-only assumptions excluded):" : "Selected-state direct-hit-only sequence:"}</span>{" "}
+                                                                                <span className="text-slate-500">{hasBurstOnlyConditionalAssumption(conditionalState) ? "Finite direct-hit-only sequence (Burst-only assumptions excluded):" : "Selected-state direct-hit-only sequence:"}</span>{" "}
                                                                                 {activeTargetAttackSequence.attacksToKill === null
                                                                                     ? activeTargetAttackSequence.attackCountLimitReached
                                                                                         ? "not defeated within one full Incarnon magazine"
@@ -7882,7 +7972,7 @@ export default function ModBuilder() {
                                                                                 {activeMetrics?.modded.shatteringImpactBaseArmorPerHit
                                                                                     ? `· base Armor after Shattering Impact ${fmt(activeTargetAttackSequence.remainingArmorAfterBaseStrip, 0)} (before percentage strips) `
                                                                                     : ""}
-                                                                                (mean damage per attack, ordered pool depletion, static target defenses; applies the selected enemy Shield Gate mode after Shields break, but excludes status ticks and shield regeneration{activeMetrics?.modded.attachedAttackDamageSequence ? " and the linked cloud sequence" : ""}{activeMetrics.modded.strainInfectionCritDamageBonus > 0 ? "; cyst timeline and uptime are not modeled" : ""}{activeMetrics.modded.dreadfulKillshotBonus > 0 ? "; Dreadful Killshot's current-Health snapshot is excluded" : ""})
+                                                                                (mean damage per attack, ordered pool depletion, static target defenses; applies the selected enemy Shield Gate mode after Shields break, but excludes status ticks and shield regeneration{activeMetrics?.modded.attachedAttackDamageSequence ? " and the linked cloud sequence" : ""}{activeMetrics.modded.strainInfectionCritDamageBonus > 0 ? "; cyst timeline and uptime are not modeled" : ""}{activeMetrics.modded.dreadfulKillshotBonus > 0 ? "; Dreadful Killshot's current-Health snapshot is excluded" : ""}{activeMetrics.modded.criticalPrecisionCritChanceBonus > 0 ? "; Critical Precision snapshot is excluded" : ""}{activeMetrics.modded.unseenDreadCritDamageBonus > 0 ? "; Unseen Dread invisibility snapshot is excluded" : ""})
                                                                             </div>
                                                                         )}
                                                                         {activeTargetEncounter && (
@@ -8049,7 +8139,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -8080,7 +8170,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -8107,7 +8197,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8176,7 +8266,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8249,7 +8339,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}
@@ -8328,7 +8418,7 @@ export default function ModBuilder() {
                                         hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
                                     };
                                     const burst = calculateBuild(attackWeapon, buildEffects, factionOn ? faction : "", options);
-                                    const finite = burst.modded.strainInfectionCritDamageBonus > 0
+                                    const finite = hasBurstOnlyConditionalAssumption(conditionalState)
                                         ? calculateBuild(attackWeapon, buildEffects, factionOn ? faction : "", {
                                             ...options,
                                             conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState) ?? conditionalState,
