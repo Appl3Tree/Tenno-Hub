@@ -12734,4 +12734,21 @@ describe("seeded Burst and Scaling optimizer oracles", () => {
     });
 });
 
+describe("Static Discharge optimizer scope", () => {
+    it("keeps the mod out of standard Auto Optimize while the manual cycle report is available", () => {
+        const prova = getWeaponCatalog().find((weapon) => weapon.name === "Prova")!;
+        const staticDischarge = getModsForWeapon(prova).find((mod) => mod.name === "Static Discharge")!;
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        };
+        const result = optimizeBuild(prova, [staticDischarge], "burst", 1, options);
 
+        expect(result.slots.some((mod) => mod?.name === "Static Discharge")).toBe(false);
+        expect(getUnmodeledDamageEffectLines(staticDischarge, staticDischarge.fusionLimit)
+            .join(" ")).toContain("manual Prova cycle estimate");
+    });
+});

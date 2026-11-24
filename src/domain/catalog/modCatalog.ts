@@ -31,6 +31,7 @@ import {
     SEPSIS_CLAWS_MOD_PATH,
     SHOCKING_CLAWS_MOD_PATH,
     STRAIN_FEVER_MOD_PATH,
+    STATIC_DISCHARGE_MOD_PATH,
     VOLATILE_VARIANT_MOD_PATH,
     VULCAN_BLITZ_MOD_PATH,
 } from "./modEffectUtils";
@@ -52,6 +53,7 @@ const STRAIN_INFECTION_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/MeleeStrainI
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
 const STRAIN_FEVER_DAMAGE_PER_CYST_BY_RANK = [0.1, 0.2, 0.3, 0.4];
+const STATIC_DISCHARGE_DAMAGE_PER_WEAPON_DAMAGE_BY_RANK = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
 const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
@@ -213,6 +215,8 @@ export interface ModEffect {
     strainInfectionCritDamagePerCyst: number;
     /** Burst-only additive Damage per active Strain cyst on Helminth Claws. */
     strainFeverDamagePerCyst: number;
+    /** Static Discharge's rank fraction of weapon damage, used only by its manual Prova cycle estimate. */
+    staticDischargeDamagePerWeaponDamage: number;
     /** Basmu Dreadful Killshot rank value; actual Damage/Status bonuses use an editable Burst-only current-Health snapshot. */
     dreadfulKillshotDamageAndStatusPer75Health: number;
     /** Deadly Maneuvers rank value; headshot Critical Chance uses an editable 0–2 shot Burst snapshot on Magnus. */
@@ -1606,6 +1610,22 @@ function buildCaches(): ModCaches {
                 effect.strainFeverDamagePerCyst = bonus;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Helminth Charger gains \+\d+(?:\.\d+)?% Damage per Cyst\.?$/i.test(line),
+                );
+            });
+        }
+        if (path === STATIC_DISCHARGE_MOD_PATH) {
+            // The rank fraction is used by the separate manual Prova cycle
+            // estimate. Static Discharge's spin/overhead hit sequence is not
+            // part of ordinary Heavy Attack or optimizer scoring.
+            // https://wiki.warframe.com/w/Static_Discharge
+            STATIC_DISCHARGE_DAMAGE_PER_WEAPON_DAMAGE_BY_RANK.forEach((fraction, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.staticDischargeDamagePerWeaponDamage = fraction;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Heavy Attacks electrify nearby enemies for Electricity Damage equal to \d+(?:\.\d+)?% of weapon damage\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
                 );
             });
         }

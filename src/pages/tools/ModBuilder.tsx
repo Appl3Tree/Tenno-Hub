@@ -35,6 +35,7 @@ import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
+import { calculateStaticDischargeCycle, DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS, normalizeStaticDischargeFirstAnimationSeconds, type StaticDischargeStartingOrder } from "../../domain/logic/staticDischargeCycle";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, FIXED_WINDOW_DPS_SECONDS, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
@@ -3916,6 +3917,8 @@ export default function ModBuilder() {
     const [playerSlidingAtImpact, setPlayerSlidingAtImpact] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [tennokaiRegularHitsBetweenHeavy, setTennokaiRegularHitsBetweenHeavy] = useState(4);
+    const [staticDischargeStartingOrder, setStaticDischargeStartingOrder] = useState<StaticDischargeStartingOrder>("spinThenOverhead");
+    const [staticDischargeFirstAnimationSeconds, setStaticDischargeFirstAnimationSeconds] = useState(DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
     const [targetDistanceMeters, setTargetDistanceMeters] = useState<number | undefined>(undefined);
     const [attackFalloffDistanceMeters, setAttackFalloffDistanceMeters] = useState<number | undefined>(undefined);
@@ -4210,6 +4213,8 @@ export default function ModBuilder() {
             playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
             meleeComboMultiplier,
             tennokaiRegularHitsBetweenHeavy,
+            staticDischargeStartingOrder,
+            staticDischargeFirstAnimationSeconds,
             phantasmaChargeAmmo,
             targetDistanceMeters,
             attackFalloffDistanceMeters,
@@ -4271,6 +4276,8 @@ export default function ModBuilder() {
         supportsKineticKiller,
         meleeComboMultiplier,
         tennokaiRegularHitsBetweenHeavy,
+        staticDischargeStartingOrder,
+        staticDischargeFirstAnimationSeconds,
         phantasmaChargeAmmo,
         targetDistanceMeters,
         attackFalloffDistanceMeters,
@@ -5076,6 +5083,28 @@ export default function ModBuilder() {
         }) : null,
         [activeCalcWeapon, activeBuildEffects, factionOn, faction, pelletEstimateConditionalState, activeTargetAssumptions, expectedKillRatePerSecond, targetProfileOverride],
     );
+    const activeStaticDischargeSelected = activeBuildEffects.some((effect) =>
+        (effect?.staticDischargeDamagePerWeaponDamage ?? 0) > 0,
+    );
+    const staticDischargeCycle = useMemo(() => {
+        if (!weapon || !activeStaticDischargeSelected) return null;
+        return calculateStaticDischargeCycle({
+            weapon,
+            mods: activeBuildEffects,
+            startingOrder: staticDischargeStartingOrder,
+            firstAnimationSeconds: staticDischargeFirstAnimationSeconds,
+            targetFaction: factionOn ? faction : "",
+            damageOptions: {
+                conditionalState,
+                isEximusTarget: targetProfileOverride?.isEximusTarget,
+                targetHasOverguard: activeTargetAssumptions.overguard > 0,
+                statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
+                statusStackCaps: activeTargetAssumptions.statusStackCaps,
+                hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
+                ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
+            },
+        });
+    }, [weapon, activeStaticDischargeSelected, activeBuildEffects, staticDischargeStartingOrder, staticDischargeFirstAnimationSeconds, factionOn, faction, conditionalState, targetProfileOverride, activeTargetAssumptions, expectedKillRatePerSecond]);
     const activeBuildHasTennokai = activeBuildEffects.some((effect) => effect?.tennokaiEnabled === true);
     const tennokaiAttackPair = activeCalcWeapon ? findSupportedTennokaiAttackPair(activeCalcWeapon) : null;
     const tennokaiGoalAvailable = tennokaiAttackPair !== null;
@@ -6150,6 +6179,12 @@ export default function ModBuilder() {
             setTennokaiRegularHitsBetweenHeavy(Number.isFinite(plannerConfig.tennokaiRegularHitsBetweenHeavy)
                 ? Math.max(1, Math.min(20, Math.floor(plannerConfig.tennokaiRegularHitsBetweenHeavy ?? 4)))
                 : 4);
+            setStaticDischargeStartingOrder(plannerConfig.staticDischargeStartingOrder === "overheadThenSpin"
+                ? "overheadThenSpin"
+                : "spinThenOverhead");
+            setStaticDischargeFirstAnimationSeconds(normalizeStaticDischargeFirstAnimationSeconds(
+                plannerConfig.staticDischargeFirstAnimationSeconds,
+            ));
             setPhantasmaChargeAmmo(Number.isFinite(plannerConfig.phantasmaChargeAmmo)
                 ? Math.max(2, Math.min(50, Math.round(plannerConfig.phantasmaChargeAmmo ?? 2)))
                 : 2);
@@ -6549,6 +6584,49 @@ export default function ModBuilder() {
                                                             <a href="https://wiki.warframe.com/w/Strain_Infection" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Strain Infection</a>
                                                             <a href="https://wiki.warframe.com/w/Strain_Fever" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Strain Fever</a>
                                                         </div>
+                                                    </div>
+                                                )}
+                                                {(weapon?.name === "Prova" || weapon?.name === "Prova Vandal") && activeStaticDischargeSelected && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <div className="grid gap-2 sm:grid-cols-2">
+                                                            <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                                <span>Static Discharge starting order</span>
+                                                                <select
+                                                                    aria-label="Static Discharge starting order"
+                                                                    value={staticDischargeStartingOrder}
+                                                                    onChange={(event) => setStaticDischargeStartingOrder(event.target.value as StaticDischargeStartingOrder)}
+                                                                    className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none"
+                                                                >
+                                                                    <option value="spinThenOverhead">Spin → Overhead</option>
+                                                                    <option value="overheadThenSpin">Overhead → Spin</option>
+                                                                </select>
+                                                            </label>
+                                                            <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                                <span>Assumed first animation duration (s)</span>
+                                                                <input
+                                                                    aria-label="Static Discharge first animation duration seconds"
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={5}
+                                                                    step={0.05}
+                                                                    value={staticDischargeFirstAnimationSeconds}
+                                                                    onChange={(event) => setStaticDischargeFirstAnimationSeconds(
+                                                                        normalizeStaticDischargeFirstAnimationSeconds(Number(event.target.value)),
+                                                                    )}
+                                                                    className="w-20 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                        {staticDischargeCycle?.supported ? (
+                                                            <p className="mt-2 text-[10px] leading-relaxed text-slate-300">
+                                                                One cycle estimate: <strong>{fmt(staticDischargeCycle.expectedCycleDamageBeforeTargetDefenses, 1)} expected damage before target defenses</strong> across two Heavy Attack hits, {staticDischargeCycle.pulseCount} first-animation pulse{staticDischargeCycle.pulseCount === 1 ? "" : "s"}, the pattern's follow-up hit, and the Wiki-listed 1 Electricity damage at wind-up. Pulses are counted every 0.2s starting at 0.2s; rank fraction {fmt(staticDischargeCycle.rankDamageFraction * 100, 0)}% scales the Wiki pattern coefficients. Assumes one target within 4m of the player. Animation duration, pulse phase, and using the listed Heavy Attack damage for both direct hits are estimates; target-side status/proc history, armor/resistances, later ticks, and nearby-enemy coverage are not simulated. This manual cycle report is separate from Burst/TTK/DPS and Auto Optimize scoring.
+                                                            </p>
+                                                        ) : (
+                                                            <p className="mt-2 text-[10px] leading-relaxed text-amber-300">
+                                                                {staticDischargeCycle?.limitation ?? "Choose a Prova profile and equip Static Discharge to estimate this cycle."}
+                                                            </p>
+                                                        )}
+                                                        <a href="https://wiki.warframe.com/w/Static_Discharge" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Static Discharge</a>
                                                     </div>
                                                 )}
                                                 {activeCalcWeapon?.name === "Basmu" && (

@@ -29,6 +29,7 @@ export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/
 export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
+export const STATIC_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/CorpusArena/ProvaCorpusArenaMod";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -249,6 +250,9 @@ export function getUnmodeledDamageEffectLines(
             lines.push("Critical Mutation gains rank-scaled Critical Chance and Critical Damage with kills, up to +300%. This planner uses an editable 0–60 prior-kill snapshot for the direct Catabolyst/Coda Catabolyst Primary Burst row only; stack changes, including grenade-hit reduction, are not simulated. Reload grenade rows, finite TTK, 5s DPS, and non-Burst objectives remain unscored, so Auto Optimize skips it outside this supported snapshot.");
         }
     }
+    if (mod.path === STATIC_DISCHARGE_MOD_PATH) {
+        lines.push("Static Discharge's spin/overhead pulse sequence is scored only by the manual Prova cycle estimate. Standard single-attack objectives do not include its pulse history, and Auto Optimize skips the mod. The cycle assumes the target stays within 4m of the player, counts first-animation pulses at 0.2s intervals, and does not model nearby enemies or proc history. Wiki: https://wiki.warframe.com/w/Static_Discharge");
+    }
     if (mod.path === STRAIN_FEVER_MOD_PATH) {
         const hasSupportedWeapon = context?.selectedWeaponName === "Helminth Claws";
         const hasBurstSnapshot = context?.selectedGoal === "burst" && Number.isFinite(context?.strainInfectionCystsAtImpact) &&
@@ -341,6 +345,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH) {
         return "https://wiki.warframe.com/w/Amalgam_Ripkas_True_Steel";
     }
+    if (mod.path === STATIC_DISCHARGE_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Static_Discharge";
+    }
     if (mod.path === STRAIN_FEVER_MOD_PATH) {
         return "https://wiki.warframe.com/w/Strain_Fever";
     }
@@ -390,6 +397,7 @@ export function emptyEffect(): ModEffect {
         critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0,
         strainInfectionCritDamagePerCyst: 0, strainFeverDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
+        staticDischargeDamagePerWeaponDamage: 0,
         deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,
         unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
         criticalMutationCritChanceAndDamagePerKill: 0,
