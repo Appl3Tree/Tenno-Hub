@@ -12472,6 +12472,29 @@ describe("Critical Precision and Unseen Dread optimizer scope", () => {
         expect(explanation.buildHighlights.join(" ")).toContain("Critical Mutation Burst scoring assumes 10 prior kills");
         expect(explanation.buildHighlights.join(" ")).toContain("Stack changes, including grenade-hit reduction, are not simulated");
     });
+    it("scores Ripkas Critical Chance while disclosing its linked Shotgun reload bonus", () => {
+        const ripkas = getWeaponCatalog().find((weapon) => weapon.name === "Ripkas")!;
+        const amalgamRipkas = getModsForWeapon(ripkas).find((mod) => mod.name === "Amalgam Ripkas True Steel")!;
+        const attackIndex = ripkas.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        expect(amalgamRipkas).toBeDefined();
+
+        const directRipkas = withSelectedAttack(ripkas, attackIndex);
+        const result = optimizeBuild(directRipkas, [amalgamRipkas], "burst", 1, basicOptions);
+        const warnings = getUnmodeledDamageEffectLines(amalgamRipkas, amalgamRipkas.fusionLimit, {
+            selectedWeaponName: "Ripkas",
+            selectedAttackName: directRipkas.selectedAttackName,
+            selectedAttackTrigger: directRipkas.trigger,
+            selectedAttackIsAreaDamage: directRipkas.selectedAttackIsAreaDamage,
+            selectedGoal: "burst",
+        });
+
+        expect(result.slots.some((mod) => mod?.name === "Amalgam Ripkas True Steel")).toBe(true);
+        expect(warnings.join(" ")).toContain("+20% Reload Speed on Shotguns");
+        expect(warnings.join(" ")).toContain("applies to separate Shotgun equipment");
+        expect(warnings.join(" ")).toContain("Gore Chance is a utility effect");
+        expect(getUnmodeledDamageEffectSourceUrl(amalgamRipkas)).toBe("https://wiki.warframe.com/w/Amalgam_Ripkas_True_Steel");
+    });
 });
 
 describe("seeded Burst and Scaling optimizer oracles", () => {

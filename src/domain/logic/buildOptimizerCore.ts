@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -1510,8 +1510,11 @@ function getBlockingOptimizerEffectLines(
     rank: number,
     context: Parameters<typeof getUnmodeledDamageEffectLines>[2],
 ): string[] {
+    const separateRipkasShotgunEffect = mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH &&
+        context?.selectedWeaponName === "Ripkas";
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
+        !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
         !(context?.selectedGoal === "tennokaiDps" &&
             mod.path === "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod" &&
             line.includes("scores are target-damage-only.")),

@@ -27,6 +27,7 @@ export const DEADLY_MANEUVERS_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/MagnusN
 export const CRITICAL_PRECISION_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTiberonAugmentMod";
 export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/NightwaveStalkerBowAugmentMod";
 export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
+export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -245,6 +246,12 @@ export function getUnmodeledDamageEffectLines(
             lines.push("Critical Mutation gains rank-scaled Critical Chance and Critical Damage with kills, up to +300%. This planner uses an editable 0–60 prior-kill snapshot for the direct Catabolyst/Coda Catabolyst Primary Burst row only; stack changes, including grenade-hit reduction, are not simulated. Reload grenade rows, finite TTK, 5s DPS, and non-Burst objectives remain unscored, so Auto Optimize skips it outside this supported snapshot.");
         }
     }
+    if (mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH && context?.selectedWeaponName === "Ripkas") {
+        // The mod's Critical Chance applies to this selected Ripkas profile, but
+        // the Wiki's shotgun Reload Speed bonus belongs to a separate weapon.
+        // https://wiki.warframe.com/w/Amalgam_Ripkas_True_Steel
+        lines.push("Amalgam Ripkas True Steel's Critical Chance is scored on Ripkas; its Reload Speed bonus applies to separate Shotgun equipment, and Gore Chance is a utility effect. Neither is included in this weapon damage score.");
+    }
     if (mod.path === BLOODTHIRST_MOD_PATH) {
         // The Slash keyword appears in the stat line because it determines
         // companion healing; this is not a weapon damage modifier.
@@ -319,6 +326,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === UNSEEN_DREAD_MOD_PATH) {
         return "https://wiki.warframe.com/w/Unseen_Dread";
+    }
+    if (mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Amalgam_Ripkas_True_Steel";
     }
     if (mod.path === RELENTLESS_COMBINATION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Relentless_Combination";
