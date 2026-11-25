@@ -958,7 +958,10 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "additional combo count chance on lifted enemies") {
         return { liftedComboCountChanceBonus: scaled };
     }
-    if (rest === "combo count chance while blocking" || rest === "additional combo count chance while blocking") {
+    if (rest === "combo count chance while blocking" ||
+        rest === "additional combo count chance while blocking" ||
+        rest === "combo count chance while blocking with a shield" ||
+        rest === "additional combo count chance while blocking with a shield") {
         return { blockingComboCountChanceBonus: scaled };
     }
     if (rest === "chance to increase melee combo counter when slash status deals damage") {

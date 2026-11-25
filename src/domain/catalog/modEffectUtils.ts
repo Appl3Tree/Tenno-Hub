@@ -28,6 +28,7 @@ export const CRITICAL_PRECISION_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nig
 export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/NightwaveStalkerBowAugmentMod";
 export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
+export const AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Rifle/JavlokSwordShieldMod";
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
 export const STATIC_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/CorpusArena/ProvaCorpusArenaMod";
 export const SWIPE_MOD_PATH = "/Lotus/Types/Friendly/Pets/CatbrowPetPrecepts/CatbrowSwipePrecept";
@@ -227,6 +228,7 @@ export function getUnmodeledScoringEffectLines(
 /** Raw lines that a conservative keyword screen flags for parser review at this rank. */
 export function getUnmodeledDamageEffectLines(
     mod: {
+        name?: string;
         path?: string;
         unparsedStatsByRank?: string[][];
         effectsByRank?: Partial<ModEffect>[];
@@ -444,11 +446,16 @@ export function getUnmodeledDamageEffectLines(
     const blockedHitsPerCycle = Number.isFinite(context?.selectedTennokaiBlockedHitsBetweenHeavy)
         ? Math.max(0, Math.min(20, Math.floor(context?.selectedTennokaiBlockedHitsBetweenHeavy ?? 0)))
         : 0;
-    if (blockingComboCountChance > 0 &&
+    if (mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH) {
+        // The magazine stat belongs to Javlok, while its blocking combo stat
+        // requires a separate Sword and Shield melee loadout.
+        // https://wiki.warframe.com/w/Amalgam_Javlok_Magazine_Warp
+        lines.push("Amalgam Javlok Magazine Warp's rank-scaled Magazine Capacity applies to Javlok. Its Combo Count Chance requires blocking with a Sword and Shield; this planner does not link the Javlok primary profile to a separate melee profile, so that cross-equipment combo effect is not scored.");
+    } else if (blockingComboCountChance > 0 &&
         (context?.selectedGoal !== "tennokaiDps" || blockedHitsPerCycle <= 0)) {
-        lines.push("Guardian Derision's Additional Combo Count Chance applies only to successful blocked enemy attacks. The planner scores it only in Tennokai Cycle DPS when at least one successful blocked attack per cycle is entered; block timing and incoming attacks are not predicted, and other objectives skip it.");
+        lines.push("This mod's Additional Combo Count Chance applies only to successful blocked enemy attacks. The planner scores it only in Tennokai Cycle DPS when at least one successful blocked attack per cycle is entered; block timing and incoming attacks are not predicted, and other objectives skip it.");
     }
-    if (blockingComboCountChance > 0) {
+    if (blockingComboCountChance > 0 && mod.name === "Guardian Derision") {
         lines.push("Guardian Derision's blocking taunt changes enemy targeting; this utility effect is outside the damage score.");
     }
     const hasComboDurationEffect = (effect?.comboDurationBonus ?? 0) !== 0 ||

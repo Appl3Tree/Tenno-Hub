@@ -14167,6 +14167,43 @@ describe("Critical Precision and Unseen Dread optimizer scope", () => {
         expect(warnings.join(" ")).toContain("Gore Chance is a utility effect");
         expect(getUnmodeledDamageEffectSourceUrl(amalgamRipkas)).toBe("https://wiki.warframe.com/w/Amalgam_Ripkas_True_Steel");
     });
+
+    it("keeps Javlok Magazine Capacity eligible while disclosing its linked Sword and Shield combo boundary", () => {
+        const javlok = getWeaponCatalog().find((weapon) => weapon.name === "Javlok")!;
+        const amalgamJavlok = getModsForWeapon(javlok).find((mod) => mod.name === "Amalgam Javlok Magazine Warp")!;
+        const attackIndex = 0;
+        expect(javlok.attacks.length).toBeGreaterThan(0);
+
+        const directJavlok = withSelectedAttack(javlok, attackIndex);
+        const effect = amalgamJavlok.effectsByRank[amalgamJavlok.fusionLimit];
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            targetProfileOverride: { health: 25_000, shields: 0, armor: 0, overguard: 0 },
+        };
+        const result = optimizeBuild(directJavlok, [amalgamJavlok], "timeToKill", 1, options);
+        const warnings = getUnmodeledDamageEffectLines(amalgamJavlok, amalgamJavlok.fusionLimit, {
+            selectedWeaponName: "Javlok",
+            selectedAttackName: directJavlok.selectedAttackName,
+            selectedAttackTrigger: directJavlok.trigger,
+            selectedAttackIsAreaDamage: directJavlok.selectedAttackIsAreaDamage,
+            selectedGoal: "timeToKill",
+        }).join(" ");
+
+        expect(effect.magazineBonus).toBeCloseTo(0.45, 12);
+        expect(effect.blockingComboCountChanceBonus).toBeCloseTo(1, 12);
+        amalgamJavlok.effectsByRank.forEach((rank, index) => {
+            expect(rank.blockingComboCountChanceBonus).toBeCloseTo([0.167, 0.333, 0.5, 0.667, 0.833, 1][index], 12);
+        });
+        expect(amalgamJavlok.unparsedStatsByRank?.every((rank) => rank.length === 0)).toBe(true);
+        expect(result.slots.some((mod) => mod?.name === "Amalgam Javlok Magazine Warp")).toBe(true);
+        expect(warnings).toContain("blocking with a Sword and Shield");
+        expect(warnings).toContain("does not link the Javlok primary profile to a separate melee profile");
+        expect(warnings).not.toContain("Guardian Derision");
+    });
 });
 
 describe("seeded Burst and Scaling optimizer oracles", () => {

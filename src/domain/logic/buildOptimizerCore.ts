@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -1858,10 +1858,12 @@ function getBlockingOptimizerEffectLines(
         (context?.selectedGoal !== "tennokaiDps" || context.targetHasLiftedStatus !== true)) {
         return ["Enduring Strike is eligible for Auto Optimize only for Tennokai Cycle DPS with Lifted selected as an external target status."];
     }
-    if ((effect.blockingComboCountChanceBonus ?? 0) > 0 &&
+    const hasBlockingComboCountChance = (effect.blockingComboCountChanceBonus ?? 0) > 0;
+    if (hasBlockingComboCountChance &&
+        mod.path !== AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH &&
         (context?.selectedGoal !== "tennokaiDps" ||
             (context.selectedTennokaiBlockedHitsBetweenHeavy ?? 0) <= 0)) {
-        return ["Guardian Derision is eligible for Auto Optimize only for Tennokai Cycle DPS with at least one successful blocked enemy attack entered per cycle."];
+        return [(mod.name || "This mod") + " is eligible for Auto Optimize only for Tennokai Cycle DPS with at least one successful blocked enemy attack entered per cycle."];
     }
     const separateRipkasShotgunEffect = mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH &&
         context?.selectedWeaponName === "Ripkas";
@@ -1871,12 +1873,17 @@ function getBlockingOptimizerEffectLines(
         isAcidShellsBurstContextSupported(effect, context);
     const supportedCombustionBeamBurst = mod.path === COMBUSTION_BEAM_MOD_PATH &&
         isCombustionBeamBurstContextSupported(effect, context);
+    const linkedJavlokComboBoundary = mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH;
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
         !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
         !(supportedVulcanBlitzBurst && mod.path === VULCAN_BLITZ_MOD_PATH) &&
         !(supportedAcidShellsBurst && mod.path === ACID_SHELLS_MOD_PATH) &&
         !(supportedCombustionBeamBurst && mod.path === COMBUSTION_BEAM_MOD_PATH) &&
+        !(linkedJavlokComboBoundary && (
+            /Combo Count Chance while Blocking with a Shield/i.test(line) ||
+            line.includes("Amalgam Javlok Magazine Warp's rank-scaled Magazine Capacity applies to Javlok.")
+        )) &&
         !line.includes("Guardian Derision's blocking taunt changes enemy targeting") &&
         !(context?.selectedGoal === "tennokaiDps" &&
             mod.path === "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod" &&
