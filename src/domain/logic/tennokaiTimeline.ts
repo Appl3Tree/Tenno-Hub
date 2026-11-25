@@ -18,6 +18,7 @@ import {
 } from "./damageCalc";
 import { calculateDirectDamageToInitialPools, calculateStatusTickToTargetPools } from "./targetDamage";
 import type { DirectTargetDamageInput, TargetDamagePool } from "./targetDamage";
+import { normalizeExternalStatusTypes } from "./uniqueStatusRules";
 
 export type TennokaiTargetProfile = Pick<
     DirectTargetDamageInput,
@@ -873,12 +874,17 @@ export function calculateTennokaiAttackTimeline(
         (maximum, effect) => Math.max(maximum, effect.tennokaiRangeBonusMeters ?? 0),
         0,
     );
+    const liftedTargetAssumed = normalizeExternalStatusTypes(conditionalState.externalStatusTypes).includes("lifted");
+    const hasLiftedComboEffect = effectRows.some((effect) => (effect.liftedComboCountChanceBonus ?? 0) > 0);
+    const liftedComboCountChance = liftedTargetAssumed
+        ? effectRows.reduce((total, effect) => total + (effect.liftedComboCountChanceBonus ?? 0), 0)
+        : 0;
     const additionalComboCountChance = Math.max(0, effectRows.reduce(
         (total, effect) => total + ((effect.relentlessCombinationSlashComboChance ?? 0) > 0
             ? 0
             : (effect.comboCountChanceBonus ?? 0)),
         0,
-    ));
+    ) + liftedComboCountChance);
     const expectedComboPointsPerRegularHit = 1 + additionalComboCountChance;
     const rules = getMeleeComboRules(input.weapon);
     const hitsBetweenHeavy = Math.max(1, Math.min(20, Math.floor(
@@ -1021,6 +1027,12 @@ export function calculateTennokaiAttackTimeline(
                 : "One qualifying regular hit per Normal Attack event adds one combo point; stance-specific combo generation remains outside this cycle.",
             ...(additionalComboCountChance > 1 + EPSILON
                 ? ["The Wiki says Additional Combo Count Chance stacks additively and can award extra hits above 100%; this cycle applies the combined value as expected extra combo points, so random gains are averaged rather than sampled."]
+                : []),
+            ...(liftedComboCountChance > 0
+                ? [`Enduring Strike contributes ${Math.round(liftedComboCountChance * 100)}% Additional Combo Count Chance because Lifted is selected as an external target status and assumed maintained for this cycle; Lifted application and expiry (including Heavy Slam application) and Heavy Attack combo gains are not simulated.`]
+                : []),
+            ...(hasLiftedComboEffect && !liftedTargetAssumed
+                ? ["Enduring Strike is equipped but inactive because Lifted is not selected as an external target status; its combo chance is not added to this cycle."]
                 : []),
             `The combo counter expires after ${comboDurationSeconds}s without a qualifying hit; the weapon's ${baseComboDurationSeconds}s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.`,
             ...(relentlessChance > 0
