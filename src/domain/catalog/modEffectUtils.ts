@@ -62,6 +62,8 @@ export interface ScoringEffectContext {
     selectedAttackUsesSlamDamageBonus?: boolean;
     /** Selected weapon name for weapon-specific snapshot rules. */
     selectedWeaponName?: string;
+    /** True when the selected weapon exposes the primary Beam compatibility tag. */
+    selectedWeaponHasBeamCompatibility?: boolean;
     /** Configured fraction of direct hits expected to land on headshot locations. */
     selectedAttackHeadshotRate?: number;
     /** Current remaining Deadly Maneuvers shots, used only for Burst scoring. */
@@ -92,6 +94,10 @@ export interface ScoringEffectContext {
     selectedAcidShellsEnemyCount?: number;
     /** Mean center distance for Acid Shells neighbors, in meters. */
     selectedAcidShellsAverageDistanceMeters?: number;
+    /** Same-profile neighbors represented by the Combustion Beam Burst estimate. */
+    selectedCombustionBeamEnemyCount?: number;
+    /** Mean center distance for Combustion Beam neighbors, in meters. */
+    selectedCombustionBeamAverageDistanceMeters?: number;
     /** Whether the selected custom target Health includes Steel Path's 2.5× multiplier. */
     selectedTargetIsSteelPath?: boolean;
     /** Successful enemy attacks assumed blocked per Tennokai attack cycle. */
@@ -140,6 +146,30 @@ export function isAcidShellsBurstContextSupported(
         context.targetHasShields !== true &&
         context.selectedGoal === "burst" &&
         enemyCount > 0 && radius > 0 && averageDistance < radius;
+}
+
+export function isCombustionBeamBurstContextSupported(
+    effect: Partial<ModEffect>,
+    context?: ScoringEffectContext,
+): boolean {
+    const enemyCount = Number.isFinite(context?.selectedCombustionBeamEnemyCount)
+        ? Math.max(0, Math.min(20, Math.floor(context?.selectedCombustionBeamEnemyCount ?? 0)))
+        : 0;
+    const averageDistance = Number.isFinite(context?.selectedCombustionBeamAverageDistanceMeters)
+        ? Math.max(0, Math.min(18, context?.selectedCombustionBeamAverageDistanceMeters ?? 0))
+        : Number.POSITIVE_INFINITY;
+    const radius = Number.isFinite(effect.combustionBeamRadiusMeters)
+        ? Math.max(0, effect.combustionBeamRadiusMeters ?? 0)
+        : 0;
+    return context?.selectedWeaponHasBeamCompatibility === true &&
+        context.selectedAttackName === "Normal Attack" &&
+        context.selectedAttackIsAreaDamage === false &&
+        context.targetHasOverguard !== true &&
+        context.targetHasShields !== true &&
+        context.selectedGoal === "burst" &&
+        enemyCount > 0 &&
+        (effect.combustionBeamBlastDamage ?? 0) > 0 &&
+        radius > 0 && averageDistance < radius;
 }
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -244,7 +274,18 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Thermagnetic Shells triggers an on-death explosion: 20–80 Magnetic Damage plus 10–40% of the triggering enemy's max Health as Blast Damage in a 6m radius. Linear falloff and line of sight apply. The Wiki says Elemental Ammo status effects no longer recursively retrigger these death explosions; the planner still does not resolve on-kill area damage, adjacent-target deaths, or mission-specific max-Health scaling, so Auto Optimize skips the mod.");
     }
     if (mod.path === COMBUSTION_BEAM_MOD_PATH) {
-        lines.push("Combustion Beam's delayed on-kill Blast explosion is not scored; its radius/falloff and line-of-sight rules, damage attribution/scaling, and chain behavior are not modeled, so Auto Optimize skips this mod.");
+        const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
+        const supportedBurstContext = isCombustionBeamBurstContextSupported(effect, context);
+        const radiusAssumption = "The 3/6/9/12/15/18m radius sequence uses even interpolation for R1–R4 between the Wiki's 3m R0 and 18m R5 endpoints.";
+        const enemyCount = Number.isFinite(context?.selectedCombustionBeamEnemyCount)
+            ? Math.max(0, Math.min(20, Math.floor(context?.selectedCombustionBeamEnemyCount ?? 0)))
+            : 0;
+        const averageDistance = Number.isFinite(context?.selectedCombustionBeamAverageDistanceMeters)
+            ? Math.max(0, Math.min(18, context?.selectedCombustionBeamAverageDistanceMeters ?? 0))
+            : 0;
+        lines.push(supportedBurstContext
+            ? `Combustion Beam's bounded Burst group estimate treats each scored Normal Attack event as a fresh same-profile health-only primary killed by the expected direct hit, then scores one ${effect.combustionBeamBlastDamage ?? 0} Blast explosion against ${enemyCount} same-profile neighbors at a mean ${averageDistance.toFixed(1)}m. It uses linear 100%–0% falloff within the selected ${effect.combustionBeamRadiusMeters ?? 0}m rank radius and assumes line of sight. ${radiusAssumption} The explosion has no crit or status chance, uses only the selected faction bonus, and is assumed immediate after the sourced short death delay; neighbor depletion and recursive kills are excluded. Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain unmodeled. Wiki: https://wiki.warframe.com/w/Combustion_Beam`
+            : `Combustion Beam is modeled only for a primary Beam Normal Attack Burst against a health-only target, with at least one same-profile neighbor entered inside the selected rank radius. Each event assumes the expected direct hit kills a fresh primary, then scores one non-critical, status-free Blast event with linear 100%–0% falloff, faction bonus only, and line of sight; the sourced short death delay is treated as immediate. ${radiusAssumption} Neighbor depletion and recursive kills are excluded. Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain unmodeled, so Auto Optimize skips the mod outside this snapshot. Wiki: https://wiki.warframe.com/w/Combustion_Beam`);
     }
     if (mod.path === VULCAN_BLITZ_MOD_PATH) {
         const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
@@ -535,6 +576,7 @@ export function emptyEffect(): ModEffect {
         knockdownOnMeleeHit: false,
         heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
         blastBonus: 0, vulcanBlitzBlastDamage: 0, vulcanBlitzMaxHealthPercent: 0, vulcanBlitzRadiusMeters: 0,
+        combustionBeamBlastDamage: 0, combustionBeamRadiusMeters: 0,
         acidShellsCorrosiveDamage: 0, acidShellsMaxHealthPercent: 0, acidShellsRadiusMeters: 0,
         gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
         voidBonus: 0, tauBonus: 0, trueBonus: 0,

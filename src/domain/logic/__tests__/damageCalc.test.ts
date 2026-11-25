@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
-import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
+import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
@@ -490,8 +490,8 @@ describe("Thermagnetic Shells Wiki rank display and safe scoring exclusion", () 
     });
 });
 
-describe("Combustion Beam Wiki rank display and safe scoring exclusion", () => {
-    it("labels each rank as Blast damage while keeping the unmodeled on-kill explosion out of scoring", () => {
+describe("Combustion Beam Wiki rank display and bounded Burst scoring", () => {
+    it("parses every damage/radius rank and gates its group estimate to supported Beam Burst contexts", () => {
         const amprex = getWeaponCatalog().find((weapon) => weapon.name === "Amprex");
         const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(amprex).toBeDefined();
@@ -501,20 +501,53 @@ describe("Combustion Beam Wiki rank display and safe scoring exclusion", () => {
         expect(mod).toBeDefined();
         expect(mod!.fusionLimit).toBe(5);
         expect(mod!.statsTextByRank).toEqual([
-            "On Beam weapon kill: 100 Blast Damage shortly after death",
-            "On Beam weapon kill: 200 Blast Damage shortly after death",
-            "On Beam weapon kill: 300 Blast Damage shortly after death",
-            "On Beam weapon kill: 400 Blast Damage shortly after death",
-            "On Beam weapon kill: 500 Blast Damage shortly after death",
-            "On Beam weapon kill: 600 Blast Damage shortly after death",
+            "On qualifying Beam kill: 100 Blast Damage; 3m radius (shortly after death)",
+            "On qualifying Beam kill: 200 Blast Damage; 6m radius (shortly after death)",
+            "On qualifying Beam kill: 300 Blast Damage; 9m radius (shortly after death)",
+            "On qualifying Beam kill: 400 Blast Damage; 12m radius (shortly after death)",
+            "On qualifying Beam kill: 500 Blast Damage; 15m radius (shortly after death)",
+            "On qualifying Beam kill: 600 Blast Damage; 18m radius (shortly after death)",
         ]);
-        expect(mod!.hasDamageEffect).toBe(false);
+        expect(mod!.hasDamageEffect).toBe(true);
         expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.blastBonus === 0)).toBe(true);
+        expect(mod!.effectsByRank.map((effect) => effect.combustionBeamBlastDamage)).toEqual([100, 200, 300, 400, 500, 600]);
+        expect(mod!.effectsByRank.map((effect) => effect.combustionBeamRadiusMeters)).toEqual([3, 6, 9, 12, 15, 18]);
 
-        const warning = "Combustion Beam's delayed on-kill Blast explosion is not scored; its radius/falloff and line-of-sight rules, damage attribution/scaling, and chain behavior are not modeled, so Auto Optimize skips this mod.";
+        const warning = "Combustion Beam is modeled only for a primary Beam Normal Attack Burst against a health-only target, with at least one same-profile neighbor entered inside the selected rank radius. Each event assumes the expected direct hit kills a fresh primary, then scores one non-critical, status-free Blast event with linear 100%–0% falloff, faction bonus only, and line of sight; the sourced short death delay is treated as immediate. The 3/6/9/12/15/18m radius sequence uses even interpolation for R1–R4 between the Wiki's 3m R0 and 18m R5 endpoints. Neighbor depletion and recursive kills are excluded. Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain unmodeled, so Auto Optimize skips the mod outside this snapshot. Wiki: https://wiki.warframe.com/w/Combustion_Beam";
+        const supportedContext = {
+            selectedWeaponHasBeamCompatibility: true,
+            selectedWeaponName: "Amprex",
+            selectedAttackName: "Normal Attack",
+            selectedAttackIsAreaDamage: false,
+            selectedGoal: "burst",
+            selectedCombustionBeamEnemyCount: 2,
+            selectedCombustionBeamAverageDistanceMeters: 1.1,
+        };
         for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+            expect(getUnmodeledDamageEffectLines(mod!, rank, supportedContext).join(" ")).toContain("bounded Burst group estimate");
+            expect(isCombustionBeamBurstContextSupported(mod!.effectsByRank[rank]!, supportedContext)).toBe(true);
         }
+        expect(isCombustionBeamBurstContextSupported(mod!.effectsByRank[5]!, {
+            ...supportedContext,
+            selectedCombustionBeamAverageDistanceMeters: 18,
+        })).toBe(false);
+        expect(isCombustionBeamBurstContextSupported(mod!.effectsByRank[5]!, {
+            ...supportedContext,
+            selectedWeaponHasBeamCompatibility: false,
+        })).toBe(false);
+        expect(isCombustionBeamBurstContextSupported(mod!.effectsByRank[5]!, {
+            ...supportedContext,
+            selectedAttackIsAreaDamage: true,
+        })).toBe(false);
+        expect(isCombustionBeamBurstContextSupported(mod!.effectsByRank[5]!, {
+            ...supportedContext,
+            targetHasShields: true,
+        })).toBe(false);
+        expect(isCombustionBeamBurstContextSupported(mod!.effectsByRank[5]!, {
+            ...supportedContext,
+            selectedGoal: "scaling",
+        })).toBe(false);
         expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Combustion Beam")).toBe(false);
     });
 });
