@@ -219,6 +219,10 @@ export interface SavedBuildTargetConfig {
     nearbyVulcanBlitzEnemyCount?: number;
     /** Mean neighbor distance for the Vulcan Blitz estimate, in meters (0–6). */
     nearbyVulcanBlitzAverageDistanceMeters?: number;
+    /** Additional same-profile neighbors for the Sobek Acid Shells Burst estimate (0–20). */
+    nearbyAcidShellsEnemyCount?: number;
+    /** Mean neighbor distance for the Acid Shells estimate, in meters (0–15). */
+    nearbyAcidShellsAverageDistanceMeters?: number;
     statusImmunities: string[];
 }
 

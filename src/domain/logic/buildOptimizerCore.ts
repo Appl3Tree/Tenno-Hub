@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isVulcanBlitzBurstContextSupported, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -328,6 +328,14 @@ export interface TargetProfileOverride {
     nearbyVulcanBlitzEnemyCount?: number;
     /** Mean center-to-center distance for Vulcan Blitz neighbors, in meters. */
     nearbyVulcanBlitzAverageDistanceMeters?: number;
+    /** Additional same-profile neighbors represented by the Acid Shells Burst estimate. */
+    nearbyAcidShellsEnemyCount?: number;
+    /** Mean center-to-center distance for Acid Shells neighbors, in meters. */
+    nearbyAcidShellsAverageDistanceMeters?: number;
+    /** Target's level-scaled Max Health before Steel Path's Health multiplier. */
+    acidShellsMaxHealthBeforeSteelPath?: number;
+    /** True when the custom target's current Health includes Steel Path scaling. */
+    isSteelPathTarget?: boolean;
     statusImmuneTypes?: Iterable<typeof PROC_DAMAGE_KEYS[number]>;
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
     headshotMultiplier?: number;
@@ -807,6 +815,14 @@ function normalizeVulcanBlitzEnemyCount(value?: number): number {
 
 function normalizeVulcanBlitzAverageDistanceMeters(value?: number): number {
     return Number.isFinite(value) ? Math.max(0, Math.min(6, value ?? 0)) : 0;
+}
+
+function normalizeAcidShellsEnemyCount(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(20, Math.floor(value ?? 0))) : 0;
+}
+
+function normalizeAcidShellsAverageDistanceMeters(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(15, value ?? 0)) : 0;
 }
 
 const SWIPE_CLAW_FOLLOW_THROUGH_PROXY = 0.8;
@@ -1388,6 +1404,74 @@ function scoreEffectsCore(
         }
     }
 
+    // Acid Shells is a Sobek on-kill explosion. The bounded Burst group
+    // estimate emits one non-critical, non-status explosion only when the
+    // expected direct Normal Attack hit kills a fresh health-only primary.
+    const acidShellsEffect = effects.reduce((total, effect) => ({
+        acidShellsCorrosiveDamage: total.acidShellsCorrosiveDamage + (effect?.acidShellsCorrosiveDamage ?? 0),
+        acidShellsMaxHealthPercent: total.acidShellsMaxHealthPercent + (effect?.acidShellsMaxHealthPercent ?? 0),
+        acidShellsRadiusMeters: Math.max(total.acidShellsRadiusMeters, effect?.acidShellsRadiusMeters ?? 0),
+    }), {
+        acidShellsCorrosiveDamage: 0,
+        acidShellsMaxHealthPercent: 0,
+        acidShellsRadiusMeters: 0,
+    });
+    const acidShellsEnemyCount = normalizeAcidShellsEnemyCount(targetProfileOverride?.nearbyAcidShellsEnemyCount);
+    const acidShellsAverageDistance = normalizeAcidShellsAverageDistanceMeters(
+        targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters,
+    );
+    const acidShellsContext = {
+        selectedWeaponName: weapon.name,
+        selectedAttackName: weapon.selectedAttackName,
+        selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
+        targetHasOverguard: pools.overguard > 0,
+        targetHasShields: pools.shields > 0,
+        selectedAcidShellsEnemyCount: acidShellsEnemyCount,
+        selectedAcidShellsAverageDistanceMeters: acidShellsAverageDistance,
+        selectedGoal: goal,
+    };
+    if (isAcidShellsBurstContextSupported(acidShellsEffect, acidShellsContext)) {
+        const falloff = acidShellsEffect.acidShellsRadiusMeters > 0
+            ? Math.max(0, 1 - acidShellsAverageDistance / acidShellsEffect.acidShellsRadiusMeters)
+            : 0;
+        const expectedPrimaryHit = calculateDirectDamageToInitialPools({
+            damageByType: modded.damageBreakdown,
+            health: pools.health,
+            shields: pools.shields,
+            overguard: pools.overguard,
+            armor: pools.armor,
+            armorDamageReductionMultiplier: (1 - modded.heatArmorStrip) * (1 - modded.corrosiveArmorStrip),
+            faction: targetFaction,
+            factionDamageBonus: modded.factionDamageBonus,
+            viralHealthDamageBonus: modded.viralHealthDamageBonus,
+            magneticDefenseDamageBonus: modded.magneticShieldDamageBonus,
+            expectedHitDamageMultiplier: critMultiplier,
+            expectedDamageMultiplier: modded.damageWeightedMultishot,
+            singleProjectileDamageBonus: modded.singleProjectileDamageBonus,
+            damageRampMultiplier,
+        });
+        if (falloff > 0 && expectedPrimaryHit.totalDamage >= poolTotal - Math.max(1e-8, poolTotal * 1e-10)) {
+            const maxHealthProxy = Number.isFinite(targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath)
+                ? Math.max(0, targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath ?? 0)
+                : pools.health;
+            const neighborHit = calculateDirectDamageToInitialPools({
+                damageByType: {
+                    corrosive: acidShellsEffect.acidShellsCorrosiveDamage * falloff,
+                    blast: maxHealthProxy * acidShellsEffect.acidShellsMaxHealthPercent * falloff,
+                },
+                health: pools.health,
+                shields: pools.shields,
+                overguard: pools.overguard,
+                armor: pools.armor,
+                faction: targetFaction,
+                factionDamageBonus: modded.factionDamageBonus,
+                expectedHitDamageMultiplier: 1,
+                expectedDamageMultiplier: 1,
+            });
+            score += neighborHit.totalDamage * acidShellsEnemyCount * modded.burstFireRate;
+        }
+    }
+
     // Swipe permits Kavat Claws to hit additional targets. Kavat-specific
     // follow-through is not published, so this group-only estimate uses the
     // Wiki's generic Claws value (0.8) and leaves primary-target TTK unchanged.
@@ -1714,10 +1798,13 @@ function getBlockingOptimizerEffectLines(
         context?.selectedWeaponName === "Ripkas";
     const supportedVulcanBlitzBurst = mod.path === VULCAN_BLITZ_MOD_PATH &&
         isVulcanBlitzBurstContextSupported(effect, context);
+    const supportedAcidShellsBurst = mod.path === ACID_SHELLS_MOD_PATH &&
+        isAcidShellsBurstContextSupported(effect, context);
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
         !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
         !(supportedVulcanBlitzBurst && mod.path === VULCAN_BLITZ_MOD_PATH) &&
+        !(supportedAcidShellsBurst && mod.path === ACID_SHELLS_MOD_PATH) &&
         !line.includes("Guardian Derision's blocking taunt changes enemy targeting") &&
         !(context?.selectedGoal === "tennokaiDps" &&
             mod.path === "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod" &&
@@ -1791,6 +1878,13 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         selectedVulcanBlitzAverageDistanceMeters: weapon.name === "Jat Kittag"
             ? normalizeVulcanBlitzAverageDistanceMeters(opts.targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters)
             : 0,
+        selectedAcidShellsEnemyCount: weapon.name === "Sobek" || weapon.name === "Kuva Sobek"
+            ? normalizeAcidShellsEnemyCount(opts.targetProfileOverride?.nearbyAcidShellsEnemyCount)
+            : 0,
+        selectedAcidShellsAverageDistanceMeters: weapon.name === "Sobek" || weapon.name === "Kuva Sobek"
+            ? normalizeAcidShellsAverageDistanceMeters(opts.targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters)
+            : 0,
+        selectedTargetIsSteelPath: opts.targetProfileOverride?.isSteelPathTarget === true,
         selectedGoal: goal,
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
@@ -6079,6 +6173,44 @@ export function explainBuild(
             );
         }
     }
+    const selectedAcidShellsModIndex = chosenMods.findIndex((mod) => mod.path === ACID_SHELLS_MOD_PATH);
+    const selectedAcidShellsEffect = selectedAcidShellsModIndex >= 0
+        ? chosenMods[selectedAcidShellsModIndex]?.effectsByRank[fullRanks[selectedAcidShellsModIndex] ?? 0]
+        : undefined;
+    const configuredAcidShellsNeighbors = scoringWeapon.name === "Sobek" || scoringWeapon.name === "Kuva Sobek"
+        ? normalizeAcidShellsEnemyCount(targetProfileOverride?.nearbyAcidShellsEnemyCount)
+        : 0;
+    const configuredAcidShellsDistance = normalizeAcidShellsAverageDistanceMeters(
+        targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters,
+    );
+    const acidShellsContext = {
+        selectedWeaponName: scoringWeapon.name,
+        selectedAttackName: scoringWeapon.selectedAttackName,
+        selectedAttackIsAreaDamage: scoringWeapon.selectedAttackIsAreaDamage,
+        selectedGoal: goal,
+        targetHasOverguard: targetAssumptions.overguard > 0,
+        targetHasShields: targetAssumptions.shields > 0,
+        selectedAcidShellsEnemyCount: configuredAcidShellsNeighbors,
+        selectedAcidShellsAverageDistanceMeters: configuredAcidShellsDistance,
+    };
+    const acidShellsGroupScoreActive = selectedAcidShellsEffect !== undefined &&
+        isAcidShellsBurstContextSupported(selectedAcidShellsEffect, acidShellsContext);
+    if (selectedAcidShellsEffect) {
+        if (acidShellsGroupScoreActive) {
+            const radius = Math.max(0, selectedAcidShellsEffect.acidShellsRadiusMeters ?? 0);
+            const falloff = radius > 0 ? Math.max(0, 1 - configuredAcidShellsDistance / radius) : 0;
+            const maxHealthBasis = Number.isFinite(targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath)
+                ? Math.max(0, targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath ?? 0)
+                : targetAssumptions.health;
+            buildHighlights.push(
+                `Acid Shells Burst group estimate requires each scored Sobek Normal Attack event to kill a fresh same-profile health-only primary with its expected direct hit. It scores one ${formatExplanationNumber(selectedAcidShellsEffect.acidShellsCorrosiveDamage ?? 0, 0)} Corrosive hit plus ${formatExplanationPercent(selectedAcidShellsEffect.acidShellsMaxHealthPercent ?? 0)} of ${formatExplanationNumber(maxHealthBasis, 0)} pre-Steel-Path Max Health as Blast against ${configuredAcidShellsNeighbors} same-profile neighbors at a mean ${configuredAcidShellsDistance.toFixed(1)}m (${formatExplanationPercent(falloff)} falloff within the selected ${formatExplanationNumber(radius, 1)}m rank radius). ${targetProfileOverride?.isSteelPathTarget ? "Steel Path Max Health is divided by 2.5 before applying the rank percentage." : "Starting target Health is the Max Health proxy."} Line of sight is assumed; the explosion cannot crit or apply status, and neighbor depletion/chained deaths are excluded. Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain outside this snapshot. Wiki: https://wiki.warframe.com/w/Acid_Shells`,
+            );
+        } else {
+            buildHighlights.push(
+                "Acid Shells is modeled only for Sobek/Kuva Sobek Normal Attack Burst with entered same-profile neighbors inside the rank radius and an expected direct one-hit kill against a health-only primary. The on-death explosion uses linear falloff and assumed line of sight, has no crit/status, and does not chain; Auto Optimize skips the mod outside this snapshot. Scaling, finite TTK, and 5s Avg DPS remain single-target.",
+            );
+        }
+    }
     if (goal === "tennokaiDps") {
         const attackPair = findSupportedTennokaiAttackPair(scoringWeapon);
         if (attackPair) {
@@ -6232,6 +6364,13 @@ export function explainBuild(
             selectedVulcanBlitzAverageDistanceMeters: weapon.name === "Jat Kittag"
                 ? normalizeVulcanBlitzAverageDistanceMeters(targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters)
                 : 0,
+            selectedAcidShellsEnemyCount: weapon.name === "Sobek" || weapon.name === "Kuva Sobek"
+                ? normalizeAcidShellsEnemyCount(targetProfileOverride?.nearbyAcidShellsEnemyCount)
+                : 0,
+            selectedAcidShellsAverageDistanceMeters: weapon.name === "Sobek" || weapon.name === "Kuva Sobek"
+                ? normalizeAcidShellsAverageDistanceMeters(targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters)
+                : 0,
+            selectedTargetIsSteelPath: targetProfileOverride?.isSteelPathTarget === true,
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";

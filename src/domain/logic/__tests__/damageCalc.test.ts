@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
-import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
+import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
@@ -400,8 +400,8 @@ describe("Tennokai event-local rank effects", () => {
     });
 });
 
-describe("Acid Shells Wiki rank display and safe scoring exclusion", () => {
-    it("shows the current rank table while keeping the death explosion unmodeled", () => {
+describe("Acid Shells Wiki rank display and bounded Burst scoring", () => {
+    it("parses all Wiki ranks and limits the group estimate to supported Sobek Burst contexts", () => {
         const catalog = getWeaponCatalog();
         const sobek = catalog.find((weapon) => weapon.name === "Sobek");
         const kuvaSobek = catalog.find((weapon) => weapon.name === "Kuva Sobek");
@@ -418,18 +418,37 @@ describe("Acid Shells Wiki rank display and safe scoring exclusion", () => {
             "On death: 375 Corrosive Damage + 37.5% of enemy max Health as Blast Damage; 12.5m radius",
             "On death: 450 Corrosive Damage + 45% of enemy max Health as Blast Damage; 15m radius",
         ];
-        const warning = "Acid Shells' on-death explosion is not scored; its falloff, line-of-sight checks, mode-specific max-Health scaling, and chain explosions are not modeled, so Auto Optimize skips the mod.";
+        const supportedContext = {
+            selectedWeaponName: "Sobek",
+            selectedAttackName: "Normal Attack",
+            selectedAttackIsAreaDamage: false,
+            selectedGoal: "burst",
+            selectedAcidShellsEnemyCount: 2,
+            selectedAcidShellsAverageDistanceMeters: 2,
+        };
 
         for (const weapon of [sobek!, kuvaSobek!]) {
             const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Acid Shells");
             expect(mod).toBeDefined();
+            expect(mod!.path).toBe(ACID_SHELLS_MOD_PATH);
             expect(mod!.statsTextByRank).toEqual(expectedRankText);
-            expect(mod!.hasDamageEffect).toBe(false);
+            expect(mod!.hasDamageEffect).toBe(true);
             expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.blastBonus === 0 && effect.corrosiveBonus === 0)).toBe(true);
             for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
-                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+                const effect = mod!.effectsByRank[rank]!;
+                expect(effect.acidShellsCorrosiveDamage).toBe([75, 150, 225, 300, 375, 450][rank]);
+                expect(effect.acidShellsMaxHealthPercent).toBe([0.075, 0.15, 0.225, 0.3, 0.375, 0.45][rank]);
+                expect(effect.acidShellsRadiusMeters).toBe([2.5, 5, 7.5, 10, 12.5, 15][rank]);
+                expect(getUnmodeledDamageEffectLines(mod!, rank).join(" ")).toContain("Auto Optimize skips the mod outside that snapshot");
+                expect(getUnmodeledDamageEffectLines(mod!, rank, supportedContext).join(" ")).toContain("bounded Burst group estimate");
+                expect(isAcidShellsBurstContextSupported(effect, supportedContext)).toBe(true);
             }
         }
+
+        const rankFive = getModsForWeapon(sobek!).find((candidate) => candidate.name === "Acid Shells")!.effectsByRank[5]!;
+        expect(isAcidShellsBurstContextSupported(rankFive, { ...supportedContext, selectedAcidShellsAverageDistanceMeters: 15 })).toBe(false);
+        expect(isAcidShellsBurstContextSupported(rankFive, { ...supportedContext, targetHasShields: true })).toBe(false);
+        expect(isAcidShellsBurstContextSupported(rankFive, { ...supportedContext, selectedGoal: "scaling" })).toBe(false);
 
         expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Acid Shells")).toBe(false);
     });

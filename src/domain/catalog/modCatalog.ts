@@ -192,6 +192,12 @@ export interface ModEffect {
     vulcanBlitzMaxHealthPercent: number;
     /** Vulcan Blitz's rank-specific on-death explosion radius in meters. */
     vulcanBlitzRadiusMeters: number;
+    /** Acid Shells' flat Corrosive damage on a Sobek kill. */
+    acidShellsCorrosiveDamage: number;
+    /** Acid Shells' fraction of pre-mission enemy Max Health dealt as Blast. */
+    acidShellsMaxHealthPercent: number;
+    /** Acid Shells' rank-specific on-death explosion radius in meters. */
+    acidShellsRadiusMeters: number;
     gasBonus: number;
     magneticBonus: number;
     viralBonus: number;
@@ -1835,15 +1841,16 @@ function buildCaches(): ModCaches {
         }
         if (path === ACID_SHELLS_MOD_PATH) {
             // The generated export currently has stale percent-health and radius
-            // ranks. Keep the corrected Wiki text available without treating the
-            // death explosion as a normal weapon damage bonus.
+            // ranks. Keep the corrected Wiki values typed for the bounded Sobek
+            // Burst group estimate; they are not direct-hit weapon damage.
             // https://wiki.warframe.com/w/Acid_Shells
             ACID_SHELLS_WIKI_RANKS.forEach((wikiRank, rank) => {
                 if (!effectsByRank[rank]) return;
                 effectsByRank[rank] = emptyEffect();
-                unparsedStatsByRank[rank] = [
-                    `On death: ${wikiRank.corrosiveDamage} Corrosive Damage + ${wikiRank.healthPercent}% of enemy max Health as Blast Damage; ${wikiRank.radiusMeters}m radius.`,
-                ];
+                effectsByRank[rank].acidShellsCorrosiveDamage = wikiRank.corrosiveDamage;
+                effectsByRank[rank].acidShellsMaxHealthPercent = wikiRank.healthPercent / 100;
+                effectsByRank[rank].acidShellsRadiusMeters = wikiRank.radiusMeters;
+                unparsedStatsByRank[rank] = [];
             });
         }
         if (path === VULCAN_BLITZ_MOD_PATH) {
