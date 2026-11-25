@@ -50,6 +50,7 @@ describe("effectiveDrain polarity rules", () => {
         const mod = makeMod("odd-drain", { baseDrain: 5, fusionLimit: 0, polarity: "madurai" });
 
         expect(effectiveDrain(mod, "madurai")).toBe(3);
+        expect(effectiveDrain(mod, "omni")).toBe(3);
         expect(effectiveDrain(mod, "vazarin")).toBe(7);
     });
 
@@ -62,6 +63,7 @@ describe("effectiveDrain polarity rules", () => {
             expect(effectiveDrain(mod, "madurai")).toBe(-12);
             expect(effectiveDrain(mod, "vazarin")).toBe(-4);
         }
+        expect(effectiveDrain(stance, "omni")).toBe(-12);
     });
 });
 

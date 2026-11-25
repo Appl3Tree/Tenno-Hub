@@ -405,9 +405,61 @@ describe("Tennokai opportunity event timeline", () => {
         expect(minimumDuration.notes).toContain(
             "The combo counter expires after 0.1s without a qualifying hit; the weapon's 5s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.",
         );
-        expect(minimumDuration.notes).toContain(
-            "Additional Combo Count Chance is not simulated; the timeline keeps its one-point-per-regular-hit assumption.",
-        );
+        expect(minimumDuration.comboGainAssumptionPointsPerRegularHit).toBe(2);
+        expect(minimumDuration.notes.some((note) => note.includes("100% expected extra combo points from Additional Combo Count Chance"))).toBe(true);
+        expect(minimumDuration.notes.some((note) => note.includes("Additional Combo Count Chance is not simulated"))).toBe(false);
+    });
+
+    it("adds Quickening's expected combo gain before resolving combo tiers", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+        const mastersEdge = getModsForWeapon(weapon).find((mod) => mod.name === "Master's Edge")!;
+        const quickening = getModsForWeapon(weapon).find((mod) => mod.name === "Quickening")!;
+        const regularAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const heavyAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        const baseline = calculateTennokaiAttackTimeline({
+            weapon,
+            mods: [mastersEdge.effect],
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 17,
+            cycles: 1,
+        });
+        const boosted = calculateTennokaiAttackTimeline({
+            weapon,
+            mods: [mastersEdge.effect, quickening.effect],
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 17,
+            cycles: 1,
+        });
+
+        expect(boosted.supported).toBe(true);
+        expect(boosted.comboGainAssumptionPointsPerRegularHit).toBeCloseTo(1.2, 12);
+        expect(baseline.events.at(-1)?.comboMultiplierBeforeEvent).toBe(1);
+        expect(boosted.events.at(-1)?.comboMultiplierBeforeEvent).toBe(2);
+    });
+
+    it("models and discloses additive combo chance above 100%", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+        const mods = getModsForWeapon(weapon);
+        const mastersEdge = mods.find((mod) => mod.name === "Master's Edge")!;
+        const quickening = mods.find((mod) => mod.name === "Quickening")!;
+        const truePunishment = mods.find((mod) => mod.name === "True Punishment")!;
+        const regularAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const heavyAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        const result = calculateTennokaiAttackTimeline({
+            weapon,
+            mods: [mastersEdge.effect, quickening.effect, truePunishment.effect],
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 1,
+            cycles: 1,
+        });
+
+        expect(result.supported).toBe(true);
+        expect(result.comboGainAssumptionPointsPerRegularHit).toBeCloseTo(2.2, 12);
+        expect(result.notes.some((note) => note.includes("can award extra hits above 100%"))).toBe(true);
+        expect(result.notes.some((note) => note.includes("pending source and user verification"))).toBe(false);
     });
 
     it("uses the weapon-exported base combo duration for melee exceptions", () => {

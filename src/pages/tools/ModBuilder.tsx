@@ -36,6 +36,7 @@ import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncisi
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
 import { calculateStaticDischargeCycle, DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS, normalizeStaticDischargeFirstAnimationSeconds, type StaticDischargeStartingOrder } from "../../domain/logic/staticDischargeCycle";
+import { calculateVileDischargeTimeline } from "../../domain/logic/vileDischargeTimeline";
 import { EXTERNAL_STATUS_TYPE_OPTIONS, normalizeExternalStatusTypes, type ExternalStatusType } from "../../domain/logic/uniqueStatusRules";
 import { getWikiMeleeStanceCombo, WIKI_MELEE_STANCE_SOURCE_URL, WIKI_MELEE_STANCE_VERIFIED_AT, type WikiMeleeStanceCombo } from "../../domain/catalog/meleeStanceCombos";
 import { optimizeBuild, explainBuild, getFactionFocusOptions, getTargetProfileAssumptions, normalizeOptimizeGoal, scoreOptimizerResultForConfiguration, FIXED_WINDOW_DPS_SECONDS, type OptimizeGoal, type BuildReasoning, type LegacyOptimizeGoal, type TargetProfileOverride } from "../../domain/logic/buildOptimizer";
@@ -49,6 +50,8 @@ import {
 } from "../../domain/logic/capacityCalc";
 import { useTrackerStore } from "../../store/store";
 import { getHighestOwnedArcaneRankWithFallback, hasOwnedArcane } from "../../domain/logic/arcaneInventory";
+import { getModRankInventorySnapshot } from "../../domain/logic/modInventory";
+import ModRankInventoryEditor from "../../components/ModRankInventoryEditor";
 import type { SavedBuild, SavedBuildPlannerConfig, SavedBuildTargetConfig } from "../../domain/models/userState";
 import { WorkspacePanel, WorkspaceSegmented, WorkspaceSegmentedButton } from "../../components/workspace/WorkspaceChrome";
 
@@ -348,7 +351,7 @@ for (const [p, svg] of Object.entries(_polSvgRaw)) {
 const POL_FILE: Record<string, string> = {
     madurai: "madurai_pol", naramon: "naramon_pol", vazarin: "vazarin_pol",
     zenurik: "zenurik_pol", unairu:  "unairu_pol",  penjaga: "penjaga_pol",
-    umbra:   "umbra_pol",   any:     "any_pol",
+    umbra:   "umbra_pol",   any:     "any_pol", omni:   "any_pol",
 };
 function PolarityIcon({ polarity, className = "w-4 h-4" }: { polarity: string; className?: string }) {
     const src = POL_IMG[POL_FILE[polarity] ?? ""] ?? null;
@@ -407,6 +410,11 @@ const GOAL_OPTIONS: { key: OptimizeGoal; label: string; desc: string }[] = [
         key: "tennokaiDps",
         label: "Tennokai Cycle DPS",
         desc: "Ranks a supported four-cycle Normal Attack / Heavy Attack or Heavy Slam sequence with ordered melee Slash applications and Bleed ticks. Direct hits and ticks deplete the selected pools, stop when a target dies, then continue against identical targets. Full-pool optimization uses a one-cycle shortlist and re-scores finalists on four cycles plus the Bleed tail. Other statuses, melee range, and numeric Heavy Attack wind-up are excluded.",
+    },
+    {
+        key: "vileDischargeDps",
+        label: "Vile Discharge Cycle DPS",
+        desc: "Ranks four Embolist Normal Attack charge-and-release cycles with Vile Discharge. Primary hits and expected DoT ticks fill the selected rank cap; Alt-Fire adds a modded 10 Impact contact hit and a separate 6m Toxin explosion. Configured same-profile neighbors use area-uniform falloff estimates because the Wiki gives only approximate edge falloff. Reloads, release-at-cap, expected status rolls, and raw-pool overkill assumptions are shown.",
     },
 ];
 const FACTIONS = getFactionFocusOptions();
@@ -521,6 +529,8 @@ function describeCritMultiplier(critChance: number, critMultiplier: number) {
 const EMPTY_SAVED_BUILDS: SavedBuild[] = [];
 const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_MOD_RANKS: Record<string, number> = {};
+const EMPTY_MOD_RANK_COUNTS: Record<string, Record<string, number>> = {};
+const EMPTY_MOD_UNKNOWN_RANK_COUNTS: Record<string, number> = {};
 const EMPTY_ARCANE_RANKS: Record<string, Record<string, number>> = {};
 const EMPTY_CUSTOM_RIVENS: CustomRivenRecord[] = [];
 
@@ -766,6 +776,8 @@ interface BuildExportPayload {
                 name: string;
                 uniqueName: string;
                 ownedMaxRank: number;
+                ownedRankCounts: Record<string, number>;
+                unrankedCopies: number;
             }>;
             ownedArcanes?: Array<{
                 name: string;
@@ -1358,17 +1370,6 @@ function sumEffects(effects: (ModEffect | null)[]) {
         statusDurationBonus: 0,
         factionDamageBonus: 0,
     });
-}
-
-function getOwnedModRank(
-    path: string,
-    maxRank: number,
-    counts: Record<string, number>,
-    modRanks: Record<string, number>,
-) {
-    const owned = Number(counts[`mods:${path}`] ?? counts[path] ?? 0);
-    if (owned <= 0) return 0;
-    return Math.max(0, Math.min(maxRank, Number(modRanks[path] ?? maxRank)));
 }
 
 const BUILD_MATH_PRIMARY_ELEMENTS = ["heat", "cold", "electricity", "toxin"] as const;
@@ -2291,6 +2292,8 @@ function buildExportPayload(args: {
     weaponArcanes: ArcaneEntry[];
     ownedSet: Set<string>;
     ownedModMaxRankByUniqueName: Record<string, number>;
+    ownedModRankCountsByUniqueName: Record<string, Record<string, number>>;
+    ownedModUnknownRankCountsByUniqueName: Record<string, number>;
     ownedArcaneUniqueNames: Set<string>;
     ownedArcaneMaxRankByUniqueName: Record<string, number>;
     excluded: Set<string>;
@@ -2300,7 +2303,8 @@ function buildExportPayload(args: {
         slots, ranks, slotPols, stanceMod, stanceRank, stancePol, formaCount, exilusEnabled, exilusMod, exilusRank, exilusPol, arcane, arcaneRank,
         warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
         optimizeMode, respectCap, allowNonMax, onlyOwned, factionOn, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane,
-        compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
+        compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedModRankCountsByUniqueName,
+        ownedModUnknownRankCountsByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
     } = args;
     if (!weapon) return null;
 
@@ -2421,6 +2425,8 @@ function buildExportPayload(args: {
                 name: mod.name,
                 uniqueName: mod.uniqueName,
                 ownedMaxRank: ownedModMaxRankByUniqueName[mod.uniqueName] ?? mod.fusionLimit,
+                ownedRankCounts: ownedModRankCountsByUniqueName[mod.uniqueName] ?? {},
+                unrankedCopies: ownedModUnknownRankCountsByUniqueName[mod.uniqueName] ?? 0,
             }))
             .sort((a, b) => a.name.localeCompare(b.name) || a.uniqueName.localeCompare(b.uniqueName))
         : undefined;
@@ -2731,8 +2737,8 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
-    const polMatch    = !!(mod && slotPolarity && slotPolarity === mod.polarity);
-    const polMismatch = !!(mod && slotPolarity && slotPolarity !== mod.polarity && slotPolarity !== "");
+    const polMatch    = !!(mod?.polarity && slotPolarity && (slotPolarity === mod.polarity || slotPolarity === "omni"));
+    const polMismatch = !!(mod && slotPolarity && slotPolarity !== "omni" && slotPolarity !== mod.polarity && slotPolarity !== "");
 
     return (
         <div className={["relative min-w-0", compactEmpty ? "" : "h-full"].join(" ")} ref={panelRef}>
@@ -2910,8 +2916,8 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
                         {filtered.length === 0 && <div className="px-3 py-4 text-xs text-slate-500 text-center">No matching mods</div>}
                         {filtered.map(m => {
                             const eff      = effectiveDrain(m, slotPolarity);
-                            const match    = !!(slotPolarity && slotPolarity === m.polarity);
-                            const mismatch = !!(slotPolarity && slotPolarity !== m.polarity && slotPolarity !== "");
+                            const match    = !!(m.polarity && slotPolarity && (slotPolarity === m.polarity || slotPolarity === "omni"));
+                            const mismatch = !!(slotPolarity && slotPolarity !== "omni" && slotPolarity !== m.polarity && slotPolarity !== "");
                             const owned    = ownedUniqueNames.size === 0 || ownedUniqueNames.has(m.uniqueName);
                             const unmodeledDamageLines = getUnmodeledDamageEffectLines(m, m.fusionLimit, scoringEffectContext);
                             return (
@@ -3685,8 +3691,10 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
 function OwnedModsPanel({ availableMods }: { availableMods: ModEntry[] }) {
     const inventoryCounts = useTrackerStore(s => s.state.inventory.counts ?? EMPTY_COUNTS);
     const inventoryModRanks = useTrackerStore(s => s.state.inventory.modRanks ?? EMPTY_MOD_RANKS);
-    const setCount = useTrackerStore(s => s.setCount);
-    const setModRank = useTrackerStore(s => s.setModRank);
+    const inventoryModRankCounts = useTrackerStore(s => s.state.inventory.modRankCounts ?? EMPTY_MOD_RANK_COUNTS);
+    const inventoryModUnknownRankCounts = useTrackerStore(s => s.state.inventory.modUnknownRankCounts ?? EMPTY_MOD_UNKNOWN_RANK_COUNTS);
+    const setModCount = useTrackerStore(s => s.setModCount);
+    const setModRankInventory = useTrackerStore(s => s.setModRankInventory);
     const [query, setQuery] = useState("");
     const allMods = useMemo(() => sortBuilderModsForDisplay(availableMods.filter(m => m.compatBucket !== "Riven")), [availableMods]);
     const ownedCountForMod = (path: string) => inventoryCounts[`mods:${path}`] ?? inventoryCounts[path] ?? 0;
@@ -3700,47 +3708,46 @@ function OwnedModsPanel({ availableMods }: { availableMods: ModEntry[] }) {
             <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">Owned Mods</div>
                 <div className="flex gap-3 text-[10px]">
-                    <button onClick={() => allMods.forEach(m => { setCount(`mods:${m.path}`, 1); setModRank(m.path, m.fusionLimit); })} className="text-slate-400 hover:text-slate-200">All</button>
-                    <button onClick={() => allMods.forEach(m => { setCount(`mods:${m.path}`, 0); setModRank(m.path, 0); })} className="text-slate-400 hover:text-slate-200">None</button>
+                    <button onClick={() => allMods.forEach(m => setModCount(m.path, 1, m.fusionLimit))} className="text-slate-400 hover:text-slate-200">All</button>
+                    <button onClick={() => allMods.forEach(m => setModCount(m.path, 0))} className="text-slate-400 hover:text-slate-200">None</button>
                     <span className="text-slate-600">{allMods.filter(m => Number(ownedCountForMod(m.path)) > 0).length}/{allMods.length} owned</span>
                 </div>
             </div>
             <input type="text" placeholder="Filter mods…" value={query} onChange={e => setQuery(e.target.value)}
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-slate-500" />
             <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-800 divide-y divide-slate-800/50">
-                {filtered.map(m => (
-                    <label key={m.uniqueName} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-800/40 cursor-pointer">
-                        <input type="checkbox" checked={Number(ownedCountForMod(m.path)) > 0}
-                            onChange={() => {
-                                const nextOwned = Number(ownedCountForMod(m.path)) > 0 ? 0 : 1;
-                                setCount(`mods:${m.path}`, nextOwned);
-                                setModRank(m.path, nextOwned > 0 ? m.fusionLimit : 0);
-                            }}
-                            className="accent-blue-500 shrink-0" />
-                        <span className="shrink-0">
-                            {m.polarity ? <PolarityIcon polarity={m.polarity} className="w-3.5 h-3.5 opacity-60" /> : <span className="text-slate-700 text-xs">○</span>}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <div className="text-xs text-slate-200 truncate">{getBuilderDisplayModName(m)}</div>
-                            {m.statsLabel && <div className="text-[10px] text-slate-500 truncate">{m.statsLabel}</div>}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0" onClick={e => e.preventDefault()}>
-                            <button
-                                className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center disabled:opacity-30"
-                                disabled={Number(ownedCountForMod(m.path)) <= 0 || getOwnedModRank(m.path, m.fusionLimit, inventoryCounts, inventoryModRanks) <= 0}
-                                onClick={() => setModRank(m.path, Math.max(0, getOwnedModRank(m.path, m.fusionLimit, inventoryCounts, inventoryModRanks) - 1))}
-                            >−</button>
-                            <span className={["w-8 text-center text-[10px] font-mono", Number(ownedCountForMod(m.path)) > 0 ? "text-emerald-400" : "text-slate-600"].join(" ")}>
-                                R{getOwnedModRank(m.path, m.fusionLimit, inventoryCounts, inventoryModRanks)}
+                {filtered.map(m => {
+                    const ownedCount = Number(ownedCountForMod(m.path));
+                    const rankInventory = getModRankInventorySnapshot(
+                        m.path,
+                        ownedCount,
+                        m.fusionLimit,
+                        inventoryModRanks[m.path],
+                        inventoryModRankCounts,
+                        inventoryModUnknownRankCounts,
+                    );
+                    return (
+                        <div key={m.uniqueName} className="flex flex-wrap items-center gap-2.5 px-3 py-1.5 hover:bg-slate-800/40">
+                            <input type="checkbox" checked={ownedCount > 0}
+                                onChange={() => setModCount(m.path, ownedCount > 0 ? 0 : 1, m.fusionLimit)}
+                                className="accent-blue-500 shrink-0" aria-label={`Mark ${getBuilderDisplayModName(m)} owned`} />
+                            <span className="shrink-0">
+                                {m.polarity ? <PolarityIcon polarity={m.polarity} className="w-3.5 h-3.5 opacity-60" /> : <span className="text-slate-700 text-xs">○</span>}
                             </span>
-                            <button
-                                className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center disabled:opacity-30"
-                                disabled={Number(ownedCountForMod(m.path)) <= 0 || getOwnedModRank(m.path, m.fusionLimit, inventoryCounts, inventoryModRanks) >= m.fusionLimit}
-                                onClick={() => setModRank(m.path, Math.min(m.fusionLimit, getOwnedModRank(m.path, m.fusionLimit, inventoryCounts, inventoryModRanks) + 1))}
-                            >+</button>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-xs text-slate-200 truncate">{getBuilderDisplayModName(m)}</div>
+                                {m.statsLabel && <div className="text-[10px] text-slate-500 truncate">{m.statsLabel}</div>}
+                            </div>
+                            <ModRankInventoryEditor
+                                maxRank={m.fusionLimit}
+                                rankCounts={rankInventory.rankCounts}
+                                unknownCount={rankInventory.unknownCount}
+                                totalCount={rankInventory.totalCount}
+                                onChange={(nextRanks, nextUnknown) => setModRankInventory(m.path, nextRanks, nextUnknown)}
+                            />
                         </div>
-                    </label>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
@@ -3844,6 +3851,8 @@ export default function ModBuilder() {
     const inventoryArcaneRanks = useTrackerStore(s => s.state.inventory.arcaneRanks ?? EMPTY_ARCANE_RANKS);
     const inventoryCounts = useTrackerStore(s => s.state.inventory.counts ?? EMPTY_COUNTS);
     const inventoryModRanks = useTrackerStore(s => s.state.inventory.modRanks ?? EMPTY_MOD_RANKS);
+    const inventoryModRankCounts = useTrackerStore(s => s.state.inventory.modRankCounts ?? EMPTY_MOD_RANK_COUNTS);
+    const inventoryModUnknownRankCounts = useTrackerStore(s => s.state.inventory.modUnknownRankCounts ?? EMPTY_MOD_UNKNOWN_RANK_COUNTS);
     const inventoryCustomRivens = useTrackerStore(s => s.state.inventory.customRivens ?? EMPTY_CUSTOM_RIVENS);
 
     const [weapon, setWeapon]          = useState<WeaponEntry | null>(null);
@@ -4557,11 +4566,56 @@ export default function ModBuilder() {
                 out[mod.uniqueName] = mod.fusionLimit;
                 continue;
             }
-            if (Number(inventoryCounts[`mods:${mod.path}`] ?? inventoryCounts[mod.path] ?? 0) <= 0) continue;
-            out[mod.uniqueName] = getOwnedModRank(mod.path, mod.fusionLimit, inventoryCounts, inventoryModRanks);
+            const ownedCount = Number(inventoryCounts[`mods:${mod.path}`] ?? inventoryCounts[mod.path] ?? 0);
+            if (ownedCount <= 0) continue;
+            const snapshot = getModRankInventorySnapshot(
+                mod.path,
+                ownedCount,
+                mod.fusionLimit,
+                inventoryModRanks[mod.path],
+                inventoryModRankCounts,
+                inventoryModUnknownRankCounts,
+            );
+            out[mod.uniqueName] = snapshot.highestOwnedRank ?? 0;
         }
         return out;
-    }, [trackableMods, inventoryCounts, inventoryModRanks]);
+    }, [trackableMods, inventoryCounts, inventoryModRanks, inventoryModRankCounts, inventoryModUnknownRankCounts]);
+    const ownedModRankCountsByUniqueName = useMemo(() => {
+        const out: Record<string, Record<string, number>> = {};
+        for (const mod of trackableMods) {
+            if (mod.compatBucket === "Riven") continue;
+            const ownedCount = Number(inventoryCounts[`mods:${mod.path}`] ?? inventoryCounts[mod.path] ?? 0);
+            if (ownedCount <= 0) continue;
+            const snapshot = getModRankInventorySnapshot(
+                mod.path,
+                ownedCount,
+                mod.fusionLimit,
+                inventoryModRanks[mod.path],
+                inventoryModRankCounts,
+                inventoryModUnknownRankCounts,
+            );
+            out[mod.uniqueName] = snapshot.rankCounts;
+        }
+        return out;
+    }, [trackableMods, inventoryCounts, inventoryModRanks, inventoryModRankCounts, inventoryModUnknownRankCounts]);
+    const ownedModUnknownRankCountsByUniqueName = useMemo(() => {
+        const out: Record<string, number> = {};
+        for (const mod of trackableMods) {
+            if (mod.compatBucket === "Riven") continue;
+            const ownedCount = Number(inventoryCounts[`mods:${mod.path}`] ?? inventoryCounts[mod.path] ?? 0);
+            if (ownedCount <= 0) continue;
+            const snapshot = getModRankInventorySnapshot(
+                mod.path,
+                ownedCount,
+                mod.fusionLimit,
+                inventoryModRanks[mod.path],
+                inventoryModRankCounts,
+                inventoryModUnknownRankCounts,
+            );
+            out[mod.uniqueName] = snapshot.unknownCount;
+        }
+        return out;
+    }, [trackableMods, inventoryCounts, inventoryModRanks, inventoryModRankCounts, inventoryModUnknownRankCounts]);
     const ownedArcaneUniqueNames = useMemo(() => {
         const set = new Set<string>();
         for (const arcane of weaponArcanes) {
@@ -4612,7 +4666,7 @@ export default function ModBuilder() {
         options: [allowNonMax, onlyOwned, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane],
         targetProfileOverride,
         owned: onlyOwned ? [...ownedSet].sort() : [],
-        ownedRanks: onlyOwned ? ownedModMaxRankByUniqueName : {},
+        ownedRanks: onlyOwned ? [ownedModMaxRankByUniqueName, ownedModRankCountsByUniqueName] : {},
         ownedArcanes: onlyOwned ? [...ownedArcaneUniqueNames].sort() : [],
         ownedArcaneRanks: onlyOwned ? ownedArcaneMaxRankByUniqueName : {},
         excluded: [...excluded].sort(),
@@ -4622,7 +4676,7 @@ export default function ModBuilder() {
         slots, ranks, slotPols, stanceMod, stanceRank, stancePol, hasExilus, exilusMod, exilusRank, exilusPol,
         arcane1, arcane1Rank, includeArcaneStats, optimizeMode, allowNonMax, onlyOwned, allowCatalyst,
         warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
-        allowForma, maxFormaAllowed, optExilus, optArcane, ownedSet, ownedModMaxRankByUniqueName,
+        allowForma, maxFormaAllowed, optExilus, optArcane, ownedSet, ownedModMaxRankByUniqueName, ownedModRankCountsByUniqueName,
         ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded, compatMods,
     ]);
     const optimizerInputSignatureRef = useRef(optimizerInputSignature);
@@ -4696,6 +4750,8 @@ export default function ModBuilder() {
         weaponArcanes,
         ownedSet,
         ownedModMaxRankByUniqueName,
+        ownedModRankCountsByUniqueName,
+        ownedModUnknownRankCountsByUniqueName,
         ownedArcaneUniqueNames,
         ownedArcaneMaxRankByUniqueName,
         excluded,
@@ -4703,7 +4759,8 @@ export default function ModBuilder() {
         weapon, selectedAttackIdx, goal, conditionalState, factionOn, faction, targetProfileOverride, targetStatusImmunities, meleeDpsInputs, buildCfg, includeArcaneStats, warframeArmor, warframeMaxEnergy, warframeEnergyPercent,
         slots, ranks, slotPols, stanceMod, stanceRank, stancePol, formaCount, hasExilus, exilusMod, exilusRank, exilusPol, arcane1, arcane1Rank,
         optimizeMode, respectCap, allowNonMax, onlyOwned, allowCatalyst, allowForma, maxFormaAllowed, optExilus, optArcane,
-        compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
+        compatMods, weaponArcanes, ownedSet, ownedModMaxRankByUniqueName, ownedModRankCountsByUniqueName,
+        ownedModUnknownRankCountsByUniqueName, ownedArcaneUniqueNames, ownedArcaneMaxRankByUniqueName, excluded,
     ]);
 
     const activeWeaponState = useMemo(() => {
@@ -5111,6 +5168,44 @@ export default function ModBuilder() {
     useEffect(() => {
         if (goal === "tennokaiDps" && weapon && !tennokaiGoalAvailable) setGoal("burst");
     }, [goal, weapon, tennokaiGoalAvailable]);
+    const vileDischargeGoalAvailable = Boolean(
+        activeCalcWeapon?.name === "Embolist" && activeCalcWeapon.selectedAttackName === "Normal Attack",
+    );
+    useEffect(() => {
+        if (goal === "vileDischargeDps" && weapon && !vileDischargeGoalAvailable) setGoal("burst");
+    }, [goal, weapon, vileDischargeGoalAvailable]);
+    const activeVileDischargeSelected = activeBuildEffects.some((effect) =>
+        (effect?.vileDischargeMaximumDamage ?? 0) > 0,
+    );
+    const vileDischargeTimeline = useMemo(() => {
+        if (!activeCalcWeapon || !activeVileDischargeSelected) return null;
+        return calculateVileDischargeTimeline({
+            weapon: activeCalcWeapon,
+            mods: activeBuildEffects,
+            targetFaction: factionOn ? faction : "",
+            targetProfile: {
+                health: activeTargetAssumptions.health,
+                shields: activeTargetAssumptions.shields,
+                overguard: activeTargetAssumptions.overguard,
+                armor: activeTargetAssumptions.armor,
+                baseArmorValue: targetProfileOverride?.armorBaseValue ?? activeTargetAssumptions.armor,
+                armorLevelMultiplier: targetProfileOverride?.armorLevelMultiplier ?? 1,
+                toxinBypassesShields: activeTargetAssumptions.toxinBypassesShields,
+                nearbyExplosionEnemyCountWithin3m: targetProfileOverride?.nearbyEnemyCount ?? 0,
+                nearbyExplosionEnemyCountFrom3To6m: targetProfileOverride?.nearbyGasOuterEnemyCount ?? 0,
+            },
+            damageOptions: {
+                conditionalState,
+                isEximusTarget: targetProfileOverride?.isEximusTarget,
+                targetHasOverguard: activeTargetAssumptions.overguard > 0,
+                statusImmuneTypes: activeTargetAssumptions.statusImmuneTypes,
+                statusStackCaps: activeTargetAssumptions.statusStackCaps,
+                hitLocation: getTargetHitLocationProfile(factionOn ? faction : "", targetProfileOverride),
+                ...(Number.isFinite(expectedKillRatePerSecond) ? { expectedKillRatePerSecond } : {}),
+            },
+            cycles: 4,
+        });
+    }, [activeCalcWeapon, activeVileDischargeSelected, activeBuildEffects, factionOn, faction, activeTargetAssumptions, targetProfileOverride, conditionalState, expectedKillRatePerSecond]);
     const tennokaiTimeline = useMemo(() => {
         if (!activeCalcWeapon) return null;
         const supportedPair = findSupportedTennokaiAttackPair(activeCalcWeapon);
@@ -5521,9 +5616,9 @@ export default function ModBuilder() {
             .join(" · ") || "None"
         : "—";
     const activeTargetSummary = selectedEnemyProfile
-        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
         : targetProfileOverride
-        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
         : factionOn
             ? `${faction} synthetic faction estimate`
             : "Balanced synthetic target estimate";
@@ -5547,6 +5642,10 @@ export default function ModBuilder() {
 
     async function handleOptimize() {
         if (!weapon) return;
+        if (goal === "vileDischargeDps" && !vileDischargeGoalAvailable) {
+            setOptimizerNotice("Vile Discharge Cycle DPS requires the Embolist Normal Attack profile.");
+            return;
+        }
         const optimizerTennokaiAttackPair = goal === "tennokaiDps"
             ? findSupportedTennokaiAttackPair(weapon)
             : null;
@@ -5653,17 +5752,30 @@ export default function ModBuilder() {
             const availableFormaBudget = allowForma
                 ? Math.max(0, maxFormaAllowed - formaCount)
                 : maxFormaAllowed;
-            let optimizerStanceMod = stanceMod;
-            let optimizerStanceRank = stanceRank;
+            const selectedStanceOwnedRanks = stanceMod
+                ? Object.entries(ownedModRankCountsByUniqueName[stanceMod.uniqueName] ?? {})
+                    .filter(([, count]) => count > 0)
+                    .map(([rank]) => Number(rank))
+                    .filter(Number.isInteger)
+                    .sort((left, right) => left - right)
+                : [];
+            const selectedStanceOwnedRank = selectedStanceOwnedRanks.includes(stanceRank)
+                ? stanceRank
+                : selectedStanceOwnedRanks[selectedStanceOwnedRanks.length - 1];
+            let optimizerStanceMod = onlyOwned && stanceMod && selectedStanceOwnedRank === undefined ? null : stanceMod;
+            let optimizerStanceRank = optimizerStanceMod
+                ? onlyOwned ? selectedStanceOwnedRank ?? 0 : stanceRank
+                : 0;
             const keepSelectedMeleeStance = Boolean(
                 goal === "meleeDps" &&
-                stanceMod &&
-                (!onlyOwned || ownedSet.has(stanceMod.uniqueName)),
+                optimizerStanceMod &&
+                (!onlyOwned || ownedSet.has(optimizerStanceMod.uniqueName)),
             );
             if (supportsStanceLikeMods(weapon)) {
-                if ((!fillMode || !stanceMod) && !keepSelectedMeleeStance) {
+                if ((!fillMode || !optimizerStanceMod) && !keepSelectedMeleeStance) {
                     const stanceCandidates = onlyOwned
-                        ? stanceMods.filter(mod => ownedSet.has(mod.uniqueName))
+                        ? stanceMods.filter((mod) => ownedSet.has(mod.uniqueName) &&
+                            Object.values(ownedModRankCountsByUniqueName[mod.uniqueName] ?? {}).some((count) => count > 0))
                         : stanceMods;
                     const candidateStances = goal === "meleeDps"
                         ? stanceCandidates.filter((mod) => !!getWikiMeleeStanceCombo(mod.name))
@@ -5722,7 +5834,9 @@ export default function ModBuilder() {
             ) => {
                 const attackIdxForObjective = goal === "tennokaiDps"
                     ? optimizerTennokaiAttackPair!.regularAttackIndex
-                    : selectedAttackIdx;
+                    : goal === "vileDischargeDps"
+                        ? weapon.attacks.findIndex((attack) => attack.name === "Normal Attack")
+                        : selectedAttackIdx;
                 const candidateCfg: BuildCfg = {
                     ...buildCfg,
                     valenceElement,
@@ -5739,6 +5853,7 @@ export default function ModBuilder() {
                 const result = await optimizeInWorker(weaponForOpt, compatMods, goal, SLOT_COUNT, {
                     ownedModUniqueNames:    onlyOwned ? ownedSet : undefined,
                     ownedModMaxRankByUniqueName: onlyOwned ? ownedModMaxRankByUniqueName : undefined,
+                    ownedModRankCountsByUniqueName: onlyOwned ? ownedModRankCountsByUniqueName : undefined,
                     ownedArcaneUniqueNames: onlyOwned ? ownedArcaneUniqueNames : undefined,
                     ownedArcaneMaxRankByUniqueName: onlyOwned ? ownedArcaneMaxRankByUniqueName : undefined,
                     excludedModUniqueNames: excluded.size > 0 ? excluded : undefined,
@@ -6134,7 +6249,7 @@ export default function ModBuilder() {
         setWarframeMaxEnergyInput(parseWarframeMaxEnergyInput(build.plannerConfig?.warframeMaxEnergy?.toString() ?? "")?.toString() ?? "");
         setWarframeEnergyPercentInput(parseWarframeEnergyPercentInput(build.plannerConfig?.warframeEnergyPercent?.toString() ?? "")?.toString() ?? "");
         if (plannerConfig) {
-            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill" || plannerConfig.goal === "windowDps" || plannerConfig.goal === "meleeDps" || plannerConfig.goal === "tennokaiDps") setGoal(plannerConfig.goal);
+            if (plannerConfig.goal === "burst" || plannerConfig.goal === "scaling" || plannerConfig.goal === "timeToKill" || plannerConfig.goal === "windowDps" || plannerConfig.goal === "meleeDps" || plannerConfig.goal === "tennokaiDps" || plannerConfig.goal === "vileDischargeDps") setGoal(plannerConfig.goal);
             const conditionalModes: ConditionalState["mode"][] = ["initial", "realistic", "fullyStacked", "custom"];
             if (plannerConfig.conditionalMode && conditionalModes.includes(plannerConfig.conditionalMode)) {
                 setConditionalMode(plannerConfig.conditionalMode);
@@ -6366,7 +6481,8 @@ export default function ModBuilder() {
                                             <div className="flex flex-wrap gap-1.5">
                                                 {GOAL_OPTIONS.filter((option) =>
                                                     (option.key !== "meleeDps" || meleeDpsGoalAvailable) &&
-                                                    (option.key !== "tennokaiDps" || tennokaiGoalAvailable),
+                                                    (option.key !== "tennokaiDps" || tennokaiGoalAvailable) &&
+                                                    (option.key !== "vileDischargeDps" || vileDischargeGoalAvailable),
                                                 ).map(g => (
                                                     <GoalChip
                                                         key={g.key}
@@ -6627,6 +6743,23 @@ export default function ModBuilder() {
                                                             </p>
                                                         )}
                                                         <a href="https://wiki.warframe.com/w/Static_Discharge" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Static Discharge</a>
+                                                    </div>
+                                                )}
+                                                {activeCalcWeapon?.name === "Embolist" && activeVileDischargeSelected && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        {vileDischargeTimeline?.supported ? (
+                                                            <p className="text-[10px] leading-relaxed text-slate-300">
+                                                                Four-cycle estimate: <strong>{fmt(vileDischargeTimeline.averageDamagePerSecond, 1)} applied damage/s</strong> over {fmt(vileDischargeTimeline.elapsedSeconds, 2)}s, with {fmt(vileDischargeTimeline.primaryAttacks, 0)} primary attacks, {fmt(vileDischargeTimeline.dotTicks, 0)} DoT ticks, and {vileDischargeTimeline.targetKills} repeated target defeats. Charge per release: {vileDischargeTimeline.chargePerDischarge.map((charge) => fmt(charge, 0)).join(" / ")}. Direct primary hits and timed DoTs charge the selected rank cap; each release adds a modded 10 Impact contact hit and a separate Toxin explosion{vileDischargeTimeline.nearbyExplosionDamage > 0 ? `, including ${fmt(vileDischargeTimeline.nearbyExplosionDamage, 1)} aggregate damage and ${vileDischargeTimeline.nearbyTargetKills} defeats across configured neighbors` : ""}.
+                                                            </p>
+                                                        ) : (
+                                                            <p className="text-[10px] leading-relaxed text-amber-300">
+                                                                {vileDischargeTimeline?.limitation ?? "Select Embolist Normal Attack and equip Vile Discharge to calculate the cycle."}
+                                                            </p>
+                                                        )}
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                                            This event estimate assumes release when charge reaches the cap, centers the explosion on the selected target, uses deterministic expected status counts, and caps raw overkill before defenses. It includes reload and the 0.4s base Alt-Fire action lock. Set same-profile neighbor counts in the custom target controls: targets in 0–3m and the 3–6m annulus receive area-uniform average falloff estimates, linearly interpolated from full center damage to 20% at 6m because the Wiki gives only approximate 80% edge falloff. Neighbor kills reset to the entered profile; their damage does not charge Vile Discharge. Exact target positions, falloff curve, stochastic proc histories, changing conditional stacks, and dynamic armor/status defenses are not modeled; this is not finite TTK or 5s DPS.
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Vile_Discharge" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Vile Discharge</a>
                                                     </div>
                                                 )}
                                                 {activeCalcWeapon?.name === "Basmu" && (
@@ -7172,7 +7305,7 @@ export default function ModBuilder() {
                                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                                                 {([
                                                     { label: "Allow Non-Maxed", active: allowNonMax, set: setAllowNonMax, desc: "Try lower-ranked mods so more fit within capacity." },
-                                                    { label: "Owned Only", active: onlyOwned, set: setOnlyOwned, desc: "Only use mods you have marked as owned." },
+                                                    { label: "Owned Only", active: onlyOwned, set: setOnlyOwned, desc: "Only use owned mods at ranks with recorded copies. Copies whose rank is unknown are not used until assigned." },
                                                     { label: "Faction Focus", active: factionOn, set: (active: boolean) => { setFactionOn(active); if (!active) { setUseCustomTargetStats(false); setSelectedEnemyProfileId(""); setIsEximus(false); setBossBlastStackCap(false); setIsSteelPath(false); setNearbyEnemyCount(0); setNearbyGasOuterEnemyCount(0); setNearbyBlastEnemyCount(0); } }, desc: "Apply the selected faction's damage-type modifiers. Choose a sourced enemy profile or enter custom target stats; faction-only pool mixes remain estimates." },
                                                     { label: "Allow Catalyst", active: allowCatalyst, set: setAllowCatalyst, desc: "Assume Orokin Catalyst installed if needed." },
                                                     { label: "Allow Forma", active: allowForma, set: setAllowForma, desc: "Reassign slot polarities to reduce drain." },
@@ -7455,11 +7588,11 @@ export default function ModBuilder() {
                                                                     </p>
                                                                     <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
                                                                         <label htmlFor="planner-nearby-enemies" className="text-[10px] text-slate-400">
-                                                                            Additional enemies within the 3m Electricity/Gas radius
+                                                                            Additional same-profile enemies in 0–3m (Electricity/Gas/Vile Discharge)
                                                                         </label>
                                                                         <input
                                                                             id="planner-nearby-enemies"
-                                                                            aria-label="Additional enemies within the 3m Electricity/Gas radius"
+                                                                            aria-label="Additional same-profile enemies within 3m for Electricity, Gas, and Vile Discharge"
                                                                             type="number"
                                                                             min={0}
                                                                             max={20 - nearbyGasOuterEnemyCount}
@@ -7470,15 +7603,15 @@ export default function ModBuilder() {
                                                                         />
                                                                     </div>
                                                                     <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                        These neighbors remain inside the fixed 3m Electricity range and the base 3m Gas radius. Their positions inside that range are not modeled.
+                                                                        These neighbors remain inside the fixed 3m Electricity range and base Gas radius. Vile Discharge explosions also use this band; their average falloff assumes uniform area and a linear curve. Exact positions are not modeled.
                                                                     </p>
                                                                     <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
                                                                         <label htmlFor="planner-nearby-gas-outer-enemies" className="text-[10px] text-slate-400">
-                                                                            Additional Gas neighbors in the 3–6m annulus
+                                                                            Additional same-profile neighbors in the 3–6m Gas/Vile Discharge annulus
                                                                         </label>
                                                                         <input
                                                                             id="planner-nearby-gas-outer-enemies"
-                                                                            aria-label="Additional Gas neighbors in the 3–6m annulus"
+                                                                            aria-label="Additional same-profile neighbors in the 3–6m Gas and Vile Discharge annulus"
                                                                             type="number"
                                                                             min={0}
                                                                             max={20 - nearbyEnemyCount}
@@ -7489,7 +7622,7 @@ export default function ModBuilder() {
                                                                         />
                                                                     </div>
                                                                     <p className="text-[10px] leading-relaxed text-slate-500">
-                                                                        Gas reaches the outer ring as active stacks grow the cloud radius. Finite ticks use the current expected stack count; optimizer scoring uses its steady-state radius. Enemies in the annulus are assumed uniformly distributed by area, so partial coverage scales their expected aggregate damage.
+                                                                        Gas reaches the outer ring as active stacks grow the cloud radius. Vile Discharge also uses this band, with area-uniform linear falloff to an estimated 20% at 6m. Finite Gas ticks use current expected stacks; optimizer scoring uses its steady-state radius. Exact positions and the Vile falloff curve are not modeled.
                                                                     </p>
                                                                     <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
                                                                         <label htmlFor="planner-nearby-blast-enemies" className="text-[10px] text-slate-400">

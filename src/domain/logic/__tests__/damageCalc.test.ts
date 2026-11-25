@@ -500,8 +500,8 @@ describe("Combustion Beam Wiki rank display and safe scoring exclusion", () => {
     });
 });
 
-describe("Vile Discharge Wiki charge caps and safe scoring exclusion", () => {
-    it("shows each stored-damage cap and explains why the discharge is not scored", () => {
+describe("Vile Discharge rank caps and objective boundary", () => {
+    it("parses every stored-damage cap and keeps the mechanics out of ordinary scores", () => {
         const embolist = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
         const braton = getWeaponCatalog().find((weapon) => weapon.name === "Braton Prime");
         expect(embolist).toBeDefined();
@@ -517,14 +517,24 @@ describe("Vile Discharge Wiki charge caps and safe scoring exclusion", () => {
             "Damage is accumulated up to 25,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
             "Damage is accumulated up to 30,000. Use Alt-fire to launch an explosive vile sac dealing and resetting the accumulated damage.",
         ]);
-        expect(mod!.hasDamageEffect).toBe(false);
+        expect(mod!.hasDamageEffect).toBe(true);
+        expect(mod!.effectsByRank.map((effect) => effect.vileDischargeMaximumDamage))
+            .toEqual([5000, 10000, 15000, 20000, 25000, 30000]);
         expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.toxinBonus === 0)).toBe(true);
+        expect(mod!.unparsedStatsByRank?.every((lines) =>
+            lines.every((line) => !/^Damage is accumulated up to/i.test(line)),
+        )).toBe(true);
 
-        const warning = "Vile Discharge's accumulated primary-fire/DoT charge, Alt-Fire timing, and 6m Toxin explosion are not simulated, so Auto Optimize skips this mod.";
+        const warning = "Vile Discharge is scored only by the Embolist Normal Attack cycle objective. It models primary hits and expected DoT ticks charging to the rank cap, then a no-crit/no-status contact and 6m Toxin explosion with reload/action timing. The selected target is centered; configured same-profile neighbors in 0–3m and 3–6m bands use an area-uniform linear falloff estimate because the Wiki gives only approximate 80% edge falloff. Auto Optimize excludes it from other objectives. Wiki: https://wiki.warframe.com/w/Vile_Discharge";
         for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
             expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
         }
         expect(getModsForWeapon(braton!).some((candidate) => candidate.name === "Vile Discharge")).toBe(false);
+        expect(getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit, {
+            selectedGoal: "vileDischargeDps",
+            selectedWeaponName: "Embolist",
+            selectedAttackName: "Normal Attack",
+        })).not.toContain(warning);
     });
 });
 

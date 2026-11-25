@@ -3031,6 +3031,12 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon": Object.freeze({
+        "normal attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Vinquibus",
+            reason: "This Primary profile scores one rifle attack. Vinquibus Ferocity's melee-kill ammo-efficiency stacks and its effect on later shots are not modeled; the separate Melee profile is available for melee builds.",
+        }),
+    }),
     "/Lotus/Weapons/Grineer/LongGuns/GrnGrenadeLauncher/GrnGrenadeLauncher": Object.freeze({
         "grenade impact": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Tonkor",
@@ -3707,6 +3713,158 @@ export function getWeaponCatalog(): WeaponEntry[] {
         };
         entries.push(entry);
         seenUniqueNames.add(uniqueName);
+    }
+
+    // Vinquibus occupies both the Primary and Melee slots and has distinct mod
+    // pools. WFCD currently publishes only the Primary catalog record, so add
+    // the sourced Bayonet profile as a separate selectable catalog entry.
+    const vinquibus = entries.find((entry) => entry.uniqueName ===
+        "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon");
+    if (vinquibus) {
+        vinquibus.variantLabel = "Primary";
+        vinquibus.disposition = 0.7;
+        const wikiUrl = "https://wiki.warframe.com/w/Vinquibus";
+        const scoreBoundaryNote: WeaponAttackScoreBoundaryNote = {
+            sourceUrl: wikiUrl,
+            reason: "This row scores one listed Bayonet attack in isolation. Connected gunshot/explosion components and area coverage are not combined, and Vinquibus Precision's Primary-headshot damage stacks are not modeled.",
+        };
+        const damage = (total: number, values: Partial<WeaponDamage>): WeaponDamage => ({
+            impact: 0,
+            puncture: 0,
+            slash: 0,
+            heat: 0,
+            cold: 0,
+            electricity: 0,
+            toxin: 0,
+            blast: 0,
+            radiation: 0,
+            gas: 0,
+            magnetic: 0,
+            viral: 0,
+            corrosive: 0,
+            void: 0,
+            tau: 0,
+            true: 0,
+            ...values,
+            total,
+        });
+        const punctureSlash = damage(260, { puncture: 182, slash: 78 });
+        const attacks: WeaponAttack[] = [
+            {
+                name: "Normal Attack",
+                speed: 1,
+                trigger: "Auto",
+                isAreaDamage: false,
+                critChance: 0.4,
+                critMultiplier: 3.2,
+                statusChance: 0.2,
+                damage: punctureSlash,
+                damageTotal: 260,
+                scoreBoundaryNote,
+            },
+            {
+                name: "Gunshot",
+                speed: 1,
+                trigger: "Semi",
+                isAreaDamage: false,
+                critChance: 0.4,
+                critMultiplier: 3.2,
+                statusChance: 0.2,
+                forcedProcs: { impact: 1 },
+                damage: punctureSlash,
+                damageTotal: 260,
+                scoreBoundaryNote,
+            },
+            {
+                name: "Gunshot Explosion",
+                speed: 1,
+                trigger: "Semi",
+                isAreaDamage: true,
+                critChance: 0.4,
+                critMultiplier: 3.2,
+                statusChance: 0.2,
+                forcedProcs: { impact: 1 },
+                damage: damage(400, { blast: 400 }),
+                damageTotal: 400,
+                damageFalloff: {
+                    startDistanceMeters: 0,
+                    endDistanceMeters: 4,
+                    minimumDamageMultiplier: 0.7,
+                    scaleBy: ["blastRadius"],
+                    sourceUrl: wikiUrl,
+                },
+                scoreBoundaryNote,
+            },
+            {
+                name: "Slam Attack",
+                speed: 1,
+                trigger: "Slam",
+                isAreaDamage: true,
+                critChance: 0.4,
+                critMultiplier: 3.2,
+                statusChance: 0.1,
+                forcedProcs: { impact: 1 },
+                damage: damage(440, { impact: 440 }),
+                damageTotal: 440,
+                damageFalloff: {
+                    startDistanceMeters: 0,
+                    endDistanceMeters: 7,
+                    minimumDamageMultiplier: 0.5,
+                    scaleBy: ["blastRadius"],
+                    sourceUrl: wikiUrl,
+                },
+                scoreBoundaryNote,
+            },
+            {
+                name: "Heavy Slam Attack",
+                speed: 1,
+                trigger: "Charge",
+                chargeTime: 1,
+                chargeTimeAffectedByFireRate: false,
+                isAreaDamage: true,
+                critChance: 0.34,
+                critMultiplier: 2.6,
+                statusChance: 0.1,
+                uniqueStatusProcs: ["lifted"],
+                damage: damage(660, { blast: 660 }),
+                damageTotal: 660,
+                damageFalloff: {
+                    startDistanceMeters: 0,
+                    endDistanceMeters: 8,
+                    minimumDamageMultiplier: 0.7,
+                    scaleBy: ["blastRadius"],
+                    sourceUrl: wikiUrl,
+                },
+                scoreBoundaryNote,
+            },
+        ];
+        entries.push({
+            ...vinquibus,
+            uniqueName: `${vinquibus.uniqueName}::Melee`,
+            sourceUniqueName: vinquibus.uniqueName,
+            variantLabel: "Melee",
+            category: "Melee",
+            weaponType: "Bayonet",
+            modCompat: "Melee",
+            damage: punctureSlash,
+            critChance: 0.4,
+            critMultiplier: 3.2,
+            statusChance: 0.2,
+            fireRate: 1,
+            magazineSize: 1,
+            ammoCostPerShot: 1,
+            hasExplicitMagazineSize: true,
+            reloadTime: 0,
+            multishot: 1,
+            trigger: "Auto",
+            chargeTime: null,
+            disposition: 0.7,
+            attacks,
+            stanceClass: "Bayonet",
+            stanceClasses: ["Bayonet"],
+            stancePolarity: "omni",
+            meleeComboDurationSeconds: 5,
+        });
     }
 
     // WFCD's Arch-Gun row represents Mausolon's Archwing profile. The Wiki

@@ -34,7 +34,7 @@ export function effectiveDrain(
     const rawDrain = mod.baseDrain + rank;
     const hasModPolarity = Boolean(mod.polarity && mod.polarity !== "none");
     const hasSlotPolarity = Boolean(slotPolarity && slotPolarity !== "none");
-    const matchesPolarity = hasModPolarity && hasSlotPolarity && slotPolarity === mod.polarity;
+    const matchesPolarity = hasModPolarity && hasSlotPolarity && (slotPolarity === mod.polarity || slotPolarity === "omni");
 
     if (mod.isAura || mod.isStance) {
         // Aura and stance mods add capacity. WFCD stores baseDrain as a negative value for

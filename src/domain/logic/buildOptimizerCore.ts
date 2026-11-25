@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, VILE_DISCHARGE_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -46,10 +46,11 @@ import {
     type ExpectedWeaponEncounterResult,
 } from "./targetDamage";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "./tennokaiTimeline";
+import { calculateVileDischargeTimeline } from "./vileDischargeTimeline";
 
 export const FIXED_WINDOW_DPS_SECONDS = 5;
 
-export type OptimizeGoal = "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps" | "tennokaiDps";
+export type OptimizeGoal = "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps" | "tennokaiDps" | "vileDischargeDps";
 export type LegacyOptimizeGoal = OptimizeGoal | "damage" | "crit" | "status";
 
 function isFiniteEncounterGoal(goal: OptimizeGoal): boolean {
@@ -77,6 +78,8 @@ export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefine
             return goal;
         case "tennokaiDps":
             return goal;
+        case "vileDischargeDps":
+            return goal;
         default:
             return "burst";
     }
@@ -85,6 +88,8 @@ export function normalizeOptimizeGoal(goal: LegacyOptimizeGoal | null | undefine
 export interface OptimizerOptions {
     ownedModUniqueNames?: Set<string>;
     ownedModMaxRankByUniqueName?: Record<string, number>;
+    /** Exact owned copy counts by rank; ranks with no copies are unavailable. */
+    ownedModRankCountsByUniqueName?: Record<string, Record<string, number>>;
     ownedArcaneUniqueNames?: Set<string>;
     ownedArcaneMaxRankByUniqueName?: Record<string, number>;
     excludedModUniqueNames?: Set<string>;
@@ -871,6 +876,7 @@ function scoreEffectsCore(
     meleeStanceCombo?: MeleeAverageDpsParameters,
     expectedKillRatePerSecond?: number,
     tennokaiCycles = 4,
+    vileDischargeCycles = 4,
 ): OptimizerEffectScore {
     const hasSentientIncision = weapon.category === "Melee" && weapon.selectedAttackUsesSlamDamageBonus !== true &&
         effects.some((effect) => (effect?.sentientIncisionDamageBonus ?? 0) > 0);
@@ -941,6 +947,62 @@ function scoreEffectsCore(
         const score = timeline.supported
             ? timeline.expectedDamagePerSecondAfterTargetDefenses ?? 0
             : 0;
+        return {
+            score,
+            primaryScore: score,
+            killCadenceScore: score,
+            poolTotal: scoringTarget.poolTotal,
+        };
+    }
+
+    if (goal === "vileDischargeDps") {
+        if (weapon.name !== "Embolist" || weapon.selectedAttackName !== "Normal Attack") {
+            return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: 0 };
+        }
+        const scoringTarget = getOptimizerScoringTargetContext(targetFaction, targetProfileOverride);
+        if (scoringTarget.poolTotal <= 0) {
+            return { score: 0, primaryScore: 0, killCadenceScore: 0, poolTotal: 0 };
+        }
+        const timelineEffects = arcaneEffect
+            ? [...effects, normalizeArcaneEffect(arcaneEffect)]
+            : effects;
+        const vileNeighborCounts = normalizeElectricGasNeighborCounts(
+            targetProfileOverride?.nearbyEnemyCount,
+            targetProfileOverride?.nearbyGasOuterEnemyCount,
+        );
+        const timeline = calculateVileDischargeTimeline({
+            weapon,
+            mods: timelineEffects,
+            targetFaction,
+            targetProfile: {
+                health: scoringTarget.pools.health,
+                shields: scoringTarget.pools.shields,
+                overguard: scoringTarget.pools.overguard,
+                armor: scoringTarget.pools.armor,
+                baseArmorValue: scoringTarget.target.armorBaseValue,
+                armorLevelMultiplier: scoringTarget.target.armorLevelMultiplier,
+                toxinBypassesShields: scoringTarget.pools.toxinBypassesShields,
+                nearbyExplosionEnemyCountWithin3m: vileNeighborCounts.innerCount,
+                nearbyExplosionEnemyCountFrom3To6m: vileNeighborCounts.outerCount,
+            },
+            damageOptions: {
+                statusImmuneTypes: [...scoringTarget.statusImmuneTypes],
+                statusStackCaps: scoringTarget.statusStackCaps,
+                hitLocation: {
+                    headshotRate: scoringTarget.pools.headshotHitRate,
+                    headshotMultiplier: scoringTarget.pools.headshotMultiplier,
+                    criticalHeadshotMultiplier: scoringTarget.pools.criticalHeadshotMultiplier,
+                    headIsWeakPoint: scoringTarget.pools.headIsWeakPoint,
+                },
+                isEximusTarget: scoringTarget.pools.isEximusTarget,
+                targetHasOverguard: scoringTarget.pools.overguard > 0,
+                conditionalState,
+                expectedKillRatePerSecond,
+                includeDoTTickDetails: true,
+            },
+            cycles: vileDischargeCycles,
+        });
+        const score = timeline.supported ? timeline.averageDamagePerSecond : 0;
         return {
             score,
             primaryScore: score,
@@ -1322,6 +1384,7 @@ function scoreSlots(
     effectsScratch?: (ModEffect | null)[],
     meleeStanceCombo?: MeleeAverageDpsParameters,
     tennokaiSearchProxy = false,
+    vileDischargeSearchProxy = false,
 ): number {
     const effects = effectsScratch ?? [];
     effects.length = 0;
@@ -1349,6 +1412,21 @@ function scoreSlots(
             withoutBurstOnlyConditionalAssumptions(conditionalState),
             meleeStanceCombo,
             0,
+            1,
+        ).score;
+    }
+    if (goal === "vileDischargeDps" && vileDischargeSearchProxy) {
+        return scoreEffectsCore(
+            weapon,
+            effects,
+            goal,
+            targetFaction,
+            arcaneEffect,
+            targetProfileOverride,
+            withoutBurstOnlyConditionalAssumptions(conditionalState),
+            meleeStanceCombo,
+            0,
+            4,
             1,
         ).score;
     }
@@ -1531,8 +1609,30 @@ function getOptimizerVariantTier(path: string): "flawed" | "standard" {
     return /\/beginner\//i.test(path) || /Beginner$/i.test(path) ? "flawed" : "standard";
 }
 
+function getAllowedOwnedModRanks(mod: ModEntry, opts: OptimizerOptions): number[] {
+    const exactRankCounts = opts.ownedModRankCountsByUniqueName?.[mod.uniqueName];
+    if (exactRankCounts !== undefined) {
+        const ownedRanks = [...new Set(Object.entries(exactRankCounts)
+            .filter(([rawRank, count]) => {
+                const rank = Number(rawRank);
+                return Number.isInteger(rank) && rank >= 0 && rank <= mod.fusionLimit && Number.isFinite(count) && count > 0;
+            })
+            .map(([rawRank]) => Number(rawRank)))].sort((left, right) => left - right);
+        if (opts.allowNonMaxRank) return ownedRanks;
+        return ownedRanks.length > 0 ? [ownedRanks[ownedRanks.length - 1]] : [];
+    }
+
+    const maximumRank = Math.max(0, Math.min(
+        mod.fusionLimit,
+        opts.ownedModMaxRankByUniqueName?.[mod.uniqueName] ?? mod.fusionLimit,
+    ));
+    return opts.allowNonMaxRank
+        ? Array.from({ length: maximumRank + 1 }, (_, rank) => rank)
+        : [maximumRank];
+}
+
 function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: OptimizerOptions, weapon: WeaponEntry): Candidate[] {
-    const { ownedModUniqueNames, ownedModMaxRankByUniqueName, excludedModUniqueNames, allowNonMaxRank, targetFaction = "", lockedIncompatibilityGroups, lockedUniqueNames } = opts;
+    const { ownedModUniqueNames, excludedModUniqueNames, targetFaction = "", lockedIncompatibilityGroups, lockedUniqueNames } = opts;
     const scoringTargetAssumptions = getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride);
     const scoringEffectContext = {
         headIsWeakPoint: scoringTargetAssumptions.headIsWeakPoint,
@@ -1555,15 +1655,6 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
     const hasPrecisionStrikeEffect = (mod: ModEntry): boolean => mod.path === PRECISION_STRIKE_MOD_PATH;
-    const allowedRanks = (mod: ModEntry): number[] => {
-        const maxRank = Math.max(0, Math.min(
-            mod.fusionLimit,
-            ownedModMaxRankByUniqueName?.[mod.uniqueName] ?? mod.fusionLimit,
-        ));
-        return allowNonMaxRank
-            ? Array.from({ length: maxRank + 1 }, (_, rank) => rank)
-            : [maxRank];
-    };
     const isDreadfulKillshot = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.dreadfulKillshotDamageAndStatusPer75Health ?? 0) > 0,
     );
@@ -1604,7 +1695,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         (!isUnseenDread(mod) || unseenDreadCanScore) &&
         (!isCriticalMutation(mod) || criticalMutationCanScore) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
-        allowedRanks(mod).some((rank) => getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length === 0);
+        getAllowedOwnedModRanks(mod, opts).some((rank) => getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
     for (const mod of allMods) {
         if (!hasSupportedDamageRank(mod)) continue;
@@ -1639,7 +1730,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
             mod.effect.targetFaction.toLowerCase() !== targetFaction.toLowerCase()) continue;
         const familyKey = normalizeOptimizerVariantPath(mod.path);
         if (getOptimizerVariantTier(mod.path) === "flawed" && familyHasStandard.has(familyKey)) continue;
-        for (const rank of allowedRanks(mod).sort((a, b) => b - a)) {
+        for (const rank of getAllowedOwnedModRanks(mod, opts).sort((a, b) => b - a)) {
             if (getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length > 0) continue;
             out.push({ mod, rank });
         }
@@ -1648,6 +1739,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
 }
 
 const TENNOKAI_SEARCH_CANDIDATE_LIMIT = 24;
+const VILE_DISCHARGE_SEARCH_CANDIDATE_LIMIT = 24;
 
 function shortlistTennokaiCandidates(
     candidates: Candidate[],
@@ -1729,6 +1821,82 @@ function shortlistTennokaiCandidates(
             ranks[Math.floor((ranks.length - 1) / 2)],
         ]);
         shortlisted.push(...selectedVariants);
+    }
+    return shortlisted;
+}
+
+function shortlistVileDischargeCandidates(
+    candidates: Candidate[],
+    weapon: WeaponEntry,
+    targetFaction: string,
+    targetProfileOverride: TargetProfileOverride | undefined,
+    conditionalState: ConditionalState | undefined,
+    preEquippedEffects: (ModEffect | null)[],
+): Candidate[] {
+    const vileAnchor = candidates.find((candidate) => candidate.mod.path === VILE_DISCHARGE_MOD_PATH);
+    if (!vileAnchor) return candidates;
+    const vileAnchorEffect = vileAnchor.mod.effectsByRank[vileAnchor.rank] ?? vileAnchor.mod.effect;
+    const groups = new Map<string, { candidates: Candidate[]; bestScore: number; bestCandidate: Candidate }>();
+    for (const candidate of candidates) {
+        const effect = candidate.mod.effectsByRank[candidate.rank] ?? candidate.mod.effect;
+        const effects = candidate.mod.path === VILE_DISCHARGE_MOD_PATH
+            ? [...preEquippedEffects, effect]
+            : [...preEquippedEffects, vileAnchorEffect, effect];
+        const score = scoreEffectsCore(
+            weapon,
+            effects,
+            "vileDischargeDps",
+            targetFaction,
+            null,
+            targetProfileOverride,
+            withoutBurstOnlyConditionalAssumptions(conditionalState),
+            undefined,
+            0,
+            4,
+            1,
+        ).score;
+        const existing = groups.get(candidate.mod.uniqueName);
+        if (existing) {
+            existing.candidates.push(candidate);
+            if (score > existing.bestScore) {
+                existing.bestScore = score;
+                existing.bestCandidate = candidate;
+            }
+        } else {
+            groups.set(candidate.mod.uniqueName, {
+                candidates: [candidate],
+                bestScore: score,
+                bestCandidate: candidate,
+            });
+        }
+    }
+    const rankedGroups = [...groups.entries()]
+        .map(([uniqueName, group]) => ({ uniqueName, ...group }))
+        .sort((left, right) => right.bestScore - left.bestScore || left.uniqueName.localeCompare(right.uniqueName));
+    const selected = new Map<string, typeof rankedGroups[number]>();
+    const addGroup = (group: typeof rankedGroups[number] | undefined) => {
+        if (!group || selected.size >= VILE_DISCHARGE_SEARCH_CANDIDATE_LIMIT) return;
+        selected.set(group.uniqueName, group);
+    };
+    addGroup(rankedGroups.find((group) => group.bestCandidate.mod.path === VILE_DISCHARGE_MOD_PATH));
+    const themeLeaders = new Map<string, typeof rankedGroups[number]>();
+    for (const group of rankedGroups) {
+        const theme = beamThemeSignature({ mods: [group.bestCandidate.mod], ranks: [group.bestCandidate.rank] });
+        const previous = themeLeaders.get(theme);
+        if (!previous || group.bestScore > previous.bestScore) themeLeaders.set(theme, group);
+    }
+    for (const group of [...themeLeaders.values()].sort((left, right) => right.bestScore - left.bestScore)) addGroup(group);
+    for (const group of rankedGroups) addGroup(group);
+
+    const shortlisted: Candidate[] = [];
+    for (const group of selected.values()) {
+        const ranks = [...group.candidates].sort((left, right) => left.rank - right.rank);
+        shortlisted.push(...new Set([
+            group.bestCandidate,
+            ranks[0],
+            ranks[ranks.length - 1],
+            ranks[Math.floor((ranks.length - 1) / 2)],
+        ]));
     }
     return shortlisted;
 }
@@ -2243,11 +2411,13 @@ function beamSearch(
     slotCount: number,
     opts: OptimizerOptions,
     useTennokaiSearchProxy = false,
+    useVileDischargeSearchProxy = false,
 ): {
     mods: ModEntry[];
     ranks: number[];
     expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }>;
     tennokaiSearchSeeds: Array<{ mods: ModEntry[]; ranks: number[] }>;
+    vileDischargeSearchSeeds: Array<{ mods: ModEntry[]; ranks: number[] }>;
     scoreCache: Map<string, number>;
 } {
     const {
@@ -2355,6 +2525,7 @@ function beamSearch(
             scoreEffectsScratch,
             opts.meleeStanceCombo,
             useTennokaiSearchProxy,
+            useVileDischargeSearchProxy,
         ),
         filledCount: lockedSlots.filter(Boolean).length,
         capacityUsed: initialCapacityUsed,
@@ -2471,6 +2642,7 @@ function beamSearch(
                     scoreEffectsScratch,
                     opts.meleeStanceCombo,
                     useTennokaiSearchProxy,
+                    useVileDischargeSearchProxy,
                 );
             }
             deduped.set(signature, candidate);
@@ -2518,6 +2690,7 @@ function beamSearch(
     }
     const expectedEncounterSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [];
     const tennokaiSearchSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [];
+    const vileDischargeSearchSeeds: Array<{ mods: ModEntry[]; ranks: number[] }> = [];
     if (useTennokaiSearchProxy && beam.length > 0) {
         const maxFilledCount = Math.max(...beam.map((state) => state.filledCount));
         const finalists = beam.filter((state) => state.filledCount === maxFilledCount && stateHasTennokaiEnablement(state));
@@ -2526,6 +2699,16 @@ function beamSearch(
             : beam.filter((state) => state.filledCount === maxFilledCount);
         for (const state of fallbackFinalists.slice(0, 10)) {
             tennokaiSearchSeeds.push({
+                mods: state.mods.flatMap((mod) => mod ? [mod] : []),
+                ranks: state.mods.flatMap((mod, index) => mod ? [state.ranks[index] ?? mod.fusionLimit] : []),
+            });
+        }
+    }
+    if (useVileDischargeSearchProxy && beam.length > 0) {
+        const hasVileDischarge = (state: BeamState) => state.mods.some((mod) => mod?.path === VILE_DISCHARGE_MOD_PATH);
+        const finalists = beam.filter(hasVileDischarge).sort((left, right) => right.score - left.score);
+        for (const state of finalists.slice(0, 10)) {
+            vileDischargeSearchSeeds.push({
                 mods: state.mods.flatMap((mod) => mod ? [mod] : []),
                 ranks: state.mods.flatMap((mod, index) => mod ? [state.ranks[index] ?? mod.fusionLimit] : []),
             });
@@ -2566,7 +2749,7 @@ function beamSearch(
         const signature = getBeamStateSignature(state.mods, state.ranks, true);
         if (!scoreCache.has(signature)) scoreCache.set(signature, state.score);
     }
-    return { mods: resultMods, ranks: resultRanks, expectedEncounterSeeds, tennokaiSearchSeeds, scoreCache };
+    return { mods: resultMods, ranks: resultRanks, expectedEncounterSeeds, tennokaiSearchSeeds, vileDischargeSearchSeeds, scoreCache };
 }
 
 function refineBuildSet(
@@ -4397,8 +4580,8 @@ function optimizeExilusSlot(
     let bestImprovingScore = baseScore;
 
     for (const mod of eligibleExilus) {
-        const minRank = opts.allowNonMaxRank ? 0 : mod.fusionLimit;
-        for (let r = mod.fusionLimit; r >= minRank; r--) {
+        const allowedRanks = getAllowedOwnedModRanks(mod, opts).sort((left, right) => right - left);
+        for (const r of allowedRanks) {
             if (getBlockingOptimizerEffectLines(mod, r, {
                 headIsWeakPoint: getTargetProfileAssumptions(targetFaction, opts.targetProfileOverride).headIsWeakPoint,
                 selectedAttackName: weapon.selectedAttackName,
@@ -4595,8 +4778,15 @@ function optimizeBuildInternal(
     // Effective options used inside beam search
     const effectiveOpts: OptimizerOptions = { ...opts, capacityConfig: capCfg };
 
-    const allCandidates = buildCandidates(availableMods, goal, effectiveOpts, weapon);
+    const allCandidates = buildCandidates(
+        availableMods,
+        goal,
+        effectiveOpts,
+        goal === "vileDischargeDps" ? scoringWeapon : weapon,
+    );
     const useTennokaiSearchProxy = goal === "tennokaiDps" && allCandidates.length > TENNOKAI_SEARCH_CANDIDATE_LIMIT;
+    const useVileDischargeSearchProxy = goal === "vileDischargeDps" &&
+        allCandidates.length > VILE_DISCHARGE_SEARCH_CANDIDATE_LIMIT;
     const candidates = useTennokaiSearchProxy
         ? shortlistTennokaiCandidates(
             allCandidates,
@@ -4606,11 +4796,28 @@ function optimizeBuildInternal(
             opts.conditionalState,
             preEquippedEffects,
         )
-        : allCandidates;
+        : useVileDischargeSearchProxy
+            ? shortlistVileDischargeCandidates(
+                allCandidates,
+                scoringWeapon,
+                targetFaction,
+                opts.targetProfileOverride,
+                opts.conditionalState,
+                preEquippedEffects,
+            )
+            : allCandidates;
     const hasLockedMainSlots = lockedSlots.some(Boolean);
 
     // Phase 1: Beam search — find best set of mods
-    const initial = beamSearch(scoringWeapon, candidates, goal, slotCount, effectiveOpts, useTennokaiSearchProxy);
+    const initial = beamSearch(
+        scoringWeapon,
+        candidates,
+        goal,
+        slotCount,
+        effectiveOpts,
+        useTennokaiSearchProxy,
+        useVileDischargeSearchProxy,
+    );
     let mods = initial.mods;
     let ranks = initial.ranks;
     if (useTennokaiSearchProxy && initial.tennokaiSearchSeeds.length > 0) {
@@ -4637,17 +4844,41 @@ function optimizeBuildInternal(
             }
         }
     }
+    if (useVileDischargeSearchProxy && initial.vileDischargeSearchSeeds.length > 0) {
+        let bestSeedScore = Number.NEGATIVE_INFINITY;
+        for (const seed of initial.vileDischargeSearchSeeds) {
+            const seedEffects = [
+                ...preEquippedEffects,
+                ...seed.mods.map((mod, index) => mod.effectsByRank[seed.ranks[index]] ?? mod.effect),
+            ];
+            const score = scoreEffects(
+                scoringWeapon,
+                seedEffects,
+                goal,
+                targetFaction,
+                undefined,
+                opts.targetProfileOverride,
+                opts.conditionalState,
+                opts.meleeStanceCombo,
+            );
+            if (score > bestSeedScore) {
+                bestSeedScore = score;
+                mods = seed.mods;
+                ranks = seed.ranks;
+            }
+        }
+    }
     if (!hasLockedMainSlots && !isFiniteEncounterGoal(goal) && goal !== "tennokaiDps") {
         ({ mods, ranks } = refineBuildSet(
             scoringWeapon,
-            initial.mods,
-            initial.ranks,
+            mods,
+            ranks,
             candidates,
             goal,
             effectiveOpts,
             [],
             undefined,
-            initial.scoreCache,
+            useVileDischargeSearchProxy ? undefined : initial.scoreCache,
         ));
         ({ mods, ranks } = comboRefineBuildSet(
             scoringWeapon,
@@ -4658,7 +4889,7 @@ function optimizeBuildInternal(
             effectiveOpts,
             [],
             undefined,
-            initial.scoreCache,
+            useVileDischargeSearchProxy ? undefined : initial.scoreCache,
         ));
     }
 
@@ -5337,6 +5568,7 @@ function goalLabel(goal: OptimizeGoal): string {
         case "windowDps": return "Fixed-window DPS (5s)";
         case "meleeDps": return "Wiki Stance DPS";
         case "tennokaiDps": return "Tennokai Cycle DPS";
+        case "vileDischargeDps": return "Vile Discharge Cycle DPS";
     }
 }
 
@@ -5634,6 +5866,17 @@ export function explainBuild(
             );
         }
     }
+    if (goal === "vileDischargeDps") {
+        const maximumCharge = selectedEffects.reduce(
+            (maximum, effect) => Math.max(maximum, effect?.vileDischargeMaximumDamage ?? 0),
+            0,
+        );
+        if (maximumCharge > 0) {
+            buildHighlights.push(
+                `Vile Discharge Cycle DPS models four Embolist Normal Attack charge/release cycles at the selected ${maximumCharge.toLocaleString()} charge cap. The model releases when the cap is reached, waits through magazine reloads and the sourced 1/2.5s Alt-Fire action lock, and resolves primary hits plus expected timed DoT ticks against repeated identical targets. Each release adds a 10 Impact contact hit and a separate Toxin explosion with the current target centered; configured 0–3m and 3–6m neighbors receive area-uniform average falloff estimates (the Wiki only specifies approximately 80% falloff at 6m). Direct Alt-Fire crit/status are excluded. Stored charge uses a deterministic raw-damage estimate capped against remaining target pools before enemy defenses; status rolls and overkill are mean-field assumptions.`
+            );
+        }
+    }
     if (selectedStats.sentientIncisionDamageType && selectedStats.sentientIncisionDamageBonus > 0) {
         buildHighlights.push(
             `Sentient Incision adds ${formatExplanationPercent(selectedStats.sentientIncisionDamageBonus)} isolated ${selectedStats.sentientIncisionDamageType[0].toUpperCase()}${selectedStats.sentientIncisionDamageType.slice(1)} damage for the selected target. The bonus is added after elemental combination and does not scale the matching DoT seed. ${targetAssumptions.overguard > 0 ? "Because this target starts with Overguard, Burst uses its Corrosive snapshot; finite TTK, sustained, and fixed-window scoring are unavailable because the element changes when Overguard breaks." : "The target has no initial Overguard, so this selected faction element remains fixed during the modeled encounter."}`,
@@ -5815,6 +6058,8 @@ export function explainBuild(
         );
     const targetDetail = goal === "windowDps" && targetProfileOverride
         ? " using the entered target pools; only damage applied to this target is scored, with neighbor collateral excluded"
+        : goal === "vileDischargeDps" && targetProfileOverride
+            ? ` using the entered target pools and defenses; four rank-cap cycles repeat the same profile after kills, with the explosion centered on the selected target${nearbyEnemyCount > 0 ? ` and ${nearbyEnemyCount} same-profile neighbors in 0–3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` and ${nearbyGasOuterEnemyCount} same-profile neighbors in 3–6m` : ""}`
         : goal === "tennokaiDps" && targetProfileOverride
             ? " using the entered target pools and defenses; the same target profile repeats after direct or Bleed-tick kills, with adjacent targets excluded"
         : goal !== "meleeDps" && targetProfileOverride
@@ -5824,7 +6069,8 @@ export function explainBuild(
         ? "Screening proxy score"
         : goal === "windowDps" ? "Exact 5-second damage rate"
         : goal === "meleeDps" ? "Raw stance DPS estimate"
-        : goal === "tennokaiDps" ? "Four-cycle direct + Slash Bleed DPS estimate" : "Selected build score";
+        : goal === "tennokaiDps" ? "Four-cycle direct + Slash Bleed DPS estimate"
+        : goal === "vileDischargeDps" ? "Four-cycle direct + DoT + Alt-Fire DPS estimate" : "Selected build score";
     const encounterSummary = goal === "timeToKill" && explanationOptions.objectiveEncounter
         ? explanationOptions.objectiveEncounter.timeToKillSeconds === null
             ? ` Finite expected encounter reached its safety cap; fallback damage rate ${explanationOptions.objectiveEncounter.damagePerSecond.toFixed(1)}/s.`
@@ -5855,6 +6101,8 @@ export function explainBuild(
             ? "The optimizer uses Initial conditional state and the selected Wiki Neutral-combo direct and forced-Slash multipliers with approximate combo timing. It ranks the raw stance estimate, not target-specific TTK; stance hit sequences, status application histories, combo generation/decay, heavy-attack behavior, and contact/position rules remain outside this objective."
             : goal === "tennokaiDps"
                 ? "The optimizer compares the same expected four-cycle Normal Attack / Heavy Attack or centered Heavy Slam timeline shown in the Tennokai panel, followed by its full Slash Bleed tail. Direct attacks and ordered Slash ticks apply to current target pools; ticks bypass armor, stop when their target dies, and the next event starts against an identical profile. Relentless Combination contributes its rank-scaled expected combo gains on Slash applications and each landed tick, updating later combo tiers. Tennokai Status Chance affects modeled Slash applications; other status effects remain excluded. Numeric Heavy Attack wind-up, adjacent-target damage, melee range, and Truth's Flame's player-side curse/syndicate effects are not scored. Each selected direct-hit event is assumed to connect, so Opportunity's Reach's range is informational while its opportunity-window bonus is scored. For a pool over 24 candidates, a one-cycle score narrows the search to up to 24 mod families, keeps representative ranks, and searches with a 10-state beam; up to 10 finalists are re-scored on four cycles. This bounded cycle score is not finite TTK, five-second DPS, or a global-optimality result."
+            : goal === "vileDischargeDps"
+                ? "The optimizer compares a four-cycle Embolist Normal Attack timeline with Vile Discharge required. Expected primary hits and timed DoT ticks fill the selected rank cap; each release applies a modded 10 Impact contact hit without crit, status, or Multishot, then a separate centered Toxin explosion. Configured same-profile targets in the 0–3m and 3–6m bands receive the explosion; their average falloff is area-uniform and linearly interpolated from full damage at center to 20% at 6m because the Wiki gives only an approximate edge value. Reloads, the 1/2.5s Alt-Fire action lock, target pool defenses, status immunity, and repeated identical targets are represented. The model assumes release at the cap; overkill uses a raw-pool cap before defenses, status rolls use deterministic expected counts, and attack/cycle timing is a discrete event estimate. Dynamic armor/status history is excluded. For pools over 24 candidates, a one-cycle score keeps up to 24 mod families and representative ranks, then the leading ten beam builds are rescored on four cycles before bounded local refinement. This bounded score is not finite TTK, five-second DPS, a random-proc sample, or proof of a global optimum."
             : goal === "timeToKill"
             ? `Beam search and per-mod rows use a fast sustained-damage proxy; the finite-encounter pass first scores up to 12 effect-diverse legal beam finalists, then tests up to ${ENCOUNTER_REFINE_PASSES} passes of ${ENCOUNTER_REFINE_CANDIDATE_LIMIT} legal one-mod additions or replacements plus up to ${ENCOUNTER_REFINE_REMOVAL_LIMIT} legal single-mod removals. Each pass reserves ${ENCOUNTER_REFINE_PROXY_SHORTLIST} places for proxy leaders, then covers distinct element transitions, output families, and mod-effect families. When that shortlist stalls—or when an Arcane-dependent move improves the exact score—the optimizer screens legal two-mod replacements from a ${ENCOUNTER_PAIR_CANDIDATE_POOL_LIMIT}-mod family-diverse pool and finite-scores up to ${ENCOUNTER_PAIR_REFINE_CANDIDATE_LIMIT} candidates. When Arcane optimization is enabled, every supplied candidate Arcane rank up to its owned-rank cap is exact-scored against the current mod list. For up to ${ARCANE_MOD_JOINT_PROXY_SHORTLIST_LIMIT} varied legal mod changes per pass, a fast Arcane estimate chooses a candidate effect and the complete finite-encounter score evaluates the combined move; small mod/Arcane pools are scored exactly. The Arcane is rechecked as the build changes, for up to ${ARCANE_MOD_JOINT_REFINE_PASSES} passes.${encounterSearchNote} A kill within 600 seconds outranks a capped encounter; shorter TTK wins between kills, and damage per second ranks builds when neither kills within the cap. Fractional status rolls remain mean-field estimates; this bounded search does not prove global optimality or random TTK.`
             : goal === "windowDps"

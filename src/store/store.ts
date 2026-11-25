@@ -23,6 +23,7 @@ import type { PageKey, PlatformKey, UserGoalV1, UserStateV2 } from "../domain/mo
 import { migrateToUserStateV2, normalizeWorldStateProgress } from "./migrations";
 import type { ProfileImportResult } from "../utils/profileImport";
 import { SY } from "../domain/ids/syndicateIds";
+import { getModRankInventorySnapshot } from "../domain/logic/modInventory";
 import { PERSIST_KEY, PERSIST_VERSION } from "./persistence";
 import {
     nowIso, uid,
@@ -61,7 +62,9 @@ export interface TrackerStore {
     bulkOverwritePrereqs: (patch: Record<string, boolean>) => void;
 
     setCount: (key: string, count: number) => void;
+    setModCount: (path: string, count: number, rankForNewCopies?: number) => void;
     setModRank: (path: string, rank: number) => void;
+    setModRankInventory: (path: string, rankCounts: Record<string, number>, unknownCount?: number) => void;
     setArcaneRankCount: (path: string, rank: number, count: number) => void;
     upsertCustomRiven: (riven: CustomRivenRecord) => void;
     deleteCustomRiven: (id: string) => void;
@@ -291,10 +294,92 @@ export const useTrackerStore = create<TrackerStore>()(
                 });
             },
 
+            setModCount: (path, count, rankForNewCopies) => {
+                set((s) => {
+                    const inventory = s.state.inventory;
+                    if (!inventory.counts) inventory.counts = {};
+                    if (!inventory.modRanks) inventory.modRanks = {};
+                    if (!inventory.modRankCounts) inventory.modRankCounts = {};
+                    if (!inventory.modUnknownRankCounts) inventory.modUnknownRankCounts = {};
+                    const countKey = `mods:${path}`;
+                    const previousTotal = Math.max(0, Math.floor(Number(inventory.counts[countKey] ?? inventory.counts[path] ?? 0) || 0));
+                    const nextTotal = Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));
+                    const rankHint = Number.isFinite(rankForNewCopies) ? Math.max(0, Math.floor(rankForNewCopies ?? 0)) : undefined;
+                    const legacyRank = inventory.modRanks[path] ?? rankHint;
+                    const snapshot = getModRankInventorySnapshot(
+                        path,
+                        previousTotal,
+                        Math.max(0, Math.floor(legacyRank ?? 0)),
+                        legacyRank,
+                        inventory.modRankCounts,
+                        inventory.modUnknownRankCounts,
+                    );
+                    const rankCounts = { ...snapshot.rankCounts };
+                    let unknownCount = snapshot.unknownCount;
+
+                    if (nextTotal > previousTotal) {
+                        const rank = rankHint ?? snapshot.highestOwnedRank ?? inventory.modRanks[path] ?? 0;
+                        rankCounts[String(rank)] = (rankCounts[String(rank)] ?? 0) + nextTotal - previousTotal;
+                    } else if (nextTotal < previousTotal) {
+                        let removeCount = previousTotal - nextTotal;
+                        const fromUnknown = Math.min(unknownCount, removeCount);
+                        unknownCount -= fromUnknown;
+                        removeCount -= fromUnknown;
+                        for (const rank of Object.keys(rankCounts).map(Number).sort((left, right) => right - left)) {
+                            if (removeCount <= 0) break;
+                            const key = String(rank);
+                            const removed = Math.min(rankCounts[key] ?? 0, removeCount);
+                            rankCounts[key] = (rankCounts[key] ?? 0) - removed;
+                            removeCount -= removed;
+                            if (rankCounts[key] <= 0) delete rankCounts[key];
+                        }
+                    }
+
+                    inventory.counts[countKey] = nextTotal;
+                    inventory.modRankCounts[path] = rankCounts;
+                    if (unknownCount > 0) inventory.modUnknownRankCounts[path] = unknownCount;
+                    else delete inventory.modUnknownRankCounts[path];
+                    const knownRanks = Object.keys(rankCounts).map(Number).filter((rank) => (rankCounts[String(rank)] ?? 0) > 0);
+                    inventory.modRanks[path] = knownRanks.length > 0 ? Math.max(...knownRanks) : 0;
+                    s.state.meta.updatedAtIso = nowIso();
+                });
+            },
+
             setModRank: (path, rank) => {
                 set((s) => {
-                    if (!s.state.inventory.modRanks) s.state.inventory.modRanks = {};
-                    s.state.inventory.modRanks[path] = Math.max(0, Number.isFinite(rank) ? Math.floor(rank) : 0);
+                    const inventory = s.state.inventory;
+                    if (!inventory.modRanks) inventory.modRanks = {};
+                    if (!inventory.modRankCounts) inventory.modRankCounts = {};
+                    const safeRank = Math.max(0, Number.isFinite(rank) ? Math.floor(rank) : 0);
+                    const totalCount = Math.max(0, Math.floor(Number(inventory.counts?.[`mods:${path}`] ?? inventory.counts?.[path] ?? 0) || 0));
+                    inventory.modRanks[path] = safeRank;
+                    inventory.modRankCounts[path] = totalCount > 0 ? { [String(safeRank)]: totalCount } : {};
+                    if (inventory.modUnknownRankCounts) delete inventory.modUnknownRankCounts[path];
+                    s.state.meta.updatedAtIso = nowIso();
+                });
+            },
+
+            setModRankInventory: (path, rankCounts, unknownCount = 0) => {
+                set((s) => {
+                    const inventory = s.state.inventory;
+                    if (!inventory.counts) inventory.counts = {};
+                    if (!inventory.modRanks) inventory.modRanks = {};
+                    if (!inventory.modRankCounts) inventory.modRankCounts = {};
+                    if (!inventory.modUnknownRankCounts) inventory.modUnknownRankCounts = {};
+                    const normalized: Record<string, number> = {};
+                    for (const [rawRank, rawCount] of Object.entries(rankCounts)) {
+                        const rank = Number(rawRank);
+                        const copyCount = Number.isFinite(rawCount) ? Math.max(0, Math.floor(rawCount)) : 0;
+                        if (!Number.isInteger(rank) || rank < 0 || copyCount <= 0) continue;
+                        normalized[String(rank)] = copyCount;
+                    }
+                    const unrankedCopies = Number.isFinite(unknownCount) ? Math.max(0, Math.floor(unknownCount)) : 0;
+                    const totalCount = Object.values(normalized).reduce((sum, value) => sum + value, 0) + unrankedCopies;
+                    inventory.modRankCounts[path] = normalized;
+                    if (unrankedCopies > 0) inventory.modUnknownRankCounts[path] = unrankedCopies;
+                    else delete inventory.modUnknownRankCounts[path];
+                    inventory.counts[`mods:${path}`] = totalCount;
+                    inventory.modRanks[path] = Math.max(0, ...Object.keys(normalized).map(Number));
                     s.state.meta.updatedAtIso = nowIso();
                 });
             },

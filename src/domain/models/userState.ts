@@ -217,7 +217,7 @@ export interface SavedBuildTargetConfig {
 }
 
 export interface SavedBuildPlannerConfig {
-    goal?: "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps" | "tennokaiDps";
+    goal?: "burst" | "scaling" | "timeToKill" | "windowDps" | "meleeDps" | "tennokaiDps" | "vileDischargeDps";
     conditionalMode?: "initial" | "realistic" | "fullyStacked" | "custom";
     externalConditionalStacks?: number;
     /** Distinct additional status types assumed active for Condition Overload (including Tau). */

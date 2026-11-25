@@ -50,7 +50,7 @@ export interface TennokaiOpportunityTimelineInput {
     maxEvents: number;
     /** Combo points on the weapon before the first event. */
     startingComboPoints?: number;
-    /** Combo points that one qualifying regular hit adds. The bounded default is one point. */
+    /** Expected combo points added by a qualifying regular hit. The default is one point. */
     comboPointsPerRegularHit?: number;
     /** Heavy Attack Efficiency as a fraction, capped to the game's 90% limit. */
     heavyAttackEfficiency?: number;
@@ -873,6 +873,13 @@ export function calculateTennokaiAttackTimeline(
         (maximum, effect) => Math.max(maximum, effect.tennokaiRangeBonusMeters ?? 0),
         0,
     );
+    const additionalComboCountChance = Math.max(0, effectRows.reduce(
+        (total, effect) => total + ((effect.relentlessCombinationSlashComboChance ?? 0) > 0
+            ? 0
+            : (effect.comboCountChanceBonus ?? 0)),
+        0,
+    ));
+    const expectedComboPointsPerRegularHit = 1 + additionalComboCountChance;
     const rules = getMeleeComboRules(input.weapon);
     const hitsBetweenHeavy = Math.max(1, Math.min(20, Math.floor(
         Number.isFinite(input.regularHitsBetweenHeavy) ? input.regularHitsBetweenHeavy : 1,
@@ -894,6 +901,7 @@ export function calculateTennokaiAttackTimeline(
             : {}),
         startingComboPoints: heavyBaseStats.meleeComboPointsBeforeHeavyAttack,
         initialComboPoints: heavyBaseStats.meleeInitialComboPoints,
+        comboPointsPerRegularHit: expectedComboPointsPerRegularHit,
         heavyAttackEfficiency: heavyBaseStats.heavyAttackEfficiency,
         comboDurationSeconds,
         comboPointsPerTier: rules.pointsPerTier,
@@ -1006,16 +1014,17 @@ export function calculateTennokaiAttackTimeline(
         opportunityChancePerHit,
         opportunityWindowSeconds,
         opportunityRangeBonusMeters,
-        comboGainAssumptionPointsPerRegularHit: 1,
+        comboGainAssumptionPointsPerRegularHit: expectedComboPointsPerRegularHit,
         notes: [
-            "One qualifying regular hit per Normal Attack event adds one combo point; stance-specific combo generation remains outside this cycle.",
+            additionalComboCountChance > 0
+                ? `Each qualifying Normal Attack hit adds one base combo point plus ${Math.round(additionalComboCountChance * 100)}% expected extra combo points from Additional Combo Count Chance; random gains are averaged, not sampled. Stance-specific combo generation remains outside this cycle.`
+                : "One qualifying regular hit per Normal Attack event adds one combo point; stance-specific combo generation remains outside this cycle.",
+            ...(additionalComboCountChance > 1 + EPSILON
+                ? ["The Wiki says Additional Combo Count Chance stacks additively and can award extra hits above 100%; this cycle applies the combined value as expected extra combo points, so random gains are averaged rather than sampled."]
+                : []),
             `The combo counter expires after ${comboDurationSeconds}s without a qualifying hit; the weapon's ${baseComboDurationSeconds}s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.`,
             ...(relentlessChance > 0
                 ? [`Relentless Combination adds an expected ${Math.round(relentlessChance * 100)}% combo point per eligible melee Slash application and each landed Bleed tick; each gain updates later event combo tiers and refreshes the combo timer.`]
-                : []),
-            ...(effectRows.some((effect) => (effect.comboCountChanceBonus ?? 0) !== 0 &&
-                (effect.relentlessCombinationSlashComboChance ?? 0) === 0)
-                ? ["Additional Combo Count Chance is not simulated; the timeline keeps its one-point-per-regular-hit assumption."]
                 : []),
             `Slash applications schedule up to ${countStatusDamageTicks("slash", maximumSlashDurationSeconds)} Bleed ticks at one-second intervals, starting one second later. Each Slash stack keeps its own source damage; ticks affect the target's active pool and bypass armor. When direct damage or a Bleed tick kills a target, its remaining Bleed stops and the next event starts against an identical target profile. The score includes a ${maximumSlashDurationSeconds.toFixed(1)}s Bleed tail after the attack cycles; other status types are not scored.`,
             "Target-aware Cycle DPS applies the selected faction, initial armor and pool routing, caps damage to each target, and repeats the same profile after a kill. Expected status applications and combo gains are mean-field values; hit, status, and critical rolls are not sampled.",
