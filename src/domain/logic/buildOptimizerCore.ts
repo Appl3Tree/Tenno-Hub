@@ -47,6 +47,7 @@ import {
 } from "./targetDamage";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "./tennokaiTimeline";
 import { calculateVileDischargeTimeline } from "./vileDischargeTimeline";
+import { normalizeExternalStatusTypes } from "./uniqueStatusRules";
 
 export const FIXED_WINDOW_DPS_SECONDS = 5;
 
@@ -1588,6 +1589,11 @@ function getBlockingOptimizerEffectLines(
     rank: number,
     context: Parameters<typeof getUnmodeledDamageEffectLines>[2],
 ): string[] {
+    const effect = mod.effectsByRank[rank] ?? mod.effect;
+    if ((effect.liftedComboCountChanceBonus ?? 0) > 0 &&
+        (context?.selectedGoal !== "tennokaiDps" || context.targetHasLiftedStatus !== true)) {
+        return ["Enduring Strike is eligible for Auto Optimize only for Tennokai Cycle DPS with Lifted selected as an external target status."];
+    }
     const separateRipkasShotgunEffect = mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH &&
         context?.selectedWeaponName === "Ripkas";
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
@@ -1650,6 +1656,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         ),
         unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
         criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+        targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
         strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
         selectedGoal: goal,
     };
@@ -4598,6 +4605,7 @@ function optimizeExilusSlot(
                 ),
                 unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
                 criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+                targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
                 strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
                 selectedGoal: goal,
             }).length > 0) continue;
@@ -5682,6 +5690,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     }
     if (value("initialComboBonus") !== 0) parts.push(`+${formatExplanationNumber(value("initialComboBonus"), 0)} starting Melee Combo points`);
     if (value("comboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("comboCountChanceBonus"))} chance to gain an extra Melee Combo point`);
+    if (value("liftedComboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("liftedComboCountChanceBonus"))} Additional Combo Count Chance on Lifted targets (Tennokai Cycle DPS assumption)`);
     if (value("firstShotMagazineDamageBonus") !== 0) {
         parts.push(signedPercent(value("firstShotMagazineDamageBonus"), "damage on the first shot after reloading"));
     }
@@ -5991,6 +6000,7 @@ export function explainBuild(
             ),
             unseenDreadInvisibilityActive: conditionalState?.unseenDreadInvisibilityActive === true,
             criticalMutationPriorKills: normalizeCriticalMutationPriorKills(conditionalState?.criticalMutationPriorKills),
+            targetHasLiftedStatus: normalizeExternalStatusTypes(conditionalState?.externalStatusTypes).includes("lifted"),
             strainInfectionCystsAtImpact: conditionalState?.strainInfectionCystsAtImpact,
             selectedGoal: goal,
         });

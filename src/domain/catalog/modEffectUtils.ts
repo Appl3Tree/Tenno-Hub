@@ -68,6 +68,8 @@ export interface ScoringEffectContext {
     unseenDreadInvisibilityActive?: boolean;
     /** Prior Catabolyst kills represented by Critical Mutation's Burst snapshot. */
     criticalMutationPriorKills?: number;
+    /** Whether Lifted is explicitly assumed active on the selected target. */
+    targetHasLiftedStatus?: boolean;
     /** Active Strain cysts at impact for Burst-only Strain Infection/Fever snapshots. */
     strainInfectionCystsAtImpact?: number;
     /** Current optimization objective; these snapshots are Burst-only. */
@@ -287,6 +289,9 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Entropy syndicate side effect is not modeled.");
     }
     const effect = mod.effectsByRank?.[rank] ?? mod.effect;
+    if ((effect?.liftedComboCountChanceBonus ?? 0) > 0 && context?.selectedGoal !== "tennokaiDps") {
+        lines.push("Enduring Strike adds rank-scaled Additional Combo Count Chance only while the target is Lifted. The planner scores it in Tennokai Cycle DPS only when Lifted is explicitly selected as an external target status; Lifted duration and renewal are not simulated, and other objectives skip it.");
+    }
     const hasComboDurationEffect = (effect?.comboDurationBonus ?? 0) !== 0 ||
         (effect?.comboDurationBaseBonus ?? 0) !== 0;
     if (hasComboDurationEffect && context?.selectedGoal !== "tennokaiDps" && context?.selectedGoal !== "burst") {
@@ -313,6 +318,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     path?: string;
     unparsedStatsByRank?: string[][];
 }): string | undefined {
+    if (mod.path === "/Lotus/Upgrades/Mods/Melee/Channel/ChannelStatusMod") {
+        return "https://wiki.warframe.com/w/Enduring_Strike";
+    }
     if (mod.path === THERMAGNETIC_SHELLS_MOD_PATH) {
         return "https://wiki.warframe.com/w/Thermagnetic_Shells";
     }
@@ -419,6 +427,7 @@ export function emptyEffect(): ModEffect {
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
         headshotMultiplierBonus: 0, bodyshotDamageBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
         comboDurationBonus: 0, comboDurationBaseBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
+        liftedComboCountChanceBonus: 0,
         relentlessCombinationSlashComboChance: 0,
         heavyAttackEfficiencyBonus: 0, heavyAttackWindUpBonus: 0,
         lifeStealBonus: 0, ammoEfficiencyBonus: 0, directDamagePerStatusBonus: 0,

@@ -439,6 +439,44 @@ describe("Tennokai opportunity event timeline", () => {
         expect(boosted.events.at(-1)?.comboMultiplierBeforeEvent).toBe(2);
     });
 
+    it("adds Enduring Strike combo chance only for an explicitly Lifted target", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+        const mods = getModsForWeapon(weapon);
+        const mastersEdge = mods.find((mod) => mod.name === "Master's Edge")!;
+        const enduringStrike = mods.find((mod) => mod.name === "Enduring Strike")!;
+        const regularAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const heavyAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+
+        expect(enduringStrike.effectsByRank.map((effect) => effect.liftedComboCountChanceBonus))
+            .toEqual([0.05, 0.1, 0.15, 0.2]);
+        expect(enduringStrike.unparsedStatsByRank?.every((rankLines) => rankLines.length === 0)).toBe(true);
+
+        const shared = {
+            weapon,
+            mods: [mastersEdge.effect, enduringStrike.effectsByRank[3]],
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 17,
+            cycles: 1,
+        };
+        const inactive = calculateTennokaiAttackTimeline(shared);
+        const active = calculateTennokaiAttackTimeline({
+            ...shared,
+            conditionalState: { mode: "initial", externalStatusTypes: ["lifted"] },
+        });
+        const conflicting = calculateTennokaiAttackTimeline({
+            ...shared,
+            conditionalState: { mode: "initial", externalStatusTypes: ["lifted", "knockdown"] },
+        });
+
+        expect(inactive.supported).toBe(true);
+        expect(inactive.comboGainAssumptionPointsPerRegularHit).toBe(1);
+        expect(inactive.notes.some((note) => note.includes("Enduring Strike is equipped but inactive"))).toBe(true);
+        expect(active.comboGainAssumptionPointsPerRegularHit).toBeCloseTo(1.2, 12);
+        expect(active.notes.some((note) => note.includes("assumed maintained for this cycle"))).toBe(true);
+        expect(conflicting.comboGainAssumptionPointsPerRegularHit).toBe(1);
+    });
+
     it("models and discloses additive combo chance above 100%", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
         const mods = getModsForWeapon(weapon);
