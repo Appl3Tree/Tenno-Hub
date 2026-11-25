@@ -482,11 +482,26 @@ export function getUnmodeledDamageEffectLines(
     return [...new Set([...lines, ...getUnmodeledScoringEffectLines(effect, context)])];
 }
 
+export function getUnmodeledDamageEffectBadgeLabel(
+    mod: { path?: string },
+    surface: "slot" | "picker",
+): string {
+    if (mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH) {
+        return "Linked Sword-and-Shield combo effect unscored; Magazine Capacity remains optimizer-eligible";
+    }
+    return surface === "slot"
+        ? "Unscored effect; Auto Optimize skips this mod"
+        : "Unscored effect; optimizer excludes";
+}
+
 /** Current-source links for unmodeled effects called out in the builder. */
 export function getUnmodeledDamageEffectSourceUrl(mod: {
     path?: string;
     unparsedStatsByRank?: string[][];
 }): string | undefined {
+    if (mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Amalgam_Javlok_Magazine_Warp";
+    }
     if (mod.path === SWIPE_MOD_PATH) {
         return "https://wiki.warframe.com/w/Swipe";
     }

@@ -4,7 +4,7 @@ import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
-import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
+import { getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, getWeaponDisplayName, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
@@ -14203,6 +14203,9 @@ describe("Critical Precision and Unseen Dread optimizer scope", () => {
         expect(warnings).toContain("blocking with a Sword and Shield");
         expect(warnings).toContain("does not link the Javlok primary profile to a separate melee profile");
         expect(warnings).not.toContain("Guardian Derision");
+        expect(getUnmodeledDamageEffectBadgeLabel(amalgamJavlok, "slot")).toContain("Magazine Capacity remains optimizer-eligible");
+        expect(getUnmodeledDamageEffectBadgeLabel(amalgamJavlok, "picker")).toContain("Magazine Capacity remains optimizer-eligible");
+        expect(getUnmodeledDamageEffectSourceUrl(amalgamJavlok)).toBe("https://wiki.warframe.com/w/Amalgam_Javlok_Magazine_Warp");
     });
 });
 

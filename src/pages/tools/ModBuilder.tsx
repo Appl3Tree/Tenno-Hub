@@ -28,7 +28,7 @@ import {
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect, SPRING_LOADED_BROADHEAD_PATH } from "../../domain/catalog/modCatalog";
-import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, OVERPRESSURED_ROUNDS_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../../domain/catalog/modEffectUtils";
+import { getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, OVERPRESSURED_ROUNDS_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../../domain/catalog/modEffectUtils";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
@@ -2846,7 +2846,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
                                 {currentUnmodeledDamageLines.length > 0 && (
                                     <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[9px] leading-tight text-amber-300"
                                         title={currentUnmodeledDamageLines.join(" · ")}>
-                                        <span>{currentGroupEstimateActive ? "Modeled group estimate" : "Unscored effect; Auto Optimize skips this mod"}</span>
+                                        <span>{currentGroupEstimateActive ? "Modeled group estimate" : getUnmodeledDamageEffectBadgeLabel(mod, "slot")}</span>
                                         {currentUnmodeledDamageSourceUrl && (
                                             <a href={currentUnmodeledDamageSourceUrl} target="_blank" rel="noreferrer"
                                                 onClick={(event) => event.stopPropagation()}
@@ -2994,7 +2994,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
                                     <div className="text-[10px] text-slate-500 mt-0.5 pl-5">
                                         {m.statsLabel || "—"}
                                         <span className="text-slate-700 ml-1">{m.rarity}</span>
-                                        {unmodeledDamageLines.length > 0 && <span className="ml-1 text-amber-400" title={unmodeledDamageLines.join(" · ")}>Unscored effect; optimizer excludes</span>}
+                                        {unmodeledDamageLines.length > 0 && <span className="ml-1 text-amber-400" title={unmodeledDamageLines.join(" · ")}>{getUnmodeledDamageEffectBadgeLabel(m, "picker")}</span>}
                                         {!m.hasDamageEffect && !m.isBuiltIn && unmodeledDamageLines.length === 0 && <span className="ml-1 text-amber-500">Effect not modeled</span>}
                                     </div>
                                 </button>
