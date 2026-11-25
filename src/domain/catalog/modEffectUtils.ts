@@ -77,6 +77,8 @@ export interface ScoringEffectContext {
     selectedGoal?: string;
     /** User-entered same-profile enemies actually hit per Swipe strike (0–4). */
     selectedSwipeTargetCount?: number;
+    /** Successful enemy attacks assumed blocked per Tennokai attack cycle. */
+    selectedTennokaiBlockedHitsBetweenHeavy?: number;
 }
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -305,6 +307,17 @@ export function getUnmodeledDamageEffectLines(
     if ((effect?.liftedComboCountChanceBonus ?? 0) > 0 && context?.selectedGoal !== "tennokaiDps") {
         lines.push("Enduring Strike adds rank-scaled Additional Combo Count Chance only while the target is Lifted. The planner scores it in Tennokai Cycle DPS only when Lifted is explicitly selected as an external target status; Lifted duration and renewal are not simulated, and other objectives skip it.");
     }
+    const blockingComboCountChance = effect?.blockingComboCountChanceBonus ?? 0;
+    const blockedHitsPerCycle = Number.isFinite(context?.selectedTennokaiBlockedHitsBetweenHeavy)
+        ? Math.max(0, Math.min(20, Math.floor(context?.selectedTennokaiBlockedHitsBetweenHeavy ?? 0)))
+        : 0;
+    if (blockingComboCountChance > 0 &&
+        (context?.selectedGoal !== "tennokaiDps" || blockedHitsPerCycle <= 0)) {
+        lines.push("Guardian Derision's Additional Combo Count Chance applies only to successful blocked enemy attacks. The planner scores it only in Tennokai Cycle DPS when at least one successful blocked attack per cycle is entered; block timing and incoming attacks are not predicted, and other objectives skip it.");
+    }
+    if (blockingComboCountChance > 0) {
+        lines.push("Guardian Derision's blocking taunt changes enemy targeting; this utility effect is outside the damage score.");
+    }
     const hasComboDurationEffect = (effect?.comboDurationBonus ?? 0) !== 0 ||
         (effect?.comboDurationBaseBonus ?? 0) !== 0;
     if (hasComboDurationEffect && context?.selectedGoal !== "tennokaiDps" && context?.selectedGoal !== "burst") {
@@ -336,6 +349,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === "/Lotus/Upgrades/Mods/Melee/Channel/ChannelStatusMod") {
         return "https://wiki.warframe.com/w/Enduring_Strike";
+    }
+    if (mod.path === "/Lotus/Upgrades/Mods/Melee/WeaponBlockingTauntMod") {
+        return "https://wiki.warframe.com/w/Guardian_Derision";
     }
     if (mod.path === THERMAGNETIC_SHELLS_MOD_PATH) {
         return "https://wiki.warframe.com/w/Thermagnetic_Shells";
@@ -444,6 +460,7 @@ export function emptyEffect(): ModEffect {
         swipeAdditionalEnemyCount: 0, swipeAttackRangeBonusMeters: 0,
         headshotMultiplierBonus: 0, bodyshotDamageBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
         comboDurationBonus: 0, comboDurationBaseBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
+        blockingComboCountChanceBonus: 0,
         liftedComboCountChanceBonus: 0,
         relentlessCombinationSlashComboChance: 0,
         heavyAttackEfficiencyBonus: 0, heavyAttackWindUpBonus: 0,

@@ -2695,6 +2695,7 @@ interface SlotProps {
     criticalMutationPriorKills?: number;
     strainInfectionCystsAtImpact?: number;
     selectedSwipeTargetCount?: number;
+    selectedTennokaiBlockedHitsBetweenHeavy?: number;
     selectedGoal?: string;
     mod: ModEntry | null; rank: number; slotPolarity: string;
     compatMods: ModEntry[]; usedGroups: Set<string>;
@@ -2715,7 +2716,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2745,7 +2746,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedGoal };
+    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal };
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
@@ -3938,6 +3939,7 @@ export default function ModBuilder() {
     const [playerSlidingAtImpact, setPlayerSlidingAtImpact] = useState(false);
     const [meleeComboMultiplier, setMeleeComboMultiplier] = useState(1);
     const [tennokaiRegularHitsBetweenHeavy, setTennokaiRegularHitsBetweenHeavy] = useState(4);
+    const [tennokaiBlockedHitsBetweenHeavy, setTennokaiBlockedHitsBetweenHeavy] = useState(0);
     const [staticDischargeStartingOrder, setStaticDischargeStartingOrder] = useState<StaticDischargeStartingOrder>("spinThenOverhead");
     const [staticDischargeFirstAnimationSeconds, setStaticDischargeFirstAnimationSeconds] = useState(DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS);
     const [phantasmaChargeAmmo, setPhantasmaChargeAmmo] = useState(2);
@@ -3995,11 +3997,12 @@ export default function ModBuilder() {
         playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
         meleeComboMultiplier,
         tennokaiRegularHitsBetweenHeavy,
+        tennokaiBlockedHitsBetweenHeavy,
         phantasmaChargeAmmo,
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -4239,6 +4242,7 @@ export default function ModBuilder() {
             playerSlidingAtImpact: supportsKineticKiller && playerSlidingAtImpact,
             meleeComboMultiplier,
             tennokaiRegularHitsBetweenHeavy,
+            tennokaiBlockedHitsBetweenHeavy,
             staticDischargeStartingOrder,
             staticDischargeFirstAnimationSeconds,
             phantasmaChargeAmmo,
@@ -4303,6 +4307,7 @@ export default function ModBuilder() {
         supportsKineticKiller,
         meleeComboMultiplier,
         tennokaiRegularHitsBetweenHeavy,
+        tennokaiBlockedHitsBetweenHeavy,
         staticDischargeStartingOrder,
         staticDischargeFirstAnimationSeconds,
         phantasmaChargeAmmo,
@@ -5238,6 +5243,7 @@ export default function ModBuilder() {
             regularAttackIndex,
             heavyAttackIndex,
             regularHitsBetweenHeavy: tennokaiRegularHitsBetweenHeavy,
+            blockedEnemyAttacksBetweenHeavy: tennokaiBlockedHitsBetweenHeavy,
             conditionalState,
             damageOptions: {
                 isEximusTarget: targetProfileOverride?.isEximusTarget,
@@ -5257,7 +5263,7 @@ export default function ModBuilder() {
             },
             cycles: 8,
         });
-    }, [activeCalcWeapon, activeBuildEffects, factionOn, faction, tennokaiRegularHitsBetweenHeavy, conditionalState, targetProfileOverride, activeTargetAssumptions]);
+    }, [activeCalcWeapon, activeBuildEffects, factionOn, faction, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, conditionalState, targetProfileOverride, activeTargetAssumptions]);
     const finiteMetrics = useMemo(() => {
         if (!activeCalcWeapon || !activeMetrics || (
             activeMetrics.modded.strainInfectionCritDamageBonus <= 0 &&
@@ -6315,6 +6321,9 @@ export default function ModBuilder() {
             setTennokaiRegularHitsBetweenHeavy(Number.isFinite(plannerConfig.tennokaiRegularHitsBetweenHeavy)
                 ? Math.max(1, Math.min(20, Math.floor(plannerConfig.tennokaiRegularHitsBetweenHeavy ?? 4)))
                 : 4);
+            setTennokaiBlockedHitsBetweenHeavy(Number.isFinite(plannerConfig.tennokaiBlockedHitsBetweenHeavy)
+                ? Math.max(0, Math.min(20, Math.floor(plannerConfig.tennokaiBlockedHitsBetweenHeavy ?? 0)))
+                : 0);
             setStaticDischargeStartingOrder(plannerConfig.staticDischargeStartingOrder === "overheadThenSpin"
                 ? "overheadThenSpin"
                 : "spinThenOverhead");
@@ -7304,6 +7313,23 @@ export default function ModBuilder() {
                                                         />
                                                     </label>
                                                 )}
+                                                {weapon && usesMeleeDamageModel(weapon.category) && activeBuildHasTennokai && (
+                                                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                        <span title="Enter successful enemy hits blocked between each Normal/Heavy cycle; each blocked projectile counts. Each adds one base combo point, and Guardian Derision adds its rank chance. Events are evenly spaced and do not create Tennokai opportunities.">Blocked enemy hits per cycle</span>
+                                                        <input
+                                                            aria-label="Successful enemy hits or projectiles blocked per Tennokai cycle"
+                                                            type="number"
+                                                            min={0}
+                                                            max={20}
+                                                            step={1}
+                                                            value={tennokaiBlockedHitsBetweenHeavy}
+                                                            onChange={(event) => setTennokaiBlockedHitsBetweenHeavy(
+                                                                Math.max(0, Math.min(20, Math.floor(Number(event.target.value) || 0))),
+                                                            )}
+                                                            className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none"
+                                                        />
+                                                    </label>
+                                                )}
                                                 <span className="text-[10px] text-slate-500">
                                                     {conditionalMode === "realistic"
                                                         ? "Realistic uses modeled trigger assumptions; ability casts, airborne states, aim-gliding, and invisibility default to zero uptime. Fully stacked or external-stack scenarios can activate them."
@@ -7325,7 +7351,7 @@ export default function ModBuilder() {
                                                 </p>
                                             )}
                                             {weapon && usesMeleeDamageModel(weapon.category) && (
-                                                    <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses static Initial Combo mods and supported weapon passives, and ignores this field. Conditional Initial Combo bonuses apply when their selected state is active. Kill-triggered effects without a mechanic-specific model use shared uptime/stack estimates. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). The separate Tennokai panel shows an expected repeated Normal Attack / Heavy Attack cycle when a Tennokai mod is equipped; the Tennokai Cycle DPS objective uses a bounded four-cycle version of that timeline. Expected TTK and 5s Avg DPS still use their existing single-attack/status encounter models and do not include Tennokai history.</p>
+                                            <p className="mb-3 text-[10px] text-slate-500">Combo tier is an explicit scenario input (1× by default). Initial state uses static Initial Combo mods and supported weapon passives, and ignores this field. Conditional Initial Combo bonuses apply when their selected state is active. Kill-triggered effects without a mechanic-specific model use shared uptime/stack estimates. Selected heavy attacks multiply damage by the active tier. The stats panel estimates points retained after one attack using equipped Heavy Attack Efficiency (capped at 90%). The separate Tennokai panel shows an expected repeated Normal Attack / Heavy Attack cycle when a Tennokai mod is equipped, with editable regular-hit cadence and optional successful blocked enemy attacks per cycle; the Tennokai Cycle DPS objective uses a bounded four-cycle version of that timeline. Expected TTK and 5s Avg DPS still use their existing single-attack/status encounter models and do not include Tennokai history.</p>
                                             )}
                                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                                                 {([
@@ -8329,7 +8355,7 @@ export default function ModBuilder() {
                                                                                 {tennokaiTimeline.supported ? (
                                                                                     <>
                                                                                         <p className="mt-1">
-                                                                                            {tennokaiRegularHitsBetweenHeavy} Normal Attack hit(s) before each {activeCalcWeapon?.attacks.find((attack) => attack.name === "Heavy Attack") ? "Heavy Attack" : "Heavy Slam"} · {fmt(tennokaiTimeline.expectedTennokaiHeavyAttackShare * 100, 1)}% expected Tennokai rate · {fmt(tennokaiTimeline.expectedDamagePerSecondBeforeTargetDefenses)} pre-defense direct + Bleed DPS · {fmt(tennokaiTimeline.expectedDamagePerSecondAfterTargetDefenses ?? 0)} applied target DPS.
+                                                                                            {tennokaiRegularHitsBetweenHeavy} Normal Attack hit(s) before each {activeCalcWeapon?.attacks.find((attack) => attack.name === "Heavy Attack") ? "Heavy Attack" : "Heavy Slam"} · {tennokaiBlockedHitsBetweenHeavy} successful block(s) per cycle · {fmt(tennokaiTimeline.expectedTennokaiHeavyAttackShare * 100, 1)}% expected Tennokai rate · {fmt(tennokaiTimeline.expectedDamagePerSecondBeforeTargetDefenses)} pre-defense direct + Bleed DPS · {fmt(tennokaiTimeline.expectedDamagePerSecondAfterTargetDefenses ?? 0)} applied target DPS.
                                                                                         </p>
                                                                                         <p className="mt-1 text-[10px] leading-relaxed text-slate-300">
                                                                                             {fmt(tennokaiTimeline.expectedSlashApplications, 2)} expected Slash applications · {fmt(tennokaiTimeline.expectedBleedTicks, 2)} expected Bleed ticks · {fmt(tennokaiTimeline.expectedBleedDamageAfterTargetDefenses)} Bleed damage applied
@@ -8461,7 +8487,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -8492,7 +8518,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -8519,7 +8545,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8588,7 +8614,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8661,7 +8687,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}

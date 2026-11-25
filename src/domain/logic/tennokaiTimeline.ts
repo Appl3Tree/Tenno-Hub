@@ -117,6 +117,8 @@ export interface TennokaiAttackTimelineInput {
     /** Catalog row for Heavy Attack or Heavy Slam Attack; Heavy Slam is the currently available row. */
     heavyAttackIndex: number;
     regularHitsBetweenHeavy: number;
+    /** Successful enemy attacks assumed blocked during each regular/Heavy cycle (0–20). */
+    blockedEnemyAttacksBetweenHeavy?: number;
     conditionalState?: ConditionalState;
     damageOptions?: Omit<DamageCalculationOptions, "conditionalState">;
     /** Current target pools for direct/tick scoring, death resets, and Truth's Flame's direct-kill chain. */
@@ -167,6 +169,8 @@ export interface TennokaiAttackTimelineResult {
     evaluationDurationSeconds: number;
     expectedTennokaiHeavyAttackShare: number;
     regularHitsBetweenHeavy: number;
+    blockedEnemyAttacksBetweenHeavy: number;
+    expectedComboPointsPerBlockedEnemyAttack: number;
     opportunityChancePerHit: number;
     opportunityWindowSeconds: number;
     opportunityRangeBonusMeters: number;
@@ -795,6 +799,8 @@ export function calculateTennokaiAttackTimeline(
         evaluationDurationSeconds: 0,
         expectedTennokaiHeavyAttackShare: 0,
         regularHitsBetweenHeavy: Math.max(1, Math.floor(input.regularHitsBetweenHeavy || 1)),
+        blockedEnemyAttacksBetweenHeavy: 0,
+        expectedComboPointsPerBlockedEnemyAttack: 1,
         opportunityChancePerHit: 0,
         opportunityWindowSeconds: 2,
         opportunityRangeBonusMeters: 0,
@@ -886,6 +892,11 @@ export function calculateTennokaiAttackTimeline(
         0,
     ) + liftedComboCountChance);
     const expectedComboPointsPerRegularHit = 1 + additionalComboCountChance;
+    const blockingComboCountChance = Math.max(0, effectRows.reduce(
+        (total, effect) => total + (effect.blockingComboCountChanceBonus ?? 0),
+        0,
+    ));
+    const expectedComboPointsPerBlockedEnemyAttack = 1 + blockingComboCountChance;
     const rules = getMeleeComboRules(input.weapon);
     const hitsBetweenHeavy = Math.max(1, Math.min(20, Math.floor(
         Number.isFinite(input.regularHitsBetweenHeavy) ? input.regularHitsBetweenHeavy : 1,
@@ -896,6 +907,22 @@ export function calculateTennokaiAttackTimeline(
     // The source lists faster Tennokai wind-up but not a numeric attack-row
     // wind-up value; the estimate therefore leaves wind-up out of this interval.
     const heavyInterval = 1 / Math.max(0.0001, heavyBaseStats.fireRate);
+    const cycleDuration = hitsBetweenHeavy * regularInterval + heavyInterval;
+    const blockedEnemyAttacksBetweenHeavy = Math.max(0, Math.min(20, Math.floor(
+        Number.isFinite(input.blockedEnemyAttacksBetweenHeavy) ? input.blockedEnemyAttacksBetweenHeavy ?? 0 : 0,
+    )));
+    const blockedComboPointGains: TennokaiComboPointGainEvent[] = [];
+    if (blockedEnemyAttacksBetweenHeavy > 0) {
+        for (let cycleIndex = 0; cycleIndex < cycles; cycleIndex++) {
+            for (let blockIndex = 0; blockIndex < blockedEnemyAttacksBetweenHeavy; blockIndex++) {
+                blockedComboPointGains.push({
+                    timeSeconds: cycleIndex * cycleDuration +
+                        ((blockIndex + 1) / (blockedEnemyAttacksBetweenHeavy + 1)) * cycleDuration,
+                    comboPoints: expectedComboPointsPerBlockedEnemyAttack,
+                });
+            }
+        }
+    }
     const scheduleInput = {
         regularHitsBetweenHeavy: hitsBetweenHeavy,
         regularAttackIntervalSeconds: regularInterval,
@@ -913,6 +940,7 @@ export function calculateTennokaiAttackTimeline(
         comboPointsPerTier: rules.pointsPerTier,
         maximumComboMultiplier: rules.maxMultiplier,
         maxEvents,
+        additionalComboPointGains: blockedComboPointGains,
     };
     const truthFlameEnabled = effectRows.some((effect) => (effect.tennokaiChainedDamageBonus ?? 0) > 0);
     const truthChainOpportunitySeconds = effectRows.reduce(
@@ -924,7 +952,6 @@ export function calculateTennokaiAttackTimeline(
         (total, effect) => total + (effect.relentlessCombinationSlashComboChance ?? 0),
         0,
     ));
-    const cycleDuration = hitsBetweenHeavy * regularInterval + heavyInterval;
     const maximumSlashDurationSeconds = Math.max(
         STATUS_EFFECT_RULES.slash.durationSeconds * regularBaseStats.statusDurationMultiplier,
         STATUS_EFFECT_RULES.slash.durationSeconds * heavyBaseStats.statusDurationMultiplier,
@@ -955,7 +982,7 @@ export function calculateTennokaiAttackTimeline(
                 truthFlameEnabled: modelTruthChain,
                 truthChainOpportunitySeconds,
                 tennokaiKillProbabilityByEvent: killProbabilities,
-                additionalComboPointGains,
+                additionalComboPointGains: [...blockedComboPointGains, ...additionalComboPointGains],
             });
             slashTimeline = simulateTennokaiSlashTimeline(
                 input,
@@ -1017,6 +1044,8 @@ export function calculateTennokaiAttackTimeline(
             ? expectedTennokaiHeavyAttacks / heavyEvents.length
             : 0,
         regularHitsBetweenHeavy: hitsBetweenHeavy,
+        blockedEnemyAttacksBetweenHeavy,
+        expectedComboPointsPerBlockedEnemyAttack,
         opportunityChancePerHit,
         opportunityWindowSeconds,
         opportunityRangeBonusMeters,
@@ -1034,7 +1063,15 @@ export function calculateTennokaiAttackTimeline(
             ...(hasLiftedComboEffect && !liftedTargetAssumed
                 ? ["Enduring Strike is equipped but inactive because Lifted is not selected as an external target status; its combo chance is not added to this cycle."]
                 : []),
-            `The combo counter expires after ${comboDurationSeconds}s without a qualifying hit; the weapon's ${baseComboDurationSeconds}s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.`,
+            ...(blockedEnemyAttacksBetweenHeavy > 0
+                ? [`The cycle assumes ${blockedEnemyAttacksBetweenHeavy} successful enemy hit(s) or projectile(s) are blocked per Normal/Heavy cycle, evenly distributed in time. Each adds one base combo point; block events do not roll Tennokai opportunities.`]
+                : []),
+            ...(blockingComboCountChance > 0 && blockedEnemyAttacksBetweenHeavy > 0
+                ? [`Guardian Derision adds ${Math.round(blockingComboCountChance * 100)}% expected extra combo points per assumed successful block; random gains are averaged, not sampled.`]
+                : blockingComboCountChance > 0
+                    ? ["Guardian Derision is equipped but inactive because no successful blocked enemy attacks are entered per cycle."]
+                    : []),
+            `The combo counter expires after ${comboDurationSeconds}s without a combo-gaining melee hit or blocked attack; the weapon's ${baseComboDurationSeconds}s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.`,
             ...(relentlessChance > 0
                 ? [`Relentless Combination adds an expected ${Math.round(relentlessChance * 100)}% combo point per eligible melee Slash application and each landed Bleed tick; each gain updates later event combo tiers and refreshes the combo timer.`]
                 : []),
