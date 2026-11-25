@@ -26,7 +26,7 @@ const ITEM_CATEGORIES = new Set([
     "ShipDecorations", "FusionTreasures", "FlavourItems", "LongGuns", "Melee", "Pistols",
     "Suits", "SentinelWeapons", "Sentinels", "SpaceSuits", "SpaceMelee", "SpaceGuns", "Ships",
     "Scoops", "SpecialItems", "DataKnives", "MechSuits", "CrewShipHarnesses", "CrewShips",
-    "DrifterMelee", "Horses", "OperatorSuits", "OperatorAmps", "Motorcycles", "KubrowPets",
+    "DrifterMelee", "Horses", "OperatorSuits", "OperatorAmps", "Motorcycles", "KubrowPets", "MoaPets",
     "CrewShipWeapons", "CrewShipWeaponSkins", "Drones", "WeaponSkins",
 ]);
 

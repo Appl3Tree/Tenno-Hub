@@ -2203,6 +2203,8 @@ function ModModal({
             <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
               <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Owned rank inventory</div>
               <ModRankInventoryEditor
+                key={entry.path}
+                defaultExpanded
                 maxRank={maxRank}
                 rankCounts={rankInventory.rankCounts}
                 unknownCount={rankInventory.unknownCount}
@@ -3148,7 +3150,7 @@ function ModsPage() {
                             </div>
                             <div role="cell" className="min-w-0 px-2 text-[10px] text-slate-400" title={rankDistribution || (ownedCount > 0 ? `R${ownedRank} ×${ownedCount}` : "No owned copies")}>
                               <div className="max-w-[128px] truncate">{rankDistribution || (ownedCount > 0 ? `R${ownedRank} ×${ownedCount}` : "—")}</div>
-                              <button className="text-[9px] text-cyan-400 hover:text-cyan-200" onClick={() => setSelectedMod(entry)}>Edit ranks</button>
+                              <button className="text-[9px] text-cyan-400 hover:text-cyan-200" onClick={() => setSelectedMod(entry)}>Edit rank counts</button>
                             </div>
                             <div role="cell" className="flex justify-center gap-2">
                               <button

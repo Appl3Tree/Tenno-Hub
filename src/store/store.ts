@@ -66,6 +66,7 @@ export interface TrackerStore {
     setModRank: (path: string, rank: number) => void;
     setModRankInventory: (path: string, rankCounts: Record<string, number>, unknownCount?: number) => void;
     setArcaneRankCount: (path: string, rank: number, count: number) => void;
+    setArcaneRankInventory: (path: string, rankCounts: Record<string, number>, unknownCount?: number) => void;
     upsertCustomRiven: (riven: CustomRivenRecord) => void;
     deleteCustomRiven: (id: string) => void;
     setMastered: (key: string, val: boolean) => void;
@@ -386,14 +387,42 @@ export const useTrackerStore = create<TrackerStore>()(
 
             setArcaneRankCount: (path, rank, count) => {
                 set((s) => {
+                    const safeCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+                    const safeRank = Math.max(0, Number.isFinite(rank) ? Math.floor(rank) : 0);
+                    const rankCounts = safeCount > 0 ? { [String(safeRank)]: safeCount } : {};
+                    if (!s.state.inventory.counts) s.state.inventory.counts = {};
                     if (!s.state.inventory.arcaneRanks) s.state.inventory.arcaneRanks = {};
                     if (!s.state.inventory.arcaneRankCounts) s.state.inventory.arcaneRankCounts = {};
                     if (s.state.inventory.arcaneUnknownRankCounts) delete s.state.inventory.arcaneUnknownRankCounts[path];
-                    s.state.inventory.arcaneRankCounts[path] =
-                        Number.isFinite(count) && count > 0
-                            ? { [String(Math.max(0, Math.floor(rank)))]: Math.max(0, Math.floor(count)) }
-                            : {};
-                    s.state.inventory.arcaneRanks[path] = setHighestOwnedArcaneRank(Number.isFinite(count) && count > 0 ? rank : null);
+                    s.state.inventory.arcaneRankCounts[path] = rankCounts;
+                    s.state.inventory.counts[`mods:${path}`] = safeCount;
+                    s.state.inventory.arcaneRanks[path] = setHighestOwnedArcaneRank(safeCount > 0 ? safeRank : null);
+                    s.state.meta.updatedAtIso = nowIso();
+                });
+            },
+
+            setArcaneRankInventory: (path, rankCounts, unknownCount = 0) => {
+                set((s) => {
+                    const inventory = s.state.inventory;
+                    if (!inventory.counts) inventory.counts = {};
+                    if (!inventory.arcaneRanks) inventory.arcaneRanks = {};
+                    if (!inventory.arcaneRankCounts) inventory.arcaneRankCounts = {};
+                    if (!inventory.arcaneUnknownRankCounts) inventory.arcaneUnknownRankCounts = {};
+                    const normalized: Record<string, number> = {};
+                    for (const [rawRank, rawCount] of Object.entries(rankCounts)) {
+                        const rank = Number(rawRank);
+                        const copyCount = Number.isFinite(rawCount) ? Math.max(0, Math.floor(rawCount)) : 0;
+                        if (!Number.isInteger(rank) || rank < 0 || copyCount <= 0) continue;
+                        normalized[String(rank)] = copyCount;
+                    }
+                    const unrankedCopies = Number.isFinite(unknownCount) ? Math.max(0, Math.floor(unknownCount)) : 0;
+                    const totalCount = Object.values(normalized).reduce((sum, value) => sum + value, 0) + unrankedCopies;
+                    inventory.arcaneRankCounts[path] = normalized;
+                    if (unrankedCopies > 0) inventory.arcaneUnknownRankCounts[path] = unrankedCopies;
+                    else delete inventory.arcaneUnknownRankCounts[path];
+                    inventory.counts[`mods:${path}`] = totalCount;
+                    const highestRank = Math.max(-1, ...Object.keys(normalized).map(Number));
+                    inventory.arcaneRanks[path] = setHighestOwnedArcaneRank(highestRank >= 0 ? highestRank : null);
                     s.state.meta.updatedAtIso = nowIso();
                 });
             },
