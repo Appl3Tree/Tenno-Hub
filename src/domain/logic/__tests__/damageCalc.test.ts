@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
-import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
+import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
 
@@ -6271,6 +6271,78 @@ describe("Stinging Truth flat magazine capacity", () => {
         ]).modded;
         expect(combinedViper.magazineSize).toBe(55); // round(14 × 1.10 + 40)
         expect(combinedWraith.magazineSize).toBe(62); // round(20 × 1.10 + 40)
+    });
+});
+
+describe("Battacor Alt-Fire and Sentient Barrage snapshots", () => {
+    const battacor = getWeaponCatalog().find((candidate) => candidate.name === "Battacor")!;
+    const altFireIndex = battacor.attacks.findIndex((attack) => attack.name === "Secondary Fire");
+    const altFire = withSelectedAttack(battacor, altFireIndex);
+    const sentientBarrage = getModsForWeapon(battacor).find((mod) => mod.path === SENTIENT_BARRAGE_MOD_PATH)!;
+
+    it("parses all six rank bonuses and removes the fully modeled augment description", () => {
+        expect(sentientBarrage).toBeDefined();
+        expect(sentientBarrage.effectsByRank.map((effect) => effect.sentientBarrageCritChanceAndDamageBonus))
+            .toEqual([0.5, 1, 1.5, 2, 2.5, 3]);
+        expect(sentientBarrage.unparsedStatsByRank.flat().some((line) => /reaching a full charge/i.test(line)))
+            .toBe(false);
+        expect(normalizeBattacorAltFireChargeCount(-1)).toBe(0);
+        expect(normalizeBattacorAltFireChargeCount(1.9)).toBe(1);
+        expect(normalizeBattacorAltFireChargeCount(8)).toBe(3);
+    });
+
+    it("scales direct and linked explosion damage by current charges while keeping the explosion single-projectile", () => {
+        const multishotEffect = { ...emptyEffect(), multishotBonus: 2 };
+        const oneCharge = calculateBuild(altFire, [multishotEffect], "", {
+            conditionalState: { mode: "initial", battacorAltFireChargeCount: 1 },
+        }).modded;
+        const threeCharges = calculateBuild(altFire, [multishotEffect], "", {
+            conditionalState: { mode: "initial", battacorAltFireChargeCount: 3 },
+        }).modded;
+
+        expect(threeCharges.baseDamageTotal).toBeCloseTo(oneCharge.baseDamageTotal * 3, 10);
+        expect(threeCharges.attachedAttackDamageSequence).toBeDefined();
+        expect(threeCharges.attachedAttackDamageSequence?.profile.expectedProjectiles).toBe(1);
+        expect(threeCharges.attachedAttackDamageSequence?.profile.baseDamageTotal)
+            .toBeCloseTo((battacor.attacks.find((attack) => attack.name === "Secondary Fire AoE")?.damage.total ?? 0) * 3, 10);
+        expect(threeCharges.multishot).toBeGreaterThan(1);
+        expect(threeCharges.battacorAltFireChargeMultiplier).toBe(3);
+    });
+
+    it("suppresses the explosion and applies rank CC/CD only for a ready, charged direct Burst snapshot", () => {
+        const rankThreeSentientBarrage = sentientBarrage.effectsByRank[3]!;
+        const notReady = calculateBuild(altFire, [rankThreeSentientBarrage], "", {
+            conditionalState: { mode: "initial", battacorAltFireChargeCount: 3, sentientBarrageNextDischargeReady: false },
+        }).modded;
+        const ready = calculateBuild(altFire, [rankThreeSentientBarrage], "", {
+            conditionalState: { mode: "initial", battacorAltFireChargeCount: 3, sentientBarrageNextDischargeReady: true },
+        }).modded;
+        const noCharges = calculateBuild(altFire, [rankThreeSentientBarrage], "", {
+            conditionalState: { mode: "initial", battacorAltFireChargeCount: 0, sentientBarrageNextDischargeReady: true },
+        }).modded;
+
+        expect(notReady.sentientBarrageEquipped).toBe(true);
+        expect(notReady.attachedAttackDamageSequence).toBeUndefined();
+        expect(notReady.sentientBarrageCritChanceAndDamageBonus).toBe(0);
+        expect(ready.attachedAttackDamageSequence).toBeUndefined();
+        expect(ready.sentientBarrageCritChanceAndDamageBonus).toBe(2);
+        expect(ready.critChance - notReady.critChance).toBeCloseTo(altFire.critChance * 2, 10);
+        expect(ready.critMultiplier - notReady.critMultiplier).toBeCloseTo(altFire.critMultiplier * 2, 2);
+        expect(noCharges.baseDamageTotal).toBe(0);
+        expect(noCharges.sentientBarrageCritChanceAndDamageBonus).toBe(0);
+
+        const finite = calculateBuildForExpectedEncounter(altFire, [rankThreeSentientBarrage], "", {
+            conditionalState: { mode: "initial", battacorAltFireChargeCount: 3, sentientBarrageNextDischargeReady: true },
+        }).modded;
+        expect(finite.battacorAltFireChargeCount).toBe(0);
+        expect(finite.sentientBarrageNextDischargeReady).toBe(false);
+        const stripped = withoutBurstOnlyConditionalAssumptions({
+            mode: "initial",
+            battacorAltFireChargeCount: 3,
+            sentientBarrageNextDischargeReady: true,
+        });
+        expect(stripped?.battacorAltFireChargeCount).toBe(0);
+        expect(stripped?.sentientBarrageNextDischargeReady).toBe(false);
     });
 });
 

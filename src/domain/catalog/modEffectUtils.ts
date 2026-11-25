@@ -31,6 +31,7 @@ export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSour
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
 export const STATIC_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/CorpusArena/ProvaCorpusArenaMod";
 export const SWIPE_MOD_PATH = "/Lotus/Types/Friendly/Pets/CatbrowPetPrecepts/CatbrowSwipePrecept";
+export const SENTIENT_BARRAGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBattacorAugmentMod";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -69,6 +70,10 @@ export interface ScoringEffectContext {
     unseenDreadInvisibilityActive?: boolean;
     /** Prior Catabolyst kills represented by Critical Mutation's Burst snapshot. */
     criticalMutationPriorKills?: number;
+    /** Battacor Alt-Fire charges assumed at impact (0–3), for its single-target Burst snapshot. */
+    battacorAltFireChargeCount?: number;
+    /** Assume Sentient Barrage's full-charge bonus is ready for its next Battacor Alt-Fire discharge. */
+    sentientBarrageNextDischargeReady?: boolean;
     /** Whether Lifted is explicitly assumed active on the selected target. */
     targetHasLiftedStatus?: boolean;
     /** Active Strain cysts at impact for Burst-only Strain Infection/Fever snapshots. */
@@ -260,6 +265,17 @@ export function getUnmodeledDamageEffectLines(
             lines.push("Critical Mutation gains rank-scaled Critical Chance and Critical Damage with kills, up to +300%. This planner uses an editable 0–60 prior-kill snapshot for the direct Catabolyst/Coda Catabolyst Primary Burst row only; stack changes, including grenade-hit reduction, are not simulated. Reload grenade rows, finite TTK, 5s DPS, and non-Burst objectives remain unscored, so Auto Optimize skips it outside this supported snapshot.");
         }
     }
+    if (mod.path === SENTIENT_BARRAGE_MOD_PATH) {
+        const supportedAttack = context?.selectedWeaponName === "Battacor" &&
+            context?.selectedAttackName === "Secondary Fire" && context?.selectedAttackIsAreaDamage === false;
+        const supportedSnapshot = context?.selectedGoal === "burst" && supportedAttack &&
+            Number.isFinite(context?.battacorAltFireChargeCount) &&
+            (context?.battacorAltFireChargeCount ?? 0) > 0 &&
+            context?.sentientBarrageNextDischargeReady === true;
+        if (!supportedSnapshot) {
+            lines.push("Sentient Barrage's next-discharge Critical Chance and Critical Damage apply after a full-charge activation. This planner uses a saved ready/not-ready snapshot with 1–3 Battacor Alt-Fire charges for direct, single-target Burst only; charge/refill history, infinite Body Punch Through, multi-target coverage, Scaling, sustained DPS, finite TTK, and fixed-window DPS are not modeled, so Auto Optimize skips the augment outside this snapshot.");
+        }
+    }
     if (mod.path === STATIC_DISCHARGE_MOD_PATH) {
         lines.push("Static Discharge's spin/overhead pulse sequence is scored only by the manual Prova cycle estimate. Standard single-attack objectives do not include its pulse history, and Auto Optimize skips the mod. The cycle assumes the target stays within 4m of the player, counts first-animation pulses at 0.2s intervals, and does not model nearby enemies or proc history. Wiki: https://wiki.warframe.com/w/Static_Discharge");
     }
@@ -449,6 +465,7 @@ export function emptyEffect(): ModEffect {
         deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,
         unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
         criticalMutationCritChanceAndDamagePerKill: 0,
+        sentientBarrageCritChanceAndDamageBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false, multishotLocked: false,

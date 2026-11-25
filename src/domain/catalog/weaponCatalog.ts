@@ -147,6 +147,8 @@ export interface WeaponAttackLingeringDamageRule {
     attachedToDirectTarget: boolean;
     /** Whether linked events from separate triggering attacks stack. */
     stacks: boolean;
+    /** The linked component is unaffected by weapon Multishot. */
+    ignoreMultishot?: boolean;
     /** Minimum entered player-to-target distance required to trigger this component, if applicable. */
     minimumAttackDistanceMeters?: number;
     sourceUrl: string;
@@ -510,8 +512,8 @@ const VERIFIED_WEAPON_FIRE_RATE_OVERRIDES: Readonly<Record<string, number>> = Ob
 const ATTACK_TRIGGER_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
     // WFCD keeps Battacor's combined Auto-Burst / Auto-Charge weapon trigger
     // on each mode row. Restore the Wiki's per-mode burst and charge triggers.
-    // The Alt-Fire rows remain reference-only until their kill-earned charge
-    // count and damage multiplier can be represented.
+    // Alt-Fire timing is source-backed separately; damage uses a saved 0–3
+    // charge snapshot in the manual single-target Burst model.
     // Verified 2026-11-22: https://wiki.warframe.com/w/Battacor
     "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|normal attack": "Burst",
     "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle|secondary fire": "Charge",
@@ -2429,6 +2431,23 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackLingeringDamageRule>>
 >> = Object.freeze({
+    // One Battacor Alt-Fire discharge binds its direct beam and same-target
+    // explosion into one immediate event. Sentient Barrage suppresses this
+    // component; the explosion itself is not affected by Multishot.
+    // Verified 2026-11-25: https://wiki.warframe.com/w/Battacor and
+    // https://wiki.warframe.com/w/Sentient_Barrage
+    "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle": Object.freeze({
+        "secondary fire": Object.freeze({
+            componentAttackName: "Secondary Fire AoE",
+            firstTickDelaySeconds: 0,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            ignoreMultishot: true,
+            sourceUrl: "https://wiki.warframe.com/w/Battacor",
+        }),
+    }),
     // Bound one Tonkor direct hit and its immediate explosion against the
     // same target. Standard Tonkor requires a conservative 7.5m arming gate;
     // Kuva Tonkor has no minimum distance and explodes on impact.
@@ -2801,18 +2820,15 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
             reason: "Grenade Detonation is the linked blast component of one manually detonated Secura Penta grenade. Select Grenade Impact to score the bounded impact-plus-detonation sequence against one struck target; grenade flight, multiple active grenades, and area coverage are excluded.",
         }),
     }),
-    // Battacor Alt-Fire consumes one to three charges earned by primary-fire
-    // kills, with each stored charge multiplying damage. The single-weapon
-    // encounter model does not track that primary-fire kill history.
-    // Verified 2026-11-22: https://wiki.warframe.com/w/Battacor
+    // The standalone explosion row is a component of Secondary Fire; select
+    // that direct row to include the bounded same-target sequence. Sentient
+    // Barrage removes the explosion. Multi-target coverage is not scored.
+    // Verified 2026-11-25: https://wiki.warframe.com/w/Battacor and
+    // https://wiki.warframe.com/w/Sentient_Barrage
     "/Lotus/Weapons/Corpus/LongGuns/CrpSentExperimentRifle/CrpSentExperimentRifle": Object.freeze({
-        "secondary fire": Object.freeze({
-            sourceUrl: "https://wiki.warframe.com/w/Battacor",
-            reason: "Battacor Alt-Fire consumes one to three charges earned by primary-fire kills, and stored charges multiply its damage. Charge count and kill history are not modeled, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
-        }),
         "secondary fire aoe": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Battacor",
-            reason: "Battacor Alt-Fire's explosion shares the beam's one-to-three kill-earned charges and charge-scaled damage. Charge count and kill history are not modeled, so this attack is reference-only and cannot be damage-scored or Auto Optimized.",
+            reason: "Secondary Fire AoE is the contact-explosion component of Battacor Alt-Fire. Select Secondary Fire to score its bounded same-target beam-plus-explosion sequence with a saved 1–3 charge snapshot; the standalone component is reference-only to prevent double counting. Sentient Barrage suppresses this explosion. Multi-target behavior, Punch Through, and primary-fire charge history are not simulated.",
         }),
     }),
     // Higasa's charged Alternate Fire is available only at full gauge. The

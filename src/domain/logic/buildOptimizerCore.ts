@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -22,6 +22,7 @@ import {
     DEFAULT_CONDITIONAL_STATE,
     normalizeCriticalPrecisionHeadshotProjectiles,
     normalizeCriticalMutationPriorKills,
+    normalizeBattacorAltFireChargeCount,
     normalizeDeadlyManeuversShotsRemaining,
     withoutBurstOnlyConditionalAssumptions,
     type ConditionalState,
@@ -1698,6 +1699,8 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         ),
         unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
         criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+        battacorAltFireChargeCount: normalizeBattacorAltFireChargeCount(opts.conditionalState?.battacorAltFireChargeCount),
+        sentientBarrageNextDischargeReady: opts.conditionalState?.sentientBarrageNextDischargeReady === true,
         targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
         strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
         selectedTennokaiBlockedHitsBetweenHeavy: opts.conditionalState?.tennokaiBlockedHitsBetweenHeavy ?? 0,
@@ -1736,6 +1739,11 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         (weapon.name === "Catabolyst" || weapon.name === "Coda Catabolyst") &&
         weapon.selectedAttackName === "Primary" && weapon.selectedAttackIsAreaDamage === false &&
         normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills) > 0;
+    const sentientBarrageCanScore = goal === "burst" && weapon.name === "Battacor" &&
+        weapon.selectedAttackName === "Secondary Fire" && weapon.selectedAttackIsAreaDamage === false &&
+        normalizeBattacorAltFireChargeCount(opts.conditionalState?.battacorAltFireChargeCount) > 0 &&
+        opts.conditionalState?.sentientBarrageNextDischargeReady === true;
+    const isSentientBarrage = (mod: ModEntry): boolean => mod.path === SENTIENT_BARRAGE_MOD_PATH;
     const isSentientIncision = (mod: ModEntry): boolean => mod.effectsByRank.some((effect) =>
         (effect.sentientIncisionDamageBonus ?? 0) > 0,
     );
@@ -1747,6 +1755,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         (!isCriticalPrecision(mod) || criticalPrecisionCanScore) &&
         (!isUnseenDread(mod) || unseenDreadCanScore) &&
         (!isCriticalMutation(mod) || criticalMutationCanScore) &&
+        (!isSentientBarrage(mod) || sentientBarrageCanScore) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
         getAllowedOwnedModRanks(mod, opts).some((rank) => getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length === 0);
     const familyHasStandard = new Set<string>();
@@ -4652,6 +4661,8 @@ function optimizeExilusSlot(
                 ),
                 unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
                 criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+                battacorAltFireChargeCount: normalizeBattacorAltFireChargeCount(opts.conditionalState?.battacorAltFireChargeCount),
+                sentientBarrageNextDischargeReady: opts.conditionalState?.sentientBarrageNextDischargeReady === true,
                 targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
                 strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
                 selectedGoal: goal,
@@ -5505,6 +5516,14 @@ export function optimizeBuildCore(
     slotCount: number,
     opts: OptimizerOptions = {},
 ): OptimizeResult {
+    if (weapon.name === "Battacor" && weapon.selectedAttackName === "Secondary Fire") {
+        if (goal !== "burst") {
+            throw new Error("Battacor Alt-Fire optimization is supported only for direct single-target Burst; charge history, finite TTK, sustained DPS, and 5s Avg DPS are not modeled.");
+        }
+        if (normalizeBattacorAltFireChargeCount(opts.conditionalState?.battacorAltFireChargeCount) <= 0) {
+            throw new Error("Battacor Alt-Fire Burst optimization needs at least one current charge (1–3). Primary-fire kill and charge-refill history are not modeled.");
+        }
+    }
     const attackModelLimitation = opts.buildForAttack?.modelLimitation ?? weapon.selectedAttackModelLimitation;
     if (attackModelLimitation) {
         throw new Error(
@@ -6024,6 +6043,12 @@ export function explainBuild(
     }
     if (selectedStats.criticalMutationBonus > 0) {
         buildHighlights.push(`Critical Mutation Burst scoring assumes ${selectedStats.criticalMutationPriorKills} prior kill${selectedStats.criticalMutationPriorKills === 1 ? "" : "s"}. The selected rank adds ${formatExplanationPercent(selectedStats.criticalMutationBonus)} to base Critical Chance and Critical Damage, capped at +300% for each. Stack changes, including grenade-hit reduction, are not simulated; reload grenade rows, finite TTK, 5s Avg DPS, and non-Burst objectives exclude this snapshot.`);
+    }
+    if (selectedStats.battacorAltFireChargeCount > 0) {
+        buildHighlights.push(`Battacor Alt-Fire Burst scoring assumes ${selectedStats.battacorAltFireChargeCount} of 3 charges at impact, multiplying damage by ×${formatExplanationNumber(selectedStats.battacorAltFireChargeMultiplier, 0)}. ${selectedStats.sentientBarrageEquipped ? "Sentient Barrage suppresses the contact explosion." : "The bounded direct single-target sequence includes one same-target contact explosion, which is not Multishot-scaled."} Primary-fire kill/refill history, Punch Through, multi-target coverage, finite TTK, sustained DPS, and fixed-window scoring are not modeled.`);
+    }
+    if (selectedStats.sentientBarrageCritChanceAndDamageBonus > 0) {
+        buildHighlights.push(`Sentient Barrage is assumed ready for this next discharge after its full-charge activation. Its selected rank adds ${formatExplanationPercent(selectedStats.sentientBarrageCritChanceAndDamageBonus)} to base Critical Chance and Critical Damage. The readiness snapshot is editable; charge/refill history and infinite Body Punch Through are not simulated.`);
     }
     if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
         buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);
