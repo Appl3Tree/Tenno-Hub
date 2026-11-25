@@ -37,7 +37,7 @@ console.log(`- Weapon pools without any parsed damage effect: ${weaponPoolsWitho
 console.log("");
 console.log("## Conservative parser-coverage candidates");
 console.log("");
-console.log("A keyword screen lists unmatched source lines that may affect damage, combat timing, or weapon behavior. It also admits unrelated utility lines, so review each entry before treating it as a missing mechanic. Cards remain available for manual selection with a warning; the optimizer excludes affected ranks.");
+console.log("A keyword screen lists unmatched source lines that may affect damage, combat timing, or weapon behavior. Some effects are modeled only in a named scoring context; others are partial or utility effects. Review each entry before treating it as a missing mechanic. This audit is context-free, so entries describe supported contexts and limits; Auto Optimize gates depend on the selected objective and assumptions.");
 console.log("");
 
 for (const { mod, lines } of unparsedDamageRows) {

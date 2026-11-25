@@ -660,18 +660,32 @@ describe("Tennokai Cycle DPS objective", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         expect(weapon).toBeDefined();
         const truePunishment = getModsForWeapon(weapon!).find((mod) => mod.name === "True Punishment");
+        const quickening = getModsForWeapon(weapon!).find((mod) => mod.name === "Quickening");
         const tennokaiEnabler = getModsForWeapon(weapon!).find((mod) => mod.name === "Condition's Perfection");
         expect(truePunishment).toBeDefined();
+        expect(quickening).toBeDefined();
         expect(tennokaiEnabler).toBeDefined();
         expect(truePunishment!.effect.comboDurationBaseBonus).toBe(-0.5);
         expect(truePunishment!.effect.comboCountChanceBonus).toBe(1);
         expect(getUnmodeledDamageEffectSourceUrl(truePunishment!)).toBe("https://wiki.warframe.com/w/True_Punishment");
+        const contextFreeQuickeningNotes = getUnmodeledDamageEffectLines(
+            quickening!,
+            quickening!.fusionLimit,
+        ).join(" ");
+        expect(contextFreeQuickeningNotes).toContain("modeled as expected extra combo points per qualifying regular hit in Tennokai Cycle DPS");
+        expect(contextFreeQuickeningNotes).not.toContain("does not model the combo gain");
+        expect(getUnmodeledDamageEffectLines(quickening!, quickening!.fusionLimit, {
+            selectedGoal: "timeToKill",
+        }).join(" ")).toContain("This selected objective does not model the combo gain");
+        expect(getUnmodeledDamageEffectLines(quickening!, quickening!.fusionLimit, {
+            selectedGoal: "tennokaiDps",
+        }).join(" ")).not.toContain("does not model the combo gain");
         expect(getUnmodeledDamageEffectLines(truePunishment!, truePunishment!.fusionLimit, {
             selectedGoal: "tennokaiDps",
         }).join(" ")).not.toContain("Additional Combo Count Chance can add random combo points");
         expect(getUnmodeledDamageEffectLines(truePunishment!, truePunishment!.fusionLimit, {
             selectedGoal: "timeToKill",
-        }).join(" ")).toContain("does not resolve those random gains");
+        }).join(" ")).toContain("This selected objective does not model the combo gain");
 
         const target = { health: 500_000, shields: 0, overguard: 0, armor: 0 };
         const conditionalState = { mode: "initial" as const, tennokaiRegularHitsBetweenHeavy: 17 };

@@ -4,6 +4,14 @@ Last updated: 2026-11-25
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
+## CURRENT WORKING CHECKPOINT — 2026-11-25 (combo-chance warning context correction; PR #400 open)
+
+- **Branch/base:** `codex/d3-audit-combo-warning-20261125`, based on current `main` commit `f6a8296e2c16916edac16413340696d2cb5a30f9`. This isolated worktree does not include the older dirty shared-worktree diff.
+- **Change:** Quickening and True Punishment now describe their Tennokai Cycle DPS expected combo-point model in context-free effect notes. Explicit unsupported objectives retain a scoped Auto Optimize exclusion; Tennokai Cycle DPS does not show a false exclusion. The audit header distinguishes context-supported/partial/utility effects and explains why context-free rows can describe supported contexts. No scoring behavior changed.
+- **Validation:** focused optimizer regression passes 1/1; app and test TypeScript pass; focused ESLint passes; `npm run audit:mod-effect-coverage` passes at 699 weapon profiles / 600 eligible records / 517 parsed / 83 without parsed effects / 73 candidates (46 partial / 27 fully unparsed); `npx vite build --configLoader runner --outDir .codex-temp-audit-warning-build` passes with 993 modules. `git -c core.whitespace=cr-at-eol diff --check` passes. The full repository suite was not rerun.
+- **Release and visual review:** PR [#400](https://github.com/Appl3Tree/Tenno-Hub/pull/400) is open against current main; the source change has not been deployed. Current-source rendering is unverified.
+- **Next:** reconcile PR #400 merge/deployment and rendered review, then continue evidence-backed audit triage and randomized optimizer comparisons. Keep Underframe score semantics, matched-corpus evidence, gameplay accuracy, full-suite validation, and rendered review open.
+
 ## CURRENT CONTINUATION CHECKPOINT — 2026-11-25 (Guardian Derision deployed; rendered review complete)
 
 - **Current source release:** Guardian Derision PR [#397](https://github.com/Appl3Tree/Tenno-Hub/pull/397) squash-merged as 805a6f5aa5889271bb75c1ee96dc2d75712c1e91; Pages run [#476](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45646473719) succeeded. Docs-only PR [#398](https://github.com/Appl3Tree/Tenno-Hub/pull/398) merged as 2ece721212bc67c41dd6309f128d0fef585856be; Pages run [#477](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45647744759) also succeeded. PR #398 changed documentation only.
