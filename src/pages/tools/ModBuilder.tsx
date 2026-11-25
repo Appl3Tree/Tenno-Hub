@@ -28,7 +28,7 @@ import {
     type IncarnonTier,
 } from "../../domain/catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEntry, type ModEffect, emptyEffect, SPRING_LOADED_BROADHEAD_PATH } from "../../domain/catalog/modCatalog";
-import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isVulcanBlitzBurstContextSupported, OVERPRESSURED_ROUNDS_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../../domain/catalog/modEffectUtils";
+import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, OVERPRESSURED_ROUNDS_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../../domain/catalog/modEffectUtils";
 import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfiles";
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
@@ -1917,6 +1917,9 @@ function buildMathBreakdown(
         ...(targetProfileOverride.nearbyVulcanBlitzEnemyCount && targetProfileOverride.nearbyVulcanBlitzEnemyCount > 0 ? [
             `Vulcan Blitz group input = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyVulcanBlitzEnemyCount)))} same-profile neighbors at a mean center distance of ${Math.max(0, Math.min(6, targetProfileOverride.nearbyVulcanBlitzAverageDistanceMeters ?? 0)).toFixed(1)}m. Burst treats each Normal Attack event as a fresh same-profile primary killed by the expected direct hit, then scores one rank-radius/falloff Blast; neighbor depletion and explosion kills do not chain. Targets with Shields or Overguard are excluded. Single-target TTK, Scaling, and 5s Avg DPS exclude this estimate.`,
         ] : []),
+        ...(targetProfileOverride.nearbyAcidShellsEnemyCount && targetProfileOverride.nearbyAcidShellsEnemyCount > 0 ? [
+            `Acid Shells group input = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyAcidShellsEnemyCount)))} same-profile neighbors at a mean center distance of ${Math.max(0, Math.min(15, targetProfileOverride.nearbyAcidShellsAverageDistanceMeters ?? 0)).toFixed(1)}m. Burst requires the expected direct Sobek Normal Attack hit to kill a fresh health-only primary, then applies one rank-radius/falloff explosion. It uses starting target Health as the Max Health proxy, or divides Steel Path Health by 2.5; line of sight is assumed, and neighbor depletion/chained deaths are excluded. Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain outside this estimate.`,
+        ] : []),
     ] : [];
     const fireRateExplanation = (() => {
         if (stats.fireRateLocked && !/^(?:semi|semi[- ]?auto)$/i.test(weapon.trigger.trim())
@@ -2703,6 +2706,9 @@ interface SlotProps {
     selectedSwipeTargetCount?: number;
     selectedVulcanBlitzEnemyCount?: number;
     selectedVulcanBlitzAverageDistanceMeters?: number;
+    selectedAcidShellsEnemyCount?: number;
+    selectedAcidShellsAverageDistanceMeters?: number;
+    selectedTargetIsSteelPath?: boolean;
     selectedTennokaiBlockedHitsBetweenHeavy?: number;
     selectedGoal?: string;
     mod: ModEntry | null; rank: number; slotPolarity: string;
@@ -2724,7 +2730,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, targetHasShields, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedVulcanBlitzEnemyCount, selectedVulcanBlitzAverageDistanceMeters, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, targetHasShields, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedVulcanBlitzEnemyCount, selectedVulcanBlitzAverageDistanceMeters, selectedAcidShellsEnemyCount, selectedAcidShellsAverageDistanceMeters, selectedTargetIsSteelPath, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2754,11 +2760,14 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, targetHasShields, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedVulcanBlitzEnemyCount, selectedVulcanBlitzAverageDistanceMeters, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal };
+    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, targetHasShields, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedVulcanBlitzEnemyCount, selectedVulcanBlitzAverageDistanceMeters, selectedAcidShellsEnemyCount, selectedAcidShellsAverageDistanceMeters, selectedTargetIsSteelPath, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal };
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
     const currentVulcanBlitzEstimateActive = mod?.path === VULCAN_BLITZ_MOD_PATH &&
         isVulcanBlitzBurstContextSupported(mod.effectsByRank?.[rank] ?? mod.effect, scoringEffectContext);
+    const currentAcidShellsEstimateActive = mod?.path === ACID_SHELLS_MOD_PATH &&
+        isAcidShellsBurstContextSupported(mod.effectsByRank?.[rank] ?? mod.effect, scoringEffectContext);
+    const currentGroupEstimateActive = currentVulcanBlitzEstimateActive || currentAcidShellsEstimateActive;
 
     const polMatch    = !!(mod?.polarity && slotPolarity && (slotPolarity === mod.polarity || slotPolarity === "omni"));
     const polMismatch = !!(mod && slotPolarity && slotPolarity !== "omni" && slotPolarity !== mod.polarity && slotPolarity !== "");
@@ -2835,7 +2844,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
                                 {currentUnmodeledDamageLines.length > 0 && (
                                     <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[9px] leading-tight text-amber-300"
                                         title={currentUnmodeledDamageLines.join(" · ")}>
-                                        <span>{currentVulcanBlitzEstimateActive ? "Modeled group estimate" : "Unscored effect; Auto Optimize skips this mod"}</span>
+                                        <span>{currentGroupEstimateActive ? "Modeled group estimate" : "Unscored effect; Auto Optimize skips this mod"}</span>
                                         {currentUnmodeledDamageSourceUrl && (
                                             <a href={currentUnmodeledDamageSourceUrl} target="_blank" rel="noreferrer"
                                                 onClick={(event) => event.stopPropagation()}
@@ -2850,7 +2859,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
                                     <div className="wf-popover pointer-events-none absolute left-0 top-full z-[70] mt-2 w-64 rounded-lg border px-3 py-2">
                                         <div className="text-xs font-semibold leading-tight text-slate-100">{getBuilderDisplayModName(mod)}</div>
                                         <div className="mt-1 text-[11px] leading-relaxed text-slate-300">{currentStatsLabel}</div>
-                                        {currentUnmodeledDamageLines.length > 0 && <div className="mt-1 text-[10px] leading-relaxed text-amber-300">{currentVulcanBlitzEstimateActive ? "Modeled estimate: " : "Not included: "}{currentUnmodeledDamageLines.join(" · ")}</div>}
+                                        {currentUnmodeledDamageLines.length > 0 && <div className="mt-1 text-[10px] leading-relaxed text-amber-300">{currentGroupEstimateActive ? "Modeled estimate: " : "Not included: "}{currentUnmodeledDamageLines.join(" · ")}</div>}
                                         {!mod.hasDamageEffect && !mod.isBuiltIn && currentUnmodeledDamageLines.length === 0 && <div className="mt-1 text-[10px] leading-relaxed text-amber-300">No parsed damage effect; automatic optimization excludes this mod.</div>}
                                     </div>
                                 )}
@@ -4044,6 +4053,8 @@ export default function ModBuilder() {
     const [nearbySwipeTargetCount, setNearbySwipeTargetCount] = useState(0);
     const [nearbyVulcanBlitzEnemyCount, setNearbyVulcanBlitzEnemyCount] = useState(0);
     const [nearbyVulcanBlitzAverageDistanceMeters, setNearbyVulcanBlitzAverageDistanceMeters] = useState(3);
+    const [nearbyAcidShellsEnemyCount, setNearbyAcidShellsEnemyCount] = useState(0);
+    const [nearbyAcidShellsAverageDistanceMeters, setNearbyAcidShellsAverageDistanceMeters] = useState(5);
     const [isEximus, setIsEximus] = useState(false);
     const [bossBlastStackCap, setBossBlastStackCap] = useState(false);
     const [punctureVipStackCap, setPunctureVipStackCap] = useState(false);
@@ -4117,7 +4128,8 @@ export default function ModBuilder() {
         if (!useCustomTargetStats) {
             const swipeTargetCount = weapon?.tags.includes("KAVAT_WEAPON") ? nearbySwipeTargetCount : 0;
             const vulcanBlitzTargetCount = weapon?.name === "Jat Kittag" ? nearbyVulcanBlitzEnemyCount : 0;
-            if (!selectedProfile && (!factionOn || headshotRatePercent <= 0) && !isEximus && swipeTargetCount <= 0 && vulcanBlitzTargetCount <= 0) return undefined;
+            const acidShellsTargetCount = weapon?.name === "Sobek" || weapon?.name === "Kuva Sobek" ? nearbyAcidShellsEnemyCount : 0;
+            if (!selectedProfile && (!factionOn || headshotRatePercent <= 0) && !isEximus && swipeTargetCount <= 0 && vulcanBlitzTargetCount <= 0 && acidShellsTargetCount <= 0) return undefined;
             return {
                 headshotHitRate: factionOn ? headshotRatePercent / 100 : 0,
                 isEximusTarget: isEximus,
@@ -4126,6 +4138,11 @@ export default function ModBuilder() {
                     nearbyVulcanBlitzEnemyCount: vulcanBlitzTargetCount,
                     nearbyVulcanBlitzAverageDistanceMeters,
                 } : {}),
+                ...(acidShellsTargetCount > 0 ? {
+                    nearbyAcidShellsEnemyCount: acidShellsTargetCount,
+                    nearbyAcidShellsAverageDistanceMeters,
+                } : {}),
+                isSteelPathTarget: false,
                 ...(selectedProfile ? {
                     headshotMultiplier: selectedProfile.headshotMultiplier,
                     criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
@@ -4138,6 +4155,7 @@ export default function ModBuilder() {
             ...(bossBlastStackCap ? { blast: 4 } : {}),
             ...(punctureVipStackCap ? { puncture: 3 } : {}),
         };
+        const acidShellsTargetCount = weapon?.name === "Sobek" || weapon?.name === "Kuva Sobek" ? nearbyAcidShellsEnemyCount : 0;
         return {
             ...resolvedCustomTargetStats,
             headshotHitRate: factionOn ? headshotRatePercent / 100 : 0,
@@ -4171,12 +4189,18 @@ export default function ModBuilder() {
                 nearbyVulcanBlitzEnemyCount,
                 nearbyVulcanBlitzAverageDistanceMeters,
             } : {}),
+            ...(acidShellsTargetCount > 0 ? {
+                nearbyAcidShellsEnemyCount: acidShellsTargetCount,
+                nearbyAcidShellsAverageDistanceMeters,
+                acidShellsMaxHealthBeforeSteelPath: resolvedCustomTargetStats.health / (isSteelPath ? 2.5 : 1),
+            } : {}),
+            isSteelPathTarget: isSteelPath,
             // Cold's four-stack cap and crowd-control immunity follow active
             // Overguard; Radiation can apply but its effects remain suppressed.
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps,
         };
-    }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, nearbySwipeTargetCount, nearbyVulcanBlitzEnemyCount, nearbyVulcanBlitzAverageDistanceMeters, weapon, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel, isEximus]);
+    }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, nearbySwipeTargetCount, nearbyVulcanBlitzEnemyCount, nearbyVulcanBlitzAverageDistanceMeters, nearbyAcidShellsEnemyCount, nearbyAcidShellsAverageDistanceMeters, weapon, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel, isEximus]);
     const targetHeadIsWeakPoint = getTargetProfileAssumptions(faction, targetProfileOverride).headIsWeakPoint;
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
@@ -4255,6 +4279,8 @@ export default function ModBuilder() {
             nearbySwipeTargetCount,
             nearbyVulcanBlitzEnemyCount,
             nearbyVulcanBlitzAverageDistanceMeters,
+            nearbyAcidShellsEnemyCount,
+            nearbyAcidShellsAverageDistanceMeters,
             statusImmunities: [...targetStatusImmunities],
         };
         return {
@@ -4324,6 +4350,8 @@ export default function ModBuilder() {
         nearbySwipeTargetCount,
         nearbyVulcanBlitzEnemyCount,
         nearbyVulcanBlitzAverageDistanceMeters,
+        nearbyAcidShellsEnemyCount,
+        nearbyAcidShellsAverageDistanceMeters,
         enemyBaseLevel,
         enemyCurrentLevel,
         enemyScalingFaction,
@@ -5709,13 +5737,16 @@ export default function ModBuilder() {
     const vulcanBlitzTargetSummary = weapon?.name === "Jat Kittag" && nearbyVulcanBlitzEnemyCount > 0
         ? ` · +${nearbyVulcanBlitzEnemyCount} Vulcan Blitz neighbor${nearbyVulcanBlitzEnemyCount === 1 ? "" : "s"} at ${nearbyVulcanBlitzAverageDistanceMeters.toFixed(1)}m`
         : "";
+    const acidShellsTargetSummary = (weapon?.name === "Sobek" || weapon?.name === "Kuva Sobek") && nearbyAcidShellsEnemyCount > 0
+        ? ` · +${nearbyAcidShellsEnemyCount} Acid Shells neighbor${nearbyAcidShellsEnemyCount === 1 ? "" : "s"} at ${nearbyAcidShellsAverageDistanceMeters.toFixed(1)}m`
+        : "";
     const activeTargetSummary = selectedEnemyProfile
-        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}${swipeTargetSummary}${vulcanBlitzTargetSummary}`
+        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}${swipeTargetSummary}${vulcanBlitzTargetSummary}${acidShellsTargetSummary}`
         : useCustomTargetStats && targetProfileOverride
-        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}${swipeTargetSummary}${vulcanBlitzTargetSummary}`
+        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}${swipeTargetSummary}${vulcanBlitzTargetSummary}${acidShellsTargetSummary}`
         : factionOn
-            ? `${faction} synthetic faction estimate${swipeTargetSummary}${vulcanBlitzTargetSummary}`
-            : `Balanced synthetic target estimate${swipeTargetSummary}${vulcanBlitzTargetSummary}`;
+            ? `${faction} synthetic faction estimate${swipeTargetSummary}${vulcanBlitzTargetSummary}${acidShellsTargetSummary}`
+            : `Balanced synthetic target estimate${swipeTargetSummary}${vulcanBlitzTargetSummary}${acidShellsTargetSummary}`;
     const activeDamageTypeSources = useMemo(
         () => activeCalcWeapon ? buildDamageTypeSourceDescriptions(activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels) : {},
         [activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels],
@@ -6496,6 +6527,12 @@ export default function ModBuilder() {
             setNearbyVulcanBlitzAverageDistanceMeters(Number.isFinite(target?.nearbyVulcanBlitzAverageDistanceMeters)
                 ? Math.max(0, Math.min(6, target?.nearbyVulcanBlitzAverageDistanceMeters ?? 3))
                 : 3);
+            setNearbyAcidShellsEnemyCount(Number.isFinite(target?.nearbyAcidShellsEnemyCount)
+                ? Math.max(0, Math.min(20, Math.floor(target?.nearbyAcidShellsEnemyCount ?? 0)))
+                : 0);
+            setNearbyAcidShellsAverageDistanceMeters(Number.isFinite(target?.nearbyAcidShellsAverageDistanceMeters)
+                ? Math.max(0, Math.min(15, target?.nearbyAcidShellsAverageDistanceMeters ?? 5))
+                : 5);
             setTargetStatusImmunities((target?.statusImmunities ?? [])
                 .filter((type): type is StatusDamageType =>
                     (STATUS_DAMAGE_TYPES as readonly string[]).includes(type)));
@@ -6526,6 +6563,8 @@ export default function ModBuilder() {
             setNearbyGasOuterEnemyCount(0);
             setNearbyBlastEnemyCount(0);
             setNearbySwipeTargetCount(0);
+            setNearbyAcidShellsEnemyCount(0);
+            setNearbyAcidShellsAverageDistanceMeters(5);
             setTargetStatusImmunities([]);
         }
         setTab("build");
@@ -7760,6 +7799,45 @@ export default function ModBuilder() {
                                                             </p>
                                                         </div>
                                                     )}
+                                                    {(weapon?.name === "Sobek" || weapon?.name === "Kuva Sobek") && (
+                                                        <div className="mb-2 space-y-2 rounded-lg border border-amber-900/60 bg-amber-950/20 p-2.5">
+                                                            <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
+                                                                <label htmlFor="planner-acid-shells-neighbor-count" className="text-[10px] text-slate-300">
+                                                                    Same-profile neighbors reached by Acid Shells
+                                                                </label>
+                                                                <input
+                                                                    id="planner-acid-shells-neighbor-count"
+                                                                    aria-label="Same-profile neighbors reached by Acid Shells"
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={20}
+                                                                    step={1}
+                                                                    value={nearbyAcidShellsEnemyCount}
+                                                                    onChange={(event) => setNearbyAcidShellsEnemyCount(Math.max(0, Math.min(20, Math.floor(Number(event.target.value) || 0))))}
+                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                />
+                                                            </div>
+                                                            <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
+                                                                <label htmlFor="planner-acid-shells-mean-distance" className="text-[10px] text-slate-300">
+                                                                    Mean center distance (m)
+                                                                </label>
+                                                                <input
+                                                                    id="planner-acid-shells-mean-distance"
+                                                                    aria-label="Acid Shells neighbors' mean center distance in meters"
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={15}
+                                                                    step={0.1}
+                                                                    value={nearbyAcidShellsAverageDistanceMeters}
+                                                                    onChange={(event) => setNearbyAcidShellsAverageDistanceMeters(Math.max(0, Math.min(15, Number(event.target.value) || 0)))}
+                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                />
+                                                            </div>
+                                                            <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                Burst scores this group estimate only when the expected direct Normal Attack hit kills a fresh, health-only primary. It applies the selected rank's flat Corrosive plus Max-Health-scaled Blast to the entered same-profile neighbors, using the Wiki's linear falloff and rank radius; line of sight is assumed. Starting target Health stands in for Max Health; custom Steel Path target Health is divided by 2.5 first. The explosion cannot crit or apply status. Shields, Overguard, neighbor depletion, chained kills, Scaling, finite TTK, and 5s Avg DPS are excluded. <a href="https://wiki.warframe.com/w/Acid_Shells" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">WARFRAME Wiki: Acid Shells</a>.
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                     {factionOn && (
                                                         <div className="w-full space-y-2">
                                                             <label className="block space-y-1 text-[10px] text-slate-400">
@@ -8653,7 +8731,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedAcidShellsEnemyCount={targetProfileOverride?.nearbyAcidShellsEnemyCount ?? 0} selectedAcidShellsAverageDistanceMeters={targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters ?? 0} selectedTargetIsSteelPath={targetProfileOverride?.isSteelPathTarget === true} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -8684,7 +8762,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedAcidShellsEnemyCount={targetProfileOverride?.nearbyAcidShellsEnemyCount ?? 0} selectedAcidShellsAverageDistanceMeters={targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters ?? 0} selectedTargetIsSteelPath={targetProfileOverride?.isSteelPathTarget === true} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -8711,7 +8789,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedAcidShellsEnemyCount={targetProfileOverride?.nearbyAcidShellsEnemyCount ?? 0} selectedAcidShellsAverageDistanceMeters={targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters ?? 0} selectedTargetIsSteelPath={targetProfileOverride?.isSteelPathTarget === true} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8780,7 +8858,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedAcidShellsEnemyCount={targetProfileOverride?.nearbyAcidShellsEnemyCount ?? 0} selectedAcidShellsAverageDistanceMeters={targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters ?? 0} selectedTargetIsSteelPath={targetProfileOverride?.isSteelPathTarget === true} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8853,7 +8931,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} targetHasShields={activeTargetAssumptions.shields > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedVulcanBlitzEnemyCount={targetProfileOverride?.nearbyVulcanBlitzEnemyCount ?? 0} selectedVulcanBlitzAverageDistanceMeters={targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters ?? 0} selectedAcidShellsEnemyCount={targetProfileOverride?.nearbyAcidShellsEnemyCount ?? 0} selectedAcidShellsAverageDistanceMeters={targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters ?? 0} selectedTargetIsSteelPath={targetProfileOverride?.isSteelPathTarget === true} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}

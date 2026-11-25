@@ -10,7 +10,7 @@ import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
 import { assignModsToSlots, debugEvaluateExpectedEncounter, debugEvaluateFixedWindowDps, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
-import { calculateBuild, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, type ConditionalState } from "../damageCalc";
 import * as damageCalcModule from "../damageCalc";
 import { gasCloudOuterAnnulusCoverage, quantizeBaseCriticalDamageMultiplier } from "../damageRuleset";
 
@@ -13345,6 +13345,223 @@ describe("seeded Vulcan Blitz optimizer oracle", () => {
                 expect(ownedRanks, `seed ${scenarioIndex} selected ${mod.name} owned rank ${optimized.slotRanks[slotIndex]}`).toContain(optimized.slotRanks[slotIndex]);
             }
             expect(optimizedScore, `seed ${scenarioIndex} exhaustive Burst winner`).toBeCloseTo(bestScore, 8);
+        }
+    });
+});
+
+describe("Acid Shells bounded Burst group scoring", () => {
+    it("scores an entered same-profile group and keeps the mod out of unsupported objectives", () => {
+        const sobek = getWeaponCatalog().find((weapon) => weapon.name === "Sobek")!;
+        const normalAttack = withSelectedAttack(sobek, sobek.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+        const acidShells = getModsForWeapon(normalAttack).find((mod) => mod.name === "Acid Shells")!;
+        const baseStats = calculateBuild(normalAttack, []).modded;
+        const expectedDirectHit = Object.values(baseStats.damageBreakdown).reduce((total, amount) => total + amount, 0) *
+            baseStats.damageWeightedMultishot * avgHitDamageMultiplier(baseStats.critChance, baseStats.critMultiplier);
+        const targetProfileOverride = {
+            health: Math.max(1, expectedDirectHit * 0.5),
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            nearbyAcidShellsEnemyCount: 2,
+            nearbyAcidShellsAverageDistanceMeters: 2.4,
+        };
+        const baseline = debugScoreBuild(normalAttack, [], "burst", "Infested", null, targetProfileOverride);
+        const withAcidShells = debugScoreBuild(
+            normalAttack,
+            [acidShells.effectsByRank[acidShells.fusionLimit]!],
+            "burst",
+            "Infested",
+            null,
+            targetProfileOverride,
+        );
+        expect(withAcidShells).toBeGreaterThan(baseline);
+
+        const optimizeOptions = {
+            targetFaction: "Infested",
+            targetProfileOverride,
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            allowNonMaxRank: true,
+            ownedModUniqueNames: new Set([acidShells.uniqueName]),
+            ownedModRankCountsByUniqueName: { [acidShells.uniqueName]: { "0": 1, "1": 1, "2": 1 } },
+            optimizeArcane: false,
+            optimizeExilus: false,
+        };
+        const supported = optimizeBuild(normalAttack, [acidShells], "burst", 1, optimizeOptions);
+        expect(supported.slots[0]?.name).toBe("Acid Shells");
+
+        const unsupported = optimizeBuild(normalAttack, [acidShells], "scaling", 1, optimizeOptions);
+        expect(unsupported.slots.some((mod) => mod?.name === "Acid Shells")).toBe(false);
+    });
+
+    it("matches four seeded randomized two-slot R0–R2 owned-rank winners", { timeout: 120_000 }, () => {
+        let seed = 20261172;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+            }
+            return result;
+        };
+        const scenarios = [
+            { faction: "Grineer", neighborCount: 1, averageDistance: 0.3, steelPath: false },
+            { faction: "Corpus", neighborCount: 2, averageDistance: 1.1, steelPath: true },
+            { faction: "Infested", neighborCount: 3, averageDistance: 2.0, steelPath: false },
+            { faction: "Grineer", neighborCount: 4, averageDistance: 2.4, steelPath: true },
+        ] as const;
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const sobek = getWeaponCatalog().find((weapon) => weapon.name === "Sobek")!;
+            const normalAttack = withSelectedAttack(sobek, sobek.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+            const acidShells = getModsForWeapon(normalAttack).find((mod) => mod.name === "Acid Shells")!;
+            const baseStats = calculateBuild(normalAttack, [], scenario.faction).modded;
+            const expectedDirectHit = Object.values(baseStats.damageBreakdown).reduce((total, amount) => total + amount, 0) *
+                baseStats.damageWeightedMultishot * avgHitDamageMultiplier(baseStats.critChance, baseStats.critMultiplier);
+            const healthBeforeSteelPath = expectedDirectHit * (scenario.steelPath ? 0.18 + random() * 0.12 : 0.45 + random() * 0.3);
+            const targetProfileOverride = {
+                health: healthBeforeSteelPath * (scenario.steelPath ? 2.5 : 1),
+                shields: 0,
+                overguard: 0,
+                armor: 0,
+                nearbyAcidShellsEnemyCount: scenario.neighborCount,
+                nearbyAcidShellsAverageDistanceMeters: scenario.averageDistance,
+                acidShellsMaxHealthBeforeSteelPath: healthBeforeSteelPath,
+                isSteelPathTarget: scenario.steelPath,
+            };
+            const scoringContext = {
+                selectedWeaponName: normalAttack.name,
+                selectedAttackName: normalAttack.selectedAttackName,
+                selectedAttackTrigger: normalAttack.trigger,
+                selectedAttackIsAreaDamage: normalAttack.selectedAttackIsAreaDamage,
+                targetFaction: scenario.faction,
+                targetHasOverguard: false,
+                targetHasShields: false,
+                selectedAcidShellsEnemyCount: scenario.neighborCount,
+                selectedAcidShellsAverageDistanceMeters: scenario.averageDistance,
+                selectedTargetIsSteelPath: scenario.steelPath,
+                selectedGoal: "burst",
+            };
+            const fullyModeledPool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(normalAttack))
+                    .filter((mod) => mod.uniqueName !== acidShells.uniqueName && mod.isPveEligible !== false &&
+                        mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const otherMods: ModEntry[] = [];
+            for (const mod of shuffled(fullyModeledPool)) {
+                if (otherMods.some((selected) => selected.incompatibilityGroup === mod.incompatibilityGroup)) continue;
+                otherMods.push(mod);
+                if (otherMods.length === 2) break;
+            }
+            const candidates = [acidShells, ...otherMods];
+            expect(candidates.length, `seed ${scenarioIndex} candidate pool`).toBe(3);
+
+            const ownedRankCountsByUniqueName: Record<string, Record<string, number>> = {};
+            const allowedRanksByUniqueName = new Map<string, number[]>();
+            for (const mod of candidates) {
+                const possibleRanks = Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank);
+                const ownedRanks = possibleRanks.filter(() => random() < 0.7);
+                if (ownedRanks.length === 0) ownedRanks.push(possibleRanks[Math.floor(random() * possibleRanks.length)]!);
+                ownedRankCountsByUniqueName[mod.uniqueName] = Object.fromEntries(ownedRanks.map((rank) => [String(rank), 1]));
+                const optimizerRanks = ownedRanks.filter((rank) => mod.name === "Acid Shells"
+                    ? scenario.averageDistance < (mod.effectsByRank[rank]?.acidShellsRadiusMeters ?? 0)
+                    : getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0);
+                allowedRanksByUniqueName.set(mod.uniqueName, optimizerRanks);
+            }
+            const slotCount = 2;
+            const slotPolarities = Array.from({ length: slotCount }, (_, index) => normalAttack.polarities[index] ?? "");
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: normalAttack.canOverLevel,
+            };
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            let legalRankedLoadoutCount = 0;
+            let bestScore = 0;
+            const scoreEffects = (effects: (ModEffect | null)[]) => debugScoreBuild(
+                normalAttack,
+                effects,
+                "burst",
+                scenario.faction,
+                null,
+                targetProfileOverride,
+            );
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const options = allowedRanksByUniqueName.get(ordered[index]!.uniqueName) ?? [];
+                    for (const rank of options) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, 0);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+                legalRankedLoadoutCount++;
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScore = Math.max(bestScore, scoreEffects(effects));
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index]!;
+                    if (ordered.some((mod) => mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup))) continue;
+                    enumerate([...remaining.slice(0, index), ...remaining.slice(index + 1)], [...ordered, candidate]);
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `seed ${scenarioIndex} legal ranked loadouts`).toBeGreaterThan(10);
+
+            const optimized = optimizeBuild(normalAttack, candidates, "burst", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: false,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModRankCountsByUniqueName: ownedRankCountsByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+            });
+            const optimizedEffects = optimized.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = optimized.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            expect(optimized.capacityValid, `seed ${scenarioIndex} capacity`).toBe(true);
+            expect(
+                scoreEffects(optimizedEffects),
+                `seed ${scenarioIndex} sampled-pool winner; optimized=${optimized.slots.map((mod, index) =>
+                    mod ? `${mod.name}@R${optimized.slotRanks[index]}` : "empty").join(", ")}; allowed=${JSON.stringify(Object.fromEntries(allowedRanksByUniqueName))}; candidates=${candidates.map((mod) => mod.name).join(", ")}`,
+            ).toBeCloseTo(bestScore, 8);
         }
     });
 });
