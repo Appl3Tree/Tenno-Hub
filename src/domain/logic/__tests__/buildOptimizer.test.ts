@@ -4,7 +4,7 @@ import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
-import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines } from "../../catalog/modEffectUtils";
+import { getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, getWeaponDisplayName, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
@@ -13099,6 +13099,160 @@ describe("Static Discharge optimizer scope", () => {
         expect(result.slots.some((mod) => mod?.name === "Static Discharge")).toBe(false);
         expect(getUnmodeledDamageEffectLines(staticDischarge, staticDischarge.fusionLimit)
             .join(" ")).toContain("manual Prova cycle estimate");
+    });
+});
+
+describe("Battacor Sentient Barrage optimizer scope", () => {
+    it("uses the augment only for a ready, charged direct Burst snapshot", () => {
+        const battacor = getWeaponCatalog().find((weapon) => weapon.name === "Battacor")!;
+        const altFireIndex = battacor.attacks.findIndex((attack) => attack.name === "Secondary Fire");
+        const altFire = withSelectedAttack(battacor, altFireIndex);
+        const sentientBarrage = getModsForWeapon(battacor).find((mod) => mod.path === SENTIENT_BARRAGE_MOD_PATH)!;
+        const options = {
+            conditionalState: {
+                mode: "initial",
+                battacorAltFireChargeCount: 3,
+                sentientBarrageNextDischargeReady: true,
+            } satisfies ConditionalState,
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        };
+        const ready = optimizeBuild(altFire, [sentientBarrage], "burst", 1, options);
+        expect(ready.mods.some((mod) => mod?.path === SENTIENT_BARRAGE_MOD_PATH)).toBe(true);
+
+        const notReady = optimizeBuild(altFire, [sentientBarrage], "burst", 1, {
+            ...options,
+            conditionalState: { ...options.conditionalState, sentientBarrageNextDischargeReady: false },
+        });
+        expect(notReady.mods.some((mod) => mod?.path === SENTIENT_BARRAGE_MOD_PATH)).toBe(false);
+        expect(() => optimizeBuild(altFire, [sentientBarrage], "burst", 1, {
+            ...options,
+            conditionalState: { ...options.conditionalState, battacorAltFireChargeCount: 0 },
+        })).toThrow(/at least one current charge/);
+        expect(() => optimizeBuild(altFire, [sentientBarrage], "scaling", 1, options))
+            .toThrow(/only for direct single-target Burst/);
+    });
+
+    it("matches four seeded randomized two-slot rank-limited pools across target factions and charge snapshots", { timeout: 120_000 }, () => {
+        let seed = 20261170;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+            }
+            return result;
+        };
+        const battacor = getWeaponCatalog().find((weapon) => weapon.name === "Battacor")!;
+        const altFire = withSelectedAttack(battacor, battacor.attacks.findIndex((attack) => attack.name === "Secondary Fire"));
+        const sentientBarrage = getModsForWeapon(battacor).find((mod) => mod.path === SENTIENT_BARRAGE_MOD_PATH)!;
+        const scenarios = [
+            { faction: "Grineer", charges: 1, rankCap: 1 },
+            { faction: "Corpus", charges: 2, rankCap: 2 },
+            { faction: "Infested", charges: 3, rankCap: 1 },
+            { faction: "Corrupted", charges: 3, rankCap: 2 },
+        ] as const;
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const conditionalState: ConditionalState = {
+                mode: "realistic",
+                battacorAltFireChargeCount: scenario.charges,
+                sentientBarrageNextDischargeReady: true,
+            };
+            const scoringContext = {
+                selectedWeaponName: altFire.name,
+                selectedAttackName: altFire.selectedAttackName,
+                selectedAttackTrigger: altFire.trigger,
+                selectedAttackIsAreaDamage: altFire.selectedAttackIsAreaDamage,
+                selectedGoal: "burst",
+                targetFaction: scenario.faction,
+                battacorAltFireChargeCount: scenario.charges,
+                sentientBarrageNextDischargeReady: true,
+            };
+            const ordinaryPool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(battacor))
+                    .filter((mod) => mod.path !== SENTIENT_BARRAGE_MOD_PATH && mod.isPveEligible !== false && mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const candidates = [sentientBarrage, ...shuffled(ordinaryPool).slice(0, 3)];
+            expect(candidates.length, `seed ${scenarioIndex} candidate pool`).toBe(4);
+            const ownedModMaxRankByUniqueName = Object.fromEntries(candidates.map((mod) => [
+                mod.uniqueName,
+                mod === sentientBarrage
+                    ? scenario.rankCap
+                    : Math.floor(random() * (Math.min(2, mod.fusionLimit) + 1)),
+            ]));
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const slotCount = 2;
+            const score = (effects: (ModEffect | null)[]) =>
+                debugScoreBuild(altFire, effects, "burst", scenario.faction, null, undefined, conditionalState);
+            let bestScore = score([]);
+            let legalRankedLoadoutCount = 0;
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const mod = ordered[index]!;
+                    const maximumRank = ownedModMaxRankByUniqueName[mod.uniqueName]!;
+                    for (let rank = 0; rank <= maximumRank; rank++) {
+                        if (getUnmodeledDamageEffectLines(mod, rank, scoringContext).length > 0) continue;
+                        if (getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length > 0) continue;
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+                const placed = assignModsToSlots(ordered, ranks, ["", ""], slotCount, false);
+                if (placed.slotMods.filter(Boolean).length !== ordered.length) return;
+                legalRankedLoadoutCount++;
+                const effects = placed.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placed.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScore = Math.max(bestScore, score(effects));
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index]!;
+                    if (ordered.some((mod) => mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup))) continue;
+                    enumerate([...remaining.slice(0, index), ...remaining.slice(index + 1)], [...ordered, candidate]);
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `seed ${scenarioIndex} legal ranked loadouts`).toBeGreaterThan(0);
+
+            const result = optimizeBuild(altFire, candidates, "burst", slotCount, {
+                targetFaction: scenario.faction,
+                conditionalState,
+                allowForma: false,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModMaxRankByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+            });
+            const resultEffects = result.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = result.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            expect(result.capacityValid, `seed ${scenarioIndex} capacity`).toBe(true);
+            expect(score(resultEffects), `seed ${scenarioIndex} exact winner`)
+                .toBeCloseTo(bestScore, 8);
+        }
     });
 });
 

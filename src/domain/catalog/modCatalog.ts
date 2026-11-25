@@ -29,6 +29,7 @@ import {
     UNSEEN_DREAD_MOD_PATH,
     PRECISION_CONDITIONING_MOD_PATH,
     SEPSIS_CLAWS_MOD_PATH,
+    SENTIENT_BARRAGE_MOD_PATH,
     SHOCKING_CLAWS_MOD_PATH,
     STRAIN_FEVER_MOD_PATH,
     STATIC_DISCHARGE_MOD_PATH,
@@ -62,6 +63,7 @@ const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
 const CRITICAL_PRECISION_CRIT_CHANCE_PER_HEADSHOT_BY_RANK = [0.025, 0.04, 0.055, 0.07, 0.085, 0.1];
 const UNSEEN_DREAD_CRIT_DAMAGE_BONUS_BY_RANK = [0.5, 0.75, 1, 1.25, 1.5, 1.75];
 const CRITICAL_MUTATION_CRIT_CHANCE_AND_DAMAGE_PER_KILL_BY_RANK = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3];
+const SENTIENT_BARRAGE_CRIT_CHANCE_AND_DAMAGE_BY_RANK = [0.5, 1, 1.5, 2, 2.5, 3];
 const OVERPRESSURED_ROUNDS_FALLOFF_DISTANCE_BY_RANK = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
     [BRUTE_CONDITIONING_MOD_PATH]: "impact",
@@ -231,6 +233,8 @@ export interface ModEffect {
     unseenDreadCritDamageBonus: number;
     /** Critical Mutation's rank value for both crit stats per prior kill, used in a Burst snapshot. */
     criticalMutationCritChanceAndDamagePerKill: number;
+    /** Sentient Barrage's rank-scaled bonus to both crit stats when its next-discharge snapshot is ready. */
+    sentientBarrageCritChanceAndDamageBonus: number;
     finalCritMultiplierBonus: number;
     statusChanceBonus: number;
     /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
@@ -1739,6 +1743,22 @@ function buildCaches(): ModCaches {
                 effect.criticalMutationCritChanceAndDamagePerKill = bonus;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Each kill increases Critical Chance and Critical Damage by \+?\d+(?:\.\d+)?% up to 300%\. Reduce by \+?\d+(?:\.\d+)?% when fewer than 3 enemies are struck by the grenade explosion\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
+                );
+            });
+        }
+        if (path === SENTIENT_BARRAGE_MOD_PATH) {
+            // The editable ready/not-ready snapshot represents a full-charge
+            // Sentient Barrage activation for one direct Battacor Alt-Fire Burst.
+            // Charge refill history and infinite Punch Through are not simulated.
+            // https://wiki.warframe.com/w/Sentient_Barrage
+            SENTIENT_BARRAGE_CRIT_CHANCE_AND_DAMAGE_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.sentientBarrageCritChanceAndDamageBonus = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Discharge from Alt-Fire now has infinite Body Punch Through but no longer explodes on contact\. Each enemy hit will refill one charge, and reaching a full charge will increase the Critical Chance and Critical Damage of the next discharge by \d+(?:\.\d+)?%\.?$/i.test(
                         stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
                     ),
                 );

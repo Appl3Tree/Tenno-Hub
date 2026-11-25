@@ -300,6 +300,16 @@ export interface ModdedWeaponStats {
     criticalMutationBonus: number;
     /** Prior kills represented by Critical Mutation's current Burst snapshot. */
     criticalMutationPriorKills: number;
+    /** Current Battacor Alt-Fire charges represented by a direct Burst snapshot (0–3). */
+    battacorAltFireChargeCount: number;
+    /** Multiplicative damage factor from the represented Battacor charge count (1 for other attacks). */
+    battacorAltFireChargeMultiplier: number;
+    /** Whether Sentient Barrage is present and removes the Alt-Fire contact explosion. */
+    sentientBarrageEquipped: boolean;
+    /** Sentient Barrage's active next-discharge bonus to base Critical Chance and Damage. */
+    sentientBarrageCritChanceAndDamageBonus: number;
+    /** Whether the current Sentient Barrage ready snapshot is being applied. */
+    sentientBarrageNextDischargeReady: boolean;
     /** Count of selected and external Vigilante pieces, capped at six. */
     vigilanteSetModCount: number;
     /** Count of selected and external Gladiator pieces, capped at six. */
@@ -603,6 +613,10 @@ export interface ConditionalState {
     unseenDreadInvisibilityActive?: boolean;
     /** Prior Catabolyst kills for Critical Mutation; direct Normal Attack Burst snapshot only. */
     criticalMutationPriorKills?: number;
+    /** Stored Battacor Alt-Fire charges at impact (0–3); used for single-target Burst only. */
+    battacorAltFireChargeCount?: number;
+    /** Assume Sentient Barrage's full-charge bonus is ready for the next Alt-Fire discharge. */
+    sentientBarrageNextDischargeReady?: boolean;
     /** Heat Damage bonus of the first external Heat source, as a multiplier bonus (0.9 = +90%). */
     externalHeatElementalDamageBonus?: number;
     /** Faction Damage bonus of the first external Heat source, as a multiplier bonus. */
@@ -762,6 +776,14 @@ export function normalizeCriticalMutationPriorKills(value: number | undefined): 
         : 0;
 }
 
+export const MAX_BATTACOR_ALT_FIRE_CHARGES = 3;
+
+export function normalizeBattacorAltFireChargeCount(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(MAX_BATTACOR_ALT_FIRE_CHARGES, Math.floor(value ?? 0)))
+        : 0;
+}
+
 /** Converts Dreadful Killshot's rank value and current-health snapshot to its capped, 20%-quantized bonus. */
 export function dreadfulKillshotBonusFromCurrentHealth(
     per75HealthBonus: number,
@@ -786,6 +808,8 @@ export function withoutBurstOnlyConditionalAssumptions(
         normalizeCriticalPrecisionHeadshotProjectiles(state.criticalPrecisionHeadshotProjectiles) === 0 &&
         state.unseenDreadInvisibilityActive !== true &&
         normalizeCriticalMutationPriorKills(state.criticalMutationPriorKills) === 0 &&
+        normalizeBattacorAltFireChargeCount(state.battacorAltFireChargeCount) === 0 &&
+        state.sentientBarrageNextDischargeReady !== true &&
         normalizeOverpressuredRoundsSpreadSnapshot(
             state.overpressuredRoundsSpreadMinimumDegrees,
             state.overpressuredRoundsSpreadMaximumDegrees,
@@ -799,6 +823,8 @@ export function withoutBurstOnlyConditionalAssumptions(
         criticalPrecisionHeadshotProjectiles: 0,
         unseenDreadInvisibilityActive: false,
         criticalMutationPriorKills: 0,
+        battacorAltFireChargeCount: 0,
+        sentientBarrageNextDischargeReady: false,
         overpressuredRoundsSpreadMinimumDegrees: undefined,
         overpressuredRoundsSpreadMaximumDegrees: undefined,
     };
@@ -1587,6 +1613,7 @@ export function calculateBuild(
     );
     const unseenDreadInvisibilityActive = conditionalState.unseenDreadInvisibilityActive === true;
     const criticalMutationPriorKills = normalizeCriticalMutationPriorKills(conditionalState.criticalMutationPriorKills);
+    const battacorAltFireChargeCount = normalizeBattacorAltFireChargeCount(conditionalState.battacorAltFireChargeCount);
     const attackDamageFalloff = calculateAttackDamageFalloff(
         weapon,
         mods,
@@ -1650,6 +1677,7 @@ export function calculateBuild(
     let criticalPrecisionCritChancePerHeadshot = 0;
     let unseenDreadCritDamageBonusPerRank = 0;
     let criticalMutationCritChanceAndDamagePerKill = 0;
+    let sentientBarrageCritChanceAndDamageBonusPerRank = 0;
     let finalCritMultiplierBonus = 0;
     let headshotMultiplierBonus = 0;
     let bodyshotDamageBonus = 0;
@@ -1792,6 +1820,7 @@ export function calculateBuild(
         criticalPrecisionCritChancePerHeadshot += e.criticalPrecisionCritChancePerHeadshot ?? 0;
         unseenDreadCritDamageBonusPerRank += e.unseenDreadCritDamageBonus ?? 0;
         criticalMutationCritChanceAndDamagePerKill += e.criticalMutationCritChanceAndDamagePerKill ?? 0;
+        sentientBarrageCritChanceAndDamageBonusPerRank += e.sentientBarrageCritChanceAndDamageBonus ?? 0;
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
         areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
@@ -2273,8 +2302,11 @@ export function calculateBuild(
     const chargeDamageScale = chargeDamageBaseAmmoCost !== undefined
         ? chargeAmmoPerShot / Math.max(0.0001, chargeDamageBaseAmmoCost)
         : 1;
+    const isBattacorAltFireAttack = weapon.name === "Battacor" &&
+        (weapon.selectedAttackName === "Secondary Fire" || weapon.selectedAttackName === "Secondary Fire AoE");
+    const battacorAltFireChargeMultiplier = isBattacorAltFireAttack ? battacorAltFireChargeCount : 1;
     const weaponBaseDamage = Object.fromEntries(
-        DAMAGE_KEYS.map((key) => [key, weapon.damage[key] * chargeDamageScale]),
+        DAMAGE_KEYS.map((key) => [key, weapon.damage[key] * chargeDamageScale * battacorAltFireChargeMultiplier]),
     ) as Record<DamageKey, number>;
     if (physicalDamageConversion) {
         const basePhysicalDamage = weaponBaseDamage.impact + weaponBaseDamage.puncture + weaponBaseDamage.slash;
@@ -2470,6 +2502,16 @@ export function calculateBuild(
         : 0;
     critChanceBonus += criticalMutationBonus;
     critMultBonus += criticalMutationBonus;
+    const sentientBarrageEquipped = sentientBarrageCritChanceAndDamageBonusPerRank > 0;
+    const sentientBarrageNextDischargeReady = weapon.name === "Battacor" &&
+        weapon.selectedAttackName === "Secondary Fire" &&
+        battacorAltFireChargeCount > 0 && sentientBarrageEquipped &&
+        conditionalState.sentientBarrageNextDischargeReady === true;
+    const sentientBarrageCritChanceAndDamageBonus = sentientBarrageNextDischargeReady
+        ? sentientBarrageCritChanceAndDamageBonusPerRank
+        : 0;
+    critChanceBonus += sentientBarrageCritChanceAndDamageBonus;
+    critMultBonus += sentientBarrageCritChanceAndDamageBonus;
 
     const comboTiersAboveBase = Math.max(0, meleeComboMultiplier - 1);
     const critChance = weapon.critChance * (1 + critChanceBonus + comboCritChanceBonus * comboTiersAboveBase) + finalCritChanceBonus;
@@ -3380,6 +3422,11 @@ export function calculateBuild(
         unseenDreadCritDamageBonus,
         criticalMutationBonus,
         criticalMutationPriorKills: criticalMutationBonus > 0 ? criticalMutationPriorKills : 0,
+        battacorAltFireChargeCount: isBattacorAltFireAttack ? battacorAltFireChargeCount : 0,
+        battacorAltFireChargeMultiplier,
+        sentientBarrageEquipped,
+        sentientBarrageCritChanceAndDamageBonus,
+        sentientBarrageNextDischargeReady,
         vigilanteSetModCount: totalVigilanteSetModCount,
         gladiatorSetModCount: totalGladiatorSetModCount,
         sacrificialSetModCount,
@@ -3486,7 +3533,11 @@ export function calculateBuild(
         damageBreakdownBeforePerStatus,
     };
 
-    const linkedSequenceRule = weapon.selectedAttackLingeringDamageRule;
+    const sentientBarrageSuppressesContactExplosion = weapon.name === "Battacor" &&
+        weapon.selectedAttackName === "Secondary Fire" && sentientBarrageEquipped;
+    const linkedSequenceRule = sentientBarrageSuppressesContactExplosion
+        ? undefined
+        : weapon.selectedAttackLingeringDamageRule;
     const enteredAttackDistanceMeters = Number.isFinite(conditionalState.attackFalloffDistanceMeters)
         ? Math.max(0, conditionalState.attackFalloffDistanceMeters ?? 0)
         : null;
@@ -3500,13 +3551,31 @@ export function calculateBuild(
         const componentAttack = weapon.attacks[componentIndex];
         if (componentAttack) {
             const componentWeapon = withSelectedAttack(weapon, componentIndex);
+            const componentMods = linkedSequenceRule.ignoreMultishot
+                ? mods.map((effect) => effect ? {
+                    ...effect,
+                    multishotBonus: 0,
+                    multishotDamageBonus: 0,
+                    multishotLocked: false,
+                    nextMagazineMultishotPerShot: 0,
+                    conditionalEffects: effect.conditionalEffects?.map((conditional) => ({
+                        ...conditional,
+                        stats: {
+                            ...conditional.stats,
+                            multishotBonus: 0,
+                            multishotDamageBonus: 0,
+                        },
+                    })),
+                } : null)
+                : mods;
+            if (linkedSequenceRule.ignoreMultishot) componentWeapon.multishot = 1;
             const componentOptions = linkedSequenceRule.attachedToDirectTarget
                 ? {
                     ...options,
                     conditionalState: { ...conditionalState, attackFalloffDistanceMeters: 0 },
                 }
                 : options;
-            const componentStats = calculateBuild(componentWeapon, mods, targetFaction, componentOptions).modded;
+            const componentStats = calculateBuild(componentWeapon, componentMods, targetFaction, componentOptions).modded;
             const dotDamagePerApplicationByType = Object.fromEntries(
                 Object.entries(componentStats.dotDamagePerShotByType).flatMap(([rawType, damagePerAttack]) => {
                     const type = rawType as StatusDamageType;
@@ -3580,7 +3649,8 @@ export function calculateBuild(
         modded.criticalPrecisionCritChanceBonus > 0 ||
         modded.unseenDreadCritDamageBonus > 0 ||
         modded.criticalMutationBonus > 0;
-    const sustainedSnapshotFreeDps = hasActiveBurstOnlyDamageSnapshot
+    const hasActiveBattacorAltFireSnapshot = isBattacorAltFireAttack && battacorAltFireChargeCount > 0;
+    const sustainedSnapshotFreeDps = hasActiveBurstOnlyDamageSnapshot || hasActiveBattacorAltFireSnapshot
         ? calculateBuild(weapon, mods, targetFaction, {
             ...options,
             conditionalState: withoutBurstOnlyConditionalAssumptions(conditionalState),

@@ -33,7 +33,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
 import { calculateStaticDischargeCycle, DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS, normalizeStaticDischargeFirstAnimationSeconds, type StaticDischargeStartingOrder } from "../../domain/logic/staticDischargeCycle";
 import { calculateVileDischargeTimeline } from "../../domain/logic/vileDischargeTimeline";
@@ -2693,6 +2693,8 @@ interface SlotProps {
     criticalPrecisionHeadshotProjectiles?: number;
     unseenDreadInvisibilityActive?: boolean;
     criticalMutationPriorKills?: number;
+    battacorAltFireChargeCount?: number;
+    sentientBarrageNextDischargeReady?: boolean;
     strainInfectionCystsAtImpact?: number;
     selectedSwipeTargetCount?: number;
     selectedTennokaiBlockedHitsBetweenHeavy?: number;
@@ -2716,7 +2718,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2746,7 +2748,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal };
+    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedTennokaiBlockedHitsBetweenHeavy, selectedGoal };
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
@@ -3532,6 +3534,12 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
                 if (stats.modded.criticalMutationBonus > 0) {
                     rows.push(["Critical Mutation Burst snapshot", `${stats.modded.criticalMutationPriorKills} prior kills, +${fmt(stats.modded.criticalMutationBonus * 100, 0)}% Critical Chance and Critical Damage`]);
                 }
+        if (stats.modded.battacorAltFireChargeCount > 0) {
+            rows.push(["Battacor Alt-Fire Burst snapshot", `${stats.modded.battacorAltFireChargeCount}/3 charges, ×${fmt(stats.modded.battacorAltFireChargeMultiplier, 0)} damage${stats.modded.sentientBarrageEquipped ? "; explosion suppressed" : "; includes same-target explosion"}`]);
+        }
+        if (stats.modded.sentientBarrageCritChanceAndDamageBonus > 0) {
+            rows.push(["Sentient Barrage ready bonus", `+${fmt(stats.modded.sentientBarrageCritChanceAndDamageBonus * 100, 0)}% base Critical Chance and Critical Damage`]);
+        }
         for (const [key, value] of Object.entries(stats.modded.rawDamageBreakdown)) {
             if ((value ?? 0) > 0) rows.push([key[0].toUpperCase() + key.slice(1), fmt(value ?? 0, 1)]);
         }
@@ -3931,6 +3939,8 @@ export default function ModBuilder() {
     const [criticalPrecisionHeadshotProjectiles, setCriticalPrecisionHeadshotProjectiles] = useState(0);
     const [unseenDreadInvisibilityActive, setUnseenDreadInvisibilityActive] = useState(false);
     const [criticalMutationPriorKills, setCriticalMutationPriorKills] = useState(0);
+    const [battacorAltFireChargeCount, setBattacorAltFireChargeCount] = useState(0);
+    const [sentientBarrageNextDischargeReady, setSentientBarrageNextDischargeReady] = useState(false);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
     const [externalStatusTypesOpen, setExternalStatusTypesOpen] = useState(false);
     const [targetStartsWithHeat, setTargetStartsWithHeat] = useState(false);
@@ -3990,6 +4000,8 @@ export default function ModBuilder() {
         criticalPrecisionHeadshotProjectiles,
         unseenDreadInvisibilityActive,
         criticalMutationPriorKills,
+        battacorAltFireChargeCount,
+        sentientBarrageNextDischargeReady,
         externalStatusTypes,
         externalHeatStatusPresenceProbability: targetStartsWithHeat ? 1 : 0,
         externalHeatElementalDamageBonus: parseExternalHeatBonusPercentInput(externalHeatElementalDamageBonusPercentInput) / 100,
@@ -4002,7 +4014,14 @@ export default function ModBuilder() {
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    const activeBattacorScoringConditionalState = useMemo<ConditionalState>(() => goal === "burst"
+        ? conditionalState
+        : {
+            ...conditionalState,
+            battacorAltFireChargeCount: 0,
+            sentientBarrageNextDischargeReady: false,
+        }, [goal, conditionalState]);
     const respectCap = true;
     const [allowNonMax, setAllowNonMax]  = useState(false);
     const [onlyOwned, setOnlyOwned]      = useState(false);
@@ -4231,6 +4250,8 @@ export default function ModBuilder() {
             criticalPrecisionHeadshotProjectiles,
             unseenDreadInvisibilityActive,
             criticalMutationPriorKills,
+            battacorAltFireChargeCount,
+            sentientBarrageNextDischargeReady,
             externalStatusTypes,
             targetStartsWithHeat,
             externalHeatElementalDamageBonusPercent: parseExternalHeatBonusPercentInput(
@@ -4299,6 +4320,8 @@ export default function ModBuilder() {
         criticalPrecisionHeadshotProjectiles,
         unseenDreadInvisibilityActive,
         criticalMutationPriorKills,
+        battacorAltFireChargeCount,
+        sentientBarrageNextDischargeReady,
         externalStatusTypes,
         targetStartsWithHeat,
         externalHeatElementalDamageBonusPercentInput,
@@ -5020,6 +5043,9 @@ export default function ModBuilder() {
         return effects;
     }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
     const activeAccuracyAffectingEffect = hasAccuracyAffectingPelletEffect(activeBuildEffects);
+    const activeSentientBarrageSelected = activeBuildEffects.some((effect) =>
+        (effect?.sentientBarrageCritChanceAndDamageBonus ?? 0) > 0,
+    );
     const activeOverpressuredRoundsSelected = allSlotsForCap.some((mod) =>
         mod?.path === OVERPRESSURED_ROUNDS_MOD_PATH,
     );
@@ -5058,6 +5084,8 @@ export default function ModBuilder() {
         () => getTargetProfileAssumptions(factionOn ? faction : "", targetProfileOverride),
         [factionOn, faction, targetProfileOverride],
     );
+    const activeBattacorAltFireSelected = activeCalcWeapon?.name === "Battacor" &&
+        activeCalcWeapon.selectedAttackName === "Secondary Fire" && activeCalcWeapon.selectedAttackIsAreaDamage === false;
     const activeSentientIncisionSelected = activeBuildEffects.some((effect) =>
         (effect?.sentientIncisionDamageBonus ?? 0) > 0,
     );
@@ -5075,12 +5103,12 @@ export default function ModBuilder() {
     );
     const activeFiniteAttackModelLimitationBlocksScoring = Boolean(
         activeAttackModelLimitationBlocksScoring || activeOverpressuredBurstSnapshotApplies ||
-        activeSentientIncisionUnsupportedTarget || activeSentientIncisionOverguardTimelineLimit,
+        activeSentientIncisionUnsupportedTarget || activeSentientIncisionOverguardTimelineLimit || activeBattacorAltFireSelected,
     );
     const pelletEstimateConditionalState = useMemo(
         () => activePelletHitEstimateEnabled
             ? {
-                ...conditionalState,
+                ...activeBattacorScoringConditionalState,
                 ...(activeOverpressuredBurstSnapshotApplies && activeOverpressuredRoundsSpreadSnapshot
                     ? {
                         overpressuredRoundsSpreadMinimumDegrees: activeOverpressuredRoundsSpreadSnapshot.minimumSpreadDegrees,
@@ -5089,12 +5117,12 @@ export default function ModBuilder() {
                     : {}),
             }
             : {
-                ...conditionalState,
+                ...activeBattacorScoringConditionalState,
                 targetRadiusMeters: undefined,
                 overpressuredRoundsSpreadMinimumDegrees: undefined,
                 overpressuredRoundsSpreadMaximumDegrees: undefined,
             },
-        [activePelletHitEstimateEnabled, activeOverpressuredBurstSnapshotApplies, activeOverpressuredRoundsSpreadSnapshot, conditionalState],
+        [activePelletHitEstimateEnabled, activeOverpressuredBurstSnapshotApplies, activeOverpressuredRoundsSpreadSnapshot, activeBattacorScoringConditionalState],
     );
     const finitePelletEstimateConditionalState = useMemo(
         () => withoutBurstOnlyConditionalAssumptions(pelletEstimateConditionalState) ?? pelletEstimateConditionalState,
@@ -5143,13 +5171,13 @@ export default function ModBuilder() {
                 activeBuildEffects,
                 factionOn ? faction : "",
                 targetProfileOverride,
-                conditionalState,
+                activeBattacorScoringConditionalState,
                 externalStatusTypeCount,
                 externalStatusTypes,
                 targetStatusImmunities,
             )
             : undefined,
-        [activeCalcWeapon, activeBuildEffects, factionOn, faction, targetProfileOverride, conditionalState, externalStatusTypeCount, externalStatusTypes, targetStatusImmunities],
+        [activeCalcWeapon, activeBuildEffects, factionOn, faction, targetProfileOverride, activeBattacorScoringConditionalState, externalStatusTypeCount, externalStatusTypes, targetStatusImmunities],
     );
     const activeMetrics = useMemo(
         () => activeCalcWeapon ? calculateBuild(activeCalcWeapon, activeBuildEffects, factionOn ? faction : "", {
@@ -5287,15 +5315,20 @@ export default function ModBuilder() {
         (activeAttackModelLimitationBlocksScoring && (activeMetrics?.modded.ammoGateSatisfied ?? true)) ||
         activeMetrics?.modded.pelletHitEstimate,
     );
-    const activeAttackDpsUnavailable = Boolean(activeNonSentientAttackDpsUnavailable || activeSentientIncisionUnsupportedTarget);
+    const activeAttackDpsUnavailable = Boolean(
+        activeNonSentientAttackDpsUnavailable || activeSentientIncisionUnsupportedTarget ||
+        (activeBattacorAltFireSelected && goal !== "burst"),
+    );
     const activeNonSentientSustainedDpsUnavailable = Boolean(
         activeNonSentientAttackDpsUnavailable ||
+        activeBattacorAltFireSelected ||
         (activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"),
     );
     const activeSustainedDpsUnavailable = Boolean(
         activeNonSentientSustainedDpsUnavailable ||
         activeSentientIncisionUnsupportedTarget ||
-        activeSentientIncisionOverguardTimelineLimit,
+        activeSentientIncisionOverguardTimelineLimit ||
+        activeBattacorAltFireSelected,
     );
     const currentBuildExportWithScoreContext = useMemo(() => {
         if (!currentBuildExport) return null;
@@ -5323,6 +5356,8 @@ export default function ModBuilder() {
                     ? {
                         reason: activeSentientIncisionUnsupportedTarget
                             ? "Sentient Incision needs a supported target faction or active Overguard to choose its adaptive element."
+                            : activeBattacorAltFireSelected
+                                ? "Battacor Alt-Fire is scored only for direct single-target Burst with a 1–3 current-charge snapshot."
                             : limitation?.reason ?? "This attack's selected damage effect is not modeled for the current context.",
                         ...(activeSentientIncisionUnsupportedTarget
                             ? { sourceUrl: "https://wiki.warframe.com/w/Sentient_Incision" }
@@ -5334,6 +5369,8 @@ export default function ModBuilder() {
                     ? {
                         sustainedDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
                             ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual spread and Falloff Distance snapshot is Burst-only."
+                            : activeBattacorAltFireSelected
+                                ? "Battacor charge/refill history is not modeled; Alt-Fire has no scored sustained DPS."
                             : activeSentientIncisionUnsupportedTarget
                                 ? "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type."
                             : activeSentientIncisionOverguardTimelineLimit
@@ -5346,6 +5383,8 @@ export default function ModBuilder() {
                     ? {
                         dotDpsReason: activeOverpressuredRoundsSelected && activeCalcWeapon?.selectedAttackName === "Buckshot"
                             ? "Overpressured Rounds' next-shot and magazine effects need attack history; the manual spread and Falloff Distance snapshot is Burst-only, and DoT DPS is unavailable."
+                            : activeBattacorAltFireSelected
+                                ? "Battacor charge/refill history is not modeled; Alt-Fire DoT DPS is unavailable."
                             : activeSentientIncisionUnsupportedTarget
                                 ? "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type; DoT DPS is unavailable."
                             : activeSentientIncisionOverguardTimelineLimit
@@ -5358,6 +5397,8 @@ export default function ModBuilder() {
                     ? {
                         finiteTargetScoringReason: activeOverpressuredBurstSnapshotApplies
                             ? "The user-entered Overpressured Rounds spread and Falloff Distance snapshot applies only to manual Burst; cross-mode kill history is not simulated."
+                            : activeBattacorAltFireSelected
+                                ? "Battacor primary-fire kill and charge-refill history is not modeled; finite TTK and fixed-window scores are unavailable."
                             : activeSentientIncisionUnsupportedTarget
                                 ? "Sentient Incision needs a supported target faction or active Overguard to choose its adaptive element."
                             : activeSentientIncisionOverguardTimelineLimit
@@ -5367,7 +5408,7 @@ export default function ModBuilder() {
                     : {}),
             },
         };
-    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeSustainedDpsUnavailable, activeOverpressuredRoundsSelected, activeFiniteAttackModelLimitationBlocksScoring, activeOverpressuredBurstSnapshotApplies, activeSentientIncisionUnsupportedTarget, activeSentientIncisionOverguardTimelineLimit, activeCalcWeapon]);
+    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeSustainedDpsUnavailable, activeOverpressuredRoundsSelected, activeFiniteAttackModelLimitationBlocksScoring, activeOverpressuredBurstSnapshotApplies, activeSentientIncisionUnsupportedTarget, activeSentientIncisionOverguardTimelineLimit, activeBattacorAltFireSelected, activeCalcWeapon]);
     const displayedMath = (reasoningContextAtOptimization === currentReasoningContextKey ? reasoningMath : null) ?? currentBuildExportWithScoreContext?.math ?? null;
     const attackDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
@@ -5669,6 +5710,16 @@ export default function ModBuilder() {
 
     async function handleOptimize() {
         if (!weapon) return;
+        if (weapon.name === "Battacor" && weapon.attacks[selectedAttackIdx]?.name === "Secondary Fire") {
+            if (goal !== "burst") {
+                setOptimizerNotice("Battacor Alt-Fire can be Auto Optimized only for direct single-target Burst. Finite TTK, sustained DPS, and 5s Avg DPS need charge history, which is not modeled.");
+                return;
+            }
+            if (normalizeBattacorAltFireChargeCount(battacorAltFireChargeCount) <= 0) {
+                setOptimizerNotice("Enter 1–3 current Battacor Alt-Fire charges before optimizing. Primary-fire kill and charge-refill history are not modeled.");
+                return;
+            }
+        }
         if (goal === "vileDischargeDps" && !vileDischargeGoalAvailable) {
             setOptimizerNotice("Vile Discharge Cycle DPS requires the Embolist Normal Attack profile.");
             return;
@@ -6264,6 +6315,8 @@ export default function ModBuilder() {
         setExternalNiraSetModCount(0);
         setStrainInfectionCystsAtImpact(0);
         setDreadfulKillshotCurrentHealth(0);
+        setBattacorAltFireChargeCount(0);
+        setSentientBarrageNextDischargeReady(false);
         setOverpressuredRoundsSpreadMinimumDegrees(undefined);
         setOverpressuredRoundsSpreadMaximumDegrees(undefined);
         setExternalStatusTypes([]);
@@ -6304,6 +6357,8 @@ export default function ModBuilder() {
             ));
             setUnseenDreadInvisibilityActive(plannerConfig.unseenDreadInvisibilityActive === true);
             setCriticalMutationPriorKills(normalizeCriticalMutationPriorKills(plannerConfig.criticalMutationPriorKills));
+            setBattacorAltFireChargeCount(normalizeBattacorAltFireChargeCount(plannerConfig.battacorAltFireChargeCount));
+            setSentientBarrageNextDischargeReady(plannerConfig.sentientBarrageNextDischargeReady === true);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
             setExternalStatusTypes(restoredExternalStatusTypes);
             setExternalStatusTypesOpen(restoredExternalStatusTypes.length > 0);
@@ -6463,9 +6518,11 @@ export default function ModBuilder() {
             {weapon && tab === "owned"   && <OwnedModsPanel key={weapon.uniqueName} availableMods={trackableMods} />}
             {weapon && tab === "ownedArcanes" && <OwnedArcanesPanel weapon={weapon} />}
             {weapon && tab === "saves"   && <SavedBuildsPanel weapon={weapon} selectedAttackIdx={selectedAttackIdx}
-                scoreUnavailable={activeNonSentientAttackDpsUnavailable}
+                scoreUnavailable={activeAttackDpsUnavailable}
                 scoreUnavailableReason={activeMetrics?.modded.pelletHitEstimate
                     ? "the comparison panel does not apply the editable target-radius and spread assumptions needed for this single-target pellet estimate."
+                    : activeBattacorAltFireSelected && goal !== "burst"
+                        ? "Battacor Alt-Fire scoring is limited to direct single-target Burst with a 1–3 current-charge snapshot."
                     : activeCalcWeapon?.selectedAttackModelLimitation?.reason}
                 targetHasOverguard={activeTargetAssumptions.overguard > 0}
                 availableMods={compatMods} currentSlots={slots} currentRanks={ranks}
@@ -6590,7 +6647,7 @@ export default function ModBuilder() {
                                             <div className="flex items-stretch overflow-hidden rounded-xl border border-amber-600/60 bg-amber-950/30">
                                                 <button
                                                     onClick={optimizing ? cancelOptimization : handleOptimize}
-                                                    disabled={!optimizing && (!weapon || !!weapon.attacks[selectedAttackIdx]?.modelLimitation || selectedAttackOutOfRange)}
+                                                    disabled={!optimizing && (!weapon || !!weapon.attacks[selectedAttackIdx]?.modelLimitation || selectedAttackOutOfRange || (weapon.name === "Battacor" && weapon.attacks[selectedAttackIdx]?.name === "Secondary Fire" && (goal !== "burst" || battacorAltFireChargeCount <= 0)))}
                                                     className={[
                                                         "px-4 py-2 text-sm transition-colors font-semibold disabled:opacity-50",
                                                         optimizing ? "text-rose-300 hover:bg-rose-950/50" : "text-amber-300 hover:bg-amber-900/40",
@@ -6904,6 +6961,44 @@ export default function ModBuilder() {
                                                             Enter 0–60 kills before this attack. With Critical Mutation equipped, each adds the selected rank's Critical Chance and Critical Damage up to +300% each. This static snapshot applies only to the direct Primary Burst row and Burst Auto Optimize; stack changes, reload grenades, finite TTK, and 5s DPS are not modeled.
                                                         </p>
                                                         <a href="https://wiki.warframe.com/w/Critical_Mutation" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Critical Mutation</a>
+                                                    </div>
+                                                )}
+                                                {activeCalcWeapon?.name === "Battacor" &&
+                                                    activeCalcWeapon.selectedAttackName === "Secondary Fire" &&
+                                                    activeCalcWeapon.selectedAttackIsAreaDamage === false && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Battacor Alt-Fire charges at impact</span>
+                                                            <input
+                                                                aria-label="Battacor Alt-Fire charges at impact"
+                                                                type="number"
+                                                                min={0}
+                                                                max={3}
+                                                                step={1}
+                                                                value={battacorAltFireChargeCount}
+                                                                onChange={(event) => setBattacorAltFireChargeCount(
+                                                                    normalizeBattacorAltFireChargeCount(Number(event.target.value)),
+                                                                )}
+                                                                className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                            />
+                                                        </label>
+                                                        {activeSentientBarrageSelected && (
+                                                            <label className="mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                                <span>Sentient Barrage next-discharge bonus ready</span>
+                                                                <input
+                                                                    aria-label="Sentient Barrage next-discharge bonus ready"
+                                                                    type="checkbox"
+                                                                    checked={sentientBarrageNextDischargeReady}
+                                                                    onChange={(event) => setSentientBarrageNextDischargeReady(event.target.checked)}
+                                                                    className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-sky-500"
+                                                                />
+                                                            </label>
+                                                        )}
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                                            Enter 0–3 current charges; each stored charge multiplies Alt-Fire damage, and 0 charges means no discharge can fire. With Sentient Barrage equipped, check readiness to apply its selected-rank Critical Chance and Critical Damage bonus and suppress the explosion. This saved snapshot scores direct single-target Burst and Burst Auto Optimize only. Primary-fire kill/refill history, Punch Through, multiple targets, finite TTK, sustained DPS, and 5s DPS are not modeled{activeSentientBarrageSelected ? "; the ready checkbox represents the next-discharge bonus after reaching full charge." : "."}
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Battacor" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Battacor</a>
+                                                        {activeSentientBarrageSelected && <a href="https://wiki.warframe.com/w/Sentient_Barrage" target="_blank" rel="noreferrer" className="ml-2 mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">Sentient Barrage</a>}
                                                     </div>
                                                 )}
                                                 {activeCalcWeapon?.category === 'Melee' && activeCalcWeapon.selectedAttackUsesSlamDamageBonus === true && (
@@ -8487,7 +8582,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -8518,7 +8613,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -8545,7 +8640,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8614,7 +8709,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8687,7 +8782,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} battacorAltFireChargeCount={battacorAltFireChargeCount} sentientBarrageNextDischargeReady={sentientBarrageNextDischargeReady} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedTennokaiBlockedHitsBetweenHeavy={tennokaiBlockedHitsBetweenHeavy} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}
