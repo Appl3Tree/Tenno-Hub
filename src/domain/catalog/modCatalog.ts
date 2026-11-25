@@ -285,6 +285,8 @@ export interface ModEffect {
     comboDurationBaseBonus: number;
     initialComboBonus: number;
     comboCountChanceBonus: number;
+    /** Additional Combo Count Chance that applies only to successful blocked enemy attacks. */
+    blockingComboCountChanceBonus: number;
     /** Additional Combo Count Chance against a target assumed to remain Lifted. */
     liftedComboCountChanceBonus: number;
     /** Relentless Combination's chance per melee Slash application and Bleed tick. */
@@ -927,6 +929,9 @@ function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }
     if (rest === "heavy attack wind up speed") return { heavyAttackWindUpBonus: scaled };
     if (rest === "additional combo count chance on lifted enemies") {
         return { liftedComboCountChanceBonus: scaled };
+    }
+    if (rest === "combo count chance while blocking" || rest === "additional combo count chance while blocking") {
+        return { blockingComboCountChanceBonus: scaled };
     }
     if (rest === "chance to increase melee combo counter when slash status deals damage") {
         return { comboCountChanceBonus: scaled };

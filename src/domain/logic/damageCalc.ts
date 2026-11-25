@@ -621,6 +621,8 @@ export interface ConditionalState {
     meleeComboPointsAtImpact?: number;
     /** Editable normal-hit count between Heavy Attacks for the Tennokai cycle objective. */
     tennokaiRegularHitsBetweenHeavy?: number;
+    /** Successful enemy attacks assumed blocked per Tennokai cycle (0–20). */
+    tennokaiBlockedHitsBetweenHeavy?: number;
     /** User-selected ammo consumed by one Phantasma charged alternate-fire attack. */
     phantasmaChargeAmmo?: number;
     /** Assumed target distance for source effects with an explicit range condition. */

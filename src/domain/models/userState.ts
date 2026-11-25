@@ -255,6 +255,8 @@ export interface SavedBuildPlannerConfig {
     meleeComboMultiplier?: number;
     /** Editable qualifying regular hit count before each Tennokai Heavy Slam timeline event. */
     tennokaiRegularHitsBetweenHeavy?: number;
+    /** Successful enemy attacks assumed blocked per Tennokai cycle (0–20). */
+    tennokaiBlockedHitsBetweenHeavy?: number;
     /** Starting order for the manual Prova Static Discharge cycle estimate. */
     staticDischargeStartingOrder?: "spinThenOverhead" | "overheadThenSpin";
     /** User-supplied first-animation duration used to derive 0.2s Static Discharge pulses. */

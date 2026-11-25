@@ -745,6 +745,146 @@ describe("Tennokai Cycle DPS objective", () => {
         expect(withLifted.slots.some((mod) => mod?.name === "Enduring Strike")).toBe(true);
     });
 
+    it("optimizes Guardian Derision only with a positive successful-block assumption in Tennokai Cycle DPS", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+        const available = getModsForWeapon(weapon);
+        const guardianDerision = available.find((mod) => mod.name === "Guardian Derision")!;
+        const tennokaiEnabler = available.find((mod) => mod.name === "Condition's Perfection")!;
+        const common = {
+            targetFaction: "Grineer",
+            targetProfileOverride: { health: 500_000, shields: 0, overguard: 0, armor: 0 },
+            allowNonMaxRank: true,
+            allowForma: false,
+            capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+        };
+        const withoutBlockAssumption = optimizeBuild(weapon, [guardianDerision, tennokaiEnabler], "tennokaiDps", 2, {
+            ...common,
+            conditionalState: {
+                mode: "initial",
+                tennokaiRegularHitsBetweenHeavy: 15,
+                tennokaiBlockedHitsBetweenHeavy: 0,
+            },
+        });
+        const withBlockAssumption = optimizeBuild(weapon, [guardianDerision, tennokaiEnabler], "tennokaiDps", 2, {
+            ...common,
+            conditionalState: {
+                mode: "initial",
+                tennokaiRegularHitsBetweenHeavy: 15,
+                tennokaiBlockedHitsBetweenHeavy: 4,
+            },
+        });
+
+        expect(withoutBlockAssumption.slots.some((mod) => mod?.name === "Guardian Derision")).toBe(false);
+        expect(withBlockAssumption.slots.some((mod) => mod?.name === "Guardian Derision")).toBe(true);
+        expect(getUnmodeledDamageEffectLines(guardianDerision, guardianDerision.fusionLimit, {
+            selectedGoal: "burst",
+            selectedTennokaiBlockedHitsBetweenHeavy: 4,
+        }).join(" ")).toContain("other objectives skip it");
+        expect(getUnmodeledDamageEffectLines(guardianDerision, guardianDerision.fusionLimit, {
+            selectedGoal: "tennokaiDps",
+            selectedTennokaiBlockedHitsBetweenHeavy: 4,
+        }).join(" ")).not.toContain("only in Tennokai Cycle DPS");
+    });
+
+    it("matches seeded two-slot R0–R2 Tennokai winners with successful block events", { timeout: 60_000 }, () => {
+        const scenarios = [
+            { weapon: "Broken War", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
+            { weapon: "Gram Prime", faction: "Corpus", target: { health: 250_000, shields: 250_000, overguard: 0, armor: 0 } },
+            { weapon: "Lesion", faction: "Infested", target: { health: 250_000, shields: 0, overguard: 0, armor: 0 } },
+            { weapon: "Nikana Prime", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
+        ];
+        let seed = 20261169;
+        const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const candidateNames = ["Quickening", "True Punishment", "Organ Shatter", "Fury"];
+        const capacityConfig = { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false };
+
+        for (const scenario of scenarios) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === scenario.weapon);
+            expect(weapon, scenario.weapon).toBeDefined();
+            const available = getModsForWeapon(weapon!);
+            const byName = (name: string) => available.find((mod) => mod.name === name);
+            const tennokaiEnabler = byName("Master's Edge");
+            const guardianDerision = byName("Guardian Derision");
+            expect(tennokaiEnabler, `${scenario.weapon} Master's Edge`).toBeDefined();
+            expect(guardianDerision, `${scenario.weapon} Guardian Derision`).toBeDefined();
+            const shuffled = candidateNames.map(byName).filter((mod): mod is ModEntry => mod !== undefined);
+            for (let index = shuffled.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+            }
+            const sampledMods = [tennokaiEnabler!, guardianDerision!, ...shuffled.slice(0, 3)];
+            const ownedRankCaps = Object.fromEntries(sampledMods.map((mod) => [
+                mod.uniqueName,
+                1 + Math.floor(random() * Math.min(2, mod.fusionLimit)),
+            ]));
+            const conditionalState: ConditionalState = {
+                mode: "initial",
+                tennokaiRegularHitsBetweenHeavy: 1 + Math.floor(random() * 20),
+                tennokaiBlockedHitsBetweenHeavy: 1 + Math.floor(random() * 8),
+            };
+            const scoringContext = {
+                selectedGoal: "tennokaiDps",
+                selectedWeaponName: weapon!.name,
+                selectedTennokaiBlockedHitsBetweenHeavy: conditionalState.tennokaiBlockedHitsBetweenHeavy,
+            };
+            const rankOptions = new Map(sampledMods.map((mod) => [
+                mod.uniqueName,
+                Array.from({ length: ownedRankCaps[mod.uniqueName] + 1 }, (_, rank) => rank).filter((rank) =>
+                    getUnmodeledDamageEffectLines(mod, rank, scoringContext).every((line) =>
+                        line.includes("does not change the score; its opportunity-window bonus is modeled.") ||
+                        line.includes("Guardian Derision's blocking taunt changes enemy targeting"),
+                    ),
+                ),
+            ]));
+            const exactScores: number[] = [];
+            const visit = (nextIndex: number, selected: Array<{ mod: ModEntry; rank: number }>) => {
+                exactScores.push(debugScoreBuild(
+                    weapon!,
+                    selected.map(({ mod, rank }) => mod.effectsByRank[rank] ?? mod.effect),
+                    "tennokaiDps",
+                    scenario.faction,
+                    null,
+                    scenario.target,
+                    conditionalState,
+                ));
+                if (selected.length >= 2) return;
+                for (let index = nextIndex; index < sampledMods.length; index++) {
+                    const mod = sampledMods[index];
+                    if (selected.some((entry) => entry.mod.incompatibilityGroup === mod.incompatibilityGroup)) continue;
+                    for (const rank of rankOptions.get(mod.uniqueName) ?? []) {
+                        visit(index + 1, [...selected, { mod, rank }]);
+                    }
+                }
+            };
+            visit(0, []);
+
+            const optimized = optimizeBuild(weapon!, sampledMods, "tennokaiDps", 2, {
+                targetFaction: scenario.faction,
+                targetProfileOverride: scenario.target,
+                conditionalState,
+                allowNonMaxRank: true,
+                ownedModMaxRankByUniqueName: ownedRankCaps,
+                allowForma: false,
+                capacityConfig,
+            });
+            const optimizerScore = scoreOptimizerResultForConfiguration({
+                weapon: weapon!,
+                result: optimized,
+                goal: "tennokaiDps",
+                targetFaction: scenario.faction,
+                selectedAttackIdx: weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"),
+                targetProfileOverride: scenario.target,
+                conditionalState,
+            });
+            expect(exactScores.length, `${scenario.weapon} exact pool size`).toBeGreaterThan(20);
+            expect(optimized.capacityValid, `${scenario.weapon} capacity`).toBe(true);
+            expect(optimizerScore, `${scenario.weapon} sampled-pool winner`).toBeCloseTo(Math.max(...exactScores), 7);
+        }
+    });
+
     it("matches seeded three-slot R0–R2 exact Tennokai winners with Enduring Strike on Lifted targets", { timeout: 180_000 }, () => {
         const scenarios = [
             { weapon: "Broken War", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },

@@ -935,6 +935,7 @@ function scoreEffectsCore(
             targetFaction,
             ...attackPair,
             regularHitsBetweenHeavy: conditionalState?.tennokaiRegularHitsBetweenHeavy ?? 4,
+            blockedEnemyAttacksBetweenHeavy: conditionalState?.tennokaiBlockedHitsBetweenHeavy ?? 0,
             conditionalState,
             damageOptions: {
                 statusImmuneTypes: [...scoringTarget.statusImmuneTypes],
@@ -1629,11 +1630,17 @@ function getBlockingOptimizerEffectLines(
         (context?.selectedGoal !== "tennokaiDps" || context.targetHasLiftedStatus !== true)) {
         return ["Enduring Strike is eligible for Auto Optimize only for Tennokai Cycle DPS with Lifted selected as an external target status."];
     }
+    if ((effect.blockingComboCountChanceBonus ?? 0) > 0 &&
+        (context?.selectedGoal !== "tennokaiDps" ||
+            (context.selectedTennokaiBlockedHitsBetweenHeavy ?? 0) <= 0)) {
+        return ["Guardian Derision is eligible for Auto Optimize only for Tennokai Cycle DPS with at least one successful blocked enemy attack entered per cycle."];
+    }
     const separateRipkasShotgunEffect = mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH &&
         context?.selectedWeaponName === "Ripkas";
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
         !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
+        !line.includes("Guardian Derision's blocking taunt changes enemy targeting") &&
         !(context?.selectedGoal === "tennokaiDps" &&
             mod.path === "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod" &&
             line.includes("scores are target-damage-only.")),
@@ -1693,6 +1700,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
         targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
         strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
+        selectedTennokaiBlockedHitsBetweenHeavy: opts.conditionalState?.tennokaiBlockedHitsBetweenHeavy ?? 0,
         selectedSwipeTargetCount: weapon.tags.includes("KAVAT_WEAPON")
             ? normalizeSwipeTargetCount(opts.targetProfileOverride?.nearbySwipeTargetCount)
             : 0,
@@ -5735,6 +5743,7 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     }
     if (value("initialComboBonus") !== 0) parts.push(`+${formatExplanationNumber(value("initialComboBonus"), 0)} starting Melee Combo points`);
     if (value("comboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("comboCountChanceBonus"))} chance to gain an extra Melee Combo point`);
+    if (value("blockingComboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("blockingComboCountChanceBonus"))} chance to gain an extra Melee Combo point per successful blocked enemy attack`);
     if (value("liftedComboCountChanceBonus") !== 0) parts.push(`${formatExplanationPercent(value("liftedComboCountChanceBonus"))} Additional Combo Count Chance on Lifted targets (Tennokai Cycle DPS assumption)`);
     if (value("firstShotMagazineDamageBonus") !== 0) {
         parts.push(signedPercent(value("firstShotMagazineDamageBonus"), "damage on the first shot after reloading"));
@@ -6071,6 +6080,7 @@ export function explainBuild(
             criticalMutationPriorKills: normalizeCriticalMutationPriorKills(conditionalState?.criticalMutationPriorKills),
             targetHasLiftedStatus: normalizeExternalStatusTypes(conditionalState?.externalStatusTypes).includes("lifted"),
             strainInfectionCystsAtImpact: conditionalState?.strainInfectionCystsAtImpact,
+            selectedTennokaiBlockedHitsBetweenHeavy: conditionalState?.tennokaiBlockedHitsBetweenHeavy ?? 0,
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getModsForWeapon } from "../../catalog/modCatalog";
+import { getModsForWeapon, getUnmodeledDamageEffectLines } from "../../catalog/modCatalog";
 import { withSelectedAttack } from "../../catalog/weaponRules";
 import { getWeaponCatalog } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
@@ -391,7 +391,7 @@ describe("Tennokai opportunity event timeline", () => {
 
         expect(result.supported).toBe(true);
         expect(result.notes).toContain(
-            "The combo counter expires after 12.5s without a qualifying hit; the weapon's 5s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.",
+            "The combo counter expires after 12.5s without a combo-gaining melee hit or blocked attack; the weapon's 5s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.",
         );
 
         const minimumDuration = calculateTennokaiAttackTimeline({
@@ -403,7 +403,7 @@ describe("Tennokai opportunity event timeline", () => {
             cycles: 1,
         });
         expect(minimumDuration.notes).toContain(
-            "The combo counter expires after 0.1s without a qualifying hit; the weapon's 5s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.",
+            "The combo counter expires after 0.1s without a combo-gaining melee hit or blocked attack; the weapon's 5s base duration, percentage modifiers applied to that base, flat seconds, and the 0.1s minimum are included.",
         );
         expect(minimumDuration.comboGainAssumptionPointsPerRegularHit).toBe(2);
         expect(minimumDuration.notes.some((note) => note.includes("100% expected extra combo points from Additional Combo Count Chance"))).toBe(true);
@@ -475,6 +475,52 @@ describe("Tennokai opportunity event timeline", () => {
         expect(active.comboGainAssumptionPointsPerRegularHit).toBeCloseTo(1.2, 12);
         expect(active.notes.some((note) => note.includes("assumed maintained for this cycle"))).toBe(true);
         expect(conflicting.comboGainAssumptionPointsPerRegularHit).toBe(1);
+    });
+
+    it("applies Guardian Derision only to entered successful blocks, without creating Tennokai opportunities", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War")!;
+        const mods = getModsForWeapon(weapon);
+        const tennokaiMod = mods.find((mod) => mod.name === "Condition's Perfection")!;
+        const guardianDerision = mods.find((mod) => mod.name === "Guardian Derision")!;
+        const regularAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const heavyAttackIndex = weapon.attacks.findIndex((attack) => attack.name === "Heavy Slam Attack");
+        const rankValues = guardianDerision.effectsByRank.map((effect) => effect.blockingComboCountChanceBonus);
+        expect(rankValues[0]).toBe(0.05);
+        expect(rankValues.at(-1)).toBe(0.3);
+        expect(rankValues).toEqual([0.05, 0.1, 0.15, 0.2, 0.25, 0.3]);
+        expect(guardianDerision.unparsedStatsByRank?.some((lines) => lines.some((line) => /Combo Count Chance/i.test(line))))
+            .toBe(false);
+        expect(getUnmodeledDamageEffectLines(guardianDerision, guardianDerision.fusionLimit).join(" "))
+            .toContain("only in Tennokai Cycle DPS");
+
+        const shared = {
+            weapon,
+            mods: [tennokaiMod.effect, guardianDerision.effectsByRank.at(-1)!],
+            regularAttackIndex,
+            heavyAttackIndex,
+            regularHitsBetweenHeavy: 17,
+            cycles: 1,
+        };
+        const noBlocks = calculateTennokaiAttackTimeline(shared);
+        const blocksWithoutGuardian = calculateTennokaiAttackTimeline({
+            ...shared,
+            mods: [tennokaiMod.effect],
+            blockedEnemyAttacksBetweenHeavy: 3,
+        });
+        const blocksWithGuardian = calculateTennokaiAttackTimeline({
+            ...shared,
+            blockedEnemyAttacksBetweenHeavy: 3,
+        });
+
+        expect(noBlocks.supported && blocksWithoutGuardian.supported && blocksWithGuardian.supported).toBe(true);
+        expect(noBlocks.events.at(-1)?.comboMultiplierBeforeEvent).toBe(1);
+        expect(blocksWithoutGuardian.events.at(-1)?.comboMultiplierBeforeEvent).toBe(2);
+        expect(blocksWithGuardian.events.at(-1)?.comboPointsBeforeEvent)
+            .toBeCloseTo((blocksWithoutGuardian.events.at(-1)?.comboPointsBeforeEvent ?? 0) + 0.9, 10);
+        expect(blocksWithGuardian.expectedComboPointsPerBlockedEnemyAttack).toBeCloseTo(1.3, 12);
+        expect(blocksWithGuardian.expectedTennokaiHeavyAttackShare).toBe(noBlocks.expectedTennokaiHeavyAttackShare);
+        expect(blocksWithGuardian.notes.join(" ")).toContain("block events do not roll Tennokai opportunities");
+        expect(blocksWithGuardian.notes.join(" ")).toContain("random gains are averaged, not sampled");
     });
 
     it("models and discloses additive combo chance above 100%", () => {
