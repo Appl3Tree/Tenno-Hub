@@ -178,9 +178,12 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; it also notes these procs can trigger Shattering Impact. That armor-strip interaction, neighboring-target proc history, and stagger utility are not modeled, so Auto Optimize skips this mod.");
     }
     if (mod.path === VILE_DISCHARGE_MOD_PATH) {
-        // Vile Discharge needs a timed build-up/release encounter, not a static
-        // per-hit damage bonus. https://wiki.warframe.com/w/Vile_Discharge
-        lines.push("Vile Discharge's accumulated primary-fire/DoT charge, Alt-Fire timing, and 6m Toxin explosion are not simulated, so Auto Optimize skips this mod.");
+        if (context?.selectedGoal !== "vileDischargeDps" || context?.selectedWeaponName !== "Embolist" ||
+            context?.selectedAttackName !== "Normal Attack") {
+            // The dedicated objective owns the charge/discharge timeline and
+            // its bounded neighboring-target estimate. Other scores exclude it.
+            lines.push("Vile Discharge is scored only by the Embolist Normal Attack cycle objective. It models primary hits and expected DoT ticks charging to the rank cap, then a no-crit/no-status contact and 6m Toxin explosion with reload/action timing. The selected target is centered; configured same-profile neighbors in 0–3m and 3–6m bands use an area-uniform linear falloff estimate because the Wiki gives only approximate 80% edge falloff. Auto Optimize excludes it from other objectives. Wiki: https://wiki.warframe.com/w/Vile_Discharge");
+        }
     }
     if (mod.path === OVERPRESSURED_ROUNDS_MOD_PATH) {
         // This EFV-5 augment crosses attack modes and requires a kill-driven
@@ -290,10 +293,8 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Combo Duration changes the weapon's combo timeout. This objective does not simulate that timer's expiration, so Auto Optimize skips this mod.");
     }
     if ((effect?.comboCountChanceBonus ?? 0) !== 0 && context?.selectedGoal !== "burst" &&
-        mod.path !== RELENTLESS_COMBINATION_MOD_PATH) {
-        lines.push(context?.selectedGoal === "tennokaiDps"
-            ? "Additional Combo Count Chance can add random combo points per qualifying hit. Tennokai Cycle DPS assumes one point per regular hit and does not resolve those random gains, so Auto Optimize skips this mod."
-            : "Additional Combo Count Chance can add random combo points per qualifying hit. This objective does not resolve those random gains, so Auto Optimize skips this mod.");
+        context?.selectedGoal !== "tennokaiDps" && mod.path !== RELENTLESS_COMBINATION_MOD_PATH) {
+        lines.push("Additional Combo Count Chance can add random combo points per qualifying hit. This objective does not resolve those random gains, so Auto Optimize skips this mod.");
     }
     if (effect?.tennokaiEnabled) {
         if (context?.selectedGoal === "tennokaiDps") {
@@ -348,6 +349,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === STATIC_DISCHARGE_MOD_PATH) {
         return "https://wiki.warframe.com/w/Static_Discharge";
     }
+    if (mod.path === VILE_DISCHARGE_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Vile_Discharge";
+    }
     if (mod.path === STRAIN_FEVER_MOD_PATH) {
         return "https://wiki.warframe.com/w/Strain_Fever";
     }
@@ -398,6 +402,7 @@ export function emptyEffect(): ModEffect {
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0,
         strainInfectionCritDamagePerCyst: 0, strainFeverDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
         staticDischargeDamagePerWeaponDamage: 0,
+        vileDischargeMaximumDamage: 0,
         deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,
         unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
         criticalMutationCritChanceAndDamagePerKill: 0,

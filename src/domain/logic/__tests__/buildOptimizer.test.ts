@@ -656,23 +656,63 @@ describe("Tennokai Cycle DPS objective", () => {
         expect(optimizedScore).toBeCloseTo(Math.max(...exactScores), 7);
     });
 
-    it("parses True Punishment's duration penalty and blocks its unmodeled random combo gain", () => {
+    it("models True Punishment's expected combo gain only in the Tennokai cycle", () => {
         const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
         expect(weapon).toBeDefined();
         const truePunishment = getModsForWeapon(weapon!).find((mod) => mod.name === "True Punishment");
+        const tennokaiEnabler = getModsForWeapon(weapon!).find((mod) => mod.name === "Condition's Perfection");
         expect(truePunishment).toBeDefined();
+        expect(tennokaiEnabler).toBeDefined();
         expect(truePunishment!.effect.comboDurationBaseBonus).toBe(-0.5);
         expect(truePunishment!.effect.comboCountChanceBonus).toBe(1);
         expect(getUnmodeledDamageEffectSourceUrl(truePunishment!)).toBe("https://wiki.warframe.com/w/True_Punishment");
         expect(getUnmodeledDamageEffectLines(truePunishment!, truePunishment!.fusionLimit, {
             selectedGoal: "tennokaiDps",
-        }).join(" ")).toContain("assumes one point per regular hit");
+        }).join(" ")).not.toContain("Additional Combo Count Chance can add random combo points");
+        expect(getUnmodeledDamageEffectLines(truePunishment!, truePunishment!.fusionLimit, {
+            selectedGoal: "timeToKill",
+        }).join(" ")).toContain("does not resolve those random gains");
 
-        const optimized = optimizeBuild(weapon!, [truePunishment!], "tennokaiDps", 1);
-        expect(optimized.slots).toEqual([null]);
+        const target = { health: 500_000, shields: 0, overguard: 0, armor: 0 };
+        const conditionalState = { mode: "initial" as const, tennokaiRegularHitsBetweenHeavy: 17 };
+        const optimizerOptions = {
+            targetFaction: "Grineer",
+            targetProfileOverride: target,
+            conditionalState,
+            allowNonMaxRank: true,
+            allowForma: false,
+            capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+        };
+        const optimized = optimizeBuild(weapon!, [truePunishment!, tennokaiEnabler!], "tennokaiDps", 2, optimizerOptions);
+        const normalAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const exactScores: number[] = [];
+        for (const punishmentRank of [null, ...truePunishment!.effectsByRank]) {
+            for (const enablerRank of [null, ...tennokaiEnabler!.effectsByRank]) {
+                exactScores.push(debugScoreBuild(
+                    weapon!,
+                    [punishmentRank, enablerRank],
+                    "tennokaiDps",
+                    "Grineer",
+                    null,
+                    target,
+                    conditionalState,
+                ));
+            }
+        }
+        const optimizedScore = scoreOptimizerResultForConfiguration({
+            weapon: weapon!,
+            result: optimized,
+            goal: "tennokaiDps",
+            targetFaction: "Grineer",
+            selectedAttackIdx: normalAttackIndex,
+            targetProfileOverride: target,
+            conditionalState,
+        });
+        expect(optimized.slots.some((mod) => mod?.name === "True Punishment")).toBe(true);
+        expect(optimizedScore).toBeCloseTo(Math.max(...exactScores), 8);
     });
 
-    it("matches seeded two-slot R0–R1 exact winners across melee weapon and faction strata", () => {
+    it("matches seeded two-slot R0–R1 exact winners with both combo chance mods", { timeout: 60_000 }, () => {
         const scenarios = [
             { weapon: "Broken War", faction: "Grineer", target: { health: 250_000, shields: 0, overguard: 0, armor: 3_000 } },
             { weapon: "Gram Prime", faction: "Corpus", target: { health: 250_000, shields: 250_000, overguard: 0, armor: 0 } },
@@ -700,13 +740,16 @@ describe("Tennokai Cycle DPS objective", () => {
             const byName = (name: string) => available.find((mod) => mod.name === name);
             const tennokaiEnabler = byName("Master's Edge");
             expect(tennokaiEnabler, `${scenario.weapon} Master's Edge`).toBeDefined();
+            const comboChanceMods = [byName("Quickening"), byName("True Punishment")]
+                .filter((mod): mod is ModEntry => mod !== undefined);
+            expect(comboChanceMods, `${scenario.weapon} combo chance mods`).toHaveLength(2);
             const randomPool = candidateNames.map(byName).filter((mod): mod is ModEntry => mod !== undefined);
             const shuffled = [...randomPool];
             for (let index = shuffled.length - 1; index > 0; index--) {
                 const swapIndex = Math.floor(random() * (index + 1));
                 [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
             }
-            const sampledMods = [tennokaiEnabler!, ...shuffled.slice(0, 4)];
+            const sampledMods = [tennokaiEnabler!, ...comboChanceMods, ...shuffled.slice(0, 2)];
             const ownedRankCaps = Object.fromEntries(sampledMods.map((mod) => [mod.uniqueName, Math.floor(random() * 2)]));
             const conditionalState: ConditionalState = {
                 mode: "initial",
@@ -2782,18 +2825,146 @@ describe("build optimizer scoring", () => {
         expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
-    it("keeps Vile Discharge out of Auto Optimize until its charge-and-discharge sequence is modeled", () => {
+    it("scores Vile Discharge only through its dedicated Embolist cycle objective", () => {
         const embolist = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
         expect(embolist).toBeDefined();
         const vileDischarge = getModsForWeapon(embolist!).find((mod) => mod.name === "Vile Discharge");
         expect(vileDischarge).toBeDefined();
         expect(getUnmodeledDamageEffectLines(vileDischarge!, vileDischarge!.fusionLimit)).toContain(
-            "Vile Discharge's accumulated primary-fire/DoT charge, Alt-Fire timing, and 6m Toxin explosion are not simulated, so Auto Optimize skips this mod.",
+            "Vile Discharge is scored only by the Embolist Normal Attack cycle objective. It models primary hits and expected DoT ticks charging to the rank cap, then a no-crit/no-status contact and 6m Toxin explosion with reload/action timing. The selected target is centered; configured same-profile neighbors in 0–3m and 3–6m bands use an area-uniform linear falloff estimate because the Wiki gives only approximate 80% edge falloff. Auto Optimize excludes it from other objectives. Wiki: https://wiki.warframe.com/w/Vile_Discharge",
         );
 
-        const result = optimizeBuild(embolist!, [vileDischarge!], "burst", 1, { allowForma: false });
-        expect(result.capacityValid).toBe(true);
-        expect(result.slots.filter(Boolean)).toHaveLength(0);
+        const standardResult = optimizeBuild(embolist!, [vileDischarge!], "burst", 1, { allowForma: false });
+        expect(standardResult.capacityValid).toBe(true);
+        expect(standardResult.slots.filter(Boolean)).toHaveLength(0);
+
+        const normalAttackIndex = embolist!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const normalAttack = embolist!.attacks[normalAttackIndex];
+        const normalAttackWeapon = withSelectedAttack(embolist!, normalAttackIndex);
+        const cycleResult = optimizeBuild(embolist!, [vileDischarge!], "vileDischargeDps", 1, {
+            allowForma: false,
+            buildForAttack: normalAttack,
+        });
+        expect(cycleResult.capacityValid).toBe(true);
+        expect(cycleResult.slots.filter(Boolean)).toContain(vileDischarge);
+
+        const centeredTarget = { health: 100_000, shields: 0, overguard: 0, armor: 0 };
+        const centeredScore = debugScoreBuild(normalAttackWeapon, [vileDischarge!.effect], "vileDischargeDps", "", null, centeredTarget);
+        const neighborScore = debugScoreBuild(normalAttackWeapon, [vileDischarge!.effect], "vileDischargeDps", "", null, {
+            ...centeredTarget,
+            nearbyEnemyCount: 1,
+            nearbyGasOuterEnemyCount: 1,
+        });
+        expect(neighborScore).toBeGreaterThan(centeredScore);
+    });
+
+    it("matches seeded Vile Discharge optimizer winners across four target strata", { timeout: 300_000 }, () => {
+        const scenarios = [
+            { faction: "Grineer", target: { health: 100_000, shields: 0, overguard: 0, armor: 3_000 } },
+            { faction: "Corpus", target: { health: 100_000, shields: 50_000, overguard: 0, armor: 0 } },
+            { faction: "Infested", target: { health: 120_000, shields: 0, overguard: 0, armor: 0 } },
+            { faction: "Orokin", target: { health: 100_000, shields: 20_000, overguard: 0, armor: 1_000 } },
+        ];
+        let seed = 20261166;
+        const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const baseWeapon = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
+        expect(baseWeapon).toBeDefined();
+        const attackIndex = baseWeapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const weapon = withSelectedAttack(baseWeapon!, attackIndex);
+        const available = getModsForWeapon(weapon);
+        const byName = (name: string) => available.find((mod) => mod.name === name);
+        const vileDischarge = byName("Vile Discharge");
+        expect(vileDischarge).toBeDefined();
+        const candidateNames = [
+            "Hornet Strike",
+            "Barrel Diffusion",
+            "Lethal Torrent",
+            "Pistol Pestilence",
+            "Pistol Gambit",
+            "Target Cracker",
+            "Jolt",
+            "Pistol Elementalist",
+        ];
+        const randomCandidates = candidateNames.map(byName).filter((mod): mod is ModEntry => mod !== undefined);
+        const scoringContext = {
+            selectedGoal: "vileDischargeDps",
+            selectedWeaponName: "Embolist",
+            selectedAttackName: "Normal Attack",
+        };
+        const conditionalState: ConditionalState = { mode: "initial" };
+
+        for (const scenario of scenarios) {
+            const shuffled = [...randomCandidates];
+            for (let index = shuffled.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+            }
+            const nearbyEnemyCount = Math.floor(random() * 3);
+            const nearbyGasOuterEnemyCount = Math.floor(random() * 3);
+            const targetProfileOverride = {
+                ...scenario.target,
+                nearbyEnemyCount,
+                nearbyGasOuterEnemyCount,
+            };
+            const sampledMods = [vileDischarge!, ...shuffled.slice(0, 3)];
+            const ownedRankCaps = Object.fromEntries(sampledMods.map((mod) => [mod.uniqueName, Math.floor(random() * 2)]));
+            const rankOptions = new Map(sampledMods.map((mod) => [
+                mod.uniqueName,
+                Array.from({ length: ownedRankCaps[mod.uniqueName] + 1 }, (_, rank) => rank).filter((rank) =>
+                    getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0,
+                ),
+            ]));
+            const exactScores: number[] = [];
+            const visit = (nextIndex: number, selected: Array<{ mod: ModEntry; rank: number }>) => {
+                if (selected.some(({ mod }) => mod.uniqueName === vileDischarge!.uniqueName)) {
+                    exactScores.push(debugScoreBuild(
+                        weapon,
+                        selected.map(({ mod, rank }) => mod.effectsByRank[rank] ?? mod.effect),
+                        "vileDischargeDps",
+                        scenario.faction,
+                        null,
+                        targetProfileOverride,
+                        conditionalState,
+                    ));
+                }
+                if (selected.length >= 2) return;
+                for (let index = nextIndex; index < sampledMods.length; index++) {
+                    const mod = sampledMods[index];
+                    if (selected.some((entry) => entry.mod.incompatibilityGroup === mod.incompatibilityGroup)) continue;
+                    for (const rank of rankOptions.get(mod.uniqueName) ?? []) {
+                        visit(index + 1, [...selected, { mod, rank }]);
+                    }
+                }
+            };
+            visit(0, []);
+
+            const optimized = optimizeBuild(weapon, sampledMods, "vileDischargeDps", 2, {
+                targetFaction: scenario.faction,
+                targetProfileOverride,
+                conditionalState,
+                allowNonMaxRank: true,
+                ownedModMaxRankByUniqueName: ownedRankCaps,
+                allowForma: false,
+                capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+            });
+            const optimizerScore = scoreOptimizerResultForConfiguration({
+                weapon,
+                result: optimized,
+                goal: "vileDischargeDps",
+                targetFaction: scenario.faction,
+                selectedAttackIdx: attackIndex,
+                targetProfileOverride,
+                conditionalState,
+            });
+            expect(exactScores.length, `${scenario.faction} exact pool size`).toBeGreaterThan(1);
+            expect(optimized.capacityValid, `${scenario.faction} capacity`).toBe(true);
+            expect(optimized.slots.some((mod) => mod?.uniqueName === vileDischarge!.uniqueName), `${scenario.faction} enabler`).toBe(true);
+            expect(optimizerScore, `${scenario.faction} sampled-pool winner`).toBeCloseTo(Math.max(...exactScores), 7);
+        }
     });
 
     it("keeps Overpressured Rounds excluded from Auto Optimize while documenting the manual Burst snapshot", () => {
@@ -6208,6 +6379,54 @@ describe("build optimizer scoring", () => {
 
         expect(result.mods).toHaveLength(1);
         expect(result.mods[0]?.uniqueName).toBe(standard!.uniqueName);
+    });
+
+    it("limits Owned Only rank search to copies recorded at exact ranks", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const heavyCaliber = getModsForWeapon(weapon!).find((mod) => mod.name === "Heavy Caliber");
+        expect(heavyCaliber).toBeTruthy();
+        const testMod = { ...heavyCaliber!, baseDrain: 15 };
+
+        const result = optimizeBuild(weapon!, [testMod], "burst", 1, {
+            ownedModUniqueNames: new Set([testMod.uniqueName]),
+            ownedModMaxRankByUniqueName: { [testMod.uniqueName]: 2 },
+            ownedModRankCountsByUniqueName: { [testMod.uniqueName]: { "0": 1, "2": 1 } },
+            allowNonMaxRank: true,
+            allowForma: false,
+            optimizeExilus: false,
+            optimizeArcane: false,
+            capacityConfig: { weaponRank: 0, hasCatalyst: false, masteryRank: 0, canOverLevel: false },
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+        });
+
+        expect(result.capacityValid).toBe(true);
+        const selectedIndex = result.slots.findIndex((mod) => mod?.uniqueName === testMod.uniqueName);
+        expect(selectedIndex).toBeGreaterThanOrEqual(0);
+        expect(result.slotRanks[selectedIndex]).toBe(0);
+    });
+
+    it("does not invent a usable mod rank for owned copies with unknown rank", () => {
+        const weapon = getWeaponCatalog().find((entry) => entry.name === "Braton Prime");
+        expect(weapon).toBeTruthy();
+        const heavyCaliber = getModsForWeapon(weapon!).find((mod) => mod.name === "Heavy Caliber");
+        expect(heavyCaliber).toBeTruthy();
+
+        const result = optimizeBuild(weapon!, [heavyCaliber!], "burst", 1, {
+            ownedModUniqueNames: new Set([heavyCaliber!.uniqueName]),
+            ownedModMaxRankByUniqueName: { [heavyCaliber!.uniqueName]: 5 },
+            ownedModRankCountsByUniqueName: { [heavyCaliber!.uniqueName]: {} },
+            allowNonMaxRank: true,
+            allowForma: false,
+            optimizeExilus: false,
+            optimizeArcane: false,
+            capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: false },
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+        });
+
+        expect(result.slots.filter(Boolean)).toHaveLength(0);
     });
 
     it("enforces incompatibility between standard and flawed variants with different catalog parents", () => {
@@ -12333,6 +12552,25 @@ describe("Strain Fever optimizer scope", () => {
         expect(explanation.buildHighlights.join(" ")).toContain("assumes 8 active cysts at impact");
         expect(explanation.buildHighlights.join(" ")).toContain("adds 320% additive Damage");
         expect(explanation.buildHighlights.join(" ")).toContain("+240% note conflicts");
+    });
+});
+
+describe("Static Discharge optimizer scope", () => {
+    it("keeps the mod out of standard Auto Optimize while the manual cycle report is available", () => {
+        const prova = getWeaponCatalog().find((weapon) => weapon.name === "Prova")!;
+        const staticDischarge = getModsForWeapon(prova).find((mod) => mod.name === "Static Discharge")!;
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        };
+        const result = optimizeBuild(prova, [staticDischarge], "burst", 1, options);
+
+        expect(result.slots.some((mod) => mod?.name === "Static Discharge")).toBe(false);
+        expect(getUnmodeledDamageEffectLines(staticDischarge, staticDischarge.fusionLimit)
+            .join(" ")).toContain("manual Prova cycle estimate");
     });
 });
 

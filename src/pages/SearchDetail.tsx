@@ -21,6 +21,8 @@ import { getWeaponCatalog, type WeaponAttack, type WeaponDamage, type WeaponEntr
 import { useTrackerStore } from "../store/store";
 import { formatSourceDisplayLabel } from "../utils/sourceLabels";
 import { getHighestOwnedArcaneRankWithFallback } from "../domain/logic/arcaneInventory";
+import { getModRankInventorySnapshot } from "../domain/logic/modInventory";
+import ModRankInventoryEditor from "../components/ModRankInventoryEditor";
 import { CURRENT_RIVEN_STAT_MULTIPLIER } from "../domain/rivens";
 import {
     buildSearchDetailHash,
@@ -78,6 +80,8 @@ type StepperControlProps = {
 };
 
 const EMPTY_MOD_RANKS: Record<string, number> = {};
+const EMPTY_MOD_RANK_COUNTS: Record<string, Record<string, number>> = {};
+const EMPTY_MOD_UNKNOWN_RANK_COUNTS: Record<string, number> = {};
 const EMPTY_ARCANE_RANKS: Record<string, Record<string, number>> = {};
 const EMPTY_MASTERY: Record<string, boolean> = {};
 
@@ -681,10 +685,13 @@ export default function SearchDetail(props: {
     const setActivePage = useTrackerStore((s) => s.setActivePage);
     const addGoalCatalog = useTrackerStore((s) => s.addGoalCatalog);
     const setCount = useTrackerStore((s) => s.setCount);
-    const setModRank = useTrackerStore((s) => s.setModRank);
+    const setModCount = useTrackerStore((s) => s.setModCount);
+    const setModRankInventory = useTrackerStore((s) => s.setModRankInventory);
     const setArcaneRankCount = useTrackerStore((s) => s.setArcaneRankCount);
     const counts = useTrackerStore((s) => s.state.inventory.counts);
     const modRanks = useTrackerStore((s) => s.state.inventory.modRanks ?? EMPTY_MOD_RANKS);
+    const modRankCounts = useTrackerStore((s) => s.state.inventory.modRankCounts ?? EMPTY_MOD_RANK_COUNTS);
+    const modUnknownRankCounts = useTrackerStore((s) => s.state.inventory.modUnknownRankCounts ?? EMPTY_MOD_UNKNOWN_RANK_COUNTS);
     const arcaneRanks = useTrackerStore((s) => s.state.inventory.arcaneRanks ?? EMPTY_ARCANE_RANKS);
     const mastered = useTrackerStore((s) => s.state.mastery.mastered ?? EMPTY_MASTERY);
     const detailRef = props.detailRef;
@@ -784,7 +791,10 @@ export default function SearchDetail(props: {
         return 0;
     }, [catalogId, detailRef?.kind, entry?.fusionLimit, entry?.levelStats]);
     const ownedCount = countKey ? Number(counts[countKey] ?? 0) : 0;
-    const ownedRank = detailRef?.kind === "mod" ? Number(modRanks[detailRef.id] ?? 0) : null;
+    const modRankInventory = detailRef?.kind === "mod"
+        ? getModRankInventorySnapshot(detailRef.id, ownedCount, maxRank, modRanks[detailRef.id], modRankCounts, modUnknownRankCounts)
+        : null;
+    const ownedRank = detailRef?.kind === "mod" ? (modRankInventory?.highestOwnedRank ?? 0) : null;
     const ownedArcaneRanks = detailRef?.kind === "arcane" ? arcaneRanks[detailRef.id] ?? {} : {};
     const fallbackArcaneCount = detailRef?.kind === "arcane" ? Number(counts[`mods:${detailRef.id}`] ?? counts[detailRef.id] ?? 0) : 0;
     const highestOwnedArcaneRank = detailRef?.kind === "arcane" ? getHighestOwnedArcaneRankWithFallback(ownedArcaneRanks, fallbackArcaneCount) : null;
@@ -885,15 +895,13 @@ export default function SearchDetail(props: {
 
         if (!countKey) return;
         if (isOwned) {
-            setCount(countKey, 0);
-            if (detailRef.kind === "mod") setModRank(detailRef.id, 0);
+            if (detailRef.kind === "mod") setModCount(detailRef.id, 0);
+            else setCount(countKey, 0);
             return;
         }
 
-        setCount(countKey, 1);
-        if (detailRef.kind === "mod") {
-            setModRank(detailRef.id, maxRank > 0 ? maxRank : 0);
-        }
+        if (detailRef.kind === "mod") setModCount(detailRef.id, 1, maxRank);
+        else setCount(countKey, 1);
     }
 
     if (!detailRef || !entity || !entry) {
@@ -956,7 +964,7 @@ export default function SearchDetail(props: {
 
             <WorkspaceSection
                 title="Collection"
-                subtitle={detailRef.kind === "arcane" ? "Track the highest owned arcane rank directly from the inspector." : "Update owned state and collection progress without leaving the panel."}
+        subtitle={detailRef.kind === "arcane" ? "Track the highest owned arcane rank directly from the inspector." : detailRef.kind === "mod" ? "Record how many copies you own at each mod rank." : "Update owned state and collection progress without leaving the panel."}
             >
                 {detailRef.kind === "arcane" ? (
                     <div className="space-y-4">
@@ -1007,27 +1015,31 @@ export default function SearchDetail(props: {
                             onDecrease={() => {
                                 if (!countKey) return;
                                 const nextCount = Math.max(0, ownedCount - 1);
-                                setCount(countKey, nextCount);
-                                if (detailRef.kind === "mod" && nextCount === 0) setModRank(detailRef.id, 0);
+                                if (detailRef.kind === "mod") setModCount(detailRef.id, nextCount, ownedRank ?? maxRank);
+                                else setCount(countKey, nextCount);
                             }}
                             onIncrease={() => {
                                 if (!countKey) return;
                                 const wasUnowned = ownedCount <= 0;
-                                setCount(countKey, ownedCount + 1);
-                                if (detailRef.kind === "mod" && wasUnowned && maxRank > 0) setModRank(detailRef.id, maxRank);
+                                if (detailRef.kind === "mod") setModCount(detailRef.id, ownedCount + 1, wasUnowned ? maxRank : ownedRank ?? maxRank);
+                                else setCount(countKey, ownedCount + 1);
                             }}
                             decreaseDisabled={ownedCount <= 0}
                         />
                         {detailRef.kind === "mod" ? (
-                            <StepperControl
-                                label="Tracked Rank"
-                                value={`R${ownedRank ?? 0}`}
-                                hint={maxRank > 0 ? `Highest owned rank, up to R${maxRank}` : "Highest owned rank"}
-                                onDecrease={() => setModRank(detailRef.id, Math.max(0, Number(ownedRank ?? 0) - 1))}
-                                onIncrease={() => setModRank(detailRef.id, Math.min(maxRank, Number(ownedRank ?? 0) + 1))}
-                                decreaseDisabled={ownedCount <= 0 || Number(ownedRank ?? 0) <= 0}
-                                increaseDisabled={ownedCount <= 0 || Number(ownedRank ?? 0) >= maxRank}
-                            />
+                            <div className="rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-4">
+                                <div className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--wf-text-dim)]">Owned rank inventory</div>
+                                <div className="mt-2">
+                                    <ModRankInventoryEditor
+                                        maxRank={maxRank}
+                                        rankCounts={modRankInventory?.rankCounts ?? {}}
+                                        unknownCount={modRankInventory?.unknownCount ?? 0}
+                                        totalCount={ownedCount}
+                                        onChange={(nextRanks, nextUnknown) => setModRankInventory(detailRef.id, nextRanks, nextUnknown)}
+                                    />
+                                </div>
+                                <div className="mt-2 text-xs leading-5 text-[color:var(--wf-text-muted)]">Owned Only optimization uses only ranks with recorded copies. Unranked copies are excluded until assigned.</div>
+                            </div>
                         ) : (
                             <div className="rounded-2xl border border-[color:var(--wf-border-subtle)] bg-[color:var(--wf-surface-soft)] px-4 py-4">
                                 <div className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--wf-text-dim)]">Ownership</div>

@@ -414,6 +414,47 @@ describe("weapon catalog stance inference", () => {
         );
     });
 
+    it("exposes Vinquibus as separate Primary and Melee build profiles", () => {
+        const profiles = getWeaponCatalog().filter((weapon) => weapon.name === "Vinquibus");
+        const primary = profiles.find((weapon) => weapon.variantLabel === "Primary");
+        const melee = profiles.find((weapon) => weapon.variantLabel === "Melee");
+        expect(primary).toBeDefined();
+        expect(melee).toBeDefined();
+        expect(profiles).toHaveLength(2);
+        expect(primary).toMatchObject({ category: "Primary", modCompat: "Rifle", disposition: 0.7 });
+        expect(melee).toMatchObject({
+            category: "Melee",
+            weaponType: "Bayonet",
+            modCompat: "Melee",
+            disposition: 0.7,
+            stanceClass: "Bayonet",
+            stanceClasses: ["Bayonet"],
+            stancePolarity: "omni",
+            meleeComboDurationSeconds: 5,
+        });
+        expect(getWeaponDisplayName(primary!)).toBe("Vinquibus (Primary)");
+        expect(getWeaponDisplayName(melee!)).toBe("Vinquibus (Melee)");
+        expect(melee?.sourceUniqueName).toBe(primary?.uniqueName);
+
+        const primaryMods = getModsForWeapon(primary!);
+        const meleeMods = getModsForWeapon(melee!);
+        expect(primaryMods.some((mod) => mod.name === "Serration")).toBe(true);
+        expect(primaryMods.some((mod) => mod.name === "Pressure Point")).toBe(false);
+        expect(meleeMods.some((mod) => mod.name === "Pressure Point")).toBe(true);
+        expect(meleeMods.some((mod) => mod.name === "Serration")).toBe(false);
+        expect(getStancesForWeapon(melee!).some((mod) => mod.name === "Harrowing Spire")).toBe(true);
+
+        const normal = melee!.attacks.find((attack) => attack.name === "Normal Attack");
+        const explosion = melee!.attacks.find((attack) => attack.name === "Gunshot Explosion");
+        const slam = melee!.attacks.find((attack) => attack.name === "Slam Attack");
+        const heavySlam = melee!.attacks.find((attack) => attack.name === "Heavy Slam Attack");
+        expect(normal).toMatchObject({ damage: { total: 260, puncture: 182, slash: 78 }, critChance: 0.4, critMultiplier: 3.2, statusChance: 0.2 });
+        expect(explosion).toMatchObject({ damage: { total: 400, blast: 400 }, damageFalloff: { endDistanceMeters: 4, minimumDamageMultiplier: 0.7 } });
+        expect(slam).toMatchObject({ damage: { total: 440, impact: 440 }, damageFalloff: { endDistanceMeters: 7, minimumDamageMultiplier: 0.5 } });
+        expect(heavySlam).toMatchObject({ damage: { total: 660, blast: 660 }, critChance: 0.34, critMultiplier: 2.6, chargeTime: 1 });
+        expect(normal?.scoreBoundaryNote?.reason).toMatch(/headshot.*damage stacks are not modeled/i);
+    });
+
     it("keeps Cyngas Auto-Burst Archwing and regular Burst Atmosphere profiles distinct", () => {
         const profiles = getWeaponCatalog().filter((weapon) => weapon.name === "Cyngas");
         const archwing = profiles.find((weapon) => weapon.variantLabel === "Archwing");

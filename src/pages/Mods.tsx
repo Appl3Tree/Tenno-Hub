@@ -32,6 +32,8 @@ import {
   type GroupedSourceEntry,
 } from "../components/sources/GroupedSourceList";
 import { buildCatalogSourceEntries } from "../components/sources/catalogSourceEntries";
+import ModRankInventoryEditor from "../components/ModRankInventoryEditor";
+import { getModRankInventorySnapshot } from "../domain/logic/modInventory";
 
 import MOD_LOCATIONS_RAW from "../../external/warframe-drop-data/raw/modLocations.json";
 
@@ -261,10 +263,6 @@ function formatModRankCounts(rankCounts: Record<string, number> | undefined, unk
   if (unknownCount > 0) parts.push("Unknown rank × " + unknownCount);
   return parts.join(" · ");
 }
-function clampModOwnedRank(maxRank: number, raw: number | undefined): number {
-  return Math.max(0, Math.min(maxRank, Number(raw ?? maxRank)));
-}
-
 type ModGroup =
   | "all"
   | "warframes"
@@ -2088,8 +2086,11 @@ function ModModal({
 }) {
   const counts  = useTrackerStore((s) => s.state.inventory.counts ?? EMPTY_COUNTS);
   const modRanks = useTrackerStore((s) => s.state.inventory.modRanks ?? EMPTY_MOD_RANKS);
+  const modRankCounts = useTrackerStore((s) => s.state.inventory.modRankCounts ?? EMPTY_MOD_RANK_COUNTS);
+  const modUnknownRankCounts = useTrackerStore((s) => s.state.inventory.modUnknownRankCounts ?? EMPTY_MOD_UNKNOWN_RANK_COUNTS);
   const setCount = useTrackerStore((s) => s.setCount);
-  const setModRank = useTrackerStore((s) => s.setModRank);
+  const setModCount = useTrackerStore((s) => s.setModCount);
+  const setModRankInventory = useTrackerStore((s) => s.setModRankInventory);
   const addGoalCatalog = useTrackerStore((s) => s.addGoalCatalog);
   const key = modKey(entry.path);
   const owned = counts[key] ?? 0;
@@ -2099,7 +2100,8 @@ function ModModal({
   const maxRank = isRiven
     ? (data?.FusionLimitRange?.[1] ?? 8)
     : (allEntry?.fusionLimit ?? decodeMaxRank(data?.FusionLimit));
-  const ownedRank = owned > 0 ? clampModOwnedRank(maxRank, modRanks[entry.path]) : 0;
+  const rankInventory = getModRankInventorySnapshot(entry.path, owned, maxRank, modRanks[entry.path], modRankCounts, modUnknownRankCounts);
+  const ownedRank = rankInventory.highestOwnedRank ?? 0;
   const baseDrain = allEntry?.baseDrain ?? decodeBaseDrain(data?.BaseDrain);
   const upgrades = data?.Upgrades ?? [];
   const polarity = data?.ArtifactPolarity ?? allEntry?.polarity;
@@ -2173,29 +2175,17 @@ function ModModal({
             <span className="text-[10px] text-slate-500 mr-1">Owned</span>
             <button
               className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm flex items-center justify-center"
-              onClick={() => setCount(key, Math.max(0, owned - 1))} title="Decrease count"
+              onClick={() => isRiven
+                ? setCount(key, Math.max(0, owned - 1))
+                : setModCount(entry.path, Math.max(0, owned - 1), ownedRank)} title="Decrease count"
             >−</button>
             <span className={["w-7 text-center text-sm font-mono font-semibold", owned > 0 ? "text-emerald-400" : "text-slate-500"].join(" ")}>{owned}</span>
             <button
               className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm flex items-center justify-center"
               onClick={() => {
-                setCount(key, owned + 1);
-                if (owned <= 0) setModRank(entry.path, maxRank);
+                if (isRiven) setCount(key, owned + 1);
+                else setModCount(entry.path, owned + 1, maxRank);
               }} title="Increase count"
-            >+</button>
-            <span className="text-[10px] text-slate-500 ml-3 mr-1">Rank</span>
-            <button
-              className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm flex items-center justify-center disabled:opacity-30"
-              disabled={owned <= 0 || ownedRank <= 0}
-              onClick={() => setModRank(entry.path, Math.max(0, ownedRank - 1))}
-              title="Lower owned rank"
-            >−</button>
-            <span className={["w-8 text-center text-sm font-mono font-semibold", owned > 0 ? "text-emerald-400" : "text-slate-500"].join(" ")}>R{ownedRank}</span>
-            <button
-              className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm flex items-center justify-center disabled:opacity-30"
-              disabled={owned <= 0 || ownedRank >= maxRank}
-              onClick={() => setModRank(entry.path, Math.min(maxRank, ownedRank + 1))}
-              title="Raise owned rank"
             >+</button>
           </div>
           <button className="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800" onClick={onClose}>Close</button>
@@ -2207,6 +2197,20 @@ function ModModal({
           {/* Description */}
           {allEntry?.description && (
             <p className="text-sm text-slate-400 leading-relaxed">{renderStatString(allEntry.description)}</p>
+          )}
+
+          {!isRiven && (
+            <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Owned rank inventory</div>
+              <ModRankInventoryEditor
+                maxRank={maxRank}
+                rankCounts={rankInventory.rankCounts}
+                unknownCount={rankInventory.unknownCount}
+                totalCount={rankInventory.totalCount}
+                onChange={(nextRanks, nextUnknown) => setModRankInventory(entry.path, nextRanks, nextUnknown)}
+              />
+              <p className="mt-2 text-[11px] leading-4 text-slate-500">Record each rank you own. Owned Only optimization will use only these ranks.</p>
+            </section>
           )}
 
           {/* Meta tags row */}
@@ -2358,8 +2362,7 @@ function ModsPage() {
   const modRankCountsMap = useTrackerStore((s) => s.state.inventory.modRankCounts ?? EMPTY_MOD_RANK_COUNTS);
   const modUnknownRankCountsMap = useTrackerStore((s) => s.state.inventory.modUnknownRankCounts ?? EMPTY_MOD_UNKNOWN_RANK_COUNTS);
   const customRivens = useTrackerStore((s) => s.state.inventory.customRivens ?? EMPTY_CUSTOM_RIVENS);
-  const setCount = useTrackerStore((s) => s.setCount);
-  const setModRank = useTrackerStore((s) => s.setModRank);
+  const setModCount = useTrackerStore((s) => s.setModCount);
   const upsertCustomRiven = useTrackerStore((s) => s.upsertCustomRiven);
   const deleteCustomRiven = useTrackerStore((s) => s.deleteCustomRiven);
 
@@ -2559,8 +2562,12 @@ function ModsPage() {
       if (sortKey === "owned-rank-asc" || sortKey === "owned-rank-desc") {
         const aCount = Number(counts[modKey(a.path)] ?? 0);
         const bCount = Number(counts[modKey(b.path)] ?? 0);
-        const aRank = aCount > 0 ? clampModOwnedRank(modMaxRank(a), modRanksMap[a.path]) : -1;
-        const bRank = bCount > 0 ? clampModOwnedRank(modMaxRank(b), modRanksMap[b.path]) : -1;
+        const aRank = aCount > 0
+          ? getModRankInventorySnapshot(a.path, aCount, modMaxRank(a), modRanksMap[a.path], modRankCountsMap, modUnknownRankCountsMap).highestOwnedRank ?? -1
+          : -1;
+        const bRank = bCount > 0
+          ? getModRankInventorySnapshot(b.path, bCount, modMaxRank(b), modRanksMap[b.path], modRankCountsMap, modUnknownRankCountsMap).highestOwnedRank ?? -1
+          : -1;
         if (aRank !== bRank) return sortKey === "owned-rank-asc" ? aRank - bRank : bRank - aRank;
       }
       return compareNames(a, b);
@@ -2579,6 +2586,8 @@ function ModsPage() {
     includedPolarities,
     modGroup,
     modRanksMap,
+    modRankCountsMap,
+    modUnknownRankCountsMap,
     ownershipFilter,
     query,
     sortKey,
@@ -3054,8 +3063,16 @@ function ModsPage() {
                         const rarity = rarityRaw.toUpperCase();
                         const ownedCount = counts[modKey(entry.path)] ?? 0;
                         const maxRank = modMaxRank(entry);
-                        const ownedRank = ownedCount > 0 ? clampModOwnedRank(maxRank, modRanksMap[entry.path]) : 0;
-                        const rankDistribution = formatModRankCounts(modRankCountsMap[entry.path], modUnknownRankCountsMap[entry.path] ?? 0);
+                        const rankInventory = getModRankInventorySnapshot(
+                          entry.path,
+                          ownedCount,
+                          maxRank,
+                          modRanksMap[entry.path],
+                          modRankCountsMap,
+                          modUnknownRankCountsMap,
+                        );
+                        const ownedRank = rankInventory.highestOwnedRank ?? 0;
+                        const rankDistribution = formatModRankCounts(rankInventory.rankCounts, rankInventory.unknownCount);
                         return (
                           <div key={entry.path} role="row" className="mb-1 grid min-h-[52px] items-center gap-2" style={{ gridTemplateColumns: modBrowseGridTemplate }}>
                             <div role="cell" className="min-w-0">
@@ -3103,7 +3120,7 @@ function ModsPage() {
                                 <button
                                   className="flex h-[38px] w-6 items-center justify-center rounded-l border border-r-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
                                   disabled={ownedCount <= 0}
-                                  onClick={() => setCount(modKey(entry.path), Math.max(0, ownedCount - 1))}
+                                  onClick={() => setModCount(entry.path, Math.max(0, ownedCount - 1), ownedRank)}
                                 >
                                   −
                                 </button>
@@ -3113,8 +3130,7 @@ function ModsPage() {
                                 <button
                                   className="flex h-[38px] w-6 items-center justify-center rounded-r border border-l-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
                                   onClick={() => {
-                                    setCount(modKey(entry.path), ownedCount + 1);
-                                    if (ownedCount <= 0) setModRank(entry.path, maxRank);
+                                    setModCount(entry.path, ownedCount + 1, maxRank);
                                   }}
                                 >
                                   +
@@ -3130,24 +3146,9 @@ function ModsPage() {
                                 </span>
                               ) : null}
                             </div>
-                            <div role="cell" className="flex items-center shrink-0" onClick={(event) => event.stopPropagation()}>
-                              <button
-                                className="flex h-[38px] w-6 items-center justify-center rounded-l border border-r-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
-                                disabled={ownedCount <= 0 || ownedRank <= 0}
-                                onClick={() => setModRank(entry.path, Math.max(0, ownedRank - 1))}
-                              >
-                                −
-                              </button>
-                              <span className={["flex h-[38px] w-10 items-center justify-center border-y border-slate-700 bg-slate-900 text-[11px] font-mono", ownedCount > 0 ? "text-emerald-400" : "text-slate-600"].join(" ")}>
-                                R{ownedRank}
-                              </span>
-                              <button
-                                className="flex h-[38px] w-6 items-center justify-center rounded-r border border-l-0 border-slate-700 bg-slate-900 text-sm leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
-                                disabled={ownedCount <= 0 || ownedRank >= maxRank}
-                                onClick={() => setModRank(entry.path, Math.min(maxRank, ownedRank + 1))}
-                              >
-                                +
-                              </button>
+                            <div role="cell" className="min-w-0 px-2 text-[10px] text-slate-400" title={rankDistribution || (ownedCount > 0 ? `R${ownedRank} ×${ownedCount}` : "No owned copies")}>
+                              <div className="max-w-[128px] truncate">{rankDistribution || (ownedCount > 0 ? `R${ownedRank} ×${ownedCount}` : "—")}</div>
+                              <button className="text-[9px] text-cyan-400 hover:text-cyan-200" onClick={() => setSelectedMod(entry)}>Edit ranks</button>
                             </div>
                             <div role="cell" className="flex justify-center gap-2">
                               <button

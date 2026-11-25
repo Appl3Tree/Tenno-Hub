@@ -34,6 +34,7 @@ import {
     STATIC_DISCHARGE_MOD_PATH,
     VOLATILE_VARIANT_MOD_PATH,
     VULCAN_BLITZ_MOD_PATH,
+    VILE_DISCHARGE_MOD_PATH,
 } from "./modEffectUtils";
 export { emptyEffect, getUnmodeledDamageEffectLines } from "./modEffectUtils";
 import ALL_RAW from "../../data/_generated/warframe-items-all-lean.auto.json";
@@ -54,6 +55,7 @@ const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeC
 const STRAIN_INFECTION_CRIT_DAMAGE_PER_CYST_BY_RANK = [0.05, 0.1, 0.15, 0.2];
 const STRAIN_FEVER_DAMAGE_PER_CYST_BY_RANK = [0.1, 0.2, 0.3, 0.4];
 const STATIC_DISCHARGE_DAMAGE_PER_WEAPON_DAMAGE_BY_RANK = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+const VILE_DISCHARGE_MAXIMUM_DAMAGE_BY_RANK = [5000, 10000, 15000, 20000, 25000, 30000];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
 const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
@@ -217,6 +219,8 @@ export interface ModEffect {
     strainFeverDamagePerCyst: number;
     /** Static Discharge's rank fraction of weapon damage, used only by its manual Prova cycle estimate. */
     staticDischargeDamagePerWeaponDamage: number;
+    /** Vile Discharge's stored-damage cap, consumed by its Embolist cycle timeline. */
+    vileDischargeMaximumDamage: number;
     /** Basmu Dreadful Killshot rank value; actual Damage/Status bonuses use an editable Burst-only current-Health snapshot. */
     dreadfulKillshotDamageAndStatusPer75Health: number;
     /** Deadly Maneuvers rank value; headshot Critical Chance uses an editable 0–2 shot Burst snapshot on Magnus. */
@@ -1626,6 +1630,19 @@ function buildCaches(): ModCaches {
                     !/^Heavy Attacks electrify nearby enemies for Electricity Damage equal to \d+(?:\.\d+)?% of weapon damage\.?$/i.test(
                         stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
                     ),
+                );
+            });
+        }
+        if (path === VILE_DISCHARGE_MOD_PATH) {
+            // Rank caps are the stored-damage limit; discharge output is resolved
+            // by the separate Embolist event timeline, not the static damage row.
+            // https://wiki.warframe.com/w/Vile_Discharge
+            VILE_DISCHARGE_MAXIMUM_DAMAGE_BY_RANK.forEach((maximumDamage, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.vileDischargeMaximumDamage = maximumDamage;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Damage is accumulated up to [\d,]+(?:\.|$)/i.test(stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim()),
                 );
             });
         }
