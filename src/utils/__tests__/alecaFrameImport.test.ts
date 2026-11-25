@@ -11,7 +11,9 @@ import {
 } from "../alecaFrameImport";
 
 const item = "/Lotus/Types/Items/MiscItems/AlloyPlate";
+const moaPet = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetBPowerSuit";
 const mod = "/Lotus/Upgrades/Mods/Rifle/WeaponClipMaxMod";
+const arcane = "/Lotus/Upgrades/CosmeticEnhancers/Warframe/ArcaneExample";
 const riven = "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare";
 const sticker = "/Lotus/Upgrades/Stickers/TestSticker";
 const now = "2026-01-01T00:00:00.000Z";
@@ -34,9 +36,10 @@ const classify = (path: string, section: string) => {
     };
     if (path === riven) return { catalogId: `rivens:${path}`, kind: "riven" as const };
     if (path === mod) return { catalogId: `mods:${path}`, kind: "mod" as const };
+    if (path === arcane) return { catalogId: `mods:${path}`, kind: "arcane" as const };
     return null;
   }
-  return path === item ? { catalogId: `items:${path}`, kind: "item" as const } : null;
+  return path === item || path === moaPet ? { catalogId: `items:${path}`, kind: "item" as const } : null;
 };
 
 function rivenRecord(id: string, sourceRank: number | null = null): CustomRivenRecord {
@@ -109,6 +112,27 @@ describe("AlecaFrame inventory parser", () => {
     expect(result.warnings[0].reason).toContain("Duplicate source instance");
   });
 
+  it("imports MoaPets as owned equipment and excludes FoundToday counters from holdings", async () => {
+    const root = fixture();
+    root.MoaPets = [{ ItemType: moaPet, ItemId: "moa-pet-a" }];
+    root.FoundToday = [{ ItemType: "/Lotus/Types/Items/MiscItems/ArgonCrystal", ItemCount: 6 }];
+
+    const result = await parseAlecaFrameInventory(root, classify, resolveRiven);
+
+    expect(result.importable).toBe(true);
+    expect(result.records).toContainEqual(expect.objectContaining({
+      catalogId: `items:${moaPet}`,
+      kind: "item",
+      quantity: 1,
+      sourceSections: ["MoaPets"],
+    }));
+    expect(result.records.some((record) => record.path.endsWith("ArgonCrystal"))).toBe(false);
+    expect(result.totalCopies).toBe(1);
+    expect(result.sections.MoaPets).toMatchObject({ status: "imported", importedCopies: 1 });
+    expect(result.sections.FoundToday).toMatchObject({ status: "excluded", excludedRecords: 1 });
+    expect(result.issues).toHaveLength(0);
+  });
+
   it("rejects a stacked item record without an explicit safe quantity", async () => {
     const root = fixture();
     root.MiscItems = [{ ItemType: item }];
@@ -144,6 +168,26 @@ describe("AlecaFrame inventory parser", () => {
     expect(result.warnings[0].reason).toContain("rank is not recorded");
     expect(result.sections.Upgrades).toMatchObject({ status: "partial", rankUnknownRecords: 1, rankUnknownCopies: 1 });
     expect(result.coverageComplete).toBe(false);
+  });
+
+  it("keeps individual arcane copies and their fingerprint ranks separate", async () => {
+    const root = fixture();
+    root.Upgrades = [
+      { ItemType: arcane, ItemId: "arcane-a", UpgradeFingerprint: '{"lvl":0}' },
+      { ItemType: arcane, ItemId: "arcane-b", UpgradeFingerprint: '{"lvl":4}' },
+    ];
+
+    const result = await parseAlecaFrameInventory(root, classify, resolveRiven);
+
+    expect(result.records).toContainEqual(expect.objectContaining({
+      catalogId: `mods:${arcane}`,
+      kind: "arcane",
+      quantity: 2,
+      rankCounts: { "0": 1, "4": 1 },
+      unknownRankCount: 0,
+      rankCountsComplete: true,
+    }));
+    expect(result.sections.Upgrades).toMatchObject({ status: "imported", importedCopies: 2 });
   });
 
   it("retains personalized Rivens as unique individual copies", async () => {

@@ -18,6 +18,23 @@ describe("Public Export Plus catalog integration", () => {
         }
     });
 
+    it("loads Zanuka companion identities needed by the AlecaFrame MoaPets section", () => {
+        const petPath = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetBPowerSuit";
+        expect(publicItems[petPath as keyof typeof publicItems]).toMatchObject({
+            name: "Hound",
+            category: "MoaPets",
+            categories: ["MoaPets"],
+        });
+        expect(FULL_CATALOG.recordsById[`items:${petPath}`]).toMatchObject({
+            source: "items",
+            path: petPath,
+            displayName: "Hound",
+            categories: ["MoaPets"],
+            isDisplayable: true,
+        });
+        expect(FULL_CATALOG.inventoryItemIds).toContain(`items:${petPath}`);
+    });
+
     it("loads the complete generic Peely Pix name map as counted inventory items", () => {
         const entries = Object.entries(publicItems).filter(([, record]) => record.category === "Peely Pix");
         expect(entries).toHaveLength(25);

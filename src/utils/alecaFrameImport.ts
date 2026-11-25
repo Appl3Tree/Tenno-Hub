@@ -103,7 +103,7 @@ export const OWNED_ITEM_SECTIONS = [
   "SpaceGuns", "Ships", "Scoops", "SpecialItems", "DataKnives",
   "MechSuits", "CrewShipHarnesses", "CrewShips", "DrifterMelee",
   "Horses", "OperatorSuits", "OperatorAmps", "Motorcycles",
-  "KubrowPets", "CrewShipWeapons", "CrewShipWeaponSkins", "Drones",
+  "KubrowPets", "MoaPets", "CrewShipWeapons", "CrewShipWeaponSkins", "Drones",
   "WeaponSkins",
 ] as const;
 
@@ -170,6 +170,7 @@ export const EXCLUDED_SECTIONS: Record<string, string> = {
   EquippedEmotes: "Equipped emote references are loadout selections, not item quantities.",
   OneTimePurchases: "Purchase flags are account history, not current inventory quantities.",
   NewItems: "Unreviewed-item markers are UI state, not additional copies.",
+  FoundToday: "Daily found-item counters are progress metadata, not current owned inventory.",
   AdultOperatorLoadOuts: "Appearance configurations are loadouts, not additional owned equipment.",
   KahlLoadOuts: "Kahl configuration data is a loadout, not current inventory.",
 };

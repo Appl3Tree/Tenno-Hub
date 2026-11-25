@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import ModRankInventoryEditor from "../components/ModRankInventoryEditor";
 import { useTrackerStore } from "../store/store";
 import MODS_RAW from "../data/_generated/mods-lean.auto.json";
 import ALL_RAW from "../data/_generated/warframe-items-all-lean.auto.json";
@@ -739,17 +740,31 @@ function CatalogControlBand({
 }
 
 function ArcaneDetail({ entry, onClose }: { entry: ModEntry; onClose: () => void }) {
+  const counts = useTrackerStore((state) => state.state.inventory.counts ?? EMPTY_COUNTS);
   const arcaneRanks = useTrackerStore((state) => state.state.inventory.arcaneRanks ?? EMPTY_ARCANE_RANKS);
   const arcaneRankCounts = useTrackerStore((state) => state.state.inventory.arcaneRankCounts ?? EMPTY_ARCANE_RANK_COUNTS);
   const arcaneUnknownRankCounts = useTrackerStore((state) => state.state.inventory.arcaneUnknownRankCounts ?? EMPTY_ARCANE_UNKNOWN_RANK_COUNTS);
-  const setArcaneRankCount = useTrackerStore((state) => state.setArcaneRankCount);
+  const setArcaneRankInventory = useTrackerStore((state) => state.setArcaneRankInventory);
   const addGoalCatalog = useTrackerStore((state) => state.addGoalCatalog);
   const rankCounts = arcaneRanks[entry.path] ?? {};
   const unknownRankCopies = arcaneUnknownRankCounts[entry.path] ?? 0;
   const data = entry.data;
   const maxRank = decodeMaxRank(data?.FusionLimit);
   const highestOwnedRank = getHighestOwnedArcaneRank(rankCounts);
-  const exactOwnedCopies = formatArcaneRankCounts(arcaneRankCounts[entry.path], arcaneUnknownRankCounts[entry.path] ?? 0);
+  const exactCopyCount = Object.values(arcaneRankCounts[entry.path] ?? {})
+    .reduce((sum, count) => sum + Math.max(0, Math.floor(Number(count) || 0)), 0);
+  const legacyCopyCount = Object.values(rankCounts)
+    .reduce((sum, count) => sum + Math.max(0, Math.floor(Number(count) || 0)), 0);
+  const totalOwned = Math.max(
+    Number(counts[modKey(entry.path)] ?? counts[entry.path] ?? 0),
+    exactCopyCount + unknownRankCopies,
+    legacyCopyCount,
+  );
+  const hasExactRankCounts = Object.prototype.hasOwnProperty.call(arcaneRankCounts, entry.path);
+  const editableRankCounts = hasExactRankCounts
+    ? arcaneRankCounts[entry.path]
+    : highestOwnedRank !== null && totalOwned > 0 ? { [String(highestOwnedRank)]: totalOwned } : {};
+  const exactOwnedCopies = formatArcaneRankCounts(editableRankCounts, unknownRankCopies);
   const upgrades = (data?.Upgrades ?? []).concat(data?.ExtraUpgrades ?? []);
   const allEntry = ALL_ARCANES_BY_PATH[entry.path] ?? ALL_ARCANES_BY_NAME[entry.name];
   const allDrops = allEntry?.drops ?? [];
@@ -859,31 +874,15 @@ function ArcaneDetail({ entry, onClose }: { entry: ModEntry; onClose: () => void
                 Copies by rank: {exactOwnedCopies}
               </p>
             ) : null}
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: maxRank + 1 }, (_, rank) => {
-                const isSelected = highestOwnedRank === rank;
-                return (
-                  <button
-                    key={rank}
-                    className={[
-                      "rounded-xl border px-3 py-2 text-xs font-semibold transition-colors",
-                      isSelected
-                        ? "border-emerald-700/60 bg-emerald-950/35 text-emerald-200"
-                        : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700 hover:bg-slate-800/70",
-                    ].join(" ")}
-                    onClick={() => setArcaneRankCount(entry.path, rank, isSelected ? 0 : 1)}
-                  >
-                    Rank {rank}
-                  </button>
-                );
-              })}
-              <button
-                className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                onClick={() => setArcaneRankCount(entry.path, 0, 0)}
-              >
-                Clear
-              </button>
-            </div>
+            <ModRankInventoryEditor
+              key={entry.path}
+              defaultExpanded
+              maxRank={maxRank}
+              rankCounts={editableRankCounts}
+              unknownCount={unknownRankCopies}
+              totalCount={totalOwned}
+              onChange={(nextRanks, nextUnknown) => setArcaneRankInventory(entry.path, nextRanks, nextUnknown)}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)]">
@@ -976,7 +975,6 @@ export default function ArcanesPage() {
   const arcaneRanksMap = useTrackerStore((state) => state.state.inventory.arcaneRanks ?? EMPTY_ARCANE_RANKS);
   const arcaneRankCountsMap = useTrackerStore((state) => state.state.inventory.arcaneRankCounts ?? EMPTY_ARCANE_RANK_COUNTS);
   const arcaneUnknownRankCountsMap = useTrackerStore((state) => state.state.inventory.arcaneUnknownRankCounts ?? EMPTY_ARCANE_UNKNOWN_RANK_COUNTS);
-  const setArcaneRankCount = useTrackerStore((state) => state.setArcaneRankCount);
   const addGoalCatalog = useTrackerStore((state) => state.addGoalCatalog);
 
   const [categoryFilters, setCategoryFilters] = useState<Partial<Record<ArcaneFilterCategory, TagFilterState>>>({});
@@ -1253,30 +1251,11 @@ export default function ArcanesPage() {
                               {formatReleaseDate(ALL_ARCANES_BY_NAME[entry.name]?.releaseDate) ?? "—"}
                             </div>
                             <div role="cell" className="flex items-center gap-1.5 overflow-x-auto pr-1" onClick={(event) => event.stopPropagation()}>
-                              {Array.from({ length: decodeMaxRank(entry.data?.FusionLimit) + 1 }, (_, rank) => rank).map((rank) => {
-                                const isSelected = highestOwnedRank === rank;
-                                return (
-                                  <button
-                                    key={rank}
-                                    className={[
-                                      "w-[68px] shrink-0 rounded-xl border px-2 py-2 text-[11px] font-semibold transition-colors",
-                                      isSelected
-                                        ? "border-emerald-700/60 bg-emerald-950/35 text-emerald-200"
-                                        : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700 hover:bg-slate-800/70",
-                                    ].join(" ")}
-                                    onClick={() => setArcaneRankCount(entry.path, rank, isSelected ? 0 : 1)}
-                                  >
-                                    <span className="block text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                                      R{rank}
-                                    </span>
-                                  </button>
-                                );
-                              })}
                               <button
-                                className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/70 px-2 py-2 text-[11px] font-semibold text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                                onClick={() => setArcaneRankCount(entry.path, 0, 0)}
+                                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[11px] font-semibold text-slate-300 hover:border-slate-500 hover:text-white"
+                                onClick={() => setSelectedArcane(entry)}
                               >
-                                Clear
+                                Edit rank counts
                               </button>
                             </div>
                             <div role="cell" className="flex justify-center gap-2">

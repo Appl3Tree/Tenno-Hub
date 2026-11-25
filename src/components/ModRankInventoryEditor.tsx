@@ -7,6 +7,7 @@ export default function ModRankInventoryEditor({
     totalCount,
     onChange,
     className = "",
+    defaultExpanded = false,
 }: {
     maxRank: number;
     rankCounts: Record<string, number>;
@@ -14,8 +15,9 @@ export default function ModRankInventoryEditor({
     totalCount: number;
     onChange: (rankCounts: Record<string, number>, unknownCount: number) => void;
     className?: string;
+    defaultExpanded?: boolean;
 }) {
-    const [expanded, setExpanded] = useState(false);
+    const [expanded, setExpanded] = useState(defaultExpanded);
     const ranks = useMemo(() => Array.from({ length: Math.max(0, Math.floor(maxRank)) + 1 }, (_, rank) => rank), [maxRank]);
     const summary = useMemo(() => {
         const parts = Object.keys(rankCounts)

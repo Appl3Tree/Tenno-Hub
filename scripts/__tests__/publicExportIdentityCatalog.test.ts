@@ -8,6 +8,7 @@ const dictionary = {
     "/Lotus/Language/TestMod": "Example Mod",
     "/Lotus/Language/TestArcane": "Example Arcane",
     "/Lotus/Language/TestRiven": "Riven Template",
+    "/Lotus/Language/Pets/ZanukaPetItemName": "Zanuka Companion",
 };
 
 const emptyExportMap = { "/Lotus/Test/Unused": {} };
@@ -23,7 +24,12 @@ const exports = {
         "/Lotus/Test/Weapon": { name: "Example Weapon", productCategory: "LongGuns" },
     },
     "ExportRailjackWeapons.json": { ...emptyExportMap },
-    "ExportSentinels.json": { ...emptyExportMap },
+    "ExportSentinels.json": {
+        "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetBPowerSuit": {
+            name: "/Lotus/Language/Pets/ZanukaPetItemName",
+            productCategory: "MoaPets",
+        },
+    },
     "ExportResources.json": { ...emptyExportMap },
     "ExportCustoms.json": { ...emptyExportMap },
     "ExportFlavour.json": { ...emptyExportMap },
@@ -67,6 +73,23 @@ describe("Public Export Plus identity catalog", () => {
         });
         expect(result.items["/Lotus/Test/Existing"]).toBeUndefined();
         expect(result.items["/Lotus/Test/Ability"]).toBeUndefined();
+    });
+
+    it("adds MoaPet and Hound instances as exact owned item identities", () => {
+        const result = buildPublicExportIdentityCatalog({
+            dictionary,
+            exports,
+            peelyPixNames: {},
+            existingItemPaths: new Set(),
+            existingModPaths: new Set(),
+        });
+
+        expect(result.items["/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetBPowerSuit"]).toMatchObject({
+            name: "Zanuka Companion",
+            category: "MoaPets",
+            categories: ["MoaPets"],
+            data: { ProductCategory: "MoaPets" },
+        });
     });
 
     it("keeps upgrades, arcanes, and randomized templates in their canonical catalogs", () => {
