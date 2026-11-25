@@ -1891,18 +1891,29 @@ function buildMathBreakdown(
         targetProfileOverride?.nearbyEnemyCount,
         targetProfileOverride?.nearbyGasOuterEnemyCount,
     );
+    const hasExplicitTargetPools = !!targetProfileOverride && [
+        targetProfileOverride.health,
+        targetProfileOverride.shields,
+        targetProfileOverride.overguard,
+        targetProfileOverride.armor,
+    ].some((value) => Number.isFinite(value));
     const customTargetLines = targetProfileOverride ? [
-        `Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`,
+        ...(hasExplicitTargetPools ? [`Custom current-level target pools = Health ${fmt(targetProfileOverride.health ?? 0, 0)}, Shields ${fmt(targetProfileOverride.shields ?? 0, 0)}, Overguard ${fmt(targetProfileOverride.overguard ?? 0, 0)}, Armor ${fmt(targetProfileOverride.armor ?? 0, 0)}`] : []),
         ...(targetProfileOverride.description ? [targetProfileOverride.description] : []),
-        `Additional same-profile enemies inside the 3m Electric/Gas radius = ${gasNeighborCounts.innerCount}`,
-        `Additional Gas neighbors in the 3–6m annulus = ${gasNeighborCounts.outerCount}`,
-        `Additional same-profile enemies inside Blast's 5m radial = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyBlastEnemyCount ?? 0)))}`,
-        "Optimizer scoring uses the configured 0–3m neighbor count for Electricity/Gas and applies area-uniform 3–6m Gas coverage from the steady-state cloud radius. Blast cap-radial value uses Poisson arrivals during the scaled fuse; on-death radial value uses the primary-only score to estimate kill time and expected active Blast stacks over the shorter of that time and one fuse, with cap resets folded into the stack count. It assumes same-profile defenses and exposure; direct attacks, neighbor status histories, depleted neighbor pools, and chained deaths remain outside the score.",
-        `Toxin bypasses Shields = ${targetProfileOverride.toxinBypassesShields === false ? "no" : "yes"}`,
-        `Enemy Shield Gate hit mode = ${targetProfileOverride.enemyShieldGateHitMode ?? "body"}`,
-        `Target status immunities = ${[...(targetProfileOverride.statusImmuneTypes ?? [])].join(", ") || "none"}`,
-        `Target status stack caps = ${Object.entries(targetProfileOverride.statusStackCaps ?? {}).map(([type, cap]) => `${type} ${cap}`).join(", ") || "standard"}`,
-        "The optimizer uses a fast expected pool-progress score, not the finite encounter. Blast cap and on-death radial collateral use Poisson stack-arrival estimates, with the primary target's modeled kill time kept separate from collateral. Neighbor status histories, pool depletion, gates, boss attenuation, and random outcomes are not simulated in its score.",
+        ...(hasExplicitTargetPools ? [
+            `Additional same-profile enemies inside the 3m Electric/Gas radius = ${gasNeighborCounts.innerCount}`,
+            `Additional Gas neighbors in the 3–6m annulus = ${gasNeighborCounts.outerCount}`,
+            `Additional same-profile enemies inside Blast's 5m radial = ${Math.max(0, Math.min(20, Math.floor(targetProfileOverride.nearbyBlastEnemyCount ?? 0)))}`,
+            "Optimizer scoring uses the configured 0–3m neighbor count for Electricity/Gas and applies area-uniform 3–6m Gas coverage from the steady-state cloud radius. Blast cap-radial value uses Poisson arrivals during the scaled fuse; on-death radial value uses the primary-only score to estimate kill time and expected active Blast stacks over the shorter of that time and one fuse, with cap resets folded into the stack count. It assumes same-profile defenses and exposure; direct attacks, neighbor status histories, depleted neighbor pools, and chained deaths remain outside the score.",
+            `Toxin bypasses Shields = ${targetProfileOverride.toxinBypassesShields === false ? "no" : "yes"}`,
+            `Enemy Shield Gate hit mode = ${targetProfileOverride.enemyShieldGateHitMode ?? "body"}`,
+            `Target status immunities = ${[...(targetProfileOverride.statusImmuneTypes ?? [])].join(", ") || "none"}`,
+            `Target status stack caps = ${Object.entries(targetProfileOverride.statusStackCaps ?? {}).map(([type, cap]) => `${type} ${cap}`).join(", ") || "standard"}`,
+            "The optimizer uses a fast expected pool-progress score, not the finite encounter. Blast cap and on-death radial collateral use Poisson stack-arrival estimates, with the primary target's modeled kill time kept separate from collateral. Neighbor status histories, pool depletion, gates, boss attenuation, and random outcomes are not simulated in its score.",
+        ] : []),
+        ...(targetProfileOverride.nearbySwipeTargetCount && targetProfileOverride.nearbySwipeTargetCount > 0 ? [
+            `Swipe group input = ${Math.max(0, Math.min(4, Math.floor(targetProfileOverride.nearbySwipeTargetCount)))} additional same-profile targets actually hit per strike, capped by Swipe rank; Burst/Scaling apply a 0.8 follow-through proxy. Single-target TTK and 5s Avg DPS exclude this estimate.`,
+        ] : []),
     ] : [];
     const fireRateExplanation = (() => {
         if (stats.fireRateLocked && !/^(?:semi|semi[- ]?auto)$/i.test(weapon.trigger.trim())
@@ -2683,6 +2694,7 @@ interface SlotProps {
     unseenDreadInvisibilityActive?: boolean;
     criticalMutationPriorKills?: number;
     strainInfectionCystsAtImpact?: number;
+    selectedSwipeTargetCount?: number;
     selectedGoal?: string;
     mod: ModEntry | null; rank: number; slotPolarity: string;
     compatMods: ModEntry[]; usedGroups: Set<string>;
@@ -2703,7 +2715,7 @@ interface SlotProps {
     onDropSlot?: () => void;
 }
 
-function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
+function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedGoal, mod, rank, slotPolarity, compatMods, usedGroups,
     ownedUniqueNames, onlyOwned, isExilusSlot, excluded, onChange, onRankChange, onPolarityChange, onToggleExclude, effDrain, compactEmpty, locked,
     draggable, isDragOver, onDragStartSlot, onDragEndSlot, onDragOverSlot, onDropSlot }: SlotProps) {
     const [open, setOpen] = useState(false);
@@ -2733,7 +2745,7 @@ function ModSlot({ index, label, headIsWeakPoint, selectedAttackName, selectedAt
         }));
     }, [compatMods, usedGroups, mod, query, onlyOwned, ownedUniqueNames, isExilusSlot]);
     const currentStatsLabel = mod ? (mod.statsTextByRank[rank] ?? mod.statsLabel) : "";
-    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedGoal };
+    const scoringEffectContext = { headIsWeakPoint, selectedAttackName, selectedAttackTrigger, selectedAttackIsAreaDamage, targetFaction, targetHasOverguard, selectedAttackUsesSlamDamageBonus, selectedWeaponName, selectedAttackHeadshotRate, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, strainInfectionCystsAtImpact, selectedSwipeTargetCount, selectedGoal };
     const currentUnmodeledDamageLines = mod ? getUnmodeledDamageEffectLines(mod, rank, scoringEffectContext) : [];
     const currentUnmodeledDamageSourceUrl = mod ? getUnmodeledDamageEffectSourceUrl(mod) : undefined;
 
@@ -3999,6 +4011,7 @@ export default function ModBuilder() {
     const [nearbyEnemyCount, setNearbyEnemyCount] = useState(0);
     const [nearbyGasOuterEnemyCount, setNearbyGasOuterEnemyCount] = useState(0);
     const [nearbyBlastEnemyCount, setNearbyBlastEnemyCount] = useState(0);
+    const [nearbySwipeTargetCount, setNearbySwipeTargetCount] = useState(0);
     const [isEximus, setIsEximus] = useState(false);
     const [bossBlastStackCap, setBossBlastStackCap] = useState(false);
     const [punctureVipStackCap, setPunctureVipStackCap] = useState(false);
@@ -4070,10 +4083,12 @@ export default function ModBuilder() {
     const targetProfileOverride = useMemo<TargetProfileOverride | undefined>(() => {
         const selectedProfile = getEnemyProfile(selectedEnemyProfileId);
         if (!useCustomTargetStats) {
-            if (!selectedProfile && (!factionOn || headshotRatePercent <= 0) && !isEximus) return undefined;
+            const swipeTargetCount = weapon?.tags.includes("KAVAT_WEAPON") ? nearbySwipeTargetCount : 0;
+            if (!selectedProfile && (!factionOn || headshotRatePercent <= 0) && !isEximus && swipeTargetCount <= 0) return undefined;
             return {
                 headshotHitRate: factionOn ? headshotRatePercent / 100 : 0,
                 isEximusTarget: isEximus,
+                ...(swipeTargetCount > 0 ? { nearbySwipeTargetCount: swipeTargetCount } : {}),
                 ...(selectedProfile ? {
                     headshotMultiplier: selectedProfile.headshotMultiplier,
                     criticalHeadshotMultiplier: selectedProfile.criticalHeadshotMultiplier,
@@ -4114,12 +4129,13 @@ export default function ModBuilder() {
             nearbyEnemyCount,
             nearbyGasOuterEnemyCount,
             nearbyBlastEnemyCount,
+            ...(weapon?.tags.includes("KAVAT_WEAPON") ? { nearbySwipeTargetCount } : {}),
             // Cold's four-stack cap and crowd-control immunity follow active
             // Overguard; Radiation can apply but its effects remain suppressed.
             statusImmuneTypes: targetStatusImmunities,
             statusStackCaps,
         };
-    }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel, isEximus]);
+    }, [useCustomTargetStats, factionOn, headshotRatePercent, selectedEnemyProfileId, resolvedCustomTargetStats, customTargetStats.armor, scaleCustomTargetByLevel, enemyScalingFaction, enemyBaseLevel, customToxinBypassesShields, enemyShieldGateHitMode, nearbyEnemyCount, nearbyGasOuterEnemyCount, nearbyBlastEnemyCount, nearbySwipeTargetCount, weapon, targetStatusImmunities, bossBlastStackCap, punctureVipStackCap, isSteelPath, enemyCurrentLevel, isEximus]);
     const targetHeadIsWeakPoint = getTargetProfileAssumptions(faction, targetProfileOverride).headIsWeakPoint;
     const [allowCatalyst, setAllowCatalyst] = useState(false);
     const [allowForma, setAllowForma]    = useState(false);
@@ -4195,6 +4211,7 @@ export default function ModBuilder() {
             nearbyEnemyCount: gasNeighborCounts.innerCount,
             nearbyGasOuterEnemyCount: gasNeighborCounts.outerCount,
             nearbyBlastEnemyCount,
+            nearbySwipeTargetCount,
             statusImmunities: [...targetStatusImmunities],
         };
         return {
@@ -4258,6 +4275,7 @@ export default function ModBuilder() {
         nearbyEnemyCount,
         nearbyGasOuterEnemyCount,
         nearbyBlastEnemyCount,
+        nearbySwipeTargetCount,
         enemyBaseLevel,
         enemyCurrentLevel,
         enemyScalingFaction,
@@ -5615,13 +5633,16 @@ export default function ModBuilder() {
             .map(([type, count]) => `${type[0].toUpperCase()}${type.slice(1)} ${fmt(count ?? 0, 1)}`)
             .join(" · ") || "None"
         : "—";
+    const swipeTargetSummary = weapon?.tags.includes("KAVAT_WEAPON") && nearbySwipeTargetCount > 0
+        ? ` · +${nearbySwipeTargetCount} Swipe group target${nearbySwipeTargetCount === 1 ? "" : "s"}`
+        : "";
     const activeTargetSummary = selectedEnemyProfile
-        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
-        : targetProfileOverride
-        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}`
+        ? `${selectedEnemyProfile.name} · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}${swipeTargetSummary}`
+        : useCustomTargetStats && targetProfileOverride
+        ? `${scaleCustomTargetByLevel ? `Custom target · level ${getSteelPathEnemyLevel(enemyCurrentLevel, isSteelPath)}${isSteelPath ? " Steel Path" : ""}` : "Custom current-level target pools"}${factionOn ? ` · ${faction} damage modifiers` : ""}${punctureVipStackCap ? " · Overguarded VIP (3 Puncture stacks)" : ""}${nearbyEnemyCount > 0 ? ` · +${nearbyEnemyCount} Electric/Gas/Vile ≤3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` · +${nearbyGasOuterEnemyCount} Gas/Vile 3–6m` : ""}${nearbyBlastEnemyCount > 0 ? ` · +${nearbyBlastEnemyCount} Blast` : ""}${swipeTargetSummary}`
         : factionOn
-            ? `${faction} synthetic faction estimate`
-            : "Balanced synthetic target estimate";
+            ? `${faction} synthetic faction estimate${swipeTargetSummary}`
+            : `Balanced synthetic target estimate${swipeTargetSummary}`;
     const activeDamageTypeSources = useMemo(
         () => activeCalcWeapon ? buildDamageTypeSourceDescriptions(activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels) : {},
         [activeCalcWeapon, activeBuildEffects, activeBuildEffectSourceLabels],
@@ -6376,6 +6397,9 @@ export default function ModBuilder() {
             setNearbyBlastEnemyCount(Number.isFinite(target?.nearbyBlastEnemyCount)
                 ? Math.max(0, Math.min(20, Math.floor(target?.nearbyBlastEnemyCount ?? 0)))
                 : 0);
+            setNearbySwipeTargetCount(Number.isFinite(target?.nearbySwipeTargetCount)
+                ? Math.max(0, Math.min(4, Math.floor(target?.nearbySwipeTargetCount ?? 0)))
+                : 0);
             setTargetStatusImmunities((target?.statusImmunities ?? [])
                 .filter((type): type is StatusDamageType =>
                     (STATUS_DAMAGE_TYPES as readonly string[]).includes(type)));
@@ -6405,6 +6429,7 @@ export default function ModBuilder() {
             setNearbyEnemyCount(0);
             setNearbyGasOuterEnemyCount(0);
             setNearbyBlastEnemyCount(0);
+            setNearbySwipeTargetCount(0);
             setTargetStatusImmunities([]);
         }
         setTab("build");
@@ -7518,6 +7543,31 @@ export default function ModBuilder() {
                                                     )}
                                                 </div>
                                                 <div className="min-h-[34px] flex items-center justify-start lg:justify-end">
+                                                    {weapon?.tags.includes("KAVAT_WEAPON") && (
+                                                        <div className="mb-2 space-y-2 rounded-lg border border-sky-900/60 bg-sky-950/20 p-2.5">
+                                                            <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
+                                                                <label htmlFor="planner-swipe-target-count" className="text-[10px] text-slate-300">
+                                                                    Additional same-profile enemies actually hit per Swipe strike
+                                                                </label>
+                                                                <input
+                                                                    id="planner-swipe-target-count"
+                                                                    aria-label="Additional same-profile enemies actually hit per Swipe strike"
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={4}
+                                                                    step={1}
+                                                                    value={nearbySwipeTargetCount}
+                                                                    onChange={(event) => setNearbySwipeTargetCount(Math.max(0, Math.min(4, Math.floor(Number(event.target.value) || 0))))}
+                                                                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-xs text-slate-100"
+                                                                />
+                                                            </div>
+                                                            <p className="text-[10px] leading-relaxed text-slate-500">
+                                                                Enter neighbors your Kavat actually reaches and hits; the optimizer caps them at Swipe's rank (+1 to +4) and assumes they are within its added 0.5–2m reach. Burst and Scaling use a group estimate with 0.8 follow-through per successive target as a Claws proxy. Target spacing, target selection, and companion movement are not simulated. This does not change single-target stats, TTK, or 5s Avg DPS. Sources: {" "}
+                                                                <a href="https://wiki.warframe.com/w/Swipe" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Swipe</a>, {" "}
+                                                                <a href="https://wiki.warframe.com/w/Blocking#Follow_Through" target="_blank" rel="noreferrer" className="text-sky-400 underline underline-offset-2">Follow Through</a>.
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                     {factionOn && (
                                                         <div className="w-full space-y-2">
                                                             <label className="block space-y-1 text-[10px] text-slate-400">
@@ -8411,7 +8461,7 @@ export default function ModBuilder() {
                                                                     <PolarityPicker value={stancePol} onChange={setStancePol} />
                                                                 </div>
                                                                 {stanceMods.length > 0 ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:stance`} index={0} label="Stance" mod={stanceMod} rank={stanceRank}
                                                                         slotPolarity={stancePol} compatMods={stanceMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         excluded={excluded}
@@ -8442,7 +8492,7 @@ export default function ModBuilder() {
                                                                     </button>
                                                                 </div>
                                                                 {hasExilus ? (
-                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                    <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                         slotPolarity={exilusPol} compatMods={compatMods}
                                                                         usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                         isExilusSlot={true}
@@ -8469,7 +8519,7 @@ export default function ModBuilder() {
                                                         </div>
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8538,7 +8588,7 @@ export default function ModBuilder() {
                                                     <div className="space-y-3">
                                                         <div className="grid auto-rows-[minmax(216px,auto)] grid-cols-2 2xl:grid-cols-4 gap-3">
                                                             {slots.map((mod, i) => (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:main:${i}`} index={i} mod={mod} rank={ranks[i] ?? 0}
                                                                     slotPolarity={slotPols[i] ?? ""} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     excluded={excluded}
@@ -8611,7 +8661,7 @@ export default function ModBuilder() {
                                                                 </button>
                                                             </div>
                                                             {hasExilus ? (
-                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
+                                                                <ModSlot headIsWeakPoint={targetHeadIsWeakPoint} selectedAttackName={activeCalcWeapon?.selectedAttackName} selectedAttackTrigger={activeCalcWeapon?.trigger} selectedAttackIsAreaDamage={activeCalcWeapon?.selectedAttackIsAreaDamage} targetFaction={factionOn ? faction : ""} targetHasOverguard={activeTargetAssumptions.overguard > 0} selectedAttackUsesSlamDamageBonus={activeCalcWeapon?.selectedAttackUsesSlamDamageBonus === true} selectedWeaponName={activeCalcWeapon?.name} selectedAttackHeadshotRate={activeTargetAssumptions.headshotHitRate} deadlyManeuversShotsRemaining={deadlyManeuversShotsRemaining} criticalPrecisionHeadshotProjectiles={criticalPrecisionHeadshotProjectiles} unseenDreadInvisibilityActive={unseenDreadInvisibilityActive} criticalMutationPriorKills={criticalMutationPriorKills} strainInfectionCystsAtImpact={strainInfectionCystsAtImpact} selectedSwipeTargetCount={targetProfileOverride?.nearbySwipeTargetCount ?? 0} selectedGoal={goal} key={`${weapon.uniqueName}:exilus`} index={0} label="Exilus" mod={exilusMod} rank={exilusRank}
                                                                     slotPolarity={exilusPol} compatMods={compatMods}
                                                                     usedGroups={usedGroups} ownedUniqueNames={ownedSet} onlyOwned={false}
                                                                     isExilusSlot={true}

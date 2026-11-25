@@ -1,10 +1,20 @@
 # Build Planner Work Status
 
-Last updated: 2026-11-24
+Last updated: 2026-11-25
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
-## CURRENT CONTINUATION CHECKPOINT — 2026-11-24 (Enduring Strike deployed; current-source visual review completed)
+## CURRENT CONTINUATION CHECKPOINT — 2026-11-25 (Swipe group scoring implemented locally)
+
+- **Current source branch:** `codex/swipe-group-scoring-20261124`, based on release checkpoint `4cdb018c`. The local Swipe source/test/doc changes are not yet published. The separate outer worktree still has unrelated cumulative edits; publish only from this clean nested checkout.
+- **D3-MOD-SWIPE-KAVAT-GROUP-SNAPSHOT-001 — locally implemented:** Swipe parses rank-specific +1/+2/+3/+4 additional enemies and +0.5/+1/+1.5/+2m Attack Range. For Kavat Claws, the Mod Builder saves an editable 0–4 count of additional same-profile enemies actually hit per strike. Burst and Scaling scores add the selected primary score multiplied by the follow-through sum `0.8 + 0.8² + …` up to the lesser of entered count and Swipe rank. This uses the user's approved generic Claws 0.8 value as a proxy because a Kavat-specific follow-through value is not listed. Explanations disclose the proxy, rank cap, added reach assumption, and group-only scope.
+- **Scoring limits:** the entered count assumes targets are in range and actually hit. Target geometry/spacing, selection, companion motion, and target-by-target damage differences are not simulated. The estimate does not change single-target stat panels, finite TTK, or 5s Avg DPS; Swipe is excluded from Auto Optimize for unsupported objectives or when the entered count is zero.
+- **Validation:** focused Swipe tests pass 2/2; `weaponCatalog.test.ts` passes 40/40, including all four parser ranks and Kavat-only compatibility. Seed `20261168` exhaustively checks legal two-slot, owned-rank-limited pools against optimizer results for Smeeta / Grineer at one and four added targets, Adarza / Corpus at two, and Vasca / Infested at three, for Burst and Scaling. App/test TypeScript, focused ESLint, source validation, and the mod-effect coverage audit pass. The audit reports 699 profiles, 516/600 eligible records with parsed effects, 84 without parsed effects, and 73 candidates (45 partial / 28 fully unparsed). A 993-module Vite production build passes; the existing large-chunk warning remains. The full repository suite was not run.
+- **Visual review:** I used only the in-app browser. `http://localhost/Tenno-Hub/` first refused the connection; after starting the branch Vite server on port 80, localhost and the advertised local IP timed out. No current-source rendered review is claimed. The Vite server was stopped after the attempt.
+- **Open boundaries:** the 0.8 value is a generic Claws proxy, not verified Kavat-specific follow-through; group scoring is an entered same-profile hit estimate, not a multi-target simulation. Underframe parity, live-game accuracy, full-suite validation, and rendered review remain open.
+- **Immediate next action:** complete the final diff/line-ending review and publish this branch as an isolated release. Then continue D3-MOD-AUDIT-TRIAGE-001 and representative optimizer comparisons; keep Underframe score-semantics and matched-corpus issues open.
+
+## PRIOR CONTINUATION CHECKPOINT — 2026-11-24 (Enduring Strike deployed; current-source visual review completed)
 
 - **Latest source release:** Enduring Strike PR [#393](https://github.com/Appl3Tree/Tenno-Hub/pull/393) squash-merged as `3046db03148f21293bdf2d6d1464b9cd702f7088`; Pages run [#472](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45539758590) succeeded through Build, artifact upload, artifact-index settling, and Deploy.
 - **Current checkpoint branch:** `codex/docs-enduring-strike-release-20261125` is based on the merged release commit `3046db03`; this follow-up reconciles deployment and visual evidence. The older shared worktree remains untouched.

@@ -30,6 +30,7 @@ export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nig
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
 export const STATIC_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/CorpusArena/ProvaCorpusArenaMod";
+export const SWIPE_MOD_PATH = "/Lotus/Types/Friendly/Pets/CatbrowPetPrecepts/CatbrowSwipePrecept";
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -74,6 +75,8 @@ export interface ScoringEffectContext {
     strainInfectionCystsAtImpact?: number;
     /** Current optimization objective; these snapshots are Burst-only. */
     selectedGoal?: string;
+    /** User-entered same-profile enemies actually hit per Swipe strike (0–4). */
+    selectedSwipeTargetCount?: number;
 }
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -258,6 +261,16 @@ export function getUnmodeledDamageEffectLines(
     if (mod.path === STATIC_DISCHARGE_MOD_PATH) {
         lines.push("Static Discharge's spin/overhead pulse sequence is scored only by the manual Prova cycle estimate. Standard single-attack objectives do not include its pulse history, and Auto Optimize skips the mod. The cycle assumes the target stays within 4m of the player, counts first-animation pulses at 0.2s intervals, and does not model nearby enemies or proc history. Wiki: https://wiki.warframe.com/w/Static_Discharge");
     }
+    if (mod.path === SWIPE_MOD_PATH) {
+        const selectedTargets = Number.isFinite(context?.selectedSwipeTargetCount)
+            ? Math.max(0, Math.min(4, Math.floor(context?.selectedSwipeTargetCount ?? 0)))
+            : 0;
+        const supportedGroupScore = (context?.selectedGoal === "burst" || context?.selectedGoal === "scaling") &&
+            selectedTargets > 0;
+        if (!supportedGroupScore) {
+            lines.push("Swipe's rank grants +1–4 additional enemies per Kavat Claw strike and +0.5–2m Attack Range. The planner scores an entered group-hit estimate for Burst or Scaling only; without a positive target count or for other objectives, the effect is unscored and Auto Optimize skips it. Target spacing, target selection, and companion movement are not simulated. Wiki: https://wiki.warframe.com/w/Swipe");
+        }
+    }
     if (mod.path === STRAIN_FEVER_MOD_PATH) {
         const hasSupportedWeapon = context?.selectedWeaponName === "Helminth Claws";
         const hasBurstSnapshot = context?.selectedGoal === "burst" && Number.isFinite(context?.strainInfectionCystsAtImpact) &&
@@ -318,6 +331,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     path?: string;
     unparsedStatsByRank?: string[][];
 }): string | undefined {
+    if (mod.path === SWIPE_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Swipe";
+    }
     if (mod.path === "/Lotus/Upgrades/Mods/Melee/Channel/ChannelStatusMod") {
         return "https://wiki.warframe.com/w/Enduring_Strike";
     }
@@ -425,6 +441,7 @@ export function emptyEffect(): ModEffect {
         nightwatchNapalmEffect: 0,
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
+        swipeAdditionalEnemyCount: 0, swipeAttackRangeBonusMeters: 0,
         headshotMultiplierBonus: 0, bodyshotDamageBonus: 0, weakPointDamageBonus: 0, weakPointCritChanceBonus: 0,
         comboDurationBonus: 0, comboDurationBaseBonus: 0, initialComboBonus: 0, comboCountChanceBonus: 0,
         liftedComboCountChanceBonus: 0,

@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, VILE_DISCHARGE_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -320,6 +320,8 @@ export interface TargetProfileOverride {
     nearbyGasOuterEnemyCount?: number;
     /** Additional same-profile enemies assumed to be inside Blast's 5m radial. */
     nearbyBlastEnemyCount?: number;
+    /** Additional same-profile Kavat targets actually hit per Swipe strike (0–4). */
+    nearbySwipeTargetCount?: number;
     statusImmuneTypes?: Iterable<typeof PROC_DAMAGE_KEYS[number]>;
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
     headshotMultiplier?: number;
@@ -787,6 +789,20 @@ function expectedStacksAffectingTarget(
 
 function normalizeNearbyEnemyCount(value?: number): number {
     return Number.isFinite(value) ? Math.max(0, Math.min(20, Math.floor(value ?? 0))) : 0;
+}
+
+function normalizeSwipeTargetCount(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(4, Math.floor(value ?? 0))) : 0;
+}
+
+const SWIPE_CLAW_FOLLOW_THROUGH_PROXY = 0.8;
+
+function swipeAdditionalTargetDamageFactor(additionalTargets: number): number {
+    let factor = 0;
+    for (let targetIndex = 1; targetIndex <= additionalTargets; targetIndex++) {
+        factor += SWIPE_CLAW_FOLLOW_THROUGH_PROXY ** targetIndex;
+    }
+    return factor;
 }
 
 function poissonProbabilityAtLeast(mean: number, threshold: number): number {
@@ -1296,6 +1312,25 @@ function scoreEffectsCore(
         }
     }
 
+    // Swipe permits Kavat Claws to hit additional targets. Kavat-specific
+    // follow-through is not published, so this group-only estimate uses the
+    // Wiki's generic Claws value (0.8) and leaves primary-target TTK unchanged.
+    if ((goal === "burst" || goal === "scaling") && weapon.tags.includes("KAVAT_WEAPON")) {
+        const swipeRankTargetCap = effects.reduce((maximum, effect) => Math.max(
+            maximum,
+            Number.isFinite(effect?.swipeAdditionalEnemyCount)
+                ? Math.max(0, Math.floor(effect?.swipeAdditionalEnemyCount ?? 0))
+                : 0,
+        ), 0);
+        const additionalTargets = Math.min(
+            swipeRankTargetCap,
+            normalizeSwipeTargetCount(targetProfileOverride?.nearbySwipeTargetCount),
+        );
+        if (additionalTargets > 0 && primaryScore > 0) {
+            score += primaryScore * swipeAdditionalTargetDamageFactor(additionalTargets);
+        }
+    }
+
     return {
         score: Number.isFinite(score) ? score : 0,
         primaryScore: Number.isFinite(primaryScore) ? primaryScore : 0,
@@ -1658,6 +1693,9 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
         targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
         strainInfectionCystsAtImpact: opts.conditionalState?.strainInfectionCystsAtImpact,
+        selectedSwipeTargetCount: weapon.tags.includes("KAVAT_WEAPON")
+            ? normalizeSwipeTargetCount(opts.targetProfileOverride?.nearbySwipeTargetCount)
+            : 0,
         selectedGoal: goal,
     };
     const precisionStrikeCanScore = goal === "scaling" || goal === "timeToKill" || goal === "windowDps";
@@ -3075,6 +3113,7 @@ function singleTargetProfileForFixedWindow(
         nearbyEnemyCount: 0,
         nearbyGasOuterEnemyCount: 0,
         nearbyBlastEnemyCount: 0,
+        nearbySwipeTargetCount: 0,
     };
 }
 
@@ -5631,6 +5670,12 @@ function summarizeEffectStats(effect: Partial<ModEffect>): string[] {
     addPercent("fireRateBonus", "Fire Rate");
     addPercent("chargeRateBonus", "Charge Rate on eligible charged attacks");
     addPercent("attackSpeedBonus", "Melee Attack Speed");
+    if (value("swipeAdditionalEnemyCount") > 0) {
+        parts.push(`up to ${formatExplanationNumber(value("swipeAdditionalEnemyCount"), 0)} additional targets per Kavat Claw strike`);
+    }
+    if (value("swipeAttackRangeBonusMeters") > 0) {
+        parts.push(`+${formatExplanationNumber(value("swipeAttackRangeBonusMeters"))}m Kavat Claw reach`);
+    }
     addPercent("magazineBonus", "magazine capacity");
     if (value("magazineCapacityFlatBonus") !== 0) {
         const flatMagazineCapacity = value("magazineCapacityFlatBonus");
@@ -5863,6 +5908,30 @@ export function explainBuild(
     const selectedStats = calculateBuild(scoringWeapon, selectedEffects, targetFaction, statsOptions).modded;
     const changed = (before: number, after: number) => Math.abs(before - after) > 1e-9;
     const buildHighlights: string[] = [];
+    const selectedSwipeModIndex = chosenMods.findIndex((mod) => mod.path === SWIPE_MOD_PATH);
+    const selectedSwipeEffect = selectedSwipeModIndex >= 0
+        ? chosenMods[selectedSwipeModIndex]?.effectsByRank[fullRanks[selectedSwipeModIndex] ?? 0]
+        : undefined;
+    const configuredSwipeTargets = scoringWeapon.tags.includes("KAVAT_WEAPON")
+        ? normalizeSwipeTargetCount(targetProfileOverride?.nearbySwipeTargetCount)
+        : 0;
+    const selectedSwipeTargetCap = Math.max(0, Math.floor(selectedSwipeEffect?.swipeAdditionalEnemyCount ?? 0));
+    const modeledSwipeTargets = Math.min(configuredSwipeTargets, selectedSwipeTargetCap);
+    const swipeGroupScoreActive = selectedSwipeEffect !== undefined && modeledSwipeTargets > 0 &&
+        (goal === "burst" || goal === "scaling");
+    if (selectedSwipeEffect) {
+        if (swipeGroupScoreActive) {
+            const groupEquivalent = 1 + swipeAdditionalTargetDamageFactor(modeledSwipeTargets);
+            const rangeBonus = Math.max(0, selectedSwipeEffect.swipeAttackRangeBonusMeters ?? 0);
+            buildHighlights.push(
+                `Swipe group estimate includes ${modeledSwipeTargets} additional same-profile target${modeledSwipeTargets === 1 ? "" : "s"} per strike (entered ${configuredSwipeTargets}; rank cap ${selectedSwipeTargetCap}) and uses 0.8 follow-through for each successive target, about ${formatExplanationNumber(groupEquivalent, 2)} primary-target equivalents in total. The entered count assumes targets are within Swipe's +${formatExplanationNumber(rangeBonus)}m reach; spacing, target selection, and companion movement are not simulated. This affects Burst/Scaling optimizer scores only; single-target stats, finite TTK, and 5s Avg DPS do not include it. Wiki: https://wiki.warframe.com/w/Swipe and https://wiki.warframe.com/w/Blocking#Follow_Through`,
+            );
+        } else {
+            buildHighlights.push(
+                "Swipe adds rank-based Kavat Claw range and multi-target hits, but this objective has no supported Swipe group score. Auto Optimize excludes Swipe here; finite TTK and 5s Avg DPS remain single-target.",
+            );
+        }
+    }
     if (goal === "tennokaiDps") {
         const attackPair = findSupportedTennokaiAttackPair(scoringWeapon);
         if (attackPair) {
@@ -6066,16 +6135,24 @@ export function explainBuild(
             targetProfileOverride?.nearbyEnemyCount,
             targetProfileOverride?.nearbyGasOuterEnemyCount,
         );
-    const targetDetail = goal === "windowDps" && targetProfileOverride
+    const hasExplicitTargetPools = !!targetProfileOverride && [
+        targetProfileOverride.health,
+        targetProfileOverride.shields,
+        targetProfileOverride.overguard,
+        targetProfileOverride.armor,
+    ].some((value) => Number.isFinite(value));
+    const targetDetail = goal === "windowDps" && hasExplicitTargetPools
         ? " using the entered target pools; only damage applied to this target is scored, with neighbor collateral excluded"
-        : goal === "vileDischargeDps" && targetProfileOverride
+        : goal === "vileDischargeDps" && hasExplicitTargetPools
             ? ` using the entered target pools and defenses; four rank-cap cycles repeat the same profile after kills, with the explosion centered on the selected target${nearbyEnemyCount > 0 ? ` and ${nearbyEnemyCount} same-profile neighbors in 0–3m` : ""}${nearbyGasOuterEnemyCount > 0 ? ` and ${nearbyGasOuterEnemyCount} same-profile neighbors in 3–6m` : ""}`
-        : goal === "tennokaiDps" && targetProfileOverride
+        : goal === "tennokaiDps" && hasExplicitTargetPools
             ? " using the entered target pools and defenses; the same target profile repeats after direct or Bleed-tick kills, with adjacent targets excluded"
-        : goal !== "meleeDps" && targetProfileOverride
+        : goal !== "meleeDps" && hasExplicitTargetPools
             ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}`
         : "";
-    const scoreLabel = goal === "timeToKill"
+    const scoreLabel = swipeGroupScoreActive
+        ? "Swipe group score estimate"
+        : goal === "timeToKill"
         ? "Screening proxy score"
         : goal === "windowDps" ? "Exact 5-second damage rate"
         : goal === "meleeDps" ? "Raw stance DPS estimate"

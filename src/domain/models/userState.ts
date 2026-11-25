@@ -213,6 +213,8 @@ export interface SavedBuildTargetConfig {
     nearbyGasOuterEnemyCount?: number;
     /** Same-profile enemies assumed to be within Blast's 5m cap/death radial. */
     nearbyBlastEnemyCount?: number;
+    /** Additional same-profile Kavat targets actually hit per Swipe strike (0–4). */
+    nearbySwipeTargetCount?: number;
     statusImmunities: string[];
 }
 

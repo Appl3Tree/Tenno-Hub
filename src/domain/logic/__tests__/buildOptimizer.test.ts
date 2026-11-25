@@ -12702,6 +12702,233 @@ describe("Strain Fever optimizer scope", () => {
     });
 });
 
+describe("Swipe group scoring", () => {
+    it("scores rank-capped extra Kavat targets with the disclosed claw follow-through proxy only for Burst and Scaling", () => {
+        const smeeta = getWeaponCatalog().find((weapon) => weapon.name === "Smeeta Claws")!;
+        const swipe = getModsForWeapon(smeeta).find((mod) => mod.name === "Swipe")!;
+        const targetWith = (nearbySwipeTargetCount: number) => ({ nearbySwipeTargetCount });
+        const baseline = debugScoreBuild(smeeta, [], "burst", "Grineer");
+
+        expect(debugScoreBuild(smeeta, [swipe.effectsByRank[3]], "burst", "Grineer", null, targetWith(0)))
+            .toBeCloseTo(baseline, 9);
+        expect(debugScoreBuild(smeeta, [swipe.effectsByRank[0]], "burst", "Grineer", null, targetWith(4)))
+            .toBeCloseTo(baseline * 1.8, 8);
+        expect(debugScoreBuild(smeeta, [swipe.effectsByRank[3]], "burst", "Grineer", null, targetWith(2)))
+            .toBeCloseTo(baseline * 2.44, 8);
+        expect(debugScoreBuild(smeeta, [swipe.effectsByRank[3]], "scaling", "Grineer", null, targetWith(4)))
+            .toBeCloseTo(debugScoreBuild(smeeta, [], "scaling", "Grineer") * 3.3616, 7);
+
+        const finiteTarget = targetWith(4);
+        expect(debugScoreBuild(smeeta, [swipe.effectsByRank[3]], "timeToKill", "Grineer", null, finiteTarget))
+            .toBeCloseTo(debugScoreBuild(smeeta, [], "timeToKill", "Grineer", null, finiteTarget), 9);
+        expect(debugScoreBuild(smeeta, [swipe.effectsByRank[3]], "windowDps", "Grineer", null, finiteTarget))
+            .toBeCloseTo(debugScoreBuild(smeeta, [], "windowDps", "Grineer", null, finiteTarget), 9);
+
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            targetProfileOverride: finiteTarget,
+        };
+        expect(optimizeBuild(smeeta, [swipe], "burst", 1, {
+            ...options,
+            targetProfileOverride: targetWith(0),
+        }).slots.some((mod) => mod?.name === "Swipe")).toBe(false);
+        const supported = optimizeBuild(smeeta, [swipe], "burst", 1, options);
+        expect(supported.slots.some((mod) => mod?.name === "Swipe")).toBe(true);
+        expect(optimizeBuild(smeeta, [swipe], "scaling", 1, options).slots.some((mod) => mod?.name === "Swipe")).toBe(true);
+        expect(optimizeBuild(smeeta, [swipe], "timeToKill", 1, options).slots.some((mod) => mod?.name === "Swipe")).toBe(false);
+        expect(optimizeBuild(smeeta, [swipe], "windowDps", 1, options).slots.some((mod) => mod?.name === "Swipe")).toBe(false);
+
+        expect(getUnmodeledDamageEffectLines(swipe, swipe.fusionLimit).join(" ")).toContain("entered group-hit estimate");
+        expect(getUnmodeledDamageEffectLines(swipe, swipe.fusionLimit, {
+            selectedGoal: "burst",
+            selectedSwipeTargetCount: 2,
+        })).toEqual([]);
+        expect(getUnmodeledDamageEffectLines(swipe, swipe.fusionLimit, {
+            selectedGoal: "timeToKill",
+            selectedSwipeTargetCount: 2,
+        }).join(" ")).toContain("Auto Optimize skips it");
+
+        const explanation = explainBuild(
+            smeeta,
+            [swipe],
+            [3],
+            "burst",
+            "",
+            undefined,
+            undefined,
+            targetWith(2),
+        );
+        expect(explanation.summary).toContain("Swipe group score estimate");
+        expect(explanation.buildHighlights.join(" ")).toContain("about 2.44 primary-target equivalents");
+        expect(explanation.summary).not.toContain("using the entered current-level pool");
+    });
+});
+
+describe("seeded Swipe group optimizer oracle", () => {
+    it("matches exact two-slot rank-limited winners across Kavat claws and entered group sizes", { timeout: 120_000 }, () => {
+        let seed = 20261168;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+            }
+            return result;
+        };
+        const scenarios = [
+            { weaponName: "Smeeta Claws", faction: "Grineer", targetCount: 1 },
+            { weaponName: "Adarza Claws", faction: "Corpus", targetCount: 2 },
+            { weaponName: "Vasca Claws", faction: "Infested", targetCount: 3 },
+            { weaponName: "Smeeta Claws", faction: "Grineer", targetCount: 4 },
+        ];
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeTruthy();
+            expect(weapon!.tags).toContain("KAVAT_WEAPON");
+            const swipe = getModsForWeapon(weapon!).find((mod) => mod.name === "Swipe");
+            expect(swipe, `${scenario.weaponName} Swipe`).toBeDefined();
+            const scoringWeapon = weapon!;
+            const targetProfileOverride = { nearbySwipeTargetCount: scenario.targetCount };
+            const conditionalState: ConditionalState = { mode: "realistic" };
+            const scoringContext = {
+                selectedAttackName: scoringWeapon.selectedAttackName,
+                selectedAttackTrigger: scoringWeapon.trigger,
+                selectedAttackIsAreaDamage: scoringWeapon.selectedAttackIsAreaDamage,
+                targetFaction: scenario.faction,
+                targetHasOverguard: false,
+                selectedWeaponName: scoringWeapon.name,
+                selectedSwipeTargetCount: scenario.targetCount,
+            };
+            const fullyModeledPool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(weapon!))
+                    .filter((mod) => mod.uniqueName !== swipe!.uniqueName && mod.isPveEligible !== false && mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        (["burst", "scaling"] as const).every((selectedGoal) =>
+                            getUnmodeledDamageEffectLines(mod, rank, { ...scoringContext, selectedGoal }).length === 0
+                        ) && getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const candidates = [swipe!, ...shuffled(fullyModeledPool).slice(0, 3)];
+            expect(candidates.length, `${scenario.weaponName} sampled-pool size`).toBe(4);
+            const ownedModMaxRankByUniqueName = Object.fromEntries(candidates.map((mod) => [
+                mod.uniqueName,
+                Math.floor(random() * (Math.min(2, mod.fusionLimit) + 1)),
+            ]));
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const slotCount = 2;
+            const slotPolarities = weapon!.polarities.slice(0, slotCount);
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: weapon!.canOverLevel,
+            };
+            let legalRankedLoadoutCount = 0;
+            let maximumLegalSlotCount = 0;
+            const bestScores = { burst: 0, scaling: 0 };
+            const score = (goal: "burst" | "scaling", effects: (ModEffect | null)[]) =>
+                debugScoreBuild(
+                    scoringWeapon,
+                    effects,
+                    goal,
+                    scenario.faction,
+                    null,
+                    targetProfileOverride,
+                    conditionalState,
+                );
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const maxRank = ownedModMaxRankByUniqueName[ordered[index]!.uniqueName]!;
+                    for (let rank = 0; rank <= maxRank; rank++) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, 0);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+                legalRankedLoadoutCount++;
+                maximumLegalSlotCount = Math.max(maximumLegalSlotCount, ordered.length);
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScores.burst = Math.max(bestScores.burst, score("burst", effects));
+                bestScores.scaling = Math.max(bestScores.scaling, score("scaling", effects));
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index]!;
+                    if (ordered.some((mod) =>
+                        mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                    )) continue;
+                    enumerate(
+                        [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                        [...ordered, candidate],
+                    );
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `${scenario.weaponName} seed ${scenarioIndex} legal ranked loadouts`).toBeGreaterThan(0);
+            expect(maximumLegalSlotCount, `${scenario.weaponName} seed ${scenarioIndex} two-mod loadout`).toBe(slotCount);
+
+            for (const goal of ["burst", "scaling"] as const) {
+                const result = optimizeBuild(weapon!, candidates, goal, slotCount, {
+                    targetFaction: scenario.faction,
+                    conditionalState,
+                    targetProfileOverride,
+                    capacityConfig,
+                    slotPolarities,
+                    defaultSlotPolarities: slotPolarities,
+                    allowForma: false,
+                    allowNonMaxRank: true,
+                    ownedModUniqueNames,
+                    ownedModMaxRankByUniqueName,
+                    optimizeExilus: false,
+                    optimizeArcane: false,
+                });
+                const resultEffects = result.slots.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = result.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                const optimizedScore = score(goal, resultEffects);
+                expect(result.capacityValid, `${scenario.weaponName} seed ${scenarioIndex} ${goal} capacity`).toBe(true);
+                for (const [slotIndex, mod] of result.slots.entries()) {
+                    if (!mod) continue;
+                    expect(result.slotRanks[slotIndex], `${scenario.weaponName} seed ${scenarioIndex} ${goal} owned rank`)
+                        .toBeLessThanOrEqual(ownedModMaxRankByUniqueName[mod.uniqueName]!);
+                }
+                expect(optimizedScore, `${scenario.weaponName} seed ${scenarioIndex} exact ${goal} score`)
+                    .toBeCloseTo(bestScores[goal], 8);
+            }
+        }
+    });
+});
+
 describe("Static Discharge optimizer scope", () => {
     it("keeps the mod out of standard Auto Optimize while the manual cycle report is available", () => {
         const prova = getWeaponCatalog().find((weapon) => weapon.name === "Prova")!;
