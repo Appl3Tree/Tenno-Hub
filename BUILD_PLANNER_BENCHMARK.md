@@ -1,4 +1,4 @@
-## D3-MOD-GUARDIAN-DERISION-BLOCK-COMBO-SNAPSHOT-001 — local blocking-combo estimate (2026-11-25; visual review and release open)
+## D3-MOD-GUARDIAN-DERISION-BLOCK-COMBO-SNAPSHOT-001 — blocking-combo estimate (released in PR #397 / Pages run #476; visual review open)
 
 The current [Guardian Derision Wiki page](https://wiki.warframe.com/w/Guardian_Derision) lists a rank-scaled Combo Count Chance bonus while blocking, reaching +30% at max rank. The [Melee Combo page](https://wiki.warframe.com/w/Combo_Counter) says every successfully blocked enemy attack adds one combo point, and Additional Combo Count Chance can award a further point on block. The catalog parser recognizes the block-only stat and its six values: +5%, +10%, +15%, +20%, +25%, and +30%.
 
@@ -8,7 +8,7 @@ This is a manual event-count snapshot, not an incoming-attack simulator. It assu
 
 Regressions verify all six parsed values, that block points increase later combo tier without changing the Tennokai opportunity share, that Guardian Derision is optimizer-eligible only with the active objective and positive assumption, and that seeded exact two-slot optimizer winners match across four weapon/faction profiles. Seed 20261169 varies cadence, block count, and owned rank caps through R0–R2. The timeline test file passes 24/24; the Guardian seeded oracle passes 1/1; the app/test TypeScript build and 993-module Vite production build pass. Focused ESLint, source validation, and the coverage audit pass. The refreshed audit reports 699 profiles, 517/600 parsed mod records, 83 without parsed effects, and 73 conservative candidates (46 partial / 27 fully unparsed). The full repository suite was not rerun.
 
-Current-source rendered review remains open because the in-app browser was stopped before a page rendered. The change is local to codex/d3-mod-audit-triage-20261125 and is not yet released.
+PR [#397](https://github.com/Appl3Tree/Tenno-Hub/pull/397) squash-merged as 805a6f5aa5889271bb75c1ee96dc2d75712c1e91, and Pages run [#476](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45646473719) succeeded. Current-source rendered review remains open because the in-app browser was stopped before a page rendered; deployment success does not prove the control or explanation render correctly.
 
 
 ## D3-OPT-SEEDED-BURST-SCALING-ORACLE-001 — rank-limited Burst and Scaling sample (2026-11-23; bounded)
