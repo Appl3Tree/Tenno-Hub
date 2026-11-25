@@ -56,6 +56,8 @@ export interface ScoringEffectContext {
     targetFaction?: string;
     /** Whether the scored attack begins against a target with an Overguard pool. */
     targetHasOverguard?: boolean;
+    /** Whether the selected target begins with Shields, which this bounded on-kill check does not sequence. */
+    targetHasShields?: boolean;
     /** Whether the selected melee attack is a Slam, which Sentient Incision excludes. */
     selectedAttackUsesSlamDamageBonus?: boolean;
     /** Selected weapon name for weapon-specific snapshot rules. */
@@ -82,8 +84,34 @@ export interface ScoringEffectContext {
     selectedGoal?: string;
     /** User-entered same-profile enemies actually hit per Swipe strike (0–4). */
     selectedSwipeTargetCount?: number;
+    /** Additional same-profile targets represented by the Vulcan Blitz Burst estimate. */
+    selectedVulcanBlitzEnemyCount?: number;
+    /** Mean center-to-center distance for Vulcan Blitz neighbors, in meters. */
+    selectedVulcanBlitzAverageDistanceMeters?: number;
     /** Successful enemy attacks assumed blocked per Tennokai attack cycle. */
     selectedTennokaiBlockedHitsBetweenHeavy?: number;
+}
+
+export function isVulcanBlitzBurstContextSupported(
+    effect: Partial<ModEffect>,
+    context?: ScoringEffectContext,
+): boolean {
+    const enemyCount = Number.isFinite(context?.selectedVulcanBlitzEnemyCount)
+        ? Math.max(0, Math.min(20, Math.floor(context?.selectedVulcanBlitzEnemyCount ?? 0)))
+        : 0;
+    const averageDistance = Number.isFinite(context?.selectedVulcanBlitzAverageDistanceMeters)
+        ? Math.max(0, Math.min(6, context?.selectedVulcanBlitzAverageDistanceMeters ?? 0))
+        : Number.POSITIVE_INFINITY;
+    const radius = Number.isFinite(effect.vulcanBlitzRadiusMeters)
+        ? Math.max(0, effect.vulcanBlitzRadiusMeters ?? 0)
+        : 0;
+    return context?.selectedWeaponName === "Jat Kittag" &&
+        context.selectedAttackName === "Normal Attack" &&
+        context.selectedAttackIsAreaDamage === false &&
+        context.targetHasOverguard !== true &&
+        context.targetHasShields !== true &&
+        context.selectedGoal === "burst" &&
+        enemyCount > 0 && radius > 0 && averageDistance < radius;
 }
 
 const UNSCORED_HIT_LOCATION_EFFECTS = [
@@ -181,7 +209,17 @@ export function getUnmodeledDamageEffectLines(
         lines.push("Combustion Beam's delayed on-kill Blast explosion is not scored; its radius/falloff and line-of-sight rules, damage attribution/scaling, and chain behavior are not modeled, so Auto Optimize skips this mod.");
     }
     if (mod.path === VULCAN_BLITZ_MOD_PATH) {
-        lines.push("Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.");
+        const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
+        const supportedBurstContext = isVulcanBlitzBurstContextSupported(effect, context);
+        const neighborCount = Number.isFinite(context?.selectedVulcanBlitzEnemyCount)
+            ? Math.max(0, Math.min(20, Math.floor(context?.selectedVulcanBlitzEnemyCount ?? 0)))
+            : 0;
+        const averageDistance = Number.isFinite(context?.selectedVulcanBlitzAverageDistanceMeters)
+            ? Math.max(0, Math.min(6, context?.selectedVulcanBlitzAverageDistanceMeters ?? 0))
+            : 0;
+        lines.push(supportedBurstContext
+            ? `Vulcan Blitz's bounded Burst group estimate treats each scored Jat Kittag Normal Attack event as a fresh same-profile health-only primary that the average direct hit kills, then scores one on-death Blast against ${neighborCount} same-profile neighbor${neighborCount === 1 ? "" : "s"} at an entered mean distance of ${averageDistance.toFixed(1)}m. It uses linear 100%–0% falloff, assumes line of sight, treats starting Health as Max Health, and excludes stealth's 8× bonus, neighbor depletion, and recursive explosion kills. Targets with Shields or Overguard are excluded because this estimate does not sequence those pools or Shield Gate. Scaling, finite TTK, and 5s Avg DPS remain single-target. Wiki: https://wiki.warframe.com/w/Vulcan_Blitz`
+            : "Vulcan Blitz is modeled only for Jat Kittag Normal Attack Burst against a health-only target with an entered same-profile neighbor count and mean distance inside the selected rank radius. The estimate requires each scored attack event to kill one fresh primary target with its average direct hit, then scores one Blast explosion with linear falloff and line of sight; starting Health stands in for Max Health, stealth's 8× bonus, neighbor depletion, and recursive explosion kills are excluded, and targets with Shields or Overguard are skipped because this estimate does not sequence those pools or Shield Gate. Scaling/finite TTK/5s Avg DPS remain single-target. Outside that snapshot, Auto Optimize skips this mod. Wiki: https://wiki.warframe.com/w/Vulcan_Blitz");
     }
     if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
         lines.push("Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled Blast explosion combines flat damage with a percentage of enemy Max Health, reaches the selected rank’s radius, and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.");
@@ -366,6 +404,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === SWIPE_MOD_PATH) {
         return "https://wiki.warframe.com/w/Swipe";
     }
+    if (mod.path === VULCAN_BLITZ_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Vulcan_Blitz";
+    }
     if (mod.path === "/Lotus/Upgrades/Mods/Melee/Channel/ChannelStatusMod") {
         return "https://wiki.warframe.com/w/Enduring_Strike";
     }
@@ -455,7 +496,8 @@ export function emptyEffect(): ModEffect {
         forcedImpactProcsPerMeleeHit: 0,
         knockdownOnMeleeHit: false,
         heatBonus: 0, coldBonus: 0, electricityBonus: 0, toxinBonus: 0,
-        blastBonus: 0, gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
+        blastBonus: 0, vulcanBlitzBlastDamage: 0, vulcanBlitzMaxHealthPercent: 0, vulcanBlitzRadiusMeters: 0,
+        gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
         voidBonus: 0, tauBonus: 0, trueBonus: 0,
         critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0,
