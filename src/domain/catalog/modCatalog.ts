@@ -186,6 +186,12 @@ export interface ModEffect {
     /** Per-effect order for primary element bonuses, used by custom Rivens' displayed stat order. */
     primaryElementOrder?: PrimaryDamageElement[];
     blastBonus: number;
+    /** Vulcan Blitz's flat Blast damage on a Jat Kittag kill. */
+    vulcanBlitzBlastDamage: number;
+    /** Vulcan Blitz's fraction of the killed target's max Health added as Blast damage. */
+    vulcanBlitzMaxHealthPercent: number;
+    /** Vulcan Blitz's rank-specific on-death explosion radius in meters. */
+    vulcanBlitzRadiusMeters: number;
     gasBonus: number;
     magneticBonus: number;
     viralBonus: number;
@@ -1841,16 +1847,17 @@ function buildCaches(): ModCaches {
             });
         }
         if (path === VULCAN_BLITZ_MOD_PATH) {
-            // The current Wiki rank table scales the explosion radius from 1m
-            // to 6m. The generated card description incorrectly shows 6m at
-            // every rank. Keep the kill explosion out of ordinary hit scoring.
+            // The generated card description incorrectly shows 6m at every
+            // rank. Keep the rank-specific on-death values typed so the
+            // bounded Jat Kittag Burst group estimate can use them.
             // https://wiki.warframe.com/w/Vulcan_Blitz
             VULCAN_BLITZ_WIKI_RANKS.forEach((wikiRank, rank) => {
                 if (!effectsByRank[rank]) return;
                 effectsByRank[rank] = emptyEffect();
-                unparsedStatsByRank[rank] = [
-                    `On death: ${wikiRank.blastDamage} Blast Damage + ${wikiRank.healthPercent}% of enemy max Health; ${wikiRank.radiusMeters}m radius.`,
-                ];
+                effectsByRank[rank].vulcanBlitzBlastDamage = wikiRank.blastDamage;
+                effectsByRank[rank].vulcanBlitzMaxHealthPercent = wikiRank.healthPercent / 100;
+                effectsByRank[rank].vulcanBlitzRadiusMeters = wikiRank.radiusMeters;
+                unparsedStatsByRank[rank] = [];
             });
         }
         if (path === NIGHTWATCH_NAPALM_MOD_PATH) {

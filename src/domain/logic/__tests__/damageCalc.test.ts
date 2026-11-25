@@ -779,8 +779,8 @@ describe("Tonkor bounded impact and explosion sequence", () => {
     });
 });
 
-describe("Vulcan Blitz Wiki rank radius correction and safe scoring exclusion", () => {
-    it("uses every current Wiki rank radius and leaves the on-death explosion out of damage scoring", () => {
+describe("Vulcan Blitz Wiki rank mechanics", () => {
+    it("parses every rank's Blast damage, Max Health fraction, and radius for the bounded model", () => {
         const jatKittag = getWeaponCatalog().find((weapon) => weapon.name === "Jat Kittag");
         const jatKusar = getWeaponCatalog().find((weapon) => weapon.name === "Jat Kusar");
         expect(jatKittag).toBeDefined();
@@ -797,13 +797,37 @@ describe("Vulcan Blitz Wiki rank radius correction and safe scoring exclusion", 
             "On death: 250 Blast Damage + 50% of enemy max Health; 5m radius",
             "On death: 300 Blast Damage + 60% of enemy max Health; 6m radius",
         ]);
-        expect(mod!.hasDamageEffect).toBe(false);
-        expect(mod!.effectsByRank.every((effect) => effect.damageBonus === 0 && effect.blastBonus === 0)).toBe(true);
-
-        const warning = "Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.";
-        for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
-            expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
-        }
+        expect(mod!.hasDamageEffect).toBe(true);
+        expect(mod!.effectsByRank.map((effect) => [
+            effect.vulcanBlitzBlastDamage,
+            effect.vulcanBlitzMaxHealthPercent,
+            effect.vulcanBlitzRadiusMeters,
+        ])).toEqual([
+            [50, 0.1, 1], [100, 0.2, 2], [150, 0.3, 3],
+            [200, 0.4, 4], [250, 0.5, 5], [300, 0.6, 6],
+        ]);
+        const unsupported = getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit).join(" ");
+        expect(unsupported).toContain("Auto Optimize skips this mod");
+        expect(unsupported).toContain("linear falloff and line of sight");
+        const supported = getUnmodeledDamageEffectLines(mod!, mod!.fusionLimit, {
+            selectedWeaponName: "Jat Kittag",
+            selectedAttackName: "Normal Attack",
+            selectedAttackIsAreaDamage: false,
+            selectedGoal: "burst",
+            selectedVulcanBlitzEnemyCount: 2,
+            selectedVulcanBlitzAverageDistanceMeters: 3,
+        }).join(" ");
+        expect(supported).toContain("each scored Jat Kittag Normal Attack event as a fresh same-profile health-only primary");
+        expect(supported).toContain("excludes stealth's 8× bonus, neighbor depletion, and recursive explosion kills");
+        expect(getUnmodeledDamageEffectLines(mod!, 2, {
+            selectedWeaponName: "Jat Kittag",
+            selectedAttackName: "Normal Attack",
+            selectedAttackIsAreaDamage: false,
+            selectedGoal: "burst",
+            selectedVulcanBlitzEnemyCount: 2,
+            selectedVulcanBlitzAverageDistanceMeters: 3,
+        }).join(" ")).toContain("Auto Optimize skips this mod");
+        expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe("https://wiki.warframe.com/w/Vulcan_Blitz");
         expect(getModsForWeapon(jatKusar!).some((candidate) => candidate.name === "Vulcan Blitz")).toBe(false);
     });
 });
@@ -6284,7 +6308,7 @@ describe("Battacor Alt-Fire and Sentient Barrage snapshots", () => {
         expect(sentientBarrage).toBeDefined();
         expect(sentientBarrage.effectsByRank.map((effect) => effect.sentientBarrageCritChanceAndDamageBonus))
             .toEqual([0.5, 1, 1.5, 2, 2.5, 3]);
-        expect(sentientBarrage.unparsedStatsByRank.flat().some((line) => /reaching a full charge/i.test(line)))
+        expect((sentientBarrage.unparsedStatsByRank ?? []).flat().some((line) => /reaching a full charge/i.test(line)))
             .toBe(false);
         expect(normalizeBattacorAltFireChargeCount(-1)).toBe(0);
         expect(normalizeBattacorAltFireChargeCount(1.9)).toBe(1);

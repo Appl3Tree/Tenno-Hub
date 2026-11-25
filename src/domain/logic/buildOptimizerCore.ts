@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isVulcanBlitzBurstContextSupported, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -42,6 +42,7 @@ import {
     type StatusDamageType,
 } from "./damageRuleset";
 import {
+    calculateDirectDamageToInitialPools,
     effectiveDamageProgressMultiplier,
     simulateExpectedWeaponEncounter,
     type ExpectedWeaponEncounterResult,
@@ -323,6 +324,10 @@ export interface TargetProfileOverride {
     nearbyBlastEnemyCount?: number;
     /** Additional same-profile Kavat targets actually hit per Swipe strike (0–4). */
     nearbySwipeTargetCount?: number;
+    /** Additional same-profile neighbors represented by the Vulcan Blitz Burst estimate. */
+    nearbyVulcanBlitzEnemyCount?: number;
+    /** Mean center-to-center distance for Vulcan Blitz neighbors, in meters. */
+    nearbyVulcanBlitzAverageDistanceMeters?: number;
     statusImmuneTypes?: Iterable<typeof PROC_DAMAGE_KEYS[number]>;
     statusStackCaps?: Partial<Record<StatusDamageType, number>>;
     headshotMultiplier?: number;
@@ -794,6 +799,14 @@ function normalizeNearbyEnemyCount(value?: number): number {
 
 function normalizeSwipeTargetCount(value?: number): number {
     return Number.isFinite(value) ? Math.max(0, Math.min(4, Math.floor(value ?? 0))) : 0;
+}
+
+function normalizeVulcanBlitzEnemyCount(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(20, Math.floor(value ?? 0))) : 0;
+}
+
+function normalizeVulcanBlitzAverageDistanceMeters(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(6, value ?? 0)) : 0;
 }
 
 const SWIPE_CLAW_FOLLOW_THROUGH_PROXY = 0.8;
@@ -1314,6 +1327,67 @@ function scoreEffectsCore(
         }
     }
 
+    // Vulcan Blitz is a Jat Kittag on-kill effect. In this bounded Burst
+    // context, use the average direct Normal Attack hit to decide whether the
+    // selected primary target is expected to die in one attack event. A kill
+    // produces one non-chaining explosion event; target placement is reduced
+    // to the entered neighbor count and mean distance.
+    if (goal === "burst" && weapon.name === "Jat Kittag" &&
+        weapon.selectedAttackName === "Normal Attack" && weapon.selectedAttackIsAreaDamage === false) {
+        const vulcanEffect = effects.reduce((total, effect) => ({
+            vulcanBlitzBlastDamage: total.vulcanBlitzBlastDamage + (effect?.vulcanBlitzBlastDamage ?? 0),
+            vulcanBlitzMaxHealthPercent: total.vulcanBlitzMaxHealthPercent + (effect?.vulcanBlitzMaxHealthPercent ?? 0),
+            vulcanBlitzRadiusMeters: Math.max(total.vulcanBlitzRadiusMeters, effect?.vulcanBlitzRadiusMeters ?? 0),
+        }), {
+            vulcanBlitzBlastDamage: 0,
+            vulcanBlitzMaxHealthPercent: 0,
+            vulcanBlitzRadiusMeters: 0,
+        });
+        const neighborCount = normalizeVulcanBlitzEnemyCount(targetProfileOverride?.nearbyVulcanBlitzEnemyCount);
+        const averageDistance = normalizeVulcanBlitzAverageDistanceMeters(
+            targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters,
+        );
+        const falloff = vulcanEffect.vulcanBlitzRadiusMeters > 0
+            ? Math.max(0, 1 - averageDistance / vulcanEffect.vulcanBlitzRadiusMeters)
+            : 0;
+        if (pools.shields <= 0 && pools.overguard <= 0 && neighborCount > 0 && falloff > 0 &&
+            (vulcanEffect.vulcanBlitzBlastDamage > 0 || vulcanEffect.vulcanBlitzMaxHealthPercent > 0)) {
+            const expectedPrimaryHit = calculateDirectDamageToInitialPools({
+                damageByType: modded.damageBreakdown,
+                health: pools.health,
+                shields: pools.shields,
+                overguard: pools.overguard,
+                armor: pools.armor,
+                armorDamageReductionMultiplier: (1 - modded.heatArmorStrip) * (1 - modded.corrosiveArmorStrip),
+                faction: targetFaction,
+                factionDamageBonus: modded.factionDamageBonus,
+                viralHealthDamageBonus: modded.viralHealthDamageBonus,
+                magneticDefenseDamageBonus: modded.magneticShieldDamageBonus,
+                expectedHitDamageMultiplier: critMultiplier,
+                expectedDamageMultiplier: modded.damageWeightedMultishot,
+                singleProjectileDamageBonus: modded.singleProjectileDamageBonus,
+                damageRampMultiplier,
+            });
+            if (expectedPrimaryHit.totalDamage >= poolTotal - Math.max(1e-8, poolTotal * 1e-10)) {
+                const maxHealthProxy = pools.health;
+                const rawBlastDamage = vulcanEffect.vulcanBlitzBlastDamage +
+                    maxHealthProxy * vulcanEffect.vulcanBlitzMaxHealthPercent;
+                const neighborHit = calculateDirectDamageToInitialPools({
+                    damageByType: { blast: rawBlastDamage * falloff },
+                    health: pools.health,
+                    shields: pools.shields,
+                    overguard: pools.overguard,
+                    armor: pools.armor,
+                    faction: targetFaction,
+                    factionDamageBonus: modded.factionDamageBonus,
+                    expectedHitDamageMultiplier: 1,
+                    expectedDamageMultiplier: 1,
+                });
+                score += neighborHit.totalDamage * neighborCount * modded.burstFireRate;
+            }
+        }
+    }
+
     // Swipe permits Kavat Claws to hit additional targets. Kavat-specific
     // follow-through is not published, so this group-only estimate uses the
     // Wiki's generic Claws value (0.8) and leaves primary-target TTK unchanged.
@@ -1638,9 +1712,12 @@ function getBlockingOptimizerEffectLines(
     }
     const separateRipkasShotgunEffect = mod.path === AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH &&
         context?.selectedWeaponName === "Ripkas";
+    const supportedVulcanBlitzBurst = mod.path === VULCAN_BLITZ_MOD_PATH &&
+        isVulcanBlitzBurstContextSupported(effect, context);
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
         !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
+        !(supportedVulcanBlitzBurst && mod.path === VULCAN_BLITZ_MOD_PATH) &&
         !line.includes("Guardian Derision's blocking taunt changes enemy targeting") &&
         !(context?.selectedGoal === "tennokaiDps" &&
             mod.path === "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod" &&
@@ -1690,6 +1767,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
         targetFaction,
         targetHasOverguard: scoringTargetAssumptions.overguard > 0,
+        targetHasShields: scoringTargetAssumptions.shields > 0,
         selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
         selectedWeaponName: weapon.name,
         selectedAttackHeadshotRate: scoringTargetAssumptions.headshotHitRate,
@@ -1706,6 +1784,12 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         selectedTennokaiBlockedHitsBetweenHeavy: opts.conditionalState?.tennokaiBlockedHitsBetweenHeavy ?? 0,
         selectedSwipeTargetCount: weapon.tags.includes("KAVAT_WEAPON")
             ? normalizeSwipeTargetCount(opts.targetProfileOverride?.nearbySwipeTargetCount)
+            : 0,
+        selectedVulcanBlitzEnemyCount: weapon.name === "Jat Kittag"
+            ? normalizeVulcanBlitzEnemyCount(opts.targetProfileOverride?.nearbyVulcanBlitzEnemyCount)
+            : 0,
+        selectedVulcanBlitzAverageDistanceMeters: weapon.name === "Jat Kittag"
+            ? normalizeVulcanBlitzAverageDistanceMeters(opts.targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters)
             : 0,
         selectedGoal: goal,
     };
@@ -5960,6 +6044,41 @@ export function explainBuild(
             );
         }
     }
+    const selectedVulcanBlitzModIndex = chosenMods.findIndex((mod) => mod.path === VULCAN_BLITZ_MOD_PATH);
+    const selectedVulcanBlitzEffect = selectedVulcanBlitzModIndex >= 0
+        ? chosenMods[selectedVulcanBlitzModIndex]?.effectsByRank[fullRanks[selectedVulcanBlitzModIndex] ?? 0]
+        : undefined;
+    const configuredVulcanBlitzNeighbors = scoringWeapon.name === "Jat Kittag"
+        ? normalizeVulcanBlitzEnemyCount(targetProfileOverride?.nearbyVulcanBlitzEnemyCount)
+        : 0;
+    const configuredVulcanBlitzDistance = normalizeVulcanBlitzAverageDistanceMeters(
+        targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters,
+    );
+    const vulcanBlitzContext = {
+        selectedWeaponName: scoringWeapon.name,
+        selectedAttackName: scoringWeapon.selectedAttackName,
+        selectedAttackIsAreaDamage: scoringWeapon.selectedAttackIsAreaDamage,
+        selectedGoal: goal,
+        targetHasOverguard: targetAssumptions.overguard > 0,
+        targetHasShields: targetAssumptions.shields > 0,
+        selectedVulcanBlitzEnemyCount: configuredVulcanBlitzNeighbors,
+        selectedVulcanBlitzAverageDistanceMeters: configuredVulcanBlitzDistance,
+    };
+    const vulcanBlitzGroupScoreActive = selectedVulcanBlitzEffect !== undefined &&
+        isVulcanBlitzBurstContextSupported(selectedVulcanBlitzEffect, vulcanBlitzContext);
+    if (selectedVulcanBlitzEffect) {
+        if (vulcanBlitzGroupScoreActive) {
+            const radius = Math.max(0, selectedVulcanBlitzEffect.vulcanBlitzRadiusMeters ?? 0);
+            const falloff = radius > 0 ? Math.max(0, 1 - configuredVulcanBlitzDistance / radius) : 0;
+            buildHighlights.push(
+                `Vulcan Blitz Burst group estimate treats each scored Normal Attack event as a fresh same-profile health-only primary target that the expected direct hit kills. It adds one flat ${formatExplanationNumber(selectedVulcanBlitzEffect.vulcanBlitzBlastDamage ?? 0, 0)} Blast plus ${formatExplanationPercent(selectedVulcanBlitzEffect.vulcanBlitzMaxHealthPercent ?? 0)} of that target's starting Health as a Max Health proxy to ${configuredVulcanBlitzNeighbors} neighbors at a mean ${configuredVulcanBlitzDistance.toFixed(1)}m distance (${formatExplanationPercent(falloff)} falloff within the selected ${formatExplanationNumber(radius, 1)}m rank radius). Same-profile defenses and line of sight are assumed; Shields/Overguard and Shield Gate are not sequenced, neighbor depletion and explosion kills do not chain, stealth's 8× bonus is excluded, and Scaling/finite TTK/5s Avg DPS remain single-target. Wiki: https://wiki.warframe.com/w/Vulcan_Blitz`,
+            );
+        } else {
+            buildHighlights.push(
+                "Vulcan Blitz contributes only to Jat Kittag Normal Attack Burst with at least one same-profile neighbor inside the selected rank radius. The estimate requires an expected direct one-hit kill, assumes line of sight and starting Health as Max Health, and excludes recursive explosion kills and stealth's 8× bonus. Auto Optimize skips the mod outside this snapshot; Scaling, finite TTK, and 5s Avg DPS remain single-target.",
+            );
+        }
+    }
     if (goal === "tennokaiDps") {
         const attackPair = findSupportedTennokaiAttackPair(scoringWeapon);
         if (attackPair) {
@@ -6094,6 +6213,7 @@ export function explainBuild(
             selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
             targetFaction,
             targetHasOverguard: targetAssumptions.overguard > 0,
+            targetHasShields: targetAssumptions.shields > 0,
             selectedAttackUsesSlamDamageBonus: weapon.selectedAttackUsesSlamDamageBonus === true,
             selectedWeaponName: weapon.name,
             selectedAttackHeadshotRate: targetAssumptions.headshotHitRate,
@@ -6106,6 +6226,12 @@ export function explainBuild(
             targetHasLiftedStatus: normalizeExternalStatusTypes(conditionalState?.externalStatusTypes).includes("lifted"),
             strainInfectionCystsAtImpact: conditionalState?.strainInfectionCystsAtImpact,
             selectedTennokaiBlockedHitsBetweenHeavy: conditionalState?.tennokaiBlockedHitsBetweenHeavy ?? 0,
+            selectedVulcanBlitzEnemyCount: weapon.name === "Jat Kittag"
+                ? normalizeVulcanBlitzEnemyCount(targetProfileOverride?.nearbyVulcanBlitzEnemyCount)
+                : 0,
+            selectedVulcanBlitzAverageDistanceMeters: weapon.name === "Jat Kittag"
+                ? normalizeVulcanBlitzAverageDistanceMeters(targetProfileOverride?.nearbyVulcanBlitzAverageDistanceMeters)
+                : 0,
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
@@ -6183,10 +6309,10 @@ export function explainBuild(
         : goal === "tennokaiDps" && hasExplicitTargetPools
             ? " using the entered target pools and defenses; the same target profile repeats after direct or Bleed-tick kills, with adjacent targets excluded"
         : goal !== "meleeDps" && hasExplicitTargetPools
-            ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}`
+            ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}${vulcanBlitzGroupScoreActive ? ` plus ${configuredVulcanBlitzNeighbors} Vulcan Blitz neighbor${configuredVulcanBlitzNeighbors === 1 ? "" : "s"} at a mean ${configuredVulcanBlitzDistance.toFixed(1)}m` : ""}`
         : "";
-    const scoreLabel = swipeGroupScoreActive
-        ? "Swipe group score estimate"
+    const scoreLabel = swipeGroupScoreActive || vulcanBlitzGroupScoreActive
+        ? `${swipeGroupScoreActive && vulcanBlitzGroupScoreActive ? "Swipe and Vulcan Blitz group score estimates" : swipeGroupScoreActive ? "Swipe group score estimate" : "Vulcan Blitz group score estimate"}`
         : goal === "timeToKill"
         ? "Screening proxy score"
         : goal === "windowDps" ? "Exact 5-second damage rate"

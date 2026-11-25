@@ -3039,17 +3039,82 @@ describe("build optimizer scoring", () => {
         expect(optimizeBuild(burstonPrime!, [gildedTruth!], "burst", 1, { allowForma: false }).slots).toEqual([null]);
     });
 
-    it("keeps Vulcan Blitz out of Auto Optimize until its kill explosion is modeled", () => {
+    it("scores one bounded on-death Blast only for a direct Jat Kittag Normal Attack Burst kill", () => {
         const jatKittag = getWeaponCatalog().find((candidate) => candidate.name === "Jat Kittag");
         expect(jatKittag).toBeDefined();
         const vulcanBlitz = getModsForWeapon(jatKittag!).find((mod) => mod.name === "Vulcan Blitz");
         expect(vulcanBlitz).toBeDefined();
-        expect(getUnmodeledDamageEffectLines(vulcanBlitz!, vulcanBlitz!.fusionLimit)).toContain(
-            "Vulcan Blitz's on-death Blast explosion is not scored; target placement, linear falloff, line of sight, faction/stealth scaling, and whether explosion kills chain are not modeled, so Auto Optimize skips this mod.",
+        const normalIndex = jatKittag!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(normalIndex).toBeGreaterThanOrEqual(0);
+        const normalAttack = withSelectedAttack(jatKittag!, normalIndex);
+        const target = {
+            health: 120,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            nearbyVulcanBlitzEnemyCount: 2,
+            nearbyVulcanBlitzAverageDistanceMeters: 3,
+        };
+        const baselineBurst = debugScoreBuild(normalAttack, [], "burst", "Grineer", null, target);
+        const rankFiveBurst = debugScoreBuild(
+            normalAttack,
+            [vulcanBlitz!.effectsByRank[5]!],
+            "burst",
+            "Grineer",
+            null,
+            target,
         );
+        expect(rankFiveBurst).toBeGreaterThan(baselineBurst);
 
-        const result = optimizeBuild(jatKittag!, [vulcanBlitz!], "meleeDps", 1, { allowForma: false });
-        expect(result.slots).toEqual([null]);
+        const noNeighbors = { ...target, nearbyVulcanBlitzEnemyCount: 0 };
+        expect(debugScoreBuild(normalAttack, [vulcanBlitz!.effectsByRank[5]!], "burst", "Grineer", null, noNeighbors))
+            .toBeCloseTo(baselineBurst, 9);
+        const atRankRadius = { ...target, nearbyVulcanBlitzAverageDistanceMeters: 3 };
+        expect(debugScoreBuild(normalAttack, [vulcanBlitz!.effectsByRank[2]!], "burst", "Grineer", null, atRankRadius))
+            .toBeCloseTo(baselineBurst, 9);
+        const tooHealthy = { ...target, health: 20_000 };
+        expect(debugScoreBuild(normalAttack, [vulcanBlitz!.effectsByRank[5]!], "burst", "Grineer", null, tooHealthy))
+            .toBeCloseTo(debugScoreBuild(normalAttack, [], "burst", "Grineer", null, tooHealthy), 9);
+        expect(debugScoreBuild(normalAttack, [vulcanBlitz!.effectsByRank[5]!], "scaling", "Grineer", null, target))
+            .toBeCloseTo(debugScoreBuild(normalAttack, [], "scaling", "Grineer", null, target), 9);
+        expect(debugEvaluateExpectedEncounter(normalAttack, [vulcanBlitz!.effectsByRank[5]!], "Grineer", target).damagePerSecond)
+            .toBeCloseTo(debugEvaluateExpectedEncounter(normalAttack, [], "Grineer", target).damagePerSecond, 9);
+        expect(debugEvaluateFixedWindowDps(normalAttack, [vulcanBlitz!.effectsByRank[5]!], "Grineer", target).damageInWindow)
+            .toBeCloseTo(debugEvaluateFixedWindowDps(normalAttack, [], "Grineer", target).damageInWindow, 9);
+
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            targetProfileOverride: target,
+        };
+        expect(optimizeBuild(normalAttack, [vulcanBlitz!], "burst", 1, options).slots.some((mod) => mod?.name === "Vulcan Blitz"))
+            .toBe(true);
+        expect(optimizeBuild(normalAttack, [vulcanBlitz!], "burst", 1, {
+            ...options,
+            targetProfileOverride: noNeighbors,
+        }).slots).toEqual([null]);
+        expect(optimizeBuild(normalAttack, [vulcanBlitz!], "burst", 1, {
+            ...options,
+            targetProfileOverride: tooHealthy,
+        }).slots).toEqual([null]);
+        expect(optimizeBuild(normalAttack, [vulcanBlitz!], "timeToKill", 1, options).slots).toEqual([null]);
+
+        const explanation = explainBuild(
+            normalAttack,
+            [vulcanBlitz!],
+            [5],
+            "burst",
+            "Grineer",
+            undefined,
+            undefined,
+            target,
+        );
+        expect(explanation.summary).toContain("Vulcan Blitz group score estimate");
+        expect(explanation.buildHighlights.join(" ")).toContain("each scored Normal Attack event as a fresh same-profile health-only primary target");
+        expect(explanation.buildHighlights.join(" ")).toContain("neighbor depletion and explosion kills do not chain");
     });
 
     it("keeps Thermagnetic Shells out of Auto Optimize while its on-death area damage is unmodeled", () => {
@@ -13099,6 +13164,188 @@ describe("Static Discharge optimizer scope", () => {
         expect(result.slots.some((mod) => mod?.name === "Static Discharge")).toBe(false);
         expect(getUnmodeledDamageEffectLines(staticDischarge, staticDischarge.fusionLimit)
             .join(" ")).toContain("manual Prova cycle estimate");
+    });
+});
+
+describe("seeded Vulcan Blitz optimizer oracle", () => {
+    it("matches exhaustive two-slot owned-rank winners across target factions, defenses, and neighbor distances", { timeout: 120_000 }, () => {
+        let seed = 20261171;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+            }
+            return result;
+        };
+        const scenarios = [
+            { faction: "Grineer", health: 80, armor: 0, neighborCount: 1, averageDistance: 0.4 },
+            { faction: "Corpus", health: 125, armor: 0, neighborCount: 2, averageDistance: 1.2 },
+            { faction: "Infested", health: 180, armor: 120, neighborCount: 3, averageDistance: 2.1 },
+            { faction: "Grineer", health: 20_000, armor: 2_700, neighborCount: 4, averageDistance: 4.1 },
+        ] as const;
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === "Jat Kittag");
+            expect(weapon, "Jat Kittag").toBeTruthy();
+            const normalAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            expect(normalAttackIndex).toBeGreaterThanOrEqual(0);
+            const scoringWeapon = withSelectedAttack(weapon!, normalAttackIndex);
+            const vulcanBlitz = getModsForWeapon(scoringWeapon).find((mod) => mod.name === "Vulcan Blitz");
+            expect(vulcanBlitz).toBeDefined();
+            const targetProfileOverride = {
+                health: scenario.health,
+                shields: 0,
+                overguard: 0,
+                armor: scenario.armor,
+                nearbyVulcanBlitzEnemyCount: scenario.neighborCount,
+                nearbyVulcanBlitzAverageDistanceMeters: scenario.averageDistance,
+            };
+            const scoringContext = {
+                selectedWeaponName: scoringWeapon.name,
+                selectedAttackName: scoringWeapon.selectedAttackName,
+                selectedAttackTrigger: scoringWeapon.trigger,
+                selectedAttackIsAreaDamage: scoringWeapon.selectedAttackIsAreaDamage,
+                targetFaction: scenario.faction,
+                targetHasOverguard: false,
+                targetHasShields: false,
+                selectedVulcanBlitzEnemyCount: scenario.neighborCount,
+                selectedVulcanBlitzAverageDistanceMeters: scenario.averageDistance,
+                selectedGoal: "burst",
+            };
+            const fullyModeledPool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(scoringWeapon))
+                    .filter((mod) => mod.uniqueName !== vulcanBlitz!.uniqueName && mod.isPveEligible !== false &&
+                        mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const sampledOtherMods: ModEntry[] = [];
+            for (const mod of shuffled(fullyModeledPool)) {
+                if (sampledOtherMods.some((selected) => selected.incompatibilityGroup === mod.incompatibilityGroup)) continue;
+                sampledOtherMods.push(mod);
+                if (sampledOtherMods.length === 3) break;
+            }
+            const candidates = [vulcanBlitz!, ...sampledOtherMods];
+            expect(candidates.length, `seed ${scenarioIndex} candidate pool`).toBe(4);
+
+            const ownedRankCountsByUniqueName: Record<string, Record<string, number>> = {};
+            const allowedRanksByUniqueName = new Map<string, number[]>();
+            for (const mod of candidates) {
+                const possibleRanks = Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank);
+                const ownedRanks = possibleRanks.filter(() => random() < 0.65);
+                if (ownedRanks.length === 0) ownedRanks.push(possibleRanks[Math.floor(random() * possibleRanks.length)]!);
+                ownedRankCountsByUniqueName[mod.uniqueName] = Object.fromEntries(ownedRanks.map((rank) => [String(rank), 1]));
+                const optimizerRanks = ownedRanks.filter((rank) => mod.name === "Vulcan Blitz"
+                    ? scenario.averageDistance < (mod.effectsByRank[rank]?.vulcanBlitzRadiusMeters ?? 0)
+                    : getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0);
+                allowedRanksByUniqueName.set(mod.uniqueName, optimizerRanks);
+            }
+            const slotCount = 2;
+            const slotPolarities = scoringWeapon.polarities.slice(0, slotCount);
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: scoringWeapon.canOverLevel,
+            };
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const conditionalState: ConditionalState = { mode: "realistic" };
+            let legalRankedLoadoutCount = 0;
+            let maximumLegalSlotCount = 0;
+            let bestScore = 0;
+            const scoreEffects = (effects: (ModEffect | null)[]) => debugScoreBuild(
+                scoringWeapon,
+                effects,
+                "burst",
+                scenario.faction,
+                null,
+                targetProfileOverride,
+                conditionalState,
+            );
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const options = allowedRanksByUniqueName.get(ordered[index]!.uniqueName) ?? [];
+                    for (const rank of options) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, 0);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+                legalRankedLoadoutCount++;
+                maximumLegalSlotCount = Math.max(maximumLegalSlotCount, ordered.length);
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScore = Math.max(bestScore, scoreEffects(effects));
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index]!;
+                    if (ordered.some((mod) =>
+                        mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                    )) continue;
+                    enumerate(
+                        [...remaining.slice(0, index), ...remaining.slice(index + 1)],
+                        [...ordered, candidate],
+                    );
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `seed ${scenarioIndex} legal ranked loadouts`).toBeGreaterThan(10);
+            expect(maximumLegalSlotCount, `seed ${scenarioIndex} two-mod loadout`).toBe(slotCount);
+
+            const optimized = optimizeBuild(scoringWeapon, candidates, "burst", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride,
+                conditionalState,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: false,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModRankCountsByUniqueName: ownedRankCountsByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+            });
+            const optimizedEffects = optimized.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = optimized.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            const optimizedScore = scoreEffects(optimizedEffects);
+            expect(optimized.capacityValid, `seed ${scenarioIndex} capacity`).toBe(true);
+            for (const [slotIndex, mod] of optimized.slots.entries()) {
+                if (!mod) continue;
+                const ownedRanks = Object.keys(ownedRankCountsByUniqueName[mod.uniqueName] ?? {}).map(Number);
+                expect(ownedRanks, `seed ${scenarioIndex} selected ${mod.name} owned rank ${optimized.slotRanks[slotIndex]}`).toContain(optimized.slotRanks[slotIndex]);
+            }
+            expect(optimizedScore, `seed ${scenarioIndex} exhaustive Burst winner`).toBeCloseTo(bestScore, 8);
+        }
     });
 });
 

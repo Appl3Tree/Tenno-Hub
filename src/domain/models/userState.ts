@@ -215,6 +215,10 @@ export interface SavedBuildTargetConfig {
     nearbyBlastEnemyCount?: number;
     /** Additional same-profile Kavat targets actually hit per Swipe strike (0–4). */
     nearbySwipeTargetCount?: number;
+    /** Additional same-profile neighbors for the Jat Kittag Vulcan Blitz estimate (0–20). */
+    nearbyVulcanBlitzEnemyCount?: number;
+    /** Mean neighbor distance for the Vulcan Blitz estimate, in meters (0–6). */
+    nearbyVulcanBlitzAverageDistanceMeters?: number;
     statusImmunities: string[];
 }
 
