@@ -270,6 +270,10 @@ export interface ModEffect {
     beamRangeBonus: number;
     punchThrough: number;
     rangeBonus: number;
+    /** Maximum number of additional targets per Kavat Claw strike from Swipe. */
+    swipeAdditionalEnemyCount: number;
+    /** Added Kavat Claw reach from Swipe; group scoring uses an entered hit count. */
+    swipeAttackRangeBonusMeters: number;
     headshotMultiplierBonus: number;
     /** Signed multiplicative bodyshot damage modifier (Meticulous Aim is negative). */
     bodyshotDamageBonus: number;
@@ -751,6 +755,13 @@ function parseComboScaledLine(raw: string): Partial<ModEffect> {
 
 function parseStatLine(raw: string, options?: { applyStackMultiplier?: boolean }): Partial<ModEffect> {
     const clean = stripColorTags(raw);
+    const swipe = clean.match(/^Strikes (\d+) additional enemies? and increases Attack Range by (\d+(?:\.\d+)?)m\.?$/i);
+    if (swipe) {
+        return {
+            swipeAdditionalEnemyCount: Number(swipe[1]),
+            swipeAttackRangeBonusMeters: Number(swipe[2]),
+        };
+    }
     if (clean.length > 0 && clean.toLowerCase().includes("hitting an enemy directly with the grenade")) {
         const precisionStrike = clean.match(
             /^Hitting an enemy directly with the grenade increases Reload Speed by \+?(\d+(?:\.\d+)?)% for (\d+(?:\.\d+)?)s\.?$/i,

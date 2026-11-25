@@ -947,7 +947,11 @@ describe("weapon catalog stance inference", () => {
         expect(new Set(getModsForWeapon(hurasClaws!).map((mod) => mod.name)).has("Condition Overload")).toBe(false);
 
         expect(new Set(getModsForWeapon(hurasClaws!).map((mod) => mod.name)).has("Swipe")).toBe(false);
-        expect(new Set(getModsForWeapon(getWeaponCatalog().find((weapon) => weapon.name === "Smeeta Claws")!).map((mod) => mod.name)).has("Swipe")).toBe(true);
+        const smeetaClaws = getWeaponCatalog().find((weapon) => weapon.name === "Smeeta Claws")!;
+        const swipe = getModsForWeapon(smeetaClaws).find((mod) => mod.name === "Swipe");
+        expect(swipe).toBeDefined();
+        expect(swipe?.effectsByRank.map((effect) => [effect.swipeAdditionalEnemyCount, effect.swipeAttackRangeBonusMeters]))
+            .toEqual([[1, 0.5], [2, 1], [3, 1.5], [4, 2]]);
 
         expect(new Set(getModsForWeapon(shadowClaws!).map((mod) => mod.name)).has("Burning Claws")).toBe(false);
 
