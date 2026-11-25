@@ -3000,15 +3000,46 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
-    it("keeps Combustion Beam out of Auto Optimize until its kill explosion is modeled", () => {
+    it("scores Combustion Beam for a configured Beam kill-group Burst and excludes unsupported contexts", () => {
         const amprex = getWeaponCatalog().find((candidate) => candidate.name === "Amprex");
         expect(amprex).toBeDefined();
-        const combustionBeam = getModsForWeapon(amprex!).find((mod) => mod.name === "Combustion Beam");
+        const normalAttack = withSelectedAttack(amprex!, amprex!.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+        const combustionBeam = getModsForWeapon(normalAttack).find((mod) => mod.name === "Combustion Beam");
         expect(combustionBeam).toBeDefined();
-        expect(getUnmodeledDamageEffectLines(combustionBeam!, combustionBeam!.fusionLimit).length).toBeGreaterThan(0);
+        const baseStats = calculateBuild(normalAttack, []).modded;
+        const expectedDirectHit = Object.values(baseStats.damageBreakdown).reduce((total, amount) => total + amount, 0) *
+            baseStats.damageWeightedMultishot * avgHitDamageMultiplier(baseStats.critChance, baseStats.critMultiplier);
+        const targetProfileOverride = {
+            health: expectedDirectHit * 0.5,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            nearbyCombustionBeamEnemyCount: 2,
+            nearbyCombustionBeamAverageDistanceMeters: 1.2,
+        };
+        const baseline = debugScoreBuild(normalAttack, [], "burst", "Grineer", null, targetProfileOverride);
+        const withCombustionBeam = debugScoreBuild(
+            normalAttack,
+            [combustionBeam!.effectsByRank[combustionBeam!.fusionLimit]!],
+            "burst",
+            "Grineer",
+            null,
+            targetProfileOverride,
+        );
+        expect(withCombustionBeam).toBeGreaterThan(baseline);
 
-        const result = optimizeBuild(amprex!, [combustionBeam!], "burst", 1, { allowForma: false });
-        expect(result.slots).toEqual([null]);
+        const supportedOptions = {
+            allowForma: false,
+            targetFaction: "Grineer",
+            targetProfileOverride,
+        };
+        expect(optimizeBuild(normalAttack, [combustionBeam!], "burst", 1, supportedOptions).slots[0]?.name)
+            .toBe("Combustion Beam");
+        expect(optimizeBuild(normalAttack, [combustionBeam!], "burst", 1, {
+            ...supportedOptions,
+            targetProfileOverride: { ...targetProfileOverride, nearbyCombustionBeamEnemyCount: 0 },
+        }).slots).toEqual([null]);
+        expect(optimizeBuild(normalAttack, [combustionBeam!], "scaling", 1, supportedOptions).slots).toEqual([null]);
     });
 
     it("models Stinging Truth's flat magazine bonus but keeps Truth's unmodeled radial effect out of Auto Optimize", () => {
@@ -13144,6 +13175,182 @@ describe("seeded Swipe group optimizer oracle", () => {
                 expect(optimizedScore, `${scenario.weaponName} seed ${scenarioIndex} exact ${goal} score`)
                     .toBeCloseTo(bestScores[goal], 8);
             }
+        }
+    });
+});
+
+describe("seeded Combustion Beam group optimizer oracle", () => {
+    it("matches exact two-slot R0–R2 owned-rank winners across Beam weapons and factions", { timeout: 120_000 }, () => {
+        let seed = 20261173;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+            }
+            return result;
+        };
+        const scenarios = [
+            { weaponName: "Amprex", faction: "Grineer" },
+            { weaponName: "Ignis Wraith", faction: "Corpus" },
+            { weaponName: "Tenet Flux Rifle", faction: "Infested" },
+            { weaponName: "Glaxion Vandal", faction: "Corrupted" },
+        ] as const;
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === scenario.weaponName);
+            expect(weapon, scenario.weaponName).toBeDefined();
+            expect(weapon!.tags, `${scenario.weaponName} Beam tag`).toContain("BEAM");
+            const normalAttack = withSelectedAttack(weapon!, weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+            expect(normalAttack.selectedAttackIsAreaDamage, `${scenario.weaponName} direct attack`).toBe(false);
+            const compatibleMods = getModsForWeapon(normalAttack);
+            const combustionBeam = compatibleMods.find((mod) => mod.name === "Combustion Beam");
+            expect(combustionBeam, `${scenario.weaponName} Combustion Beam`).toBeDefined();
+
+            const baseStats = calculateBuild(normalAttack, [], scenario.faction).modded;
+            const expectedDirectHit = Object.values(baseStats.damageBreakdown).reduce((total, amount) => total + amount, 0) *
+                baseStats.damageWeightedMultishot * avgHitDamageMultiplier(baseStats.critChance, baseStats.critMultiplier);
+            const neighborCount = 1 + Math.floor(random() * 4);
+            const averageDistance = 0.2 + random() * 2.4;
+            const targetProfileOverride = {
+                health: expectedDirectHit * (0.3 + random() * 0.45),
+                shields: 0,
+                overguard: 0,
+                armor: 0,
+                nearbyCombustionBeamEnemyCount: neighborCount,
+                nearbyCombustionBeamAverageDistanceMeters: averageDistance,
+            };
+            const scoringContext = {
+                selectedWeaponName: normalAttack.name,
+                selectedAttackName: normalAttack.selectedAttackName,
+                selectedAttackTrigger: normalAttack.trigger,
+                selectedAttackIsAreaDamage: normalAttack.selectedAttackIsAreaDamage,
+                selectedWeaponHasBeamCompatibility: true,
+                targetFaction: scenario.faction,
+                targetHasOverguard: false,
+                targetHasShields: false,
+                selectedCombustionBeamEnemyCount: neighborCount,
+                selectedCombustionBeamAverageDistanceMeters: averageDistance,
+                selectedGoal: "burst",
+            };
+            const fullyModeledPool = [...new Map(
+                filterBuilderExpertVariants(compatibleMods)
+                    .filter((mod) => mod.uniqueName !== combustionBeam!.uniqueName && mod.isPveEligible !== false &&
+                        mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect, scoringContext).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const otherMods: ModEntry[] = [];
+            for (const mod of shuffled(fullyModeledPool)) {
+                if (otherMods.some((selected) => selected.incompatibilityGroup && selected.incompatibilityGroup === mod.incompatibilityGroup)) continue;
+                otherMods.push(mod);
+                if (otherMods.length === 2) break;
+            }
+            const candidates = [combustionBeam!, ...otherMods];
+            expect(candidates, `${scenario.weaponName} sampled candidate pool`).toHaveLength(3);
+
+            const ownedModRankCountsByUniqueName: Record<string, Record<string, number>> = {};
+            const allowedRanksByUniqueName = new Map<string, number[]>();
+            for (const mod of candidates) {
+                const possibleRanks = Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank);
+                const ownedRanks = possibleRanks.filter(() => random() < 0.75);
+                if (ownedRanks.length === 0) ownedRanks.push(possibleRanks[Math.floor(random() * possibleRanks.length)]!);
+                ownedModRankCountsByUniqueName[mod.uniqueName] = Object.fromEntries(ownedRanks.map((rank) => [String(rank), 1]));
+                allowedRanksByUniqueName.set(mod.uniqueName, ownedRanks);
+            }
+
+            const slotCount = 2;
+            const slotPolarities = Array.from({ length: slotCount }, (_, index) => normalAttack.polarities[index] ?? "");
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: normalAttack.canOverLevel,
+            };
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            let legalRankedLoadoutCount = 0;
+            let bestScore = 0;
+            const scoreEffects = (effects: (ModEffect | null)[]) => debugScoreBuild(
+                normalAttack,
+                effects,
+                "burst",
+                scenario.faction,
+                null,
+                targetProfileOverride,
+            );
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    for (const rank of allowedRanksByUniqueName.get(ordered[index]!.uniqueName) ?? []) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, 0);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+                legalRankedLoadoutCount++;
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScore = Math.max(bestScore, scoreEffects(effects));
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index]!;
+                    if (ordered.some((mod) => mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup))) continue;
+                    enumerate([...remaining.slice(0, index), ...remaining.slice(index + 1)], [...ordered, candidate]);
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, `${scenario.weaponName} seed ${scenarioIndex} legal rank assignments`).toBeGreaterThan(0);
+
+            const optimized = optimizeBuild(normalAttack, candidates, "burst", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: false,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModRankCountsByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+            });
+            const optimizedEffects = optimized.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = optimized.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            expect(optimized.capacityValid, `${scenario.weaponName} seed ${scenarioIndex} capacity`).toBe(true);
+            for (const [slotIndex, mod] of optimized.slots.entries()) {
+                if (!mod) continue;
+                expect(allowedRanksByUniqueName.get(mod.uniqueName), `${scenario.weaponName} selected owned rank`)
+                    .toContain(optimized.slotRanks[slotIndex]);
+            }
+            expect(scoreEffects(optimizedEffects), `${scenario.weaponName} seed ${scenarioIndex} exact sampled-pool score`)
+                .toBeCloseTo(bestScore, 8);
         }
     });
 });

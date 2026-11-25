@@ -92,6 +92,14 @@ const VULCAN_BLITZ_WIKI_RANKS = [
     { blastDamage: 250, healthPercent: 50, radiusMeters: 5 },
     { blastDamage: 300, healthPercent: 60, radiusMeters: 6 },
 ];
+const COMBUSTION_BEAM_WIKI_RANKS = [
+    { blastDamage: 100, radiusMeters: 3 },
+    { blastDamage: 200, radiusMeters: 6 },
+    { blastDamage: 300, radiusMeters: 9 },
+    { blastDamage: 400, radiusMeters: 12 },
+    { blastDamage: 500, radiusMeters: 15 },
+    { blastDamage: 600, radiusMeters: 18 },
+];
 const NIGHTWATCH_NAPALM_WIKI_RANKS = [15, 30, 45, 60, 75, 90];
 const MODS_META = MODS_RAW as Record<string, {
     name?: string;
@@ -192,6 +200,10 @@ export interface ModEffect {
     vulcanBlitzMaxHealthPercent: number;
     /** Vulcan Blitz's rank-specific on-death explosion radius in meters. */
     vulcanBlitzRadiusMeters: number;
+    /** Combustion Beam's flat Blast damage when a qualifying primary Beam kill occurs. */
+    combustionBeamBlastDamage: number;
+    /** Combustion Beam's rank-specific on-death explosion radius in meters. */
+    combustionBeamRadiusMeters: number;
     /** Acid Shells' flat Corrosive damage on a Sobek kill. */
     acidShellsCorrosiveDamage: number;
     /** Acid Shells' fraction of pre-mission enemy Max Health dealt as Blast. */
@@ -1088,6 +1100,8 @@ function mergeEffect(base: ModEffect, partial: Partial<ModEffect>): ModEffect {
             out.multishotLocked = out.multishotLocked || partial.multishotLocked === true;
         } else if (k === "impactStatusExtraProcLowFireRateThreshold" || k === "impactStatusExtraProcLowFireRateMultiplier") {
             (out[k] as number) = Math.max(((out[k] as number) ?? 0), ((partial[k] as number) ?? 0));
+        } else if (k === "combustionBeamRadiusMeters") {
+            out[k] = Math.max(out[k] ?? 0, partial[k] ?? 0);
         } else {
             (out[k] as number) = ((out[k] as number) ?? 0) + ((partial[k] as number) ?? 0);
         }
@@ -1867,6 +1881,24 @@ function buildCaches(): ModCaches {
                 unparsedStatsByRank[rank] = [];
             });
         }
+        if (path === COMBUSTION_BEAM_MOD_PATH) {
+            // The Wiki gives 100–600 Blast damage and 3–18m by rank. The
+            // explosion is separate from direct weapon damage and is scored
+            // only in a bounded, manually configured Burst group context.
+            // https://wiki.warframe.com/w/Combustion_Beam
+            // https://www.warframe.com/en/patch-notes/pc/44-1-3
+            COMBUSTION_BEAM_WIKI_RANKS.forEach((wikiRank, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.combustionBeamBlastDamage = wikiRank.blastDamage;
+                effect.combustionBeamRadiusMeters = wikiRank.radiusMeters;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Enemies killed explode, dealing\s+[\d,]+\s+Damage shortly after death\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
+                );
+            });
+        }
         if (path === NIGHTWATCH_NAPALM_MOD_PATH) {
             // The rank description is outdated: the current Wiki says the
             // blaze always deals six fixed 150 Heat-damage ticks per projectile.
@@ -2223,13 +2255,10 @@ function buildCaches(): ModCaches {
             });
         }
         if (path === COMBUSTION_BEAM_MOD_PATH) {
-            // The current Wiki identifies the damage as Blast and lists 600 at
-            // max rank. The per-rank damage lines are already ingested from its
-            // mod table; keep the effect out of scoring until its death-radius,
-            // attribution, and propagation behavior are modeled.
-            statsTextByRank.forEach((line, rank) => {
-                const damage = line.match(/dealing\s+([\d,]+)\s+Damage\s+shortly after death/i)?.[1];
-                if (damage) statsTextByRank[rank] = `On Beam weapon kill: ${damage} Blast Damage shortly after death`;
+            COMBUSTION_BEAM_WIKI_RANKS.forEach((wikiRank, rank) => {
+                if (rank >= statsTextByRank.length) return;
+                statsTextByRank[rank] =
+                    `On qualifying Beam kill: ${wikiRank.blastDamage} Blast Damage; ${wikiRank.radiusMeters}m radius (shortly after death)`;
             });
         }
         if (path === NIGHTWATCH_NAPALM_MOD_PATH) {

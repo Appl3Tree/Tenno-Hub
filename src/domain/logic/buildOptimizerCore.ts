@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -332,6 +332,10 @@ export interface TargetProfileOverride {
     nearbyAcidShellsEnemyCount?: number;
     /** Mean center-to-center distance for Acid Shells neighbors, in meters. */
     nearbyAcidShellsAverageDistanceMeters?: number;
+    /** Additional same-profile neighbors represented by the Combustion Beam Burst estimate. */
+    nearbyCombustionBeamEnemyCount?: number;
+    /** Mean center-to-center distance for Combustion Beam neighbors, in meters. */
+    nearbyCombustionBeamAverageDistanceMeters?: number;
     /** Target's level-scaled Max Health before Steel Path's Health multiplier. */
     acidShellsMaxHealthBeforeSteelPath?: number;
     /** True when the custom target's current Health includes Steel Path scaling. */
@@ -823,6 +827,14 @@ function normalizeAcidShellsEnemyCount(value?: number): number {
 
 function normalizeAcidShellsAverageDistanceMeters(value?: number): number {
     return Number.isFinite(value) ? Math.max(0, Math.min(15, value ?? 0)) : 0;
+}
+
+function normalizeCombustionBeamEnemyCount(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(20, Math.floor(value ?? 0))) : 0;
+}
+
+function normalizeCombustionBeamAverageDistanceMeters(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(18, value ?? 0)) : 0;
 }
 
 const SWIPE_CLAW_FOLLOW_THROUGH_PROXY = 0.8;
@@ -1472,6 +1484,63 @@ function scoreEffectsCore(
         }
     }
 
+    // Combustion Beam emits one flat Blast event after a qualifying primary
+    // Beam kill. Keep it separate from weapon damage: the sourced explosion
+    // has no crit/status chance and only inherits faction damage bonuses.
+    const combustionBeamEffect = effects.reduce((total, effect) => ({
+        combustionBeamBlastDamage: total.combustionBeamBlastDamage + (effect?.combustionBeamBlastDamage ?? 0),
+        combustionBeamRadiusMeters: Math.max(total.combustionBeamRadiusMeters, effect?.combustionBeamRadiusMeters ?? 0),
+    }), { combustionBeamBlastDamage: 0, combustionBeamRadiusMeters: 0 });
+    const combustionBeamEnemyCount = normalizeCombustionBeamEnemyCount(
+        targetProfileOverride?.nearbyCombustionBeamEnemyCount,
+    );
+    const combustionBeamAverageDistance = normalizeCombustionBeamAverageDistanceMeters(
+        targetProfileOverride?.nearbyCombustionBeamAverageDistanceMeters,
+    );
+    const combustionBeamContext = {
+        selectedWeaponHasBeamCompatibility: weapon.tags.includes("BEAM"),
+        selectedAttackName: weapon.selectedAttackName,
+        selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
+        targetHasOverguard: pools.overguard > 0,
+        targetHasShields: pools.shields > 0,
+        selectedGoal: goal,
+        selectedCombustionBeamEnemyCount: combustionBeamEnemyCount,
+        selectedCombustionBeamAverageDistanceMeters: combustionBeamAverageDistance,
+    };
+    if (isCombustionBeamBurstContextSupported(combustionBeamEffect, combustionBeamContext)) {
+        const falloff = Math.max(0, 1 - combustionBeamAverageDistance / combustionBeamEffect.combustionBeamRadiusMeters);
+        const expectedPrimaryHit = calculateDirectDamageToInitialPools({
+            damageByType: modded.damageBreakdown,
+            health: pools.health,
+            shields: pools.shields,
+            overguard: pools.overguard,
+            armor: pools.armor,
+            armorDamageReductionMultiplier: (1 - modded.heatArmorStrip) * (1 - modded.corrosiveArmorStrip),
+            faction: targetFaction,
+            factionDamageBonus: modded.factionDamageBonus,
+            viralHealthDamageBonus: modded.viralHealthDamageBonus,
+            magneticDefenseDamageBonus: modded.magneticShieldDamageBonus,
+            expectedHitDamageMultiplier: critMultiplier,
+            expectedDamageMultiplier: modded.damageWeightedMultishot,
+            singleProjectileDamageBonus: modded.singleProjectileDamageBonus,
+            damageRampMultiplier,
+        });
+        if (falloff > 0 && expectedPrimaryHit.totalDamage >= poolTotal - Math.max(1e-8, poolTotal * 1e-10)) {
+            const neighborHit = calculateDirectDamageToInitialPools({
+                damageByType: { blast: combustionBeamEffect.combustionBeamBlastDamage * falloff },
+                health: pools.health,
+                shields: pools.shields,
+                overguard: pools.overguard,
+                armor: pools.armor,
+                faction: targetFaction,
+                factionDamageBonus: modded.factionDamageBonus,
+                expectedHitDamageMultiplier: 1,
+                expectedDamageMultiplier: 1,
+            });
+            score += neighborHit.totalDamage * combustionBeamEnemyCount * modded.burstFireRate;
+        }
+    }
+
     // Swipe permits Kavat Claws to hit additional targets. Kavat-specific
     // follow-through is not published, so this group-only estimate uses the
     // Wiki's generic Claws value (0.8) and leaves primary-target TTK unchanged.
@@ -1800,11 +1869,14 @@ function getBlockingOptimizerEffectLines(
         isVulcanBlitzBurstContextSupported(effect, context);
     const supportedAcidShellsBurst = mod.path === ACID_SHELLS_MOD_PATH &&
         isAcidShellsBurstContextSupported(effect, context);
+    const supportedCombustionBeamBurst = mod.path === COMBUSTION_BEAM_MOD_PATH &&
+        isCombustionBeamBurstContextSupported(effect, context);
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
         !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
         !(supportedVulcanBlitzBurst && mod.path === VULCAN_BLITZ_MOD_PATH) &&
         !(supportedAcidShellsBurst && mod.path === ACID_SHELLS_MOD_PATH) &&
+        !(supportedCombustionBeamBurst && mod.path === COMBUSTION_BEAM_MOD_PATH) &&
         !line.includes("Guardian Derision's blocking taunt changes enemy targeting") &&
         !(context?.selectedGoal === "tennokaiDps" &&
             mod.path === "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod" &&
@@ -1883,6 +1955,13 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
             : 0,
         selectedAcidShellsAverageDistanceMeters: weapon.name === "Sobek" || weapon.name === "Kuva Sobek"
             ? normalizeAcidShellsAverageDistanceMeters(opts.targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters)
+            : 0,
+        selectedWeaponHasBeamCompatibility: weapon.tags.includes("BEAM"),
+        selectedCombustionBeamEnemyCount: weapon.tags.includes("BEAM")
+            ? normalizeCombustionBeamEnemyCount(opts.targetProfileOverride?.nearbyCombustionBeamEnemyCount)
+            : 0,
+        selectedCombustionBeamAverageDistanceMeters: weapon.tags.includes("BEAM")
+            ? normalizeCombustionBeamAverageDistanceMeters(opts.targetProfileOverride?.nearbyCombustionBeamAverageDistanceMeters)
             : 0,
         selectedTargetIsSteelPath: opts.targetProfileOverride?.isSteelPathTarget === true,
         selectedGoal: goal,
@@ -6211,6 +6290,41 @@ export function explainBuild(
             );
         }
     }
+    const selectedCombustionBeamModIndex = chosenMods.findIndex((mod) => mod.path === COMBUSTION_BEAM_MOD_PATH);
+    const selectedCombustionBeamEffect = selectedCombustionBeamModIndex >= 0
+        ? chosenMods[selectedCombustionBeamModIndex]?.effectsByRank[fullRanks[selectedCombustionBeamModIndex] ?? 0]
+        : undefined;
+    const configuredCombustionBeamNeighbors = scoringWeapon.tags.includes("BEAM")
+        ? normalizeCombustionBeamEnemyCount(targetProfileOverride?.nearbyCombustionBeamEnemyCount)
+        : 0;
+    const configuredCombustionBeamDistance = normalizeCombustionBeamAverageDistanceMeters(
+        targetProfileOverride?.nearbyCombustionBeamAverageDistanceMeters,
+    );
+    const combustionBeamContext = {
+        selectedWeaponHasBeamCompatibility: scoringWeapon.tags.includes("BEAM"),
+        selectedAttackName: scoringWeapon.selectedAttackName,
+        selectedAttackIsAreaDamage: scoringWeapon.selectedAttackIsAreaDamage,
+        selectedGoal: goal,
+        targetHasOverguard: targetAssumptions.overguard > 0,
+        targetHasShields: targetAssumptions.shields > 0,
+        selectedCombustionBeamEnemyCount: configuredCombustionBeamNeighbors,
+        selectedCombustionBeamAverageDistanceMeters: configuredCombustionBeamDistance,
+    };
+    const combustionBeamGroupScoreActive = selectedCombustionBeamEffect !== undefined &&
+        isCombustionBeamBurstContextSupported(selectedCombustionBeamEffect, combustionBeamContext);
+    if (selectedCombustionBeamEffect) {
+        if (combustionBeamGroupScoreActive) {
+            const radius = Math.max(0, selectedCombustionBeamEffect.combustionBeamRadiusMeters ?? 0);
+            const falloff = radius > 0 ? Math.max(0, 1 - configuredCombustionBeamDistance / radius) : 0;
+            buildHighlights.push(
+                `Combustion Beam Burst group estimate treats each scored Normal Attack event as a fresh same-profile health-only primary killed by the expected direct hit, then scores ${formatExplanationNumber(selectedCombustionBeamEffect.combustionBeamBlastDamage ?? 0, 0)} Blast against ${configuredCombustionBeamNeighbors} same-profile neighbors at a mean ${configuredCombustionBeamDistance.toFixed(1)}m (${formatExplanationPercent(falloff)} falloff within the selected ${formatExplanationNumber(radius, 1)}m rank radius). Intermediate rank radii are evenly interpolated between the Wiki's 3m R0 and 18m R5 endpoints. It applies the selected faction bonus only, assumes line of sight, and treats the sourced short death delay as immediate. The explosion has no crit/status; neighbor depletion and recursive kills are excluded. Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain outside this snapshot. Wiki: https://wiki.warframe.com/w/Combustion_Beam`,
+            );
+        } else {
+            buildHighlights.push(
+                "Combustion Beam is scored only for a primary Beam Normal Attack Burst against a health-only target with entered same-profile neighbors inside the selected rank radius. The expected direct hit must kill a fresh primary; its separate Blast uses linear falloff, faction bonus only, and assumed line of sight. Intermediate rank radii are evenly interpolated between the Wiki's 3m R0 and 18m R5 endpoints. The short death delay is treated as immediate; neighbor depletion and recursive kills are excluded. Auto Optimize skips the mod outside this snapshot; Scaling, finite TTK, and 5s Avg DPS remain single-target.",
+            );
+        }
+    }
     if (goal === "tennokaiDps") {
         const attackPair = findSupportedTennokaiAttackPair(scoringWeapon);
         if (attackPair) {
@@ -6448,10 +6562,15 @@ export function explainBuild(
         : goal === "tennokaiDps" && hasExplicitTargetPools
             ? " using the entered target pools and defenses; the same target profile repeats after direct or Bleed-tick kills, with adjacent targets excluded"
         : goal !== "meleeDps" && hasExplicitTargetPools
-            ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}${vulcanBlitzGroupScoreActive ? ` plus ${configuredVulcanBlitzNeighbors} Vulcan Blitz neighbor${configuredVulcanBlitzNeighbors === 1 ? "" : "s"} at a mean ${configuredVulcanBlitzDistance.toFixed(1)}m` : ""}`
+            ? ` using the entered current-level pool and status assumptions${nearbyEnemyCount > 0 ? ` plus ${nearbyEnemyCount} same-profile nearby target${nearbyEnemyCount === 1 ? "" : "s"} inside 3m for Electric/Gas status damage` : ""}${nearbyGasOuterEnemyCount > 0 ? ` plus ${nearbyGasOuterEnemyCount} Gas target${nearbyGasOuterEnemyCount === 1 ? "" : "s"} in the 3–6m annulus, with area-uniform coverage from the steady-state cloud radius` : ""}${vulcanBlitzGroupScoreActive ? ` plus ${configuredVulcanBlitzNeighbors} Vulcan Blitz neighbor${configuredVulcanBlitzNeighbors === 1 ? "" : "s"} at a mean ${configuredVulcanBlitzDistance.toFixed(1)}m` : ""}${combustionBeamGroupScoreActive ? ` plus ${configuredCombustionBeamNeighbors} Combustion Beam neighbor${configuredCombustionBeamNeighbors === 1 ? "" : "s"} at a mean ${configuredCombustionBeamDistance.toFixed(1)}m` : ""}`
         : "";
-    const scoreLabel = swipeGroupScoreActive || vulcanBlitzGroupScoreActive
-        ? `${swipeGroupScoreActive && vulcanBlitzGroupScoreActive ? "Swipe and Vulcan Blitz group score estimates" : swipeGroupScoreActive ? "Swipe group score estimate" : "Vulcan Blitz group score estimate"}`
+    const groupScoreLabels = [
+        ...(swipeGroupScoreActive ? ["Swipe"] : []),
+        ...(vulcanBlitzGroupScoreActive ? ["Vulcan Blitz"] : []),
+        ...(combustionBeamGroupScoreActive ? ["Combustion Beam"] : []),
+    ];
+    const scoreLabel = groupScoreLabels.length > 0
+        ? `${groupScoreLabels.join(", ")} group score estimate${groupScoreLabels.length > 1 ? "s" : ""}`
         : goal === "timeToKill"
         ? "Screening proxy score"
         : goal === "windowDps" ? "Exact 5-second damage rate"
