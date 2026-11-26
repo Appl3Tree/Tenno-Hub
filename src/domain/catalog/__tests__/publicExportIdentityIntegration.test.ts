@@ -35,6 +35,17 @@ describe("Public Export Plus catalog integration", () => {
         expect(FULL_CATALOG.inventoryItemIds).toContain(`items:${petPath}`);
     });
 
+    it("exposes the Legendary Core store identity with its canonical display name", () => {
+        const path = "/Lotus/StoreItems/Upgrades/Mods/Fusers/LegendaryModFuser";
+        expect(FULL_CATALOG.recordsById[`items:${path}`]).toMatchObject({
+            source: "items",
+            path,
+            displayName: "Legendary Core",
+            isDisplayable: true,
+        });
+        expect(FULL_CATALOG.inventoryItemIds).toContain(`items:${path}`);
+    });
+
     it("loads the complete generic Peely Pix name map as counted inventory items", () => {
         const entries = Object.entries(publicItems).filter(([, record]) => record.category === "Peely Pix");
         expect(entries).toHaveLength(25);

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { CustomRivenRecord } from "../../domain/types";
 import { getWeaponCatalog } from "../../domain/catalog/weaponCatalog";
 import { parseAlecaFrameRiven } from "../../domain/rivenFingerprint";
+import { reconcileAlecaFrameInventory } from "../alecaFrameReconcile";
+import { exactAlecaFrameCatalogMatch } from "../alecaFrameCatalogMatch";
 import {
   COUNTED_ITEM_SECTIONS,
   EXCLUDED_SECTIONS,
@@ -16,6 +18,8 @@ const mod = "/Lotus/Upgrades/Mods/Rifle/WeaponClipMaxMod";
 const arcane = "/Lotus/Upgrades/CosmeticEnhancers/Warframe/ArcaneExample";
 const riven = "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare";
 const sticker = "/Lotus/Upgrades/Stickers/TestSticker";
+const legendaryCorePath = "/Lotus/Upgrades/Mods/Fusers/LegendaryModFuser";
+const legendaryCoreCatalogPath = "/Lotus/StoreItems/Upgrades/Mods/Fusers/LegendaryModFuser";
 const now = "2026-01-01T00:00:00.000Z";
 
 function fixture(): Record<string, unknown> {
@@ -131,6 +135,37 @@ describe("AlecaFrame inventory parser", () => {
     expect(result.sections.MoaPets).toMatchObject({ status: "imported", importedCopies: 1 });
     expect(result.sections.FoundToday).toMatchObject({ status: "excluded", excludedRecords: 1 });
     expect(result.issues).toHaveLength(0);
+  });
+
+  it("counts Legendary Core stacks as a non-rankable inventory item", async () => {
+    const root = fixture();
+    root.RawUpgrades = [{ ItemType: legendaryCorePath, ItemCount: 3 }];
+
+    const result = await parseAlecaFrameInventory(
+      root,
+      (path, section) => exactAlecaFrameCatalogMatch(path, section),
+      resolveRiven,
+    );
+
+    expect(result.importable).toBe(true);
+    expect(result.issues).toHaveLength(0);
+    expect(result.unresolvedRecords).toHaveLength(0);
+    expect(result.records).toContainEqual(expect.objectContaining({
+      catalogId: `items:${legendaryCoreCatalogPath}`,
+      path: legendaryCorePath,
+      kind: "item",
+      quantity: 3,
+      sourceSections: ["RawUpgrades"],
+    }));
+    expect(result.records.find((record) => record.path === legendaryCorePath)?.rankCounts).toBeUndefined();
+    expect(result.sections.RawUpgrades).toMatchObject({ status: "imported", importedCopies: 3 });
+
+    const reconciled = reconcileAlecaFrameInventory(
+      { counts: {}, credits: 0, platinum: 0 },
+      result,
+      "overwrite",
+    );
+    expect(reconciled.counts[`items:${legendaryCoreCatalogPath}`]).toBe(3);
   });
 
   it("rejects a stacked item record without an explicit safe quantity", async () => {
