@@ -8,7 +8,7 @@ import { getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, 
 import { getWeaponCatalog, getWeaponDisplayName, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
-import { assignModsToSlots, debugEvaluateExpectedEncounter, debugEvaluateFixedWindowDps, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
+import { assignModsToSlots, debugEvaluateExpectedEncounter, debugEvaluateFixedWindowDps, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, optimizeBuildCore, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
 import { avgHitDamageMultiplier, calculateBuild, type ConditionalState } from "../damageCalc";
 import * as damageCalcModule from "../damageCalc";
@@ -3253,6 +3253,44 @@ describe("build optimizer scoring", () => {
             nearbyGasOuterEnemyCount: 1,
         });
         expect(neighborScore).toBeGreaterThan(centeredScore);
+    });
+
+    it("retains Vile Discharge when optimizing the full Embolist catalog for its cycle objective", { timeout: 120_000 }, () => {
+        const baseEmbolist = getWeaponCatalog().find((weapon) => weapon.name === "Embolist");
+        expect(baseEmbolist).toBeDefined();
+        const attackIndex = baseEmbolist!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        expect(attackIndex).toBeGreaterThanOrEqual(0);
+        const availableMods = filterBuilderExpertVariants(getModsForWeapon(baseEmbolist!));
+        const vileDischarge = availableMods.find((mod) => mod.name === "Vile Discharge");
+        expect(vileDischarge).toBeDefined();
+
+        const workerRequest = structuredClone({
+            weapon: baseEmbolist!,
+            availableMods,
+            goal: "vileDischargeDps" as const,
+            slotCount: 8,
+            options: {
+                allowForma: false,
+                // Mirrors the single-row page request that exposed the bug.
+                buildForAttack: null,
+                capacityConfig: { weaponRank: 30, hasCatalyst: false, masteryRank: 0, canOverLevel: false },
+            },
+        });
+        const result = optimizeBuildCore(
+            workerRequest.weapon,
+            workerRequest.availableMods,
+            workerRequest.goal,
+            workerRequest.slotCount,
+            workerRequest.options,
+        );
+
+        expect(result.capacityValid).toBe(true);
+        expect(result.slots.some((mod) => mod?.uniqueName === vileDischarge!.uniqueName)).toBe(true);
+        const scoringWeapon = withSelectedAttack(workerRequest.weapon, attackIndex);
+        const resultEffects = result.slots.flatMap((mod, index) => mod
+            ? [mod.effectsByRank[result.slotRanks[index] ?? mod.fusionLimit] ?? mod.effect]
+            : []);
+        expect(debugScoreBuild(scoringWeapon, resultEffects, "vileDischargeDps", "")).toBeGreaterThan(0);
     });
 
     it("matches seeded Vile Discharge optimizer winners across four target strata", { timeout: 300_000 }, () => {
