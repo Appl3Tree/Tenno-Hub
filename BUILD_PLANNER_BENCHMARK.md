@@ -1,3 +1,7 @@
+## D3-MOD-VILE-DISCHARGE-OPTIMIZER-ATTACK-001 — release reconciliation (2026-11-26)
+
+PR [#415](https://github.com/Appl3Tree/Tenno-Hub/pull/415) squash-merged as `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; Pages run [#494](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45764659326) succeeded. It deploys the single-row Embolist attack forwarding and optimizer fallback with the full-catalog regression described below. No benchmark or optimizer-quality result changed. Current-source rendered review remains open because the in-app browser endpoint was stale and the local preview timed out.
+
 ## D3-MOD-VILE-DISCHARGE-OPTIMIZER-ATTACK-001 — single-row attack forwarding regression (2026-11-25)
 
 The Embolist Auto Optimize page passed a null `buildForAttack` because it normally forwards an attack object only for weapons with multiple rows. The Vile cycle objective requires `Embolist / Normal Attack`; without that selected-attack context the optimizer rejected Vile Discharge and returned an empty build at zero score. The page now passes the Normal Attack row for this objective, and `optimizeBuildCore` resolves Normal Attack as a fallback when the request passes null or omits the row.
