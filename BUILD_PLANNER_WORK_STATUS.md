@@ -6,11 +6,11 @@ This is the concise continuation checkpoint for the active Damage 3.0 / Build Pl
 
 ## CURRENT CONTINUATION CHECKPOINT — 2026-11-26 (Vile single-row optimizer regression released)
 
-- **Baseline:** GitHub `main` is `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; the outer checkout at `218436b6` has a mixed, unrelated dirty diff and is not the source for publication.
+- **Baseline:** GitHub `main` at this documentation checkpoint is `04dbecbcd6d384fbc83570d7da4355245c1e302f`; the outer checkout at `218436b6` has a mixed, unrelated dirty diff and is not the source for publication.
 - **Finding/fix:** the page forwarded `buildForAttack: null` when Embolist had one attack row. The Vile objective requires its Normal Attack context, so the worker returned an empty, zero-score build. The UI now forwards that row explicitly, and optimizer core resolves it when a null or missing row arrives.
 - **Validation:** the full-catalog Worker-shaped regression passes 1/1 with `buildForAttack: null` and requires Vile Discharge in the legal positive-score result. App/test TypeScript, focused ESLint, and a 991-module Vite bundle pass. The default Vitest config loader hit EPERM under the shared `node_modules` junction; `--configLoader runner --no-cache` passed.
-- **Rendered review:** localhost port 80 serves stale `version=2bf6faea` and did not expose the Vile goal. The in-app browser timed out opening a temporary current-source Vite preview on port 5173. Current-source visual review remains open.
-- **Release:** PR [#415](https://github.com/Appl3Tree/Tenno-Hub/pull/415) squash-merged as `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; Pages run [#494](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45764659326) succeeded. Current-source visual review remains open. No broad benchmark, Underframe parity, or gameplay claim changed.
+- **Rendered review:** the in-app browser reviewed deployed version `ca04ceb` after Pages run #494. Embolist Auto Optimize retained Vile Discharge; Why This Build reported `Vile Discharge Cycle DPS`, `Normal Attack`, and a 2,042.7 cycle-DPS score. The earlier local port-80 endpoint remains stale (`version=2bf6faea`), and the temporary current-source Vite preview timed out.
+- **Release:** PR [#415](https://github.com/Appl3Tree/Tenno-Hub/pull/415) squash-merged as `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; Pages run [#494](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45764659326) succeeded. The deployed UI rendered review is complete for the optimizer flow; local preview remains unavailable. No broad benchmark, Underframe parity, or gameplay claim changed.
 
 ## CURRENT WORKING CHECKPOINT — 2026-11-25 (Javlok parser and mixed-effect badge deployed)
 
