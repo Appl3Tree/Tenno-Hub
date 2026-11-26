@@ -698,11 +698,11 @@ export async function parseAlecaFrameInventory(
     if (entries.length > MAX_ARRAY_RECORDS) {
       sections[section] = {
         sourceRecords: entries.length, importedRecords: 0, importedCopies: 0,
-        unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0, skippedRecords: 0,
-        failedRecords: entries.length, excludedRecords: 0,
-        status: "unclassified", reason: "Section exceeds the supported record limit.",
+        unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0, skippedRecords: entries.length,
+        failedRecords: 0, excludedRecords: 0,
+        status: "unclassified", reason: "Section exceeds the supported record limit and was left out of owned inventory.",
       };
-      issue(issues, section, -1, "", "Section exceeds the supported record limit.");
+      issue(warnings, section, -1, "", "Unclassified source section exceeds the supported record limit; this section was left out of owned inventory and the recognized sections can still be imported.");
       continue;
     }
     const itemTypeIndexes = entries
@@ -710,20 +710,20 @@ export async function parseAlecaFrameInventory(
       .filter((index) => index >= 0);
     sections[section] = {
       sourceRecords: entries.length, importedRecords: 0, importedCopies: 0,
-      unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0, skippedRecords: 0,
-      failedRecords: entries.length, excludedRecords: 0,
+      unresolvedRecords: 0, unresolvedCopies: 0, rankUnknownRecords: 0, rankUnknownCopies: 0, skippedRecords: entries.length,
+      failedRecords: 0, excludedRecords: 0,
       status: "unclassified",
       reason: itemTypeIndexes.length > 0
-        ? "Contains item identities but is not mapped as inventory or a verified non-inventory section."
-        : "This source array is not classified by the importer.",
+        ? "Contains item identities but is not mapped as inventory or a verified non-inventory section; its records are left out of owned inventory."
+        : "This source array is not classified by the importer and is left out of owned inventory.",
     };
     if (itemTypeIndexes.length === 0) {
-      issue(issues, section, -1, "", "Unclassified source array; import is blocked until its meaning is verified.");
+      issue(warnings, section, -1, "", "Unclassified source array; it was left out of owned inventory, while recognized sections remain importable.");
     }
     for (const index of itemTypeIndexes) {
       const entry = entries[index] as JsonObject;
-      issue(issues, section, index, typeof entry.ItemType === "string" ? entry.ItemType : "",
-        "Unclassified ItemType section; import blocked until its semantics are verified.");
+      issue(warnings, section, index, typeof entry.ItemType === "string" ? entry.ItemType : "",
+        "Unclassified ItemType section; this record was left out of owned inventory, while recognized sections remain importable.");
     }
   }
 
@@ -749,7 +749,8 @@ export async function parseAlecaFrameInventory(
   const totalCopies = normalizedRecords.reduce((sum, record) => sum + record.quantity, 0) +
     normalizedUnresolved.reduce((sum, record) => sum + record.quantity, 0) + rivenRecords.size;
   const requiredCoverageSections = [...COUNTED_ITEM_SECTIONS, ...OWNED_ITEM_SECTIONS, ...STACKED_MOD_SECTIONS, ...INDIVIDUAL_MOD_SECTIONS];
-  const coverageComplete = requiredCoverageSections.every((section) => sections[section]?.status === "imported");
+  const coverageComplete = requiredCoverageSections.every((section) => sections[section]?.status === "imported") &&
+    Object.values(sections).every((section) => section.status !== "unclassified");
 
   return {
     playerLevel: isSafeInteger(playerLevel, 100) ? playerLevel : null,

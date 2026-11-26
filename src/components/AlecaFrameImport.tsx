@@ -397,7 +397,7 @@ export default function AlecaFrameImport() {
                 ["Total copies", preview.totalCopies.toLocaleString(), "Matched and unresolved stack quantities plus individual instances"],
                 ["Personalized Riven instances", preview.rivenRecords.length.toLocaleString(), "Unique Riven records; incomplete fields remain marked unknown"],
                 ["Unresolved identities", preview.unresolvedRecords.length.toLocaleString(), unresolvedCopies.toLocaleString() + " copies kept in the unresolved report"],
-                ["Validation issues", preview.issues.length.toLocaleString(), "Structural or unclassified data that blocks import"],
+                ["Validation issues", preview.issues.length.toLocaleString(), "Malformed recognized data that blocks import"],
                 ["New ownership", ((review?.newCount ?? 0) + (review?.newRivenCount ?? 0)).toLocaleString(), "Canonical items and unique Rivens absent locally"],
                 ["Changed records", ((review?.changedCount ?? 0) + (review?.changedRivenCount ?? 0)).toLocaleString(), "Quantity, rank distribution, or same Riven instance differs"],
                 ["Preserved local records", ((review?.localOnlyCount ?? 0) + (review?.localOnlyRivenCount ?? 0)).toLocaleString(), (review?.localOnlyCopies ?? 0).toLocaleString() + " copies and " + (review?.localOnlyRivenCount ?? 0).toLocaleString() + " Rivens absent from this snapshot"],
@@ -440,7 +440,7 @@ export default function AlecaFrameImport() {
                 : missingCoverageSections.length > 0
                   ? "Supported sections absent from this file: " + missingCoverageSections.join(", ") + ". Missing sections are unknown, never zero ownership."
                   : invalidCoverageSections.length > 0
-                    ? "Source sections with an invalid or unclassified shape: " + invalidCoverageSections.join(", ") + ". Import is blocked until the source structure is understood."
+                    ? "Unclassified source sections: " + invalidCoverageSections.join(", ") + ". Their records are left out of owned counts; recognized inventory sections can still be imported. Review the non-blocking warnings below."
                     : "All supported sections are present, but " + partialCoverageSections.length.toLocaleString() + " contain identities, ranks, or records that need review. Their source data is preserved in the report."}
               {preview.playerLevel !== null
                 ? " Mastery Rank " + preview.playerLevel + " was detected and is not changed by this inventory import."
@@ -706,7 +706,7 @@ export default function AlecaFrameImport() {
                   Import blocked: {preview.issues.length.toLocaleString()} validation issues
                 </h3>
                 <p className="mt-1 text-xs text-[color:var(--wf-text-muted)]">
-                  These records have invalid structure or come from a source section whose meaning has not been verified. Fixing this snapshot is required before any inventory changes can be applied.
+                  These recognized records have invalid structure. Correct the source data before applying any inventory changes.
                 </p>
                 <details className="mt-2">
                   <summary className="cursor-pointer text-sm text-[color:var(--wf-text-strong)]">Inspect issues</summary>
@@ -734,11 +734,17 @@ export default function AlecaFrameImport() {
                   Non-blocking source warnings ({preview.warnings.length})
                 </summary>
                 <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto text-xs text-[color:var(--wf-text-muted)]">
-                  {preview.warnings.map((warning, index) => (
+                  {preview.warnings.slice(0, 200).map((warning, index) => (
                     <li key={sectionKey(warning.section, warning.index, index)} className="break-all">
-                      {warning.section}{warning.index >= 0 ? "[" + warning.index + "]" : ""}: {warning.reason}
+                      {warning.section}{warning.index >= 0 ? "[" + warning.index + "]" : ""}
+                      {warning.path ? " · " + warning.path : ""}: {warning.reason}
                     </li>
                   ))}
+                  {preview.warnings.length > 200 ? (
+                    <li className="pt-1 text-[color:var(--wf-text-dim)]">
+                      Showing the first 200 warnings. Download the audit for the complete list.
+                    </li>
+                  ) : null}
                 </ul>
               </details>
             ) : null}

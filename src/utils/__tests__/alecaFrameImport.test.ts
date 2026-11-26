@@ -256,18 +256,57 @@ describe("AlecaFrame inventory parser", () => {
       .toEqual(reordered.rivenRecords.map((record) => record.id).sort());
   });
 
-  it("accounts for every top-level array and blocks a newly unclassified section", async () => {
+  it("keeps newly unclassified ItemType sections out of ownership without blocking recognized inventory", async () => {
     const root = fixture();
     root.MiscItems = [{ ItemType: item, ItemCount: 4 }];
-    root.FutureArray = ["one", "two"];
+    root.FutureArray = [{ ItemType: item, ItemCount: 999 }];
     const result = await parseAlecaFrameInventory(root, classify, resolveRiven);
-    expect(result.importable).toBe(false);
-    expect(result.sections.FutureArray).toMatchObject({ sourceRecords: 2, status: "unclassified" });
+    expect(result.importable).toBe(true);
+    expect(result.issues).toHaveLength(0);
+    expect(result.records).toMatchObject([{ catalogId: `items:${item}`, quantity: 4 }]);
+    expect(result.totalCopies).toBe(4);
+    expect(result.sections.FutureArray).toMatchObject({
+      sourceRecords: 1,
+      status: "unclassified",
+      importedRecords: 0,
+      skippedRecords: 1,
+      failedRecords: 0,
+    });
+    expect(result.coverageComplete).toBe(false);
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      section: "FutureArray",
+      index: 0,
+      path: item,
+      reason: expect.stringContaining("left out of owned inventory"),
+    }));
     expect(result.totalArrayRecords).toBe(result.sourceRecords);
     expect(Object.values(result.sections).reduce((sum, section) => sum + section.sourceRecords, 0))
       .toBe(result.sourceRecords);
     expect(result.rootFields.some((field) => field.name === "FutureArray" && field.valueType === "array"))
       .toBe(true);
+  });
+
+  it("reports an unfamiliar metadata array without blocking supported inventory", async () => {
+    const root = fixture();
+    root.MiscItems = [{ ItemType: item, ItemCount: 3 }];
+    root.FutureMetadata = ["one", "two"];
+
+    const result = await parseAlecaFrameInventory(root, classify, resolveRiven);
+
+    expect(result.importable).toBe(true);
+    expect(result.issues).toHaveLength(0);
+    expect(result.records).toMatchObject([{ catalogId: `items:${item}`, quantity: 3 }]);
+    expect(result.sections.FutureMetadata).toMatchObject({
+      sourceRecords: 2,
+      status: "unclassified",
+      skippedRecords: 2,
+      failedRecords: 0,
+    });
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      section: "FutureMetadata",
+      index: -1,
+      reason: expect.stringContaining("recognized sections remain importable"),
+    }));
   });
 
   it("keeps unclaimed email attachments and in-progress Foundry jobs out of owned inventory", async () => {
