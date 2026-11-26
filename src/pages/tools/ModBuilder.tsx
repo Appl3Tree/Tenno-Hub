@@ -6011,7 +6011,11 @@ export default function ModBuilder() {
                 };
                 const weaponState = applyWeaponConfig(weapon, attackIdxForObjective, candidateCfg);
                 const weaponForOpt = weaponState.weaponWithIntrinsicOptions;
-                const atk = weaponForOpt.attacks.length > 1 ? weaponForOpt.attacks[attackIdxForObjective] : null;
+                const atk = goal === "vileDischargeDps"
+                    ? weaponForOpt.attacks[attackIdxForObjective] ?? null
+                    : weaponForOpt.attacks.length > 1
+                        ? weaponForOpt.attacks[attackIdxForObjective]
+                        : null;
 
                 // If allowCatalyst, override capacityCfg to hasCatalyst:true
                 const capForOpt = capacityCfg;
