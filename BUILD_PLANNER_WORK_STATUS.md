@@ -4,6 +4,14 @@ Last updated: 2026-11-25
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
+## CURRENT CONTINUATION CHECKPOINT — 2026-11-25 (Vile single-row optimizer regression)
+
+- **Baseline:** GitHub `main` is `73786adaf555e18ac1127b2a8ad6bb51d068be6f`; the outer checkout at `218436b6` has a mixed, unrelated dirty diff and is not the source for publication.
+- **Finding/fix:** the page forwarded `buildForAttack: null` when Embolist had one attack row. The Vile objective requires its Normal Attack context, so the worker returned an empty, zero-score build. The UI now forwards that row explicitly, and optimizer core resolves it when a null or missing row arrives.
+- **Validation:** the full-catalog Worker-shaped regression passes 1/1 with `buildForAttack: null` and requires Vile Discharge in the legal positive-score result. App/test TypeScript, focused ESLint, and a 991-module Vite bundle pass. The default Vitest config loader hit EPERM under the shared `node_modules` junction; `--configLoader runner --no-cache` passed.
+- **Rendered review:** localhost port 80 serves stale `version=2bf6faea` and did not expose the Vile goal. The in-app browser timed out opening a temporary current-source Vite preview on port 5173. Current-source visual review remains open.
+- **Release status:** not yet released at the time of this checkpoint. No broad benchmark, Underframe parity, or gameplay claim changed.
+
 ## CURRENT WORKING CHECKPOINT — 2026-11-25 (Javlok parser and mixed-effect badge deployed)
 
 - **Workspace:** isolated worktree `.tmp-current-main`, documentation checkpoint branch `codex/javlok-badge-release-checkpoint-20261125`, based on current `origin/main` `c80ec5ad364dc3f526b4f2c291ea4c5546faba38`. It records the merged parser and badge correction; the outer checkout at `218436b6` contains unrelated dirty work; do not stage it.
