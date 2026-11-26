@@ -1,6 +1,6 @@
 ## D3-MOD-VILE-DISCHARGE-OPTIMIZER-ATTACK-001 — release reconciliation (2026-11-26)
 
-PR [#415](https://github.com/Appl3Tree/Tenno-Hub/pull/415) squash-merged as `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; Pages run [#494](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45764659326) succeeded. It deploys the single-row Embolist attack forwarding and optimizer fallback with the full-catalog regression described below. No benchmark or optimizer-quality result changed. Current-source rendered review remains open because the in-app browser endpoint was stale and the local preview timed out.
+PR [#415](https://github.com/Appl3Tree/Tenno-Hub/pull/415) squash-merged as `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; Pages run [#494](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45764659326) succeeded. It deploys the single-row Embolist attack forwarding and optimizer fallback with the full-catalog regression described below. No benchmark or optimizer-quality result changed. The IAB review of deployed version `ca04ceb` confirmed that Auto Optimize retained Vile Discharge, scored 2,042.7 cycle DPS, and identified Embolist Normal Attack in Why This Build; this is a rendered flow check on one target profile, not a global-optimality or gameplay claim. The local port-80 preview remained stale and the local Vite preview timed out.
 
 ## D3-MOD-VILE-DISCHARGE-OPTIMIZER-ATTACK-001 — single-row attack forwarding regression (2026-11-25)
 
