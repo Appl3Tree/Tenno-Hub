@@ -5090,11 +5090,16 @@ function optimizeBuildInternal(
         optimizeExilus = false,
         exilusPolarity = "",
         optimizeArcane = false,
-        buildForAttack = null,
+        buildForAttack: requestedBuildForAttack,
         lockedSlots = [],
         lockedSlotRanks = [],
         preEquippedEffects = [],
     } = opts;
+    const buildForAttack = requestedBuildForAttack ?? (
+        goal === "vileDischargeDps" && weapon.name === "Embolist"
+            ? weapon.attacks.find((attack) => attack.name === "Normal Attack") ?? null
+            : null
+    );
 
     // Score against the selected attack if specified
     const scoringWeapon = makeWeaponForAttack(weapon, buildForAttack);
