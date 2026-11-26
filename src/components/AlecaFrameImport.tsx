@@ -6,7 +6,6 @@ import {
   ALECAFRAME_MAX_FILE_BYTES,
   decryptAlecaFrameDat,
   parseAlecaFrameInventory,
-  type AlecaFrameCatalogMatch,
   type AlecaFrameInventorySnapshot,
   type AlecaFrameRecord,
 } from "../utils/alecaFrameImport";
@@ -15,6 +14,7 @@ import {
   reconcileAlecaFrameInventory,
   type AlecaFrameReconciliationMode,
 } from "../utils/alecaFrameReconcile";
+import { exactAlecaFrameCatalogMatch } from "../utils/alecaFrameCatalogMatch";
 import { parseAlecaFrameRiven } from "../domain/rivenFingerprint";
 import { formatRivenStatValue, getCustomRivenStatDef } from "../domain/rivens";
 import { WorkspacePanel } from "./workspace/WorkspaceChrome";
@@ -29,42 +29,6 @@ function downloadJson(filename: string, data: unknown): void {
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function isUpgradeSection(section: string): boolean {
-  return section === "RawUpgrades" || section === "Upgrades";
-}
-
-function exactCatalogMatch(path: string, section: string): AlecaFrameCatalogMatch | null {
-  if (isUpgradeSection(section)) {
-    const itemId = "items:" + path;
-    const item = FULL_CATALOG.recordsById[itemId as CatalogId];
-    if (item?.categories.includes("Peely Pix")) {
-      return {
-        catalogId: itemId,
-        kind: "item",
-        ...(section === "RawUpgrades" ? { rawUpgradeItem: true } : {}),
-      };
-    }
-
-    const rivenId = "rivens:" + path;
-    const riven = FULL_CATALOG.recordsById[rivenId as CatalogId];
-    if (riven) return { catalogId: rivenId, kind: "riven" };
-
-    const modId = "mods:" + path;
-    const mod = FULL_CATALOG.recordsById[modId as CatalogId];
-    if (!mod) return null;
-    const raw = mod.raw && typeof mod.raw === "object" ? mod.raw as Record<string, unknown> : {};
-    const type = String(raw.type ?? "").toLowerCase();
-    const arcane = path.startsWith("/Lotus/Upgrades/CosmeticEnhancers/") ||
-      type === "arcane" || type.includes("arcane") ||
-      mod.categories.some((category) => category.toLowerCase().includes("arcane"));
-    return { catalogId: modId, kind: arcane ? "arcane" : "mod" };
-  }
-  const itemId = "items:" + path;
-  return FULL_CATALOG.recordsById[itemId as CatalogId]
-    ? { catalogId: itemId, kind: "item" }
-    : null;
 }
 
 function displayName(record: AlecaFrameRecord): string {
@@ -152,7 +116,7 @@ export default function AlecaFrameImport() {
       const decrypted = await decryptAlecaFrameDat(await file.arrayBuffer());
       const result = await parseAlecaFrameInventory(
         decrypted,
-        exactCatalogMatch,
+        exactAlecaFrameCatalogMatch,
         async (entry, path, catalogId, index) => {
           const normalized = await parseAlecaFrameRiven(entry, path, catalogId, index);
           return { record: normalized.record, warnings: normalized.warnings };
