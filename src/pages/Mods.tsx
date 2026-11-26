@@ -2365,6 +2365,7 @@ function ModsPage() {
   const modUnknownRankCountsMap = useTrackerStore((s) => s.state.inventory.modUnknownRankCounts ?? EMPTY_MOD_UNKNOWN_RANK_COUNTS);
   const customRivens = useTrackerStore((s) => s.state.inventory.customRivens ?? EMPTY_CUSTOM_RIVENS);
   const setModCount = useTrackerStore((s) => s.setModCount);
+  const setModRankInventory = useTrackerStore((s) => s.setModRankInventory);
   const upsertCustomRiven = useTrackerStore((s) => s.upsertCustomRiven);
   const deleteCustomRiven = useTrackerStore((s) => s.deleteCustomRiven);
 
@@ -3148,9 +3149,20 @@ function ModsPage() {
                                 </span>
                               ) : null}
                             </div>
-                            <div role="cell" className="min-w-0 px-2 text-[10px] text-slate-400" title={rankDistribution || (ownedCount > 0 ? `R${ownedRank} ×${ownedCount}` : "No owned copies")}>
+                            <div role="cell" className="relative min-w-0 px-2 text-[10px] text-slate-400" title={rankDistribution || (ownedCount > 0 ? `R${ownedRank} ×${ownedCount}` : "No owned copies")}>
                               <div className="max-w-[128px] truncate">{rankDistribution || (ownedCount > 0 ? `R${ownedRank} ×${ownedCount}` : "—")}</div>
-                              <button className="text-[9px] text-cyan-400 hover:text-cyan-200" onClick={() => setSelectedMod(entry)}>Edit rank counts</button>
+                              <ModRankInventoryEditor
+                                key={entry.path}
+                                className="mt-1"
+                                popover
+                                buttonLabel="Edit ranks"
+                                ariaLabel="Edit owned mod copies by rank"
+                                maxRank={maxRank}
+                                rankCounts={rankInventory.rankCounts}
+                                unknownCount={rankInventory.unknownCount}
+                                totalCount={rankInventory.totalCount}
+                                onChange={(nextRanks, nextUnknown) => setModRankInventory(entry.path, nextRanks, nextUnknown)}
+                              />
                             </div>
                             <div role="cell" className="flex justify-center gap-2">
                               <button

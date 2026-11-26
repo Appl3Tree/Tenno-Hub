@@ -8,6 +8,9 @@ export default function ModRankInventoryEditor({
     onChange,
     className = "",
     defaultExpanded = false,
+    popover = false,
+    buttonLabel = "Ranks",
+    ariaLabel = "Show owned copies by rank",
 }: {
     maxRank: number;
     rankCounts: Record<string, number>;
@@ -16,6 +19,10 @@ export default function ModRankInventoryEditor({
     onChange: (rankCounts: Record<string, number>, unknownCount: number) => void;
     className?: string;
     defaultExpanded?: boolean;
+    /** Render the expanded editor over the list instead of increasing row height. */
+    popover?: boolean;
+    buttonLabel?: string;
+    ariaLabel?: string;
 }) {
     const [expanded, setExpanded] = useState(defaultExpanded);
     const ranks = useMemo(() => Array.from({ length: Math.max(0, Math.floor(maxRank)) + 1 }, (_, rank) => rank), [maxRank]);
@@ -49,12 +56,19 @@ export default function ModRankInventoryEditor({
                 type="button"
                 className="rounded-md border border-slate-700 bg-slate-900/80 px-2 py-1 text-[10px] font-medium text-slate-300 hover:border-slate-500 hover:text-white"
                 aria-expanded={expanded}
+                aria-label={ariaLabel}
+                title={ariaLabel}
                 onClick={() => setExpanded((value) => !value)}
             >
-                Ranks · {totalCount}
+                {buttonLabel} · {totalCount}
             </button>
             {expanded && (
-                <div className="mt-2 rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-xl">
+                <div className={[
+                    "rounded-lg border border-slate-700 bg-slate-950 p-3 shadow-xl",
+                    popover
+                        ? "absolute right-0 top-full z-50 mt-1 max-h-[min(70vh,32rem)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto"
+                        : "mt-2",
+                ].join(" ")}>
                     <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
                             <div className="text-xs font-semibold text-slate-100">Owned copies by rank</div>
