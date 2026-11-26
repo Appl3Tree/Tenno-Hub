@@ -168,6 +168,9 @@ function sanitizeDisplayName(name: string): string {
 }
 
 function getDisplayName(pathKey: string, rec: any): string {
+    if (pathKey === "/Lotus/StoreItems/Upgrades/Mods/Fusers/LegendaryModFuser") {
+        return "Legendary Core";
+    }
     const n = safeString(rec?.name);
     return n ? sanitizeDisplayName(n) : pathKey;
 }
