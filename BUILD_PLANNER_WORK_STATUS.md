@@ -1,16 +1,16 @@
 # Build Planner Work Status
 
-Last updated: 2026-11-25
+Last updated: 2026-11-26
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
-## CURRENT CONTINUATION CHECKPOINT — 2026-11-25 (Vile single-row optimizer regression)
+## CURRENT CONTINUATION CHECKPOINT — 2026-11-26 (Vile single-row optimizer regression released)
 
-- **Baseline:** GitHub `main` is `73786adaf555e18ac1127b2a8ad6bb51d068be6f`; the outer checkout at `218436b6` has a mixed, unrelated dirty diff and is not the source for publication.
+- **Baseline:** GitHub `main` is `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; the outer checkout at `218436b6` has a mixed, unrelated dirty diff and is not the source for publication.
 - **Finding/fix:** the page forwarded `buildForAttack: null` when Embolist had one attack row. The Vile objective requires its Normal Attack context, so the worker returned an empty, zero-score build. The UI now forwards that row explicitly, and optimizer core resolves it when a null or missing row arrives.
 - **Validation:** the full-catalog Worker-shaped regression passes 1/1 with `buildForAttack: null` and requires Vile Discharge in the legal positive-score result. App/test TypeScript, focused ESLint, and a 991-module Vite bundle pass. The default Vitest config loader hit EPERM under the shared `node_modules` junction; `--configLoader runner --no-cache` passed.
 - **Rendered review:** localhost port 80 serves stale `version=2bf6faea` and did not expose the Vile goal. The in-app browser timed out opening a temporary current-source Vite preview on port 5173. Current-source visual review remains open.
-- **Release status:** not yet released at the time of this checkpoint. No broad benchmark, Underframe parity, or gameplay claim changed.
+- **Release:** PR [#415](https://github.com/Appl3Tree/Tenno-Hub/pull/415) squash-merged as `ca04cebaf0a7c1bacfed1dc714344051fc69deed`; Pages run [#494](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45764659326) succeeded. Current-source visual review remains open. No broad benchmark, Underframe parity, or gameplay claim changed.
 
 ## CURRENT WORKING CHECKPOINT — 2026-11-25 (Javlok parser and mixed-effect badge deployed)
 
