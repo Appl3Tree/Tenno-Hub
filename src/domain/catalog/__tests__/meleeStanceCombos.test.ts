@@ -15,11 +15,11 @@ describe("Wiki melee stance combo catalog", () => {
         );
         const wikiNames = WIKI_MELEE_STANCE_COMBOS.map((combo) => combo.stanceName);
 
-        expect(wikiNames).toHaveLength(58);
+        expect(wikiNames).toHaveLength(59);
         expect(new Set(wikiNames).size).toBe(wikiNames.length);
         expect(wikiNames.every((name) => catalogStanceNames.has(name))).toBe(true);
         expect(WIKI_MELEE_STANCE_SOURCE_LAST_EDITED).toBe("2026-10-02");
-        expect(WIKI_MELEE_STANCE_VERIFIED_AT).toBe("2026-11-15");
+        expect(WIKI_MELEE_STANCE_VERIFIED_AT).toBe("2026-11-26");
         for (const combo of WIKI_MELEE_STANCE_COMBOS) {
             expect(combo.comboType).toBe("Neutral");
             expect(combo.comboName.length).toBeGreaterThan(0);
@@ -56,6 +56,13 @@ describe("Wiki melee stance combo catalog", () => {
             comboName: "August Mesto",
             baseComboLengthSeconds: 4.65,
             totalDamageMultiplier: 19,
+            totalSlashProcMultiplier: 0,
+        });
+        expect(getWikiMeleeStanceCombo("Harrowing Spire")).toMatchObject({
+            stanceName: "Harrowing Spire",
+            comboName: "Rennen",
+            baseComboLengthSeconds: 2.1,
+            totalDamageMultiplier: 7,
             totalSlashProcMultiplier: 0,
         });
         expect(getWikiMeleeStanceCombo("Unlisted Stance")).toBeNull();

@@ -20,7 +20,7 @@ export interface WikiMeleeStanceCombo {
 
 export const WIKI_MELEE_STANCE_SOURCE_URL = "https://wiki.warframe.com/w/Stance#Comparison";
 export const WIKI_MELEE_STANCE_SOURCE_LAST_EDITED = "2026-10-02";
-export const WIKI_MELEE_STANCE_VERIFIED_AT = "2026-11-15";
+export const WIKI_MELEE_STANCE_VERIFIED_AT = "2026-11-26";
 
 const WIKI_NEUTRAL_STANCE_COMBOS = [
     { stanceName: "Astral Twilight", comboName: "Morning Sun", comboType: "Neutral", baseComboLengthSeconds: 4.25, totalDamageMultiplier: 22, totalSlashProcMultiplier: 0 },
@@ -51,6 +51,7 @@ const WIKI_NEUTRAL_STANCE_COMBOS = [
     { stanceName: "Gemini Cross", comboName: "Vagrant Blight", comboType: "Neutral", baseComboLengthSeconds: 4.6, totalDamageMultiplier: 21.5, totalSlashProcMultiplier: 6.3 },
     { stanceName: "Gleaming Talon", comboName: "Mercury Vortex", comboType: "Neutral", baseComboLengthSeconds: 4.3, totalDamageMultiplier: 21, totalSlashProcMultiplier: 0 },
     { stanceName: "Grim Fury", comboName: "Fanning Flame", comboType: "Neutral", baseComboLengthSeconds: 1.9, totalDamageMultiplier: 13, totalSlashProcMultiplier: 0 },
+    { stanceName: "Harrowing Spire", comboName: "Rennen", comboType: "Neutral", baseComboLengthSeconds: 2.1, totalDamageMultiplier: 7, totalSlashProcMultiplier: 0 },
     { stanceName: "High Noon", comboName: "Final Showdown", comboType: "Neutral", baseComboLengthSeconds: 3.25, totalDamageMultiplier: 11, totalSlashProcMultiplier: 4.2 },
     { stanceName: "Homing Fang", comboName: "Cutting Arches", comboType: "Neutral", baseComboLengthSeconds: 2.8, totalDamageMultiplier: 17, totalSlashProcMultiplier: 8.4 },
     { stanceName: "Hysteria", comboName: "Fervor", comboType: "Neutral", baseComboLengthSeconds: 2.85, totalDamageMultiplier: 19, totalSlashProcMultiplier: 0 },
