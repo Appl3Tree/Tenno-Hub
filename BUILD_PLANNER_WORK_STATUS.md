@@ -1,8 +1,16 @@
 # Build Planner Work Status
 
-Last updated: 2026-11-26
+Last updated: 2026-11-27
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
+
+## CURRENT CONTINUATION CHECKPOINT — 2026-11-27 (Swipe explanation fix released and visually reviewed)
+
+- **Release:** GitHub `main` includes PR #420 at `8926ab6ca00d82257a8b239c14878c643c26588`; Pages run #499 succeeded. The outer checkout remains mixed; it was not published.
+- **Finding/fix:** leave-one-out explanation omitted `nearbySwipeTargetCount`, so supported Swipe Burst could show both a scored group contribution and a false `Not scored` warning. The fix forwards that existing target context to the explanation warning audit for Kavat Claws. No damage or optimizer-score formula changed.
+- **Validation:** focused Swipe explanation and seeded optimizer tests pass 2/2 (247 skipped); app/test TypeScript, focused ESLint, `npm run validate:sources`, and a 994-module production build pass. GitHub reported no individual PR checks; Pages workflow succeeded. The full suite was not rerun.
+- **Rendered review:** IAB on deployed `?version=8926ab6` selected Smeeta Claws, equipped Swipe R3, and entered four additional targets. Burst Auto Optimize kept Swipe; Why This Build showed 23,189.7 and about 3.36 primary-target equivalents with no contradictory `Not scored` line. Expected TTK displayed the group-effect exclusion and Auto Optimize removed Swipe. No build was saved.
+- **Still open:** source-backed audit triage, local-served-bundle mapping, Underframe parity, global optimizer quality/latency, broader full-suite validation, and live-game accuracy. Continue the larger overhaul; this closes only the Swipe explanation regression.
 
 ## CURRENT CONTINUATION CHECKPOINT — 2026-11-26 (AlecaFrame sample and Harrowing Spire release reconciled)
 

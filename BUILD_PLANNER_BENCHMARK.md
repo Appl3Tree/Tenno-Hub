@@ -4238,3 +4238,13 @@ The `meleeStanceCombos` table had 58 Neutral entries while the current weapon ca
 PR #418 squash-merged as `f9edf99bfe8855c152b96922f95f4513b16bce3f`; Pages run [#497](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45941520462) succeeded. The IAB rendered the deployed `f9edf99` Build Planner with Vinquibus (Melee) and Harrowing Spire selected. The estimate showed 7.00× direct, 0.00× forced Slash, an approximate 2.10s combo, and 1,631 stance-average DPS. No build was saved. The stance picker discloses that its separate rare effect is unmodeled. This verifies the displayed calculation and selection path; it does not validate real animation timing, Underframe parity, or gameplay accuracy.
 
 The full serial suite was started before the correction and its pre-fix loaded test reported the missing Harrowing Spire row; it was still running when this checkpoint was written. It is not post-change full-suite validation.
+
+## D3-MOD-SWIPE-EXPLANATION-CONTEXT-001 — leave-one-out warning context (released in PR #420 / Pages run #499)
+
+Swipe's Kavat Claw group estimate remains the bounded model released in PR #395: Burst and Scaling use an explicitly entered 0–4 target count, capped by Swipe rank, with the user-approved generic Claws 0.8 follow-through proxy. This follow-up does not alter that score.
+
+Current Pages review found that a supported Burst build scored Swipe but its leave-one-out contribution text also said `Not scored`. The explanation warning audit did not receive the configured nearby-target count. PR #420 forwards that count to the audit only for Kavat weapon profiles. Its regression verifies the supported Burst row has the score comparison without the false warning while finite Expected TTK retains the correct unscored-effect warning.
+
+The focused Swipe explanation and seeded optimizer tests pass 2/2 (247 unrelated tests skipped). App/test TypeScript, focused ESLint, `npm run validate:sources`, and a 994-module Vite production build pass; the full repository suite was not rerun. GitHub reported no individual PR checks; Pages run #499 succeeded.
+
+IAB review of deployed `?version=8926ab6` selected Smeeta Claws / Swipe R3 and four same-profile targets. Burst Auto Optimize kept Swipe and Why This Build showed 23,189.7 group score / about 3.36 primary-target equivalents without `Not scored`. Expected TTK displayed the group exclusion, and Auto Optimize removed Swipe. No build was saved. Target geometry remains assumed; the 0.8 value remains a generic Claws proxy. Underframe parity, global optimizer quality, full-suite validation, and live-game accuracy remain open.
