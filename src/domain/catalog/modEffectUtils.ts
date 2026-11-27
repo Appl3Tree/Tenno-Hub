@@ -95,6 +95,10 @@ export interface ScoringEffectContext {
     selectedAcidShellsEnemyCount?: number;
     /** Mean center distance for Acid Shells neighbors, in meters. */
     selectedAcidShellsAverageDistanceMeters?: number;
+    /** Same-profile neighbors represented by the Thermagnetic Shells Burst estimate. */
+    selectedThermomagneticShellsEnemyCount?: number;
+    /** Mean center distance for Thermagnetic Shells neighbors, in meters. */
+    selectedThermomagneticShellsAverageDistanceMeters?: number;
     /** Same-profile neighbors represented by the Combustion Beam Burst estimate. */
     selectedCombustionBeamEnemyCount?: number;
     /** Mean center distance for Combustion Beam neighbors, in meters. */
@@ -142,6 +146,28 @@ export function isAcidShellsBurstContextSupported(
         : 0;
     return (context?.selectedWeaponName === "Sobek" || context?.selectedWeaponName === "Kuva Sobek") &&
         context.selectedAttackName === "Normal Attack" &&
+        context.selectedAttackIsAreaDamage === false &&
+        context.targetHasOverguard !== true &&
+        context.targetHasShields !== true &&
+        context.selectedGoal === "burst" &&
+        enemyCount > 0 && radius > 0 && averageDistance < radius;
+}
+
+export function isThermomagneticShellsBurstContextSupported(
+    effect: Partial<ModEffect>,
+    context?: ScoringEffectContext,
+): boolean {
+    const enemyCount = Number.isFinite(context?.selectedThermomagneticShellsEnemyCount)
+        ? Math.max(0, Math.min(20, Math.floor(context?.selectedThermomagneticShellsEnemyCount ?? 0)))
+        : 0;
+    const averageDistance = Number.isFinite(context?.selectedThermomagneticShellsAverageDistanceMeters)
+        ? Math.max(0, Math.min(6, context?.selectedThermomagneticShellsAverageDistanceMeters ?? 0))
+        : Number.POSITIVE_INFINITY;
+    const radius = Number.isFinite(effect.thermomagneticShellsRadiusMeters)
+        ? Math.max(0, effect.thermomagneticShellsRadiusMeters ?? 0)
+        : 0;
+    return ["Detron", "Mara Detron", "Tenet Detron"].includes(context?.selectedWeaponName ?? "") &&
+        context?.selectedAttackName === "Normal Attack" &&
         context.selectedAttackIsAreaDamage === false &&
         context.targetHasOverguard !== true &&
         context.targetHasShields !== true &&
@@ -270,10 +296,17 @@ export function getUnmodeledDamageEffectLines(
             : "Acid Shells' on-death explosion is scored only for Sobek/Kuva Sobek Normal Attack Burst with an entered same-profile neighbor count and mean distance inside the selected rank radius. The bounded estimate assumes a fresh health-only primary killed by the expected direct hit, linear 100%–0% falloff, and line of sight; it excludes neighbor depletion and chained deaths. Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain unscored, so Auto Optimize skips the mod outside that snapshot. Wiki: https://wiki.warframe.com/w/Acid_Shells");
     }
     if (mod.path === THERMAGNETIC_SHELLS_MOD_PATH) {
-        // This Detron augment damages nearby enemies when one dies. Keep the
-        // sourced rank text visible, but do not treat it as ordinary hit damage.
-        // https://wiki.warframe.com/w/Thermagnetic_Shells
-        lines.push("Thermagnetic Shells triggers an on-death explosion: 20–80 Magnetic Damage plus 10–40% of the triggering enemy's max Health as Blast Damage in a 6m radius. Linear falloff and line of sight apply. The Wiki says Elemental Ammo status effects no longer recursively retrigger these death explosions; the planner still does not resolve on-kill area damage, adjacent-target deaths, or mission-specific max-Health scaling, so Auto Optimize skips the mod.");
+        const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
+        const supportedBurstContext = isThermomagneticShellsBurstContextSupported(effect, context);
+        const enemyCount = Number.isFinite(context?.selectedThermomagneticShellsEnemyCount)
+            ? Math.max(0, Math.min(20, Math.floor(context?.selectedThermomagneticShellsEnemyCount ?? 0)))
+            : 0;
+        const averageDistance = Number.isFinite(context?.selectedThermomagneticShellsAverageDistanceMeters)
+            ? Math.max(0, Math.min(6, context?.selectedThermomagneticShellsAverageDistanceMeters ?? 0))
+            : 0;
+        lines.push(supportedBurstContext
+            ? `Thermagnetic Shells' bounded Burst group estimate assumes each Detron Normal Attack event kills a fresh same-profile health-only primary, then scores one on-death explosion against ${enemyCount} same-profile neighbors at a mean ${averageDistance.toFixed(1)}m. It uses linear 100%–0% falloff within the selected ${effect.thermomagneticShellsRadiusMeters ?? 0}m rank radius and assumes line of sight. The model excludes neighbor depletion and chained explosion kills; Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain unmodeled. Wiki: https://wiki.warframe.com/w/Thermagnetic_Shells`
+            : "Thermagnetic Shells triggers an on-death explosion on Detron, Mara Detron, and Tenet Detron: rank-scaled Magnetic Damage plus a percentage of the triggering target's Max Health as Blast Damage. The planner models a bounded same-profile Burst group estimate only for a direct Normal Attack that kills a fresh health-only primary and has entered neighbors inside the rank radius. Linear falloff and line of sight apply; neighbor depletion/chained deaths, Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS are not modeled, so Auto Optimize skips the mod outside that snapshot. Wiki: https://wiki.warframe.com/w/Thermagnetic_Shells");
     }
     if (mod.path === COMBUSTION_BEAM_MOD_PATH) {
         const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
@@ -600,6 +633,7 @@ export function emptyEffect(): ModEffect {
         blastBonus: 0, vulcanBlitzBlastDamage: 0, vulcanBlitzMaxHealthPercent: 0, vulcanBlitzRadiusMeters: 0,
         combustionBeamBlastDamage: 0, combustionBeamRadiusMeters: 0,
         acidShellsCorrosiveDamage: 0, acidShellsMaxHealthPercent: 0, acidShellsRadiusMeters: 0,
+        thermomagneticShellsMagneticDamage: 0, thermomagneticShellsMaxHealthPercent: 0, thermomagneticShellsRadiusMeters: 0,
         gasBonus: 0, magneticBonus: 0, viralBonus: 0, corrosiveBonus: 0, radiationBonus: 0,
         voidBonus: 0, tauBonus: 0, trueBonus: 0,
         critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
