@@ -4,6 +4,15 @@ Last updated: 2026-11-27
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
+
+## D3-UI-BUILD-REASONING-ZERO-BASELINE-001 — required objective mod explanation (2026-11-27)
+
+- **Observed defect:** a read-only Embolist / Vile Discharge Cycle explanation labeled Vile Discharge `+0.0%` and said it had “No direct effect,” even though removing it disables the objective and changes its score to zero. Relative gain is undefined when the leave-one-out baseline is zero.
+- **Fix:** per-mod and Arcane percentage gains now use null when their comparison baseline is zero. The UI displays `N/A` for undefined percentages and marks Vile Discharge `Required` when it enables a positive cycle score. Its explanation and the winning-edge summary state that removing it makes the objective unsupported. Score formulas and optimizer selection are unchanged.
+- **Validation:** the focused Vile optimizer/explanation regression passes 1/1 (236 skipped in its file); app/test TypeScript, focused ESLint, and a 994-module production build pass. The existing Vite large-chunk warning remains.
+- **Rendered review:** local current-source IAB requests timed out on port 5174. Use the deployed version for visual confirmation after release; no rendered pass is claimed yet.
+
+
 ## ALECAFRAME / MODS PAGE CHECKPOINT — 2026-11-27 (Current-main snapshot replay)
 
 - **Source reconciliation:** GitHub main was `23ce223227e7a4610c7fb166e04cda122b32d9f2`. The current source already includes the Legendary Core identity alias from AlecaFrame's `/Lotus/Upgrades/Mods/Fusers/LegendaryModFuser` to the counted, non-rankable catalog item at `/Lotus/StoreItems/Upgrades/Mods/Fusers/LegendaryModFuser`. Unknown future sections remain non-blocking and outside owned inventory; supported sections remain importable.

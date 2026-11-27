@@ -4265,3 +4265,11 @@ Neighbor positions and damage variation are compressed into a single mean-distan
 The focused rank/context, scoring-scope, and seeded optimizer tests pass 4/4 (440 unrelated tests skipped). Seed 20261175 matches exhaustive two-slot owned-rank winners across four randomized Detron-family/faction/Steel Path/health/neighbor-distance/ownership-rank scenarios. Focused ESLint for the seven edited application/test files, npm run validate:sources, app/test TypeScript, and npm run build pass; Vite transformed 994 modules with the existing large-chunk warning. The full repository suite was not run.
 
 The temporary port-4179 build timed out in the in-app browser, so the candidate lacks rendered review before release. Recheck the deployed current source in the in-app browser. This candidate does not establish Underframe parity, global optimizer optimality, or live-game behavior.
+
+## D3-UI-BUILD-REASONING-ZERO-BASELINE-001 — required objective mod explanation (2026-11-27)
+
+A read-only in-app view showed `Vile Discharge +0.0%` and “No direct effect” in Why This Build, although removing Vile Discharge leaves the selected cycle objective unsupported at zero score. The leave-one-out percent used zero as its denominator.
+
+Build reasoning now represents undefined mod and Arcane percentage gains as null. The UI renders `N/A` when the baseline score is zero and displays `Required` for Vile Discharge when removing it makes a positive cycle score unsupported. The row and winning-edge summary explain the objective gate. Damage scoring and candidate selection are unchanged.
+
+The focused Vile optimizer/explanation test passes 1/1 (236 skipped in the file), app/test TypeScript checks and focused ESLint pass, and a 994-module production build succeeds with the existing large-chunk warning. Local current-source IAB requests timed out; confirm the rendered explanation against the deployed build after release. This is an explanation correction only and does not establish Underframe parity or gameplay accuracy.

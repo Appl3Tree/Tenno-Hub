@@ -3474,6 +3474,26 @@ describe("build optimizer scoring", () => {
 
         const centeredTarget = { health: 100_000, shields: 0, overguard: 0, armor: 0 };
         const centeredScore = debugScoreBuild(normalAttackWeapon, [vileDischarge!.effect], "vileDischargeDps", "", null, centeredTarget);
+        const explanation = explainBuild(
+            embolist!,
+            [vileDischarge!],
+            [vileDischarge!.fusionLimit],
+            "vileDischargeDps",
+            "",
+            normalAttack,
+            undefined,
+            centeredTarget,
+        );
+        expect(explanation.steps[0]).toMatchObject({
+            statBefore: 0,
+            statAfter: centeredScore,
+            pctGain: null,
+            requiredForObjective: true,
+        });
+        expect(explanation.steps[0]?.why).toContain("Required to enable the Vile Discharge cycle objective.");
+        expect(explanation.steps[0]?.why).toContain("removing it leaves this objective unsupported at 0.0");
+        expect(explanation.winningEdge).toContain("Vile Discharge (required; removing it makes the objective unsupported)");
+        expect(explanation.winningEdge).not.toContain("+0.0%");
         const neighborScore = debugScoreBuild(normalAttackWeapon, [vileDischarge!.effect], "vileDischargeDps", "", null, {
             ...centeredTarget,
             nearbyEnemyCount: 1,
