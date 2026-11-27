@@ -4,14 +4,14 @@ Last updated: 2026-11-27
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
-## CURRENT WORKING CHECKPOINT — 2026-11-27 (Necrophagic Vigor prior-reload snapshot)
+## CURRENT WORKING CHECKPOINT — 2026-11-27 (Necrophagic Vigor released)
 
-- **Baseline:** isolated clean worktree at current main `ccc60d75`; the original mixed checkout was left untouched. This feature is locally implemented and validated; no commit or release has been made yet.
+- **Baseline:** current `main` includes PR #425 at `a72f60dfad2c61b1ecd6f4b0d2acb2c537586c92`; Pages run #504 succeeded. The original mixed checkout was left untouched.
 - **Model:** Necrophagic Vigor's six ranks parse +10/+12/+14/+16/+18/+20% Critical Chance and Critical Damage per 20 Health drained, capped at +360% each. Hema and Coda Hema expose a saved 0–720 prior-reload Health-drain snapshot. Direct single-target Burst and Burst Auto Optimize use the selected rank; finite TTK, Scaling, sustained DPS, 5s DPS, reload/refill timing, later Health changes, and buff expiry/refresh are excluded. The snapshot assumes solo/host play because the Wiki reports a non-host client bug.
 - **Validation:** five focused calculator/optimizer tests pass, including seed `20261176`, which matches exhaustive two-slot owned-rank winners across four randomized faction, target-defense, Health-drain, and rank-inventory scenarios. `damageCalc.test.ts` passes 197/197; test-project TypeScript, app TypeScript + production build (994 modules), focused ESLint, source validation, and `git diff --check` pass. The coverage audit reports 523/600 eligible mod records parsed, 77 with no parsed max-rank effect, and 73 conservative candidates (52 partial / 21 fully unparsed). The full repository suite was not run.
 - **Rendered review:** the current-source IAB preview at `localhost:5175` showed the Health-drain control under Options for Hema, its capped Burst-only and solo/host explanation, and a saved-input value change from 0 to 360. I cleared the value back to 0; no build was saved. This verifies the rendered control and wording, not live-game behavior.
-- **Still open:** publish/reconcile this isolated feature; full-suite validation; live-game accuracy and Underframe parity; broad optimizer quality and the remaining source-backed audit queue. The current-source local host on port 80 remains stale and is unrelated to this preview.
-- **Next:** finish release reconciliation, then resume representative optimizer comparisons and `D3-MOD-AUDIT-TRIAGE-001` without repeating validated work.
+- **Still open:** full-suite validation; live-game accuracy and Underframe parity; broad optimizer quality and the remaining source-backed audit queue. The current-source local host on port 80 remains stale and is unrelated to this preview.
+- **Next:** resume representative optimizer comparisons and `D3-MOD-AUDIT-TRIAGE-001` without repeating validated work.
 
 
 ## D3-UI-BUILD-REASONING-ZERO-BASELINE-001 — required objective mod explanation (2026-11-27)
