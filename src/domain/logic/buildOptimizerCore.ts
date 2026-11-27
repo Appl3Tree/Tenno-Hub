@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -332,6 +332,10 @@ export interface TargetProfileOverride {
     nearbyAcidShellsEnemyCount?: number;
     /** Mean center-to-center distance for Acid Shells neighbors, in meters. */
     nearbyAcidShellsAverageDistanceMeters?: number;
+    /** Additional same-profile neighbors represented by the Thermagnetic Shells Burst estimate. */
+    nearbyThermomagneticShellsEnemyCount?: number;
+    /** Mean center-to-center distance for Thermagnetic Shells neighbors, in meters. */
+    nearbyThermomagneticShellsAverageDistanceMeters?: number;
     /** Additional same-profile neighbors represented by the Combustion Beam Burst estimate. */
     nearbyCombustionBeamEnemyCount?: number;
     /** Mean center-to-center distance for Combustion Beam neighbors, in meters. */
@@ -827,6 +831,14 @@ function normalizeAcidShellsEnemyCount(value?: number): number {
 
 function normalizeAcidShellsAverageDistanceMeters(value?: number): number {
     return Number.isFinite(value) ? Math.max(0, Math.min(15, value ?? 0)) : 0;
+}
+
+function normalizeThermomagneticShellsEnemyCount(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(20, Math.floor(value ?? 0))) : 0;
+}
+
+function normalizeThermomagneticShellsAverageDistanceMeters(value?: number): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(6, value ?? 0)) : 0;
 }
 
 function normalizeCombustionBeamEnemyCount(value?: number): number {
@@ -1484,6 +1496,75 @@ function scoreEffectsCore(
         }
     }
 
+    // Thermagnetic Shells scores one rank-scaled Magnetic/Max-Health Blast
+    // explosion for each expected direct kill in a bounded Detron Burst group.
+    const thermomagneticShellsEffect = effects.reduce((total, effect) => ({
+        thermomagneticShellsMagneticDamage: total.thermomagneticShellsMagneticDamage + (effect?.thermomagneticShellsMagneticDamage ?? 0),
+        thermomagneticShellsMaxHealthPercent: total.thermomagneticShellsMaxHealthPercent + (effect?.thermomagneticShellsMaxHealthPercent ?? 0),
+        thermomagneticShellsRadiusMeters: Math.max(total.thermomagneticShellsRadiusMeters, effect?.thermomagneticShellsRadiusMeters ?? 0),
+    }), {
+        thermomagneticShellsMagneticDamage: 0,
+        thermomagneticShellsMaxHealthPercent: 0,
+        thermomagneticShellsRadiusMeters: 0,
+    });
+    const thermomagneticShellsEnemyCount = normalizeThermomagneticShellsEnemyCount(
+        targetProfileOverride?.nearbyThermomagneticShellsEnemyCount,
+    );
+    const thermomagneticShellsAverageDistance = normalizeThermomagneticShellsAverageDistanceMeters(
+        targetProfileOverride?.nearbyThermomagneticShellsAverageDistanceMeters,
+    );
+    const thermomagneticShellsContext = {
+        selectedWeaponName: weapon.name,
+        selectedAttackName: weapon.selectedAttackName,
+        selectedAttackIsAreaDamage: weapon.selectedAttackIsAreaDamage,
+        targetHasOverguard: pools.overguard > 0,
+        targetHasShields: pools.shields > 0,
+        selectedThermomagneticShellsEnemyCount: thermomagneticShellsEnemyCount,
+        selectedThermomagneticShellsAverageDistanceMeters: thermomagneticShellsAverageDistance,
+        selectedGoal: goal,
+    };
+    if (isThermomagneticShellsBurstContextSupported(thermomagneticShellsEffect, thermomagneticShellsContext)) {
+        const falloff = thermomagneticShellsEffect.thermomagneticShellsRadiusMeters > 0
+            ? Math.max(0, 1 - thermomagneticShellsAverageDistance / thermomagneticShellsEffect.thermomagneticShellsRadiusMeters)
+            : 0;
+        const expectedPrimaryHit = calculateDirectDamageToInitialPools({
+            damageByType: modded.damageBreakdown,
+            health: pools.health,
+            shields: pools.shields,
+            overguard: pools.overguard,
+            armor: pools.armor,
+            armorDamageReductionMultiplier: (1 - modded.heatArmorStrip) * (1 - modded.corrosiveArmorStrip),
+            faction: targetFaction,
+            factionDamageBonus: modded.factionDamageBonus,
+            viralHealthDamageBonus: modded.viralHealthDamageBonus,
+            magneticDefenseDamageBonus: modded.magneticShieldDamageBonus,
+            expectedHitDamageMultiplier: critMultiplier,
+            expectedDamageMultiplier: modded.damageWeightedMultishot,
+            singleProjectileDamageBonus: modded.singleProjectileDamageBonus,
+            damageRampMultiplier,
+        });
+        if (falloff > 0 && expectedPrimaryHit.totalDamage >= poolTotal - Math.max(1e-8, poolTotal * 1e-10)) {
+            const maxHealthProxy = Number.isFinite(targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath)
+                ? Math.max(0, targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath ?? 0)
+                : pools.health / (targetProfileOverride?.isSteelPathTarget === true ? 2.5 : 1);
+            const neighborHit = calculateDirectDamageToInitialPools({
+                damageByType: {
+                    magnetic: thermomagneticShellsEffect.thermomagneticShellsMagneticDamage * falloff,
+                    blast: maxHealthProxy * thermomagneticShellsEffect.thermomagneticShellsMaxHealthPercent * falloff,
+                },
+                health: pools.health,
+                shields: pools.shields,
+                overguard: pools.overguard,
+                armor: pools.armor,
+                faction: targetFaction,
+                factionDamageBonus: modded.factionDamageBonus,
+                expectedHitDamageMultiplier: 1,
+                expectedDamageMultiplier: 1,
+            });
+            score += neighborHit.totalDamage * thermomagneticShellsEnemyCount * modded.burstFireRate;
+        }
+    }
+
     // Combustion Beam emits one flat Blast event after a qualifying primary
     // Beam kill. Keep it separate from weapon damage: the sourced explosion
     // has no crit/status chance and only inherits faction damage bonuses.
@@ -1871,6 +1952,8 @@ function getBlockingOptimizerEffectLines(
         isVulcanBlitzBurstContextSupported(effect, context);
     const supportedAcidShellsBurst = mod.path === ACID_SHELLS_MOD_PATH &&
         isAcidShellsBurstContextSupported(effect, context);
+    const supportedThermomagneticShellsBurst = mod.path === THERMAGNETIC_SHELLS_MOD_PATH &&
+        isThermomagneticShellsBurstContextSupported(effect, context);
     const supportedCombustionBeamBurst = mod.path === COMBUSTION_BEAM_MOD_PATH &&
         isCombustionBeamBurstContextSupported(effect, context);
     const linkedJavlokComboBoundary = mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH;
@@ -1879,6 +1962,7 @@ function getBlockingOptimizerEffectLines(
         !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
         !(supportedVulcanBlitzBurst && mod.path === VULCAN_BLITZ_MOD_PATH) &&
         !(supportedAcidShellsBurst && mod.path === ACID_SHELLS_MOD_PATH) &&
+        !(supportedThermomagneticShellsBurst && mod.path === THERMAGNETIC_SHELLS_MOD_PATH) &&
         !(supportedCombustionBeamBurst && mod.path === COMBUSTION_BEAM_MOD_PATH) &&
         !(linkedJavlokComboBoundary && (
             /Combo Count Chance while Blocking with a Shield/i.test(line) ||
@@ -1962,6 +2046,12 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
             : 0,
         selectedAcidShellsAverageDistanceMeters: weapon.name === "Sobek" || weapon.name === "Kuva Sobek"
             ? normalizeAcidShellsAverageDistanceMeters(opts.targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters)
+            : 0,
+        selectedThermomagneticShellsEnemyCount: ["Detron", "Mara Detron", "Tenet Detron"].includes(weapon.name)
+            ? normalizeThermomagneticShellsEnemyCount(opts.targetProfileOverride?.nearbyThermomagneticShellsEnemyCount)
+            : 0,
+        selectedThermomagneticShellsAverageDistanceMeters: ["Detron", "Mara Detron", "Tenet Detron"].includes(weapon.name)
+            ? normalizeThermomagneticShellsAverageDistanceMeters(opts.targetProfileOverride?.nearbyThermomagneticShellsAverageDistanceMeters)
             : 0,
         selectedWeaponHasBeamCompatibility: weapon.tags.includes("BEAM"),
         selectedCombustionBeamEnemyCount: weapon.tags.includes("BEAM")
@@ -6302,6 +6392,45 @@ export function explainBuild(
             );
         }
     }
+    const selectedThermomagneticShellsModIndex = chosenMods.findIndex((mod) => mod.path === THERMAGNETIC_SHELLS_MOD_PATH);
+    const selectedThermomagneticShellsEffect = selectedThermomagneticShellsModIndex >= 0
+        ? chosenMods[selectedThermomagneticShellsModIndex]?.effectsByRank[fullRanks[selectedThermomagneticShellsModIndex] ?? 0]
+        : undefined;
+    const isDetronProfile = ["Detron", "Mara Detron", "Tenet Detron"].includes(scoringWeapon.name);
+    const configuredThermomagneticShellsNeighbors = isDetronProfile
+        ? normalizeThermomagneticShellsEnemyCount(targetProfileOverride?.nearbyThermomagneticShellsEnemyCount)
+        : 0;
+    const configuredThermomagneticShellsDistance = normalizeThermomagneticShellsAverageDistanceMeters(
+        targetProfileOverride?.nearbyThermomagneticShellsAverageDistanceMeters,
+    );
+    const thermomagneticShellsContext = {
+        selectedWeaponName: scoringWeapon.name,
+        selectedAttackName: scoringWeapon.selectedAttackName,
+        selectedAttackIsAreaDamage: scoringWeapon.selectedAttackIsAreaDamage,
+        selectedGoal: goal,
+        targetHasOverguard: targetAssumptions.overguard > 0,
+        targetHasShields: targetAssumptions.shields > 0,
+        selectedThermomagneticShellsEnemyCount: configuredThermomagneticShellsNeighbors,
+        selectedThermomagneticShellsAverageDistanceMeters: configuredThermomagneticShellsDistance,
+    };
+    const thermomagneticShellsGroupScoreActive = selectedThermomagneticShellsEffect !== undefined &&
+        isThermomagneticShellsBurstContextSupported(selectedThermomagneticShellsEffect, thermomagneticShellsContext);
+    if (selectedThermomagneticShellsEffect) {
+        if (thermomagneticShellsGroupScoreActive) {
+            const radius = Math.max(0, selectedThermomagneticShellsEffect.thermomagneticShellsRadiusMeters ?? 0);
+            const falloff = radius > 0 ? Math.max(0, 1 - configuredThermomagneticShellsDistance / radius) : 0;
+            const maxHealthBasis = Number.isFinite(targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath)
+                ? Math.max(0, targetProfileOverride?.acidShellsMaxHealthBeforeSteelPath ?? 0)
+                : targetAssumptions.health / (targetProfileOverride?.isSteelPathTarget === true ? 2.5 : 1);
+            buildHighlights.push(
+                `Thermagnetic Shells Burst group estimate assumes each scored Detron Normal Attack event kills a fresh same-profile health-only primary. It adds ${formatExplanationNumber(selectedThermomagneticShellsEffect.thermomagneticShellsMagneticDamage ?? 0, 0)} Magnetic plus ${formatExplanationPercent(selectedThermomagneticShellsEffect.thermomagneticShellsMaxHealthPercent ?? 0)} of ${formatExplanationNumber(maxHealthBasis, 0)} pre-Steel-Path Max Health as Blast to ${configuredThermomagneticShellsNeighbors} same-profile neighbors at a mean ${configuredThermomagneticShellsDistance.toFixed(1)}m (${formatExplanationPercent(falloff)} falloff within the selected ${formatExplanationNumber(radius, 1)}m rank radius). Steel Path Health is divided by 2.5 when active; line of sight and same-profile defenses are assumed. Neighbor depletion/chained kills are excluded; Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain outside this snapshot. Wiki: https://wiki.warframe.com/w/Thermagnetic_Shells`,
+            );
+        } else {
+            buildHighlights.push(
+                "Thermagnetic Shells is modeled only for Detron-family Normal Attack Burst with entered same-profile neighbors inside the selected rank radius and an expected direct one-hit kill against a health-only primary. The on-death explosion uses linear falloff and assumed line of sight; neighbor depletion/chained deaths are excluded. Auto Optimize skips the mod outside this snapshot; Shields/Overguard, Scaling, finite TTK, and 5s Avg DPS remain unscored.",
+            );
+        }
+    }
     const selectedCombustionBeamModIndex = chosenMods.findIndex((mod) => mod.path === COMBUSTION_BEAM_MOD_PATH);
     const selectedCombustionBeamEffect = selectedCombustionBeamModIndex >= 0
         ? chosenMods[selectedCombustionBeamModIndex]?.effectsByRank[fullRanks[selectedCombustionBeamModIndex] ?? 0]
@@ -6495,6 +6624,12 @@ export function explainBuild(
                 : 0,
             selectedAcidShellsAverageDistanceMeters: weapon.name === "Sobek" || weapon.name === "Kuva Sobek"
                 ? normalizeAcidShellsAverageDistanceMeters(targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters)
+                : 0,
+            selectedThermomagneticShellsEnemyCount: ["Detron", "Mara Detron", "Tenet Detron"].includes(weapon.name)
+                ? normalizeThermomagneticShellsEnemyCount(targetProfileOverride?.nearbyThermomagneticShellsEnemyCount)
+                : 0,
+            selectedThermomagneticShellsAverageDistanceMeters: ["Detron", "Mara Detron", "Tenet Detron"].includes(weapon.name)
+                ? normalizeThermomagneticShellsAverageDistanceMeters(targetProfileOverride?.nearbyThermomagneticShellsAverageDistanceMeters)
                 : 0,
             selectedTargetIsSteelPath: targetProfileOverride?.isSteelPathTarget === true,
             selectedSwipeTargetCount: weapon.tags.includes("KAVAT_WEAPON")
