@@ -4260,7 +4260,7 @@ The focused Swipe explanation and seeded optimizer tests pass 2/2 (247 unrelated
 IAB review of deployed `?version=8926ab6` selected Smeeta Claws / Swipe R3 and four same-profile targets. Burst Auto Optimize kept Swipe and Why This Build showed 23,189.7 group score / about 3.36 primary-target equivalents without `Not scored`. Expected TTK displayed the group exclusion, and Auto Optimize removed Swipe. No build was saved. Target geometry remains assumed; the 0.8 value remains a generic Claws proxy. Underframe parity, global optimizer quality, full-suite validation, and live-game accuracy remain open.
 
 
-## D3-MOD-THERMAGNETIC-SHELLS-BOUNDED-BURST-001 — rank-correct Detron group estimate (candidate, 2026-11-27)
+## D3-MOD-THERMAGNETIC-SHELLS-BOUNDED-BURST-001 — rank-correct Detron group estimate (released in PR #422 / Pages run #501)
 
 ### Source and scope
 
@@ -4274,7 +4274,7 @@ Neighbor positions and damage variation are compressed into a single mean-distan
 
 The focused rank/context, scoring-scope, and seeded optimizer tests pass 4/4 (440 unrelated tests skipped). Seed 20261175 matches exhaustive two-slot owned-rank winners across four randomized Detron-family/faction/Steel Path/health/neighbor-distance/ownership-rank scenarios. Focused ESLint for the seven edited application/test files, npm run validate:sources, app/test TypeScript, and npm run build pass; Vite transformed 994 modules with the existing large-chunk warning. The full repository suite was not run.
 
-The temporary port-4179 build timed out in the in-app browser, so the candidate lacks rendered review before release. Recheck the deployed current source in the in-app browser. This candidate does not establish Underframe parity, global optimizer optimality, or live-game behavior.
+PR [#422](https://github.com/Appl3Tree/Tenno-Hub/pull/422) merged as `23ce223227e7a4610c7fb166e04cda122b32d9f2`; Pages run [#501](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/45987206646) succeeded. Deployed IAB review on `version=b41a9ce` selected Detron, configured two neighbors at 0.75m mean distance and a 1-Health target with no Shields/Overguard/Armor, and added Thermagnetic Shells R3. The slot displayed `Modeled group estimate` and the Burst explanation named the selected attack, target, and neighbor context. The temporary mod and target values were reset without saving a build. This rendered check does not establish Underframe parity, global optimizer optimality, full-suite correctness, or live-game behavior.
 
 ## D3-UI-BUILD-REASONING-ZERO-BASELINE-001 — required objective mod explanation (2026-11-27)
 
