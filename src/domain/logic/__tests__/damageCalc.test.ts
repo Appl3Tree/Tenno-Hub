@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
-import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
+import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
@@ -454,8 +454,8 @@ describe("Acid Shells Wiki rank display and bounded Burst scoring", () => {
     });
 });
 
-describe("Thermagnetic Shells Wiki rank display and safe scoring exclusion", () => {
-    it("shows all sourced ranks on the Detron variants without scoring the on-death explosion", () => {
+describe("Thermagnetic Shells bounded Burst group context", () => {
+    it("shows sourced rank values and gates its estimate to supported direct Burst groups", () => {
         const catalog = getWeaponCatalog();
         const weapons = ["Detron", "Mara Detron", "Tenet Detron"].map((name) => {
             const weapon = catalog.find((candidate) => candidate.name === name);
@@ -463,26 +463,52 @@ describe("Thermagnetic Shells Wiki rank display and safe scoring exclusion", () 
             return weapon!;
         });
         const expectedRankText = [
-            "Enemies explode on death, dealing 20 Magnetic Damage (+10% Enemy Max Health) in a 6m radius.",
-            "Enemies explode on death, dealing 40 Magnetic Damage (+20% Enemy Max Health) in a 6m radius.",
-            "Enemies explode on death, dealing 60 Magnetic Damage (+30% Enemy Max Health) in a 6m radius.",
-            "Enemies explode on death, dealing 80 Magnetic Damage (+40% Enemy Max Health) in a 6m radius.",
+            "On death: 20 Magnetic Damage + 10% of enemy max Health as Blast Damage; 1.5m radius",
+            "On death: 40 Magnetic Damage + 20% of enemy max Health as Blast Damage; 3m radius",
+            "On death: 60 Magnetic Damage + 30% of enemy max Health as Blast Damage; 4.5m radius",
+            "On death: 80 Magnetic Damage + 40% of enemy max Health as Blast Damage; 6m radius",
         ];
-        const warning = "Thermagnetic Shells triggers an on-death explosion: 20–80 Magnetic Damage plus 10–40% of the triggering enemy's max Health as Blast Damage in a 6m radius. Linear falloff and line of sight apply. The Wiki says Elemental Ammo status effects no longer recursively retrigger these death explosions; the planner still does not resolve on-kill area damage, adjacent-target deaths, or mission-specific max-Health scaling, so Auto Optimize skips the mod.";
+        const supportedContext = {
+            selectedWeaponName: "Detron",
+            selectedAttackName: "Normal Attack",
+            selectedAttackIsAreaDamage: false,
+            targetHasOverguard: false,
+            targetHasShields: false,
+            selectedThermomagneticShellsEnemyCount: 3,
+            selectedThermomagneticShellsAverageDistanceMeters: 0.75,
+            selectedGoal: "burst",
+        } as const;
 
         for (const weapon of weapons) {
             const mod = getModsForWeapon(weapon).find((candidate) => candidate.name === "Thermagnetic Shells");
             expect(mod).toBeDefined();
+            expect(mod!.path).toBe(THERMAGNETIC_SHELLS_MOD_PATH);
             expect(mod!.uniqueName).toBe("/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/SupraCorpusArenaMod");
             expect(mod!.fusionLimit).toBe(3);
             expect(mod!.statsTextByRank).toEqual(expectedRankText);
-            expect(mod!.hasDamageEffect).toBe(false);
+            expect(mod!.hasDamageEffect).toBe(true);
             expect(mod!.effectsByRank.every((effect) => effect.magneticBonus === 0 && effect.blastBonus === 0)).toBe(true);
             expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe("https://wiki.warframe.com/w/Thermagnetic_Shells");
             for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
-                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(warning);
+                const effect = mod!.effectsByRank[rank]!;
+                expect(effect.thermomagneticShellsMagneticDamage).toBe([20, 40, 60, 80][rank]);
+                expect(effect.thermomagneticShellsMaxHealthPercent).toBe([0.1, 0.2, 0.3, 0.4][rank]);
+                expect(effect.thermomagneticShellsRadiusMeters).toBe([1.5, 3, 4.5, 6][rank]);
+                expect(isThermomagneticShellsBurstContextSupported(effect, supportedContext)).toBe(true);
+                expect(getUnmodeledDamageEffectLines(mod!, rank, supportedContext).join(" ")).toContain("bounded Burst group estimate");
+                expect(getUnmodeledDamageEffectLines(mod!, rank).join(" ")).toContain("Auto Optimize skips the mod outside that snapshot");
             }
         }
+
+        const rankThree = getModsForWeapon(weapons[0]!).find((candidate) => candidate.path === THERMAGNETIC_SHELLS_MOD_PATH)!.effectsByRank[3]!;
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, selectedWeaponName: "Braton Prime" })).toBe(false);
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, selectedAttackName: "Secondary Fire" })).toBe(false);
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, selectedAttackIsAreaDamage: true })).toBe(false);
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, targetHasShields: true })).toBe(false);
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, targetHasOverguard: true })).toBe(false);
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, selectedGoal: "scaling" })).toBe(false);
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, selectedThermomagneticShellsAverageDistanceMeters: 6 })).toBe(false);
+        expect(isThermomagneticShellsBurstContextSupported(rankThree, { ...supportedContext, selectedThermomagneticShellsEnemyCount: 0 })).toBe(false);
 
         const braton = catalog.find((weapon) => weapon.name === "Braton Prime");
         expect(braton).toBeDefined();
