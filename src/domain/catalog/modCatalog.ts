@@ -33,6 +33,7 @@ import {
     SHOCKING_CLAWS_MOD_PATH,
     STRAIN_FEVER_MOD_PATH,
     STATIC_DISCHARGE_MOD_PATH,
+    THERMAGNETIC_SHELLS_MOD_PATH,
     VOLATILE_VARIANT_MOD_PATH,
     VULCAN_BLITZ_MOD_PATH,
     VILE_DISCHARGE_MOD_PATH,
@@ -83,6 +84,12 @@ const ACID_SHELLS_WIKI_RANKS = [
     { corrosiveDamage: 300, healthPercent: 30, radiusMeters: 10 },
     { corrosiveDamage: 375, healthPercent: 37.5, radiusMeters: 12.5 },
     { corrosiveDamage: 450, healthPercent: 45, radiusMeters: 15 },
+];
+const THERMAGNETIC_SHELLS_WIKI_RANKS = [
+    { magneticDamage: 20, healthPercent: 10, radiusMeters: 1.5 },
+    { magneticDamage: 40, healthPercent: 20, radiusMeters: 3 },
+    { magneticDamage: 60, healthPercent: 30, radiusMeters: 4.5 },
+    { magneticDamage: 80, healthPercent: 40, radiusMeters: 6 },
 ];
 const VULCAN_BLITZ_WIKI_RANKS = [
     { blastDamage: 50, healthPercent: 10, radiusMeters: 1 },
@@ -210,6 +217,12 @@ export interface ModEffect {
     acidShellsMaxHealthPercent: number;
     /** Acid Shells' rank-specific on-death explosion radius in meters. */
     acidShellsRadiusMeters: number;
+    /** Thermagnetic Shells' flat Magnetic damage on a Detron kill. */
+    thermomagneticShellsMagneticDamage: number;
+    /** Thermagnetic Shells' fraction of triggering enemy Max Health dealt as Blast. */
+    thermomagneticShellsMaxHealthPercent: number;
+    /** Thermagnetic Shells' rank-specific on-death explosion radius in meters. */
+    thermomagneticShellsRadiusMeters: number;
     gasBonus: number;
     magneticBonus: number;
     viralBonus: number;
@@ -1870,6 +1883,20 @@ function buildCaches(): ModCaches {
                 unparsedStatsByRank[rank] = [];
             });
         }
+        if (path === THERMAGNETIC_SHELLS_MOD_PATH) {
+            // The rank table gives a 1.5/3/4.5/6m radius progression; the
+            // max-rank card line alone shows 6m. Keep its on-death damage out
+            // of ordinary direct-hit channels for the bounded Burst estimate.
+            // https://wiki.warframe.com/w/Thermagnetic_Shells
+            THERMAGNETIC_SHELLS_WIKI_RANKS.forEach((wikiRank, rank) => {
+                if (!effectsByRank[rank]) return;
+                effectsByRank[rank] = emptyEffect();
+                effectsByRank[rank].thermomagneticShellsMagneticDamage = wikiRank.magneticDamage;
+                effectsByRank[rank].thermomagneticShellsMaxHealthPercent = wikiRank.healthPercent / 100;
+                effectsByRank[rank].thermomagneticShellsRadiusMeters = wikiRank.radiusMeters;
+                unparsedStatsByRank[rank] = [];
+            });
+        }
         if (path === VULCAN_BLITZ_MOD_PATH) {
             // The generated card description incorrectly shows 6m at every
             // rank. Keep the rank-specific on-death values typed so the
@@ -2248,6 +2275,13 @@ function buildCaches(): ModCaches {
                 if (rank >= statsTextByRank.length) return;
                 statsTextByRank[rank] =
                     `On death: ${wikiRank.corrosiveDamage} Corrosive Damage + ${wikiRank.healthPercent}% of enemy max Health as Blast Damage; ${wikiRank.radiusMeters}m radius`;
+            });
+        }
+        if (path === THERMAGNETIC_SHELLS_MOD_PATH) {
+            THERMAGNETIC_SHELLS_WIKI_RANKS.forEach((wikiRank, rank) => {
+                if (rank >= statsTextByRank.length) return;
+                statsTextByRank[rank] =
+                    `On death: ${wikiRank.magneticDamage} Magnetic Damage + ${wikiRank.healthPercent}% of enemy max Health as Blast Damage; ${wikiRank.radiusMeters}m radius`;
             });
         }
         if (path === VULCAN_BLITZ_MOD_PATH) {

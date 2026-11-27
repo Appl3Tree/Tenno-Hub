@@ -3148,22 +3148,249 @@ describe("build optimizer scoring", () => {
         expect(explanation.buildHighlights.join(" ")).toContain("neighbor depletion and explosion kills do not chain");
     });
 
-    it("keeps Thermagnetic Shells out of Auto Optimize while its on-death area damage is unmodeled", () => {
-        const detron = getWeaponCatalog().find((candidate) => candidate.name === "Detron");
-        expect(detron).toBeDefined();
-        const thermagneticShells = getModsForWeapon(detron!).find((mod) => mod.name === "Thermagnetic Shells");
-        expect(thermagneticShells).toBeDefined();
-        expect(getUnmodeledDamageEffectSourceUrl(thermagneticShells!)).toBe("https://wiki.warframe.com/w/Thermagnetic_Shells");
-        for (let rank = 0; rank <= thermagneticShells!.fusionLimit; rank++) {
-            expect(getUnmodeledDamageEffectLines(thermagneticShells!, rank)).toContain(
-                "Thermagnetic Shells triggers an on-death explosion: 20–80 Magnetic Damage plus 10–40% of the triggering enemy's max Health as Blast Damage in a 6m radius. Linear falloff and line of sight apply. The Wiki says Elemental Ammo status effects no longer recursively retrigger these death explosions; the planner still does not resolve on-kill area damage, adjacent-target deaths, or mission-specific max-Health scaling, so Auto Optimize skips the mod.",
-            );
-        }
+    it("shows the Thermagnetic Shells bounded Burst optimizer scope", () => {
+        const detron = getWeaponCatalog().find((candidate) => candidate.name === "Detron")!;
+        const normalAttack = withSelectedAttack(detron, detron.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+        const thermomagneticShells = getModsForWeapon(detron).find((mod) => mod.name === "Thermagnetic Shells")!;
+        expect(thermomagneticShells.path).toBe("/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/SupraCorpusArenaMod");
+        expect(getUnmodeledDamageEffectSourceUrl(thermomagneticShells)).toBe("https://wiki.warframe.com/w/Thermagnetic_Shells");
+        const baseStats = calculateBuild(normalAttack, []).modded;
+        const expectedDirectDamage = Object.values(baseStats.damageBreakdown).reduce((total, amount) => total + amount, 0) *
+            baseStats.damageWeightedMultishot * avgHitDamageMultiplier(baseStats.critChance, baseStats.critMultiplier);
+        const targetProfileOverride = {
+            health: expectedDirectDamage * 0.5,
+            shields: 0,
+            overguard: 0,
+            armor: 0,
+            nearbyThermomagneticShellsEnemyCount: 2,
+            nearbyThermomagneticShellsAverageDistanceMeters: 0.75,
+        };
+        const baseline = debugScoreBuild(normalAttack, [], "burst", "Infested", null, targetProfileOverride);
+        const boundedScore = debugScoreBuild(
+            normalAttack,
+            [thermomagneticShells.effectsByRank[thermomagneticShells.fusionLimit]!],
+            "burst",
+            "Infested",
+            null,
+            targetProfileOverride,
+        );
+        expect(boundedScore).toBeGreaterThan(baseline);
 
-        const result = optimizeBuild(detron!, [thermagneticShells!], "burst", 1, { allowForma: false });
-        expect(result.slots).toEqual([null]);
+        const options = {
+            targetFaction: "Infested",
+            targetProfileOverride,
+            capacityConfig: {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: normalAttack.canOverLevel,
+            },
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            allowNonMaxRank: true,
+            ownedModUniqueNames: new Set([thermomagneticShells.uniqueName]),
+            ownedModRankCountsByUniqueName: { [thermomagneticShells.uniqueName]: { "0": 1, "1": 1, "2": 1, "3": 1 } },
+            optimizeArcane: false,
+            optimizeExilus: false,
+        };
+        const supported = optimizeBuild(normalAttack, [thermomagneticShells], "burst", 1, options);
+        expect(supported.slots[0]?.name).toBe("Thermagnetic Shells");
+
+        const unsupported = optimizeBuild(normalAttack, [thermomagneticShells], "scaling", 1, options);
+        expect(unsupported.slots.some((mod) => mod?.name === "Thermagnetic Shells")).toBe(false);
     });
+    it("matches the seeded Thermagnetic Shells owned-rank optimizer oracle 20261175", { timeout: 120000 }, () => {
+        let seed = 20261175;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const factions = ["Grineer", "Corpus", "Infested", "Corrupted"] as const;
+        const distances = [0.4, 1.4, 2.8, 4.2] as const;
+        const weaponNames = ["Detron", "Mara Detron", "Tenet Detron", "Detron"] as const;
+        const scenarios = Array.from({ length: 4 }, (_, index) => ({
+            faction: factions[index]!,
+            distance: distances[index]!,
+            weaponName: weaponNames[index]!,
+            neighborCount: 1 + Math.floor(random() * 5),
+            steelPath: index % 2 === 1,
+            healthFactor: 0.78 + random() * 0.55,
+            damageScale: 0.08 + random() * 0.14,
+            critScale: 0.15 + random() * 0.35,
+        }));
 
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const baseWeapon = getWeaponCatalog().find((candidate) => candidate.name === scenario.weaponName)!;
+            const normalAttackIndex = baseWeapon.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            expect(normalAttackIndex, scenario.weaponName + " Normal Attack").toBeGreaterThanOrEqual(0);
+            const normalAttack = withSelectedAttack(baseWeapon, normalAttackIndex);
+            const thermomagneticShells = getModsForWeapon(baseWeapon).find((mod) => mod.name === "Thermagnetic Shells")!;
+            const makeOracleMod = (suffix: string, scale: number, effectKey: "damageBonus" | "critChanceBonus"): ModEntry => {
+                const effects = Array.from({ length: 4 }, (_, rank) => ({
+                    ...emptyEffect(),
+                    [effectKey]: rank * scale,
+                }));
+                return {
+                    ...thermomagneticShells,
+                    uniqueName: "/Test/ThermomagneticOracle/" + suffix,
+                    path: "/Test/ThermomagneticOracle/" + suffix,
+                    name: "Oracle " + suffix,
+                    incompatibilityGroup: "Oracle " + suffix,
+                    drain: 4,
+                    baseDrain: 4,
+                    fusionLimit: 3,
+                    statsTextByRank: ["R0", "R1", "R2", "R3"],
+                    unparsedStatsByRank: [[], [], [], []],
+                    effectsByRank: effects,
+                    effect: effects[3]!,
+                    hasDamageEffect: true,
+                    isAura: false,
+                    isExilus: false,
+                    isStance: false,
+                    isPveEligible: true,
+                    isBuiltIn: false,
+                };
+            };
+            const damageMod = makeOracleMod("Damage", scenario.damageScale, "damageBonus");
+            const criticalMod = makeOracleMod("Critical", scenario.critScale, "critChanceBonus");
+            const candidates = [thermomagneticShells, damageMod, criticalMod];
+            const baseStats = calculateBuild(normalAttack, [], scenario.faction).modded;
+            const expectedDirectDamage = Object.values(baseStats.damageBreakdown).reduce((total, amount) => total + amount, 0) *
+                baseStats.damageWeightedMultishot * avgHitDamageMultiplier(baseStats.critChance, baseStats.critMultiplier);
+            const maxHealthProxy = expectedDirectDamage * scenario.healthFactor;
+            const targetProfileOverride = {
+                health: maxHealthProxy * (scenario.steelPath ? 2.5 : 1),
+                shields: 0,
+                overguard: 0,
+                armor: 0,
+                nearbyThermomagneticShellsEnemyCount: scenario.neighborCount,
+                nearbyThermomagneticShellsAverageDistanceMeters: scenario.distance,
+                isSteelPathTarget: scenario.steelPath,
+            };
+            const scoringContext = {
+                selectedWeaponName: scenario.weaponName,
+                selectedAttackName: normalAttack.selectedAttackName,
+                selectedAttackTrigger: normalAttack.trigger,
+                selectedAttackIsAreaDamage: normalAttack.selectedAttackIsAreaDamage,
+                targetFaction: scenario.faction,
+                targetHasOverguard: false,
+                targetHasShields: false,
+                selectedThermomagneticShellsEnemyCount: scenario.neighborCount,
+                selectedThermomagneticShellsAverageDistanceMeters: scenario.distance,
+                selectedTargetIsSteelPath: scenario.steelPath,
+                selectedGoal: "burst",
+            } as const;
+
+            const ownedRankCountsByUniqueName: Record<string, Record<string, number>> = {};
+            const allowedRanksByUniqueName = new Map<string, number[]>();
+            for (const mod of candidates) {
+                const possibleRanks = [0, 1, 2, 3];
+                const ownedRanks = possibleRanks.filter(() => random() < 0.72);
+                if (ownedRanks.length === 0) ownedRanks.push(possibleRanks[Math.floor(random() * possibleRanks.length)]!);
+                ownedRankCountsByUniqueName[mod.uniqueName] = Object.fromEntries(ownedRanks.map((rank) => [String(rank), 1]));
+                allowedRanksByUniqueName.set(mod.uniqueName, ownedRanks.filter((rank) =>
+                    (mod.name === "Thermagnetic Shells"
+                        ? scenario.distance < (mod.effectsByRank[rank]?.thermomagneticShellsRadiusMeters ?? 0)
+                        : getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0) &&
+                    getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                ));
+            }
+            const slotCount = 2;
+            const slotPolarities = ["", ""];
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: normalAttack.canOverLevel,
+            };
+            const conditionalState: ConditionalState = { mode: "realistic" };
+            const scoreEffects = (effects: (ModEffect | null)[]) => debugScoreBuild(
+                normalAttack,
+                effects,
+                "burst",
+                scenario.faction,
+                null,
+                targetProfileOverride,
+                conditionalState,
+            );
+            let legalRankedLoadoutCount = 0;
+            let bestScore = 0;
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const options = allowedRanksByUniqueName.get(ordered[index]!.uniqueName) ?? [];
+                    for (const rank of options) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, true, 0);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+                legalRankedLoadoutCount++;
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScore = Math.max(bestScore, scoreEffects(effects));
+            };
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index]!;
+                    if (ordered.some((mod) =>
+                        mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup)
+                    )) continue;
+                    enumerate([...remaining.slice(0, index), ...remaining.slice(index + 1)], [...ordered, candidate]);
+                }
+            };
+            enumerate(candidates, []);
+            expect(legalRankedLoadoutCount, "seed " + scenarioIndex + " legal ranked builds").toBeGreaterThan(10);
+
+            const optimized = optimizeBuild(normalAttack, candidates, "burst", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride,
+                conditionalState,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: false,
+                allowNonMaxRank: true,
+                ownedModUniqueNames: new Set(candidates.map((mod) => mod.uniqueName)),
+                ownedModRankCountsByUniqueName: ownedRankCountsByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+            });
+            const optimizedEffects = optimized.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = optimized.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            expect(optimized.capacityValid, "seed " + scenarioIndex + " capacity").toBe(true);
+            for (const [slotIndex, mod] of optimized.slots.entries()) {
+                if (!mod) continue;
+                const ownedRanks = Object.keys(ownedRankCountsByUniqueName[mod.uniqueName] ?? {}).map(Number);
+                expect(ownedRanks, "seed " + scenarioIndex + " selected rank").toContain(optimized.slotRanks[slotIndex]);
+            }
+            expect(
+                scoreEffects(optimizedEffects),
+                "seed " + scenarioIndex + " exhaustive winner; build=" + optimized.slots.map((mod, index) =>
+                    mod ? mod.name + "@R" + optimized.slotRanks[index] : "empty").join(", ") +
+                    "; allowed=" + JSON.stringify(Object.fromEntries(allowedRanksByUniqueName)) +
+                    "; candidateRanks=" + JSON.stringify(ownedRankCountsByUniqueName),
+            ).toBeCloseTo(bestScore, 8);
+        }
+    });
     it("keeps Entropy Detonation out of Auto Optimize while disclosing its unmodeled area effect", () => {
         const obex = getWeaponCatalog().find((candidate) => candidate.name === "Obex");
         expect(obex).toBeDefined();
