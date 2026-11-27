@@ -6497,6 +6497,9 @@ export function explainBuild(
                 ? normalizeAcidShellsAverageDistanceMeters(targetProfileOverride?.nearbyAcidShellsAverageDistanceMeters)
                 : 0,
             selectedTargetIsSteelPath: targetProfileOverride?.isSteelPathTarget === true,
+            selectedSwipeTargetCount: weapon.tags.includes("KAVAT_WEAPON")
+                ? normalizeSwipeTargetCount(targetProfileOverride?.nearbySwipeTargetCount)
+                : 0,
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
