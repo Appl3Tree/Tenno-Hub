@@ -14273,6 +14273,230 @@ describe("Dreadful Killshot optimizer scope", () => {
     });
 });
 
+describe("Necrophagic Vigor optimizer scope", () => {
+    it("allows direct Hema Burst optimization only with a positive prior-reload drain snapshot", () => {
+        const hemaBase = getWeaponCatalog().find((weapon) => weapon.name === "Hema");
+        expect(hemaBase).toBeDefined();
+        const normalAttackIndex = hemaBase!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const hema = withSelectedAttack(hemaBase!, normalAttackIndex);
+        const necrophagicVigor = getModsForWeapon(hema).find((mod) => mod.name === "Necrophagic Vigor");
+        expect(necrophagicVigor).toBeDefined();
+        const state = { mode: "initial" as const, necrophagicVigorHealthDrained: 720 };
+        const common = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            conditionalState: state,
+            buildForAttack: hema.attacks[normalAttackIndex],
+        };
+        const burst = optimizeBuild(hema, [necrophagicVigor!], "burst", 1, common);
+        const finite = optimizeBuild(hema, [necrophagicVigor!], "timeToKill", 1, common);
+        const scaling = optimizeBuild(hema, [necrophagicVigor!], "scaling", 1, common);
+        const windowDps = optimizeBuild(hema, [necrophagicVigor!], "windowDps", 1, common);
+        const withoutSnapshot = optimizeBuild(hema, [necrophagicVigor!], "burst", 1, {
+            ...common,
+            conditionalState: { ...state, necrophagicVigorHealthDrained: 0 },
+        });
+        const rankFive = necrophagicVigor!.effectsByRank[necrophagicVigor!.fusionLimit]!;
+        const scoringContext = {
+            selectedGoal: "burst",
+            selectedWeaponName: "Hema",
+            selectedAttackIsAreaDamage: false,
+            necrophagicVigorHealthDrained: 720,
+        };
+        const explanation = explainBuild(
+            hema,
+            [necrophagicVigor!],
+            [necrophagicVigor!.fusionLimit],
+            "burst",
+            "",
+            undefined,
+            state,
+        );
+
+        expect(burst.slots.some((mod) => mod?.name === "Necrophagic Vigor")).toBe(true);
+        expect(finite.slots.some((mod) => mod?.name === "Necrophagic Vigor")).toBe(false);
+        expect(scaling.slots.some((mod) => mod?.name === "Necrophagic Vigor")).toBe(false);
+        expect(windowDps.slots.some((mod) => mod?.name === "Necrophagic Vigor")).toBe(false);
+        expect(withoutSnapshot.slots.some((mod) => mod?.name === "Necrophagic Vigor")).toBe(false);
+        expect(getUnmodeledDamageEffectLines(necrophagicVigor!, necrophagicVigor!.fusionLimit)
+            .join(" ")).toContain("editable prior-reload health-drain snapshot");
+        expect(getUnmodeledDamageEffectLines(necrophagicVigor!, necrophagicVigor!.fusionLimit, scoringContext))
+            .toEqual([]);
+        expect(rankFive.necrophagicVigorCritChanceAndDamagePer20HealthDrained).toBe(0.2);
+        expect(explanation.buildHighlights.join(" ")).toContain("assumes 720 Health drained by the prior reload");
+        expect(explanation.buildHighlights.join(" ")).toContain("assumes solo/host play");
+    });
+});
+
+describe("seeded Necrophagic Vigor Burst optimizer oracle", () => {
+    it("matches exhaustive two-slot owned-rank winners across Hema targets and drain snapshots", { timeout: 120_000 }, () => {
+        let seed = 20261176;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const shuffled = <T,>(items: T[]): T[] => {
+            const result = [...items];
+            for (let index = result.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(random() * (index + 1));
+                [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+            }
+            return result;
+        };
+        const scenarios = [
+            { faction: "Grineer", health: 12_000, armor: 300, healthDrained: 360, rankCap: 2 },
+            { faction: "Corpus", health: 48_000, armor: 0, healthDrained: 720, rankCap: 5 },
+            { faction: "Infested", health: 180_000, armor: 1_200, healthDrained: 140, rankCap: 3 },
+            { faction: "Corrupted", health: 72_000, armor: 500, healthDrained: 520, rankCap: 5 },
+        ] as const;
+        const baseHema = getWeaponCatalog().find((weapon) => weapon.name === "Hema")!;
+        const attackIndex = baseHema.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const hema = withSelectedAttack(baseHema, attackIndex);
+        const necrophagicVigor = getModsForWeapon(hema).find((mod) => mod.name === "Necrophagic Vigor")!;
+
+        for (const [scenarioIndex, scenario] of scenarios.entries()) {
+            const conditionalState: ConditionalState = {
+                mode: "initial",
+                necrophagicVigorHealthDrained: scenario.healthDrained,
+            };
+            const targetProfileOverride = {
+                health: scenario.health,
+                shields: 0,
+                armor: scenario.armor,
+                overguard: 0,
+            };
+            const scoringContext = {
+                selectedWeaponName: hema.name,
+                selectedAttackName: hema.selectedAttackName,
+                selectedAttackTrigger: hema.trigger,
+                selectedAttackIsAreaDamage: hema.selectedAttackIsAreaDamage,
+                targetFaction: scenario.faction,
+                selectedGoal: "burst",
+                necrophagicVigorHealthDrained: scenario.healthDrained,
+            };
+            const ordinaryPool = [...new Map(
+                filterBuilderExpertVariants(getModsForWeapon(hema))
+                    .filter((mod) => mod.uniqueName !== necrophagicVigor.uniqueName && mod.isPveEligible !== false &&
+                        mod.hasDamageEffect && !mod.isAura && mod.fusionLimit > 0)
+                    .filter((mod) => !/(?:^|\/)(?:beginner|flawed)(?:\/|$)/i.test(mod.path))
+                    .filter((mod) => !mod.effect.targetFaction || mod.effect.targetFaction.toLowerCase() === scenario.faction.toLowerCase())
+                    .filter((mod) => Array.from({ length: Math.min(scenario.rankCap, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) =>
+                        getUnmodeledDamageEffectLines(mod, rank, scoringContext).length === 0 &&
+                        getUnmodeledScoringEffectLines(mod.effectsByRank[rank] ?? mod.effect).length === 0
+                    ))
+                    .map((mod) => [mod.uniqueName, mod] as const),
+            ).values()];
+            const candidates = [necrophagicVigor, ...shuffled(ordinaryPool).slice(0, 2)];
+            expect(candidates.length, `seed ${scenarioIndex} candidate pool`).toBe(3);
+
+            const ownedModRankCountsByUniqueName: Record<string, Record<string, number>> = {};
+            const ownedRanksByUniqueName = new Map<string, number[]>();
+            for (const mod of candidates) {
+                const possibleRanks = Array.from({ length: Math.min(scenario.rankCap, mod.fusionLimit) + 1 }, (_, rank) => rank);
+                const ownedRanks = possibleRanks.filter(() => random() < 0.7);
+                if (ownedRanks.length === 0) ownedRanks.push(possibleRanks[Math.floor(random() * possibleRanks.length)]!);
+                ownedModRankCountsByUniqueName[mod.uniqueName] = Object.fromEntries(ownedRanks.map((rank) => [String(rank), 1]));
+                ownedRanksByUniqueName.set(mod.uniqueName, ownedRanks);
+            }
+
+            const slotCount = 2;
+            const slotPolarities = hema.polarities.slice(0, slotCount);
+            const capacityConfig = {
+                weaponRank: 30,
+                hasCatalyst: true,
+                masteryRank: 30,
+                canOverLevel: hema.canOverLevel,
+            };
+            const ownedModUniqueNames = new Set(candidates.map((mod) => mod.uniqueName));
+            const scoreEffects = (effects: (ModEffect | null)[]) => debugScoreBuild(
+                hema,
+                effects,
+                "burst",
+                scenario.faction,
+                null,
+                targetProfileOverride,
+                conditionalState,
+            );
+            let bestScore = scoreEffects([]);
+            let legalRankedLoadoutCount = 0;
+            const scoreRanks = (ordered: ModEntry[], ranks: number[], index: number) => {
+                if (index < ordered.length) {
+                    const ownedRanks = ownedRanksByUniqueName.get(ordered[index]!.uniqueName) ?? [];
+                    for (const rank of ownedRanks) {
+                        ranks[index] = rank;
+                        scoreRanks(ordered, ranks, index + 1);
+                    }
+                    return;
+                }
+
+                const placement = assignModsToSlots(ordered, ranks, slotPolarities, slotCount, false);
+                if (placement.slotMods.filter(Boolean).length !== ordered.length) return;
+                const capacity = computeCapacity(
+                    capacityConfig,
+                    placement.resultPolarities.map((polarity) => ({ polarity })),
+                    placement.slotMods,
+                    placement.slotRanks,
+                );
+                if (capacity.overCapacity) return;
+
+                legalRankedLoadoutCount++;
+                const effects = placement.slotMods.map((mod, slotIndex) => {
+                    if (!mod) return null;
+                    const rank = placement.slotRanks[slotIndex] ?? mod.fusionLimit;
+                    return mod.effectsByRank[rank] ?? mod.effect;
+                });
+                bestScore = Math.max(bestScore, scoreEffects(effects));
+            };
+            const eligibleCandidates = scenario.healthDrained > 0
+                ? candidates
+                : candidates.filter((mod) => mod.uniqueName !== necrophagicVigor.uniqueName);
+            const enumerate = (remaining: ModEntry[], ordered: ModEntry[]) => {
+                scoreRanks(ordered, Array(ordered.length).fill(0), 0);
+                if (ordered.length >= slotCount) return;
+                for (let index = 0; index < remaining.length; index++) {
+                    const candidate = remaining[index]!;
+                    if (ordered.some((mod) => mod.uniqueName === candidate.uniqueName ||
+                        (candidate.incompatibilityGroup && mod.incompatibilityGroup === candidate.incompatibilityGroup))) continue;
+                    enumerate([...remaining.slice(0, index), ...remaining.slice(index + 1)], [...ordered, candidate]);
+                }
+            };
+            enumerate(eligibleCandidates, []);
+            expect(legalRankedLoadoutCount, `seed ${scenarioIndex} legal owned-rank loadouts`).toBeGreaterThan(0);
+
+            const optimized = optimizeBuild(hema, candidates, "burst", slotCount, {
+                targetFaction: scenario.faction,
+                targetProfileOverride,
+                conditionalState,
+                capacityConfig,
+                slotPolarities,
+                defaultSlotPolarities: slotPolarities,
+                allowForma: false,
+                allowNonMaxRank: true,
+                ownedModUniqueNames,
+                ownedModRankCountsByUniqueName,
+                optimizeExilus: false,
+                optimizeArcane: false,
+            });
+            const optimizedEffects = optimized.slots.map((mod, slotIndex) => {
+                if (!mod) return null;
+                const rank = optimized.slotRanks[slotIndex] ?? mod.fusionLimit;
+                return mod.effectsByRank[rank] ?? mod.effect;
+            });
+            expect(optimized.capacityValid, `seed ${scenarioIndex} capacity`).toBe(true);
+            for (const [slotIndex, mod] of optimized.slots.entries()) {
+                if (!mod) continue;
+                expect(ownedRanksByUniqueName.get(mod.uniqueName), `seed ${scenarioIndex} owned rank for ${mod.name}`)
+                    .toContain(optimized.slotRanks[slotIndex]);
+            }
+            expect(scoreEffects(optimizedEffects), `seed ${scenarioIndex} exact sampled-pool winner`)
+                .toBeCloseTo(bestScore, 8);
+        }
+    });
+});
+
 describe("Deadly Maneuvers optimizer scope", () => {
     it("allows Burst optimization only with a positive Magnus headshot snapshot", () => {
         const magnus = getWeaponCatalog().find((weapon) => weapon.name === "Magnus");

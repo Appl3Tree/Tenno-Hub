@@ -25,6 +25,7 @@ import {
     DEADLY_MANEUVERS_MOD_PATH,
     emptyEffect,
     NIGHTWATCH_NAPALM_MOD_PATH,
+    NECROPHAGIC_VIGOR_MOD_PATH,
     OVERPRESSURED_ROUNDS_MOD_PATH,
     UNSEEN_DREAD_MOD_PATH,
     PRECISION_CONDITIONING_MOD_PATH,
@@ -60,6 +61,7 @@ const STATIC_DISCHARGE_DAMAGE_PER_WEAPON_DAMAGE_BY_RANK = [0.3, 0.4, 0.5, 0.6, 0
 const VILE_DISCHARGE_MAXIMUM_DAMAGE_BY_RANK = [5000, 10000, 15000, 20000, 25000, 30000];
 const DREADFUL_KILLSHOT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBasmuAugmentMod";
 const DREADFUL_KILLSHOT_DAMAGE_AND_STATUS_PER_75_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
+const NECROPHAGIC_VIGOR_CRIT_CHANCE_AND_DAMAGE_PER_20_HEALTH_BY_RANK = [0.1, 0.12, 0.14, 0.16, 0.18, 0.2];
 const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
 const CRITICAL_PRECISION_CRIT_CHANCE_PER_HEADSHOT_BY_RANK = [0.025, 0.04, 0.055, 0.07, 0.085, 0.1];
 const UNSEEN_DREAD_CRIT_DAMAGE_BONUS_BY_RANK = [0.5, 0.75, 1, 1.25, 1.5, 1.75];
@@ -262,6 +264,8 @@ export interface ModEffect {
     vileDischargeMaximumDamage: number;
     /** Basmu Dreadful Killshot rank value; actual Damage/Status bonuses use an editable Burst-only current-Health snapshot. */
     dreadfulKillshotDamageAndStatusPer75Health: number;
+    /** Hema Necrophagic Vigor rank value; actual Critical Chance/Damage use an editable Burst-only prior-reload health-drain snapshot. */
+    necrophagicVigorCritChanceAndDamagePer20HealthDrained: number;
     /** Deadly Maneuvers rank value; headshot Critical Chance uses an editable 0–2 shot Burst snapshot on Magnus. */
     deadlyManeuversHeadshotCritChanceBonus: number;
     /** Critical Precision's rank value added to base Critical Chance per prior headshot projectile, capped at +500%. */
@@ -1724,6 +1728,22 @@ function buildCaches(): ModCaches {
                 effect.dreadfulKillshotDamageAndStatusPer75Health = bonus;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Increased Damage and Status Chance by \+?\d+(?:\.\d+)?% for every 75 Warframe Health\. Capped at 360%\.?$/i.test(line),
+                );
+            });
+        }
+        if (path === NECROPHAGIC_VIGOR_MOD_PATH) {
+            // The reload consumes health according to magazine replenishment.
+            // Use an editable measured health-drain snapshot for Burst only;
+            // the reload/buff history and host/client bug are not simulated.
+            // https://wiki.warframe.com/w/Necrophagic_Vigor
+            NECROPHAGIC_VIGOR_CRIT_CHANCE_AND_DAMAGE_PER_20_HEALTH_BY_RANK.forEach((bonus, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                effect.necrophagicVigorCritChanceAndDamagePer20HealthDrained = bonus;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Reloading drains up to half your Health based on ammo created, increasing Critical Chance and Critical Damage by \+?\d+(?:\.\d+)?% for every 20 Health drained\. Capped at 360%\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
                 );
             });
         }

@@ -27,6 +27,7 @@ export const DEADLY_MANEUVERS_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/MagnusN
 export const CRITICAL_PRECISION_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveTiberonAugmentMod";
 export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/NightwaveStalkerBowAugmentMod";
 export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
+export const NECROPHAGIC_VIGOR_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveHemaAugmentMod";
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
 export const AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Rifle/JavlokSwordShieldMod";
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
@@ -75,6 +76,8 @@ export interface ScoringEffectContext {
     unseenDreadInvisibilityActive?: boolean;
     /** Prior Catabolyst kills represented by Critical Mutation's Burst snapshot. */
     criticalMutationPriorKills?: number;
+    /** Health drained by the assumed prior Hema reload; used only by Burst scoring. */
+    necrophagicVigorHealthDrained?: number;
     /** Battacor Alt-Fire charges assumed at impact (0–3), for its single-target Burst snapshot. */
     battacorAltFireChargeCount?: number;
     /** Assume Sentient Barrage's full-charge bonus is ready for its next Battacor Alt-Fire discharge. */
@@ -417,6 +420,16 @@ export function getUnmodeledDamageEffectLines(
             lines.push("Critical Mutation gains rank-scaled Critical Chance and Critical Damage with kills, up to +300%. This planner uses an editable 0–60 prior-kill snapshot for the direct Catabolyst/Coda Catabolyst Primary Burst row only; stack changes, including grenade-hit reduction, are not simulated. Reload grenade rows, finite TTK, 5s DPS, and non-Burst objectives remain unscored, so Auto Optimize skips it outside this supported snapshot.");
         }
     }
+    if (mod.path === NECROPHAGIC_VIGOR_MOD_PATH) {
+        const weaponSupportsSnapshot = context?.selectedWeaponName === "Hema" || context?.selectedWeaponName === "Coda Hema";
+        const isSingleTargetAttack = context?.selectedAttackIsAreaDamage === false;
+        const hasBurstSnapshot = context?.selectedGoal === "burst" &&
+            Number.isFinite(context?.necrophagicVigorHealthDrained) &&
+            (context?.necrophagicVigorHealthDrained ?? 0) > 0;
+        if (!weaponSupportsSnapshot || !isSingleTargetAttack || !hasBurstSnapshot) {
+            lines.push("Necrophagic Vigor adds rank-scaled Critical Chance and Critical Damage for each 20 Health drained by a Hema reload, capped at +360%. This planner uses an editable prior-reload health-drain snapshot for direct Hema/Coda Hema Burst scoring only and assumes the buff remains active for that Burst; magazine replenishment, reload timing, buff duration/expiry, refresh behavior, and later health changes are not modeled. It assumes the buff applies in solo/host play; the Wiki reports a non-host client bug. Finite TTK, Scaling, sustained DPS, 5s DPS, and other objectives exclude it, so Auto Optimize skips it outside this snapshot. Wiki: https://wiki.warframe.com/w/Necrophagic_Vigor");
+        }
+    }
     if (mod.path === SENTIENT_BARRAGE_MOD_PATH) {
         const supportedAttack = context?.selectedWeaponName === "Battacor" &&
             context?.selectedAttackName === "Secondary Fire" && context?.selectedAttackIsAreaDamage === false;
@@ -639,6 +652,7 @@ export function emptyEffect(): ModEffect {
         critChanceBonus: 0, vigilanteSetModCount: 0, gladiatorSetModCount: 0, niraSetModCount: 0, sacrificialSetModCount: 0, heavyAttackCritChanceBonus: 0, slideAttackCritChanceBonus: 0,
         nonCriticalHitDamageProcs: [], comboCritChanceBonus: 0, finalCritChanceBonus: 0, critMultBonus: 0,
         strainInfectionCritDamagePerCyst: 0, strainFeverDamagePerCyst: 0, dreadfulKillshotDamageAndStatusPer75Health: 0,
+        necrophagicVigorCritChanceAndDamagePer20HealthDrained: 0,
         staticDischargeDamagePerWeaponDamage: 0,
         vileDischargeMaximumDamage: 0,
         deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,

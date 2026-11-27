@@ -3,7 +3,7 @@ import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../ca
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
 import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, necrophagicVigorBonusFromHealthDrained, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
 
@@ -6090,6 +6090,64 @@ describe("Dreadful Killshot Burst health snapshot", () => {
         expect(withSnapshot.totalDamageBonus).toBeCloseTo(withoutSnapshot.totalDamageBonus, 12);
         expect(withSnapshot.statusChance).toBeCloseTo(withoutSnapshot.statusChance, 12);
         expect(stripped).toMatchObject({ strainInfectionCystsAtImpact: 0, dreadfulKillshotCurrentHealth: 0 });
+    });
+});
+
+describe("Necrophagic Vigor prior-reload health snapshot", () => {
+    const hema = getWeaponCatalog().find((weapon) => weapon.name === "Hema")!;
+    const necrophagicVigor = getModsForWeapon(hema).find((mod) => mod.name === "Necrophagic Vigor")!;
+
+    it("parses all six rank values and bounds the health-drain snapshot", () => {
+        expect(necrophagicVigor.effectsByRank.map((effect) =>
+            effect.necrophagicVigorCritChanceAndDamagePer20HealthDrained,
+        )).toEqual([0.1, 0.12, 0.14, 0.16, 0.18, 0.2]);
+        expect(necrophagicVigor.unparsedStatsByRank?.every((rank) => rank.length === 0)).toBe(true);
+        expect(normalizeNecrophagicVigorHealthDrained(-1)).toBe(0);
+        expect(normalizeNecrophagicVigorHealthDrained(360.9)).toBe(360);
+        expect(normalizeNecrophagicVigorHealthDrained(900)).toBe(720);
+        expect(normalizeNecrophagicVigorHealthDrained(Number.NaN)).toBe(0);
+        expect(necrophagicVigorBonusFromHealthDrained(0.1, 719)).toBeCloseTo(3.5, 12);
+        expect(necrophagicVigorBonusFromHealthDrained(0.1, 720)).toBeCloseTo(3.6, 12);
+        expect(necrophagicVigorBonusFromHealthDrained(0.2, 360)).toBeCloseTo(3.6, 12);
+    });
+
+    it("adds the same capped bonus to Hema Critical Chance and Critical Damage", () => {
+        const rankFive = necrophagicVigor.effectsByRank[necrophagicVigor.fusionLimit]!;
+        const state = { mode: "initial" as const, necrophagicVigorHealthDrained: 360 };
+        const baseline = calculateBuild(hema, [], "", { conditionalState: state }).modded;
+        const scored = calculateBuild(hema, [rankFive], "", { conditionalState: state }).modded;
+        const codaHema = { ...hema, name: "Coda Hema" };
+        const codaBaseline = calculateBuild(codaHema, [], "", { conditionalState: state }).modded;
+        const codaScored = calculateBuild(codaHema, [rankFive], "", { conditionalState: state }).modded;
+        const otherWeapon = calculateBuild({ ...hema, name: "Other Primary" }, [rankFive], "", {
+            conditionalState: { ...state, necrophagicVigorHealthDrained: 720 },
+        }).modded;
+
+        expect(scored.necrophagicVigorBonus).toBeCloseTo(3.6, 12);
+        expect(scored.necrophagicVigorHealthDrained).toBe(360);
+        expect(scored.critChance).toBeCloseTo(baseline.critChance + hema.critChance * 3.6, 10);
+        expect(scored.critMultiplier).toBeCloseTo(baseline.critMultiplier * (1 + 3.6), 10);
+        expect(codaScored.necrophagicVigorBonus).toBeCloseTo(3.6, 12);
+        expect(codaScored.critChance).toBeCloseTo(codaBaseline.critChance + codaHema.critChance * 3.6, 10);
+        expect(codaScored.critMultiplier).toBeCloseTo(codaBaseline.critMultiplier * (1 + 3.6), 10);
+        expect(otherWeapon.necrophagicVigorBonus).toBe(0);
+    });
+
+    it("strips the prior-reload assumption from finite scoring and sustained DPS", () => {
+        const rankFive = necrophagicVigor.effectsByRank[necrophagicVigor.fusionLimit]!;
+        const state = { mode: "initial" as const, necrophagicVigorHealthDrained: 720 };
+        const withSnapshot = calculateBuildForExpectedEncounter(hema, [rankFive], "", {
+            conditionalState: state,
+        }).modded;
+        const withoutSnapshot = calculateBuildForExpectedEncounter(hema, [rankFive], "", {
+            conditionalState: { ...state, necrophagicVigorHealthDrained: 0 },
+        }).modded;
+        const stripped = withoutBurstOnlyConditionalAssumptions(state);
+
+        expect(withSnapshot.necrophagicVigorBonus).toBe(0);
+        expect(withSnapshot.critChance).toBeCloseTo(withoutSnapshot.critChance, 10);
+        expect(withSnapshot.critMultiplier).toBeCloseTo(withoutSnapshot.critMultiplier, 10);
+        expect(stripped?.necrophagicVigorHealthDrained).toBe(0);
     });
 });
 
