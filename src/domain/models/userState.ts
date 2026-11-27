@@ -223,6 +223,10 @@ export interface SavedBuildTargetConfig {
     nearbyAcidShellsEnemyCount?: number;
     /** Mean neighbor distance for the Acid Shells estimate, in meters (0–15). */
     nearbyAcidShellsAverageDistanceMeters?: number;
+    /** Additional same-profile neighbors for the Detron Thermagnetic Shells Burst estimate (0–20). */
+    nearbyThermomagneticShellsEnemyCount?: number;
+    /** Mean neighbor distance for the Thermagnetic Shells estimate, in meters (0–6). */
+    nearbyThermomagneticShellsAverageDistanceMeters?: number;
     /** Additional same-profile neighbors for the Combustion Beam Burst estimate (0–20). */
     nearbyCombustionBeamEnemyCount?: number;
     /** Mean neighbor distance for the Combustion Beam estimate, in meters (0–18). */
