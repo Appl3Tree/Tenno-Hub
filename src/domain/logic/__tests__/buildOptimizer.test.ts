@@ -13053,6 +13053,22 @@ describe("Swipe group scoring", () => {
         expect(explanation.summary).toContain("Swipe group score estimate");
         expect(explanation.buildHighlights.join(" ")).toContain("about 2.44 primary-target equivalents");
         expect(explanation.summary).not.toContain("using the entered current-level pool");
+        const swipeStep = explanation.steps.find((step) => step.modName === "Swipe");
+        expect(swipeStep?.why).toContain("With this mod, the complete build scores");
+        expect(swipeStep?.why).not.toContain("Not scored:");
+
+        const finiteExplanation = explainBuild(
+            smeeta,
+            [swipe],
+            [3],
+            "timeToKill",
+            "",
+            undefined,
+            undefined,
+            targetWith(2),
+        );
+        expect(finiteExplanation.steps.find((step) => step.modName === "Swipe")?.why)
+            .toContain("Not scored: Swipe's rank grants");
     });
 });
 
