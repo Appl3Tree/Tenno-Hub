@@ -8827,7 +8827,9 @@ export default function ModBuilder() {
                                                                         <div className="flex items-center justify-between gap-2">
                                                                             <span className="text-xs font-semibold text-violet-200">Arcane · {displayedReasoning.arcaneStep.name}</span>
                                                                             <span className={`text-[10px] font-mono shrink-0 ${displayedReasoning.arcaneStep.delta >= 0 ? "text-green-400" : "text-rose-400"}`}>
-                                                                                {displayedReasoning.arcaneStep.delta >= 0 ? "+" : ""}{displayedReasoning.arcaneStep.pctGain.toFixed(1)}%
+                                                                                {displayedReasoning.arcaneStep.pctGain === null
+                                                                                    ? "N/A"
+                                                                                    : `${displayedReasoning.arcaneStep.delta >= 0 ? "+" : ""}${displayedReasoning.arcaneStep.pctGain.toFixed(1)}%`}
                                                                             </span>
                                                                         </div>
                                                                         <p className="mt-1 text-[10px] text-slate-500">{displayedReasoning.arcaneStep.why} This is a separate leave-one-out score change; it overlaps with mod synergies.</p>
@@ -8839,7 +8841,11 @@ export default function ModBuilder() {
                                                                             <div className="flex items-center justify-between gap-2">
                                                                                 <span className="text-xs font-semibold text-slate-200">{step.modName}</span>
                                                                                 <span className={`text-[10px] font-mono shrink-0 ${step.delta >= 0 ? "text-green-400" : "text-rose-400"}`}>
-                                                                                    {step.delta >= 0 ? "+" : ""}{step.pctGain.toFixed(1)}%
+                                                                                    {step.requiredForObjective
+                                                                                        ? "Required"
+                                                                                        : step.pctGain === null
+                                                                                            ? "N/A"
+                                                                                            : `${step.delta >= 0 ? "+" : ""}${step.pctGain.toFixed(1)}%`}
                                                                                 </span>
                                                                             </div>
                                                                             <p className="mt-1 text-[10px] text-slate-500">{step.why}</p>

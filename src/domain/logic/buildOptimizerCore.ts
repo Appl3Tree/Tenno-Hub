@@ -5946,7 +5946,10 @@ export interface BuildReasoningStep {
     statBefore: number;
     statAfter: number;
     delta: number;
-    pctGain: number;
+    /** Null when removing the mod leaves a zero-score baseline, so no relative percentage exists. */
+    pctGain: number | null;
+    /** True when this mod is the gate that makes the selected objective scoreable. */
+    requiredForObjective: boolean;
 }
 
 export interface BuildReasoning {
@@ -5961,7 +5964,8 @@ export interface BuildReasoning {
         statBefore: number;
         statAfter: number;
         delta: number;
-        pctGain: number;
+        /** Null when removing the Arcane leaves a zero-score baseline. */
+        pctGain: number | null;
         why: string;
     };
     summary: string;
@@ -6586,7 +6590,9 @@ export function explainBuild(
         withoutRanks[index] = undefined;
         const scoreWithout = scoreSlotsForExplanation(withoutSlots, withoutRanks);
         const delta = fullScore - scoreWithout;
-        const pctGain = scoreWithout > 0 ? (delta / scoreWithout) * 100 : 0;
+        const pctGain = scoreWithout > 0 ? (delta / scoreWithout) * 100 : null;
+        const requiredForObjective = goal === "vileDischargeDps" &&
+            mod.path === VILE_DISCHARGE_MOD_PATH && fullScore > 0 && scoreWithout <= 0;
         const rank = chosenRanks[index] ?? mod.fusionLimit;
         const e    = mod.effectsByRank[rank] ?? mod.effect;
         const parts = summarizeEffectStats(e);
@@ -6638,15 +6644,21 @@ export function explainBuild(
             selectedGoal: goal,
         });
         const rankNote = rank < mod.fusionLimit ? ` (rank ${rank}/${mod.fusionLimit})` : "";
-        const effectSummary = parts.length > 0
-            ? `Provides ${joinExplanationList(parts)}.`
-            : "No direct effect is summarized here; its value may come from an interaction or utility outside this damage summary.";
-        const scoreComparison = `With this mod, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithout.toFixed(1)} (${delta >= 0 ? `a ${pctGain.toFixed(1)}% increase` : `a ${Math.abs(pctGain).toFixed(1)}% decrease`} relative to the build without this mod).`;
+        const effectSummary = requiredForObjective
+            ? "Required to enable the Vile Discharge cycle objective."
+            : parts.length > 0
+                ? `Provides ${joinExplanationList(parts)}.`
+                : "No direct effect is summarized here; its value may come from an interaction or utility outside this damage summary.";
+        const scoreComparison = requiredForObjective
+            ? `With this mod, the complete build scores ${fullScore.toFixed(1)} in the selected model; removing it leaves this objective unsupported at ${scoreWithout.toFixed(1)}.`
+            : pctGain === null
+                ? `With this mod, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithout.toFixed(1)}. Percentage change is undefined from a zero-score baseline.`
+                : `With this mod, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithout.toFixed(1)} (${delta >= 0 ? `a ${pctGain.toFixed(1)}% increase` : `a ${Math.abs(pctGain).toFixed(1)}% decrease`} relative to the build without this mod).`;
 
         return {
             modName: mod.name, rank, maxRank: mod.fusionLimit,
             why: `${effectSummary}${rankNote} ${scoreComparison}${unmodeledLines.length > 0 ? ` Not scored: ${unmodeledLines.join(" ")}` : ""}`,
-            statBefore: scoreWithout, statAfter: fullScore, delta, pctGain,
+            statBefore: scoreWithout, statAfter: fullScore, delta, pctGain, requiredForObjective,
         };
     });
 
@@ -6654,8 +6666,10 @@ export function explainBuild(
         ? (() => {
             const scoreWithoutArcane = scoreSlotsForExplanation(fullSlots, fullRanks, null);
             const delta = fullScore - scoreWithoutArcane;
-            const pctGain = scoreWithoutArcane > 0 ? (delta / scoreWithoutArcane) * 100 : 0;
-            const contribution = `With this Arcane, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithoutArcane.toFixed(1)} (${delta >= 0 ? `a ${pctGain.toFixed(1)}% increase` : `a ${Math.abs(pctGain).toFixed(1)}% decrease`} relative to the build without this Arcane).`;
+            const pctGain = scoreWithoutArcane > 0 ? (delta / scoreWithoutArcane) * 100 : null;
+            const contribution = pctGain === null
+                ? `With this Arcane, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithoutArcane.toFixed(1)}. Percentage change is undefined from a zero-score baseline.`
+                : `With this Arcane, the complete build scores ${fullScore.toFixed(1)} in the selected model; without it, the same build scores ${scoreWithoutArcane.toFixed(1)} (${delta >= 0 ? `a ${pctGain.toFixed(1)}% increase` : `a ${Math.abs(pctGain).toFixed(1)}% decrease`} relative to the build without this Arcane).`;
             const arcaneEffect = normalizeArcaneEffect(explanationOptions.arcaneEffect);
             const arcaneParts = summarizeEffectStats(arcaneEffect);
             for (const conditional of arcaneEffect.conditionalEffects ?? []) {
@@ -6687,7 +6701,9 @@ export function explainBuild(
         .sort((left, right) => left.delta - right.delta)
         .slice(0, 3);
     const winningEdge = strongestContributions.length > 0
-        ? `The largest score gains from keeping a mod in the full build, compared with removing it, are ${strongestContributions.map((step) => `${step.modName} (${step.pctGain >= 0 ? "+" : ""}${step.pctGain.toFixed(1)}%)`).join(", ")}. These individual comparisons overlap, so they do not add up to the total build gain.`
+        ? `The largest score gains from keeping a mod in the full build, compared with removing it, are ${strongestContributions.map((step) => step.requiredForObjective
+            ? `${step.modName} (required; removing it makes the objective unsupported)`
+            : `${step.modName} (${step.pctGain === null ? "percentage change undefined" : `${step.pctGain >= 0 ? "+" : ""}${step.pctGain.toFixed(1)}%`})`).join(", ")}. These individual comparisons overlap, so they do not add up to the total build gain.`
         : scoreImprovingRemovals.length > 0
             ? `Removing ${scoreImprovingRemovals.map((step) => step.modName).join(", ")} improves the score in this target and model; review these selected mods.`
             : "Removing any one selected mod does not improve the score in this target and model.";
