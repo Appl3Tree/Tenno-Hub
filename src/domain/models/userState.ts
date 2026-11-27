@@ -250,6 +250,8 @@ export interface SavedBuildPlannerConfig {
     strainInfectionCystsAtImpact?: number;
     /** Basmu Dreadful Killshot current Warframe Health snapshot for Burst only; finite and sustained scores ignore this. */
     dreadfulKillshotCurrentHealth?: number;
+    /** Health drained by the assumed most recent Hema reload for Burst only; finite and sustained scores ignore this. */
+    necrophagicVigorHealthDrained?: number;
     /** Deadly Maneuvers remaining shots after a dodge (0–2), used for Magnus Burst only. */
     deadlyManeuversShotsRemaining?: number;
     /** Critical Precision prior headshot projectiles (0–200), used for Tiberon Burst only. */

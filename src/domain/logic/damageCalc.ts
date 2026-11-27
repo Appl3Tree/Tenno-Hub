@@ -284,6 +284,10 @@ export interface ModdedWeaponStats {
     dreadfulKillshotBonus: number;
     /** Current Warframe Health snapshot supplied for Dreadful Killshot, normalized to a nonnegative integer. */
     dreadfulKillshotCurrentHealth: number;
+    /** Additive Critical Chance and Damage snapshot from a prior Hema reload. */
+    necrophagicVigorBonus: number;
+    /** Health assumed drained by that prior reload, normalized to 0–720. */
+    necrophagicVigorHealthDrained: number;
     /** Active Deadly Maneuvers headshot Critical Chance bonus on Magnus/Magnus Prime. */
     deadlyManeuversHeadshotCritChanceBonus: number;
     /** Remaining buffed shots represented by this Burst snapshot (0–2). */
@@ -605,6 +609,8 @@ export interface ConditionalState {
     strainInfectionCystsAtImpact?: number;
     /** Current Warframe Health for Basmu Dreadful Killshot; Burst snapshot only, ignored by finite/sustained objectives. */
     dreadfulKillshotCurrentHealth?: number;
+    /** Health drained by the assumed most recent Hema reload (0–720); Burst snapshot only. */
+    necrophagicVigorHealthDrained?: number;
     /** Remaining Deadly Maneuvers shots after a dodge (0–2); Burst snapshot only. */
     deadlyManeuversShotsRemaining?: number;
     /** Prior Critical Precision headshot projectiles (0–200); Tiberon Burst snapshot only. */
@@ -754,6 +760,24 @@ export function normalizeDreadfulKillshotCurrentHealth(value: number | undefined
         : 0;
 }
 
+export const MAX_NECROPHAGIC_VIGOR_HEALTH_DRAIN = 720;
+
+export function normalizeNecrophagicVigorHealthDrained(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(MAX_NECROPHAGIC_VIGOR_HEALTH_DRAIN, Math.floor(value ?? 0)))
+        : 0;
+}
+
+/** Converts the selected rank and prior-reload health drain into the shared CC/CD snapshot, capped at +360%. */
+export function necrophagicVigorBonusFromHealthDrained(
+    per20HealthBonus: number,
+    healthDrained: number | undefined,
+): number {
+    if (!Number.isFinite(per20HealthBonus) || per20HealthBonus <= 0) return 0;
+    const healthSteps = Math.floor(normalizeNecrophagicVigorHealthDrained(healthDrained) / 20);
+    return Math.min(3.6, healthSteps * per20HealthBonus);
+}
+
 export function normalizeDeadlyManeuversShotsRemaining(value: number | undefined): number {
     return Number.isFinite(value)
         ? Math.max(0, Math.min(2, Math.floor(value ?? 0)))
@@ -804,6 +828,7 @@ export function withoutBurstOnlyConditionalAssumptions(
     if (!state || (
         normalizeStrainInfectionCystCount(state.strainInfectionCystsAtImpact) === 0 &&
         normalizeDreadfulKillshotCurrentHealth(state.dreadfulKillshotCurrentHealth) === 0 &&
+        normalizeNecrophagicVigorHealthDrained(state.necrophagicVigorHealthDrained) === 0 &&
         normalizeDeadlyManeuversShotsRemaining(state.deadlyManeuversShotsRemaining) === 0 &&
         normalizeCriticalPrecisionHeadshotProjectiles(state.criticalPrecisionHeadshotProjectiles) === 0 &&
         state.unseenDreadInvisibilityActive !== true &&
@@ -819,6 +844,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         ...state,
         strainInfectionCystsAtImpact: 0,
         dreadfulKillshotCurrentHealth: 0,
+        necrophagicVigorHealthDrained: 0,
         deadlyManeuversShotsRemaining: 0,
         criticalPrecisionHeadshotProjectiles: 0,
         unseenDreadInvisibilityActive: false,
@@ -1605,6 +1631,9 @@ export function calculateBuild(
     const dreadfulKillshotCurrentHealth = normalizeDreadfulKillshotCurrentHealth(
         conditionalState.dreadfulKillshotCurrentHealth,
     );
+    const necrophagicVigorHealthDrained = normalizeNecrophagicVigorHealthDrained(
+        conditionalState.necrophagicVigorHealthDrained,
+    );
     const deadlyManeuversShotsRemaining = normalizeDeadlyManeuversShotsRemaining(
         conditionalState.deadlyManeuversShotsRemaining,
     );
@@ -1673,6 +1702,7 @@ export function calculateBuild(
     let strainInfectionCritDamagePerCyst = 0;
     let strainFeverDamagePerCyst = 0;
     let dreadfulKillshotDamageAndStatusPer75Health = 0;
+    let necrophagicVigorCritChanceAndDamagePer20HealthDrained = 0;
     let deadlyManeuversHeadshotCritChanceBonus = 0;
     let criticalPrecisionCritChancePerHeadshot = 0;
     let unseenDreadCritDamageBonusPerRank = 0;
@@ -1816,6 +1846,7 @@ export function calculateBuild(
         strainInfectionCritDamagePerCyst += e.strainInfectionCritDamagePerCyst ?? 0;
         strainFeverDamagePerCyst += e.strainFeverDamagePerCyst ?? 0;
         dreadfulKillshotDamageAndStatusPer75Health += e.dreadfulKillshotDamageAndStatusPer75Health ?? 0;
+        necrophagicVigorCritChanceAndDamagePer20HealthDrained += e.necrophagicVigorCritChanceAndDamagePer20HealthDrained ?? 0;
         deadlyManeuversHeadshotCritChanceBonus += e.deadlyManeuversHeadshotCritChanceBonus ?? 0;
         criticalPrecisionCritChancePerHeadshot += e.criticalPrecisionCritChancePerHeadshot ?? 0;
         unseenDreadCritDamageBonusPerRank += e.unseenDreadCritDamageBonus ?? 0;
@@ -2502,6 +2533,15 @@ export function calculateBuild(
         : 0;
     critChanceBonus += criticalMutationBonus;
     critMultBonus += criticalMutationBonus;
+    const necrophagicVigorBonus = (weapon.name === "Hema" || weapon.name === "Coda Hema") &&
+        weapon.selectedAttackIsAreaDamage !== true
+        ? necrophagicVigorBonusFromHealthDrained(
+            necrophagicVigorCritChanceAndDamagePer20HealthDrained,
+            necrophagicVigorHealthDrained,
+        )
+        : 0;
+    critChanceBonus += necrophagicVigorBonus;
+    critMultBonus += necrophagicVigorBonus;
     const sentientBarrageEquipped = sentientBarrageCritChanceAndDamageBonusPerRank > 0;
     const sentientBarrageNextDischargeReady = weapon.name === "Battacor" &&
         weapon.selectedAttackName === "Secondary Fire" &&
@@ -3406,6 +3446,8 @@ export function calculateBuild(
         strainInfectionCystsAtImpact,
         dreadfulKillshotBonus,
         dreadfulKillshotCurrentHealth,
+        necrophagicVigorBonus,
+        necrophagicVigorHealthDrained,
         deadlyManeuversHeadshotCritChanceBonus: (
             (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
             canHeadshot && normalizeHitShare(options.hitLocation?.headshotRate) > 0 && deadlyManeuversShotsRemaining > 0
@@ -3645,6 +3687,7 @@ export function calculateBuild(
     const hasActiveBurstOnlyDamageSnapshot = modded.strainInfectionCritDamageBonus > 0 ||
         modded.strainFeverDamageBonus > 0 ||
         modded.dreadfulKillshotBonus > 0 ||
+        modded.necrophagicVigorBonus > 0 ||
         modded.deadlyManeuversHeadshotCritChanceBonus > 0 ||
         modded.criticalPrecisionCritChanceBonus > 0 ||
         modded.unseenDreadCritDamageBonus > 0 ||

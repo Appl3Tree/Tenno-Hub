@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH, NECROPHAGIC_VIGOR_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -24,6 +24,7 @@ import {
     normalizeCriticalMutationPriorKills,
     normalizeBattacorAltFireChargeCount,
     normalizeDeadlyManeuversShotsRemaining,
+    normalizeNecrophagicVigorHealthDrained,
     withoutBurstOnlyConditionalAssumptions,
     type ConditionalState,
     type HitLocationDamageProfile,
@@ -2027,6 +2028,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         ),
         unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
         criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+        necrophagicVigorHealthDrained: normalizeNecrophagicVigorHealthDrained(opts.conditionalState?.necrophagicVigorHealthDrained),
         battacorAltFireChargeCount: normalizeBattacorAltFireChargeCount(opts.conditionalState?.battacorAltFireChargeCount),
         sentientBarrageNextDischargeReady: opts.conditionalState?.sentientBarrageNextDischargeReady === true,
         targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
@@ -2078,6 +2080,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         (effect.unseenDreadCritDamageBonus ?? 0) > 0,
     );
     const isCriticalMutation = (mod: ModEntry): boolean => mod.path === CRITICAL_MUTATION_MOD_PATH;
+    const isNecrophagicVigor = (mod: ModEntry): boolean => mod.path === NECROPHAGIC_VIGOR_MOD_PATH;
     const deadlyManeuversCanScore = goal === "burst" &&
         (weapon.name === "Magnus" || weapon.name === "Magnus Prime") &&
         weapon.selectedAttackIsAreaDamage !== true &&
@@ -2093,6 +2096,10 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         (weapon.name === "Catabolyst" || weapon.name === "Coda Catabolyst") &&
         weapon.selectedAttackName === "Primary" && weapon.selectedAttackIsAreaDamage === false &&
         normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills) > 0;
+    const necrophagicVigorCanScore = goal === "burst" &&
+        (weapon.name === "Hema" || weapon.name === "Coda Hema") &&
+        weapon.selectedAttackIsAreaDamage !== true &&
+        normalizeNecrophagicVigorHealthDrained(opts.conditionalState?.necrophagicVigorHealthDrained) > 0;
     const sentientBarrageCanScore = goal === "burst" && weapon.name === "Battacor" &&
         weapon.selectedAttackName === "Secondary Fire" && weapon.selectedAttackIsAreaDamage === false &&
         normalizeBattacorAltFireChargeCount(opts.conditionalState?.battacorAltFireChargeCount) > 0 &&
@@ -2109,6 +2116,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         (!isCriticalPrecision(mod) || criticalPrecisionCanScore) &&
         (!isUnseenDread(mod) || unseenDreadCanScore) &&
         (!isCriticalMutation(mod) || criticalMutationCanScore) &&
+        (!isNecrophagicVigor(mod) || necrophagicVigorCanScore) &&
         (!isSentientBarrage(mod) || sentientBarrageCanScore) &&
         (precisionStrikeCanScore || !hasPrecisionStrikeEffect(mod)) &&
         getAllowedOwnedModRanks(mod, opts).some((rank) => getBlockingOptimizerEffectLines(mod, rank, scoringEffectContext).length === 0);
@@ -2134,6 +2142,7 @@ function buildCandidates(allMods: ModEntry[], goal: OptimizeGoal, opts: Optimize
         if (goal !== "burst" && isDreadfulKillshot(mod)) continue;
         if (isDeadlyManeuvers(mod) && !deadlyManeuversCanScore) continue;
         if (isCriticalMutation(mod) && !criticalMutationCanScore) continue;
+        if (isNecrophagicVigor(mod) && !necrophagicVigorCanScore) continue;
         if (!precisionStrikeCanScore && hasPrecisionStrikeEffect(mod)) continue;
         if (mod.isAura) continue; // auras go in the aura slot, not regular slots
         if (sentientIncisionBlockedByOverguard(mod)) continue;
@@ -3528,7 +3537,7 @@ function expectedEncounterCandidateFamilies(candidate: Candidate): string[] {
     }
     if (has("multishotBonus", "multishotDamageBonus")) families.push("multishot");
     if (has("shatteringImpactBaseArmorPerHit")) families.push("per-hit-armor-strip");
-    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "criticalMutationCritChanceAndDamagePerKill", "deadlyManeuversHeadshotCritChanceBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
+    if (has("critChanceBonus", "heavyAttackCritChanceBonus", "slideAttackCritChanceBonus", "finalCritChanceBonus", "critMultBonus", "strainInfectionCritDamagePerCyst", "criticalMutationCritChanceAndDamagePerKill", "necrophagicVigorCritChanceAndDamagePer20HealthDrained", "deadlyManeuversHeadshotCritChanceBonus", "finalCritMultiplierBonus", "weakPointCritChanceBonus", "weakPointDamageBonus")) {
         families.push("critical");
     }
     if (has("fireRateBonus", "chargeRateBonus")) families.push("fire-rate");
@@ -5015,6 +5024,7 @@ function optimizeExilusSlot(
                 ),
                 unseenDreadInvisibilityActive: opts.conditionalState?.unseenDreadInvisibilityActive === true,
                 criticalMutationPriorKills: normalizeCriticalMutationPriorKills(opts.conditionalState?.criticalMutationPriorKills),
+                necrophagicVigorHealthDrained: normalizeNecrophagicVigorHealthDrained(opts.conditionalState?.necrophagicVigorHealthDrained),
                 battacorAltFireChargeCount: normalizeBattacorAltFireChargeCount(opts.conditionalState?.battacorAltFireChargeCount),
                 sentientBarrageNextDischargeReady: opts.conditionalState?.sentientBarrageNextDischargeReady === true,
                 targetHasLiftedStatus: normalizeExternalStatusTypes(opts.conditionalState?.externalStatusTypes).includes("lifted"),
@@ -6541,6 +6551,9 @@ export function explainBuild(
     if (selectedStats.dreadfulKillshotBonus > 0) {
         buildHighlights.push(`Basmu's Dreadful Killshot Burst score assumes ${formatExplanationNumber(selectedStats.dreadfulKillshotCurrentHealth, 0)} current Warframe Health and adds ${formatExplanationPercent(selectedStats.dreadfulKillshotBonus)} each to additive weapon Damage and Status Chance after rounding down to 20% increments (360% cap). Current Health is held static; health buffs and damage taken are not simulated. The assumption applies only to Burst scoring and Burst Auto Optimize; Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude it.`);
     }
+    if (selectedStats.necrophagicVigorBonus > 0) {
+        buildHighlights.push(`Hema's Necrophagic Vigor Burst score assumes ${formatExplanationNumber(selectedStats.necrophagicVigorHealthDrained, 0)} Health drained by the prior reload and adds ${formatExplanationPercent(selectedStats.necrophagicVigorBonus)} to both Critical Chance and Critical Damage. This assumes solo/host play because the Wiki reports a non-host client bug. Magazine refill and subsequent Health changes are not simulated; the snapshot applies only to Burst scoring and Burst Auto Optimize. Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude it.`);
+    }
     if (selectedStats.deadlyManeuversHeadshotCritChanceBonus > 0) {
         const shots = selectedStats.deadlyManeuversShotsRemaining;
         buildHighlights.push(`Deadly Maneuvers Burst scoring assumes ${shots} buffed shot${shots === 1 ? "" : "s"} remain after a dodge. Its rank-listed +${formatExplanationPercent(selectedStats.deadlyManeuversHeadshotCritChanceBonus)} headshot Critical Chance is applied multiplicatively after other bonuses (×${formatExplanationNumber(1 + selectedStats.deadlyManeuversHeadshotCritChanceBonus, 0)} on each buffed headshot), and the score averages that state across the next two shots. The configured headshot share controls how often those shots use the bonus. Dodge timing and shot history are not simulated; Scaling, sustained DPS, finite TTK, and fixed-window scoring exclude this snapshot.`);
@@ -6616,6 +6629,7 @@ export function explainBuild(
             ),
             unseenDreadInvisibilityActive: conditionalState?.unseenDreadInvisibilityActive === true,
             criticalMutationPriorKills: normalizeCriticalMutationPriorKills(conditionalState?.criticalMutationPriorKills),
+            necrophagicVigorHealthDrained: normalizeNecrophagicVigorHealthDrained(conditionalState?.necrophagicVigorHealthDrained),
             targetHasLiftedStatus: normalizeExternalStatusTypes(conditionalState?.externalStatusTypes).includes("lifted"),
             strainInfectionCystsAtImpact: conditionalState?.strainInfectionCystsAtImpact,
             selectedTennokaiBlockedHitsBetweenHeavy: conditionalState?.tennokaiBlockedHitsBetweenHeavy ?? 0,
