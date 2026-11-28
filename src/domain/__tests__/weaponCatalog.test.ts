@@ -59,6 +59,35 @@ describe("weapon catalog stance inference", () => {
             .toEqual(radial.modelLimitation);
     });
 
+    it("binds Sporothrix barb explosions to Normal Attack and keeps the component row reference-only", () => {
+        for (const name of ["Sporothrix", "Coda Sporothrix"]) {
+            const sourceUrl = name === "Coda Sporothrix"
+                ? "https://wiki.warframe.com/w/Coda_Sporothrix"
+                : "https://wiki.warframe.com/w/Sporothrix";
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === name);
+            expect(weapon).toBeDefined();
+            const directIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            const areaIndex = weapon!.attacks.findIndex((attack) => attack.name === "AoE");
+            expect(directIndex).toBeGreaterThanOrEqual(0);
+            expect(areaIndex).toBeGreaterThanOrEqual(0);
+
+            const direct = weapon!.attacks[directIndex]!;
+            const area = weapon!.attacks[areaIndex]!;
+            expect(direct.lingeringDamageRule).toMatchObject({
+                componentAttackName: "AoE",
+                firstTickDelaySeconds: 0.9,
+                tickCount: 1,
+                attachedToDirectTarget: true,
+                sourceUrl,
+            });
+            expect(direct.scoreBoundaryNote?.sourceUrl).toBe(sourceUrl);
+            expect(direct.scoreBoundaryNote?.reason).toMatch(/direct barb hit and one linked AoE explosion.*Extra Punch Through.*area coverage are not modeled/i);
+            expect(area.modelLimitation?.sourceUrl).toBe(sourceUrl);
+            expect(area.modelLimitation?.reason).toMatch(/Select Normal Attack.*reference-only/i);
+            expect(withSelectedAttack(weapon!, areaIndex).selectedAttackModelLimitation).toEqual(area.modelLimitation);
+        }
+    });
+
     it("corrects Kulstar's trigger and bounds the direct-hit rocket sequence", () => {
         const kulstar = getWeaponCatalog().find((candidate) => candidate.name === "Kulstar");
         expect(kulstar).toBeDefined();

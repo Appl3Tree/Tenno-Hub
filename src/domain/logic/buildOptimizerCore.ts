@@ -11,7 +11,7 @@ import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
 import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, FLUX_OVERDRIVE_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH, NECROPHAGIC_VIGOR_MOD_PATH } from "../catalog/modEffectUtils";
-import { ENERGY_CHANNEL_MOD_PATH } from "../catalog/modEffectUtils";
+import { ENERGY_CHANNEL_MOD_PATH, isVolatileVariantDirectSequenceContextSupported, VOLATILE_VARIANT_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -1961,6 +1961,8 @@ function getBlockingOptimizerEffectLines(
         isThermomagneticShellsBurstContextSupported(effect, context);
     const supportedCombustionBeamBurst = mod.path === COMBUSTION_BEAM_MOD_PATH &&
         isCombustionBeamBurstContextSupported(effect, context);
+    const supportedVolatileVariantSequence = mod.path === VOLATILE_VARIANT_MOD_PATH &&
+        isVolatileVariantDirectSequenceContextSupported(context);
     const linkedJavlokComboBoundary = mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH;
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !(mod.path === FLUX_OVERDRIVE_MOD_PATH && line.startsWith("Flux Overdrive's rank-table fixed additive Status Chance bonus is scored;")) &&
@@ -1970,6 +1972,7 @@ function getBlockingOptimizerEffectLines(
         !(supportedAcidShellsBurst && mod.path === ACID_SHELLS_MOD_PATH) &&
         !(supportedThermomagneticShellsBurst && mod.path === THERMAGNETIC_SHELLS_MOD_PATH) &&
         !(supportedCombustionBeamBurst && mod.path === COMBUSTION_BEAM_MOD_PATH) &&
+        !(supportedVolatileVariantSequence && mod.path === VOLATILE_VARIANT_MOD_PATH) &&
         !(linkedJavlokComboBoundary && (
             /Combo Count Chance while Blocking with a Shield/i.test(line) ||
             line.includes("Amalgam Javlok Magazine Warp's rank-scaled Magazine Capacity applies to Javlok.")

@@ -123,6 +123,23 @@ export interface ScoringEffectContext {
     selectedTennokaiBlockedHitsBetweenHeavy?: number;
 }
 
+const VOLATILE_VARIANT_SINGLE_TARGET_GOALS = new Set([
+    "burst",
+    "scaling",
+    "timeToKill",
+    "windowDps",
+]);
+
+/** The selected Normal Attack includes the linked barb explosion on its directly struck target. */
+export function isVolatileVariantDirectSequenceContextSupported(
+    context?: ScoringEffectContext,
+): boolean {
+    return (context?.selectedWeaponName === "Sporothrix" || context?.selectedWeaponName === "Coda Sporothrix") &&
+        context.selectedAttackName?.trim().toLowerCase() === "normal attack" &&
+        context.selectedAttackIsAreaDamage === false &&
+        VOLATILE_VARIANT_SINGLE_TARGET_GOALS.has(context.selectedGoal ?? "");
+}
+
 export function isVulcanBlitzBurstContextSupported(
     effect: Partial<ModEffect>,
     context?: ScoringEffectContext,
@@ -280,10 +297,13 @@ export function getUnmodeledDamageEffectLines(
     rank: number,
     context?: ScoringEffectContext,
 ): string[] {
+    const supportedVolatileVariantSequence = mod.path === VOLATILE_VARIANT_MOD_PATH &&
+        isVolatileVariantDirectSequenceContextSupported(context);
     const truthFlameCycleScope = mod.path === TRUTH_FLAME_MOD_PATH && context?.selectedGoal === "tennokaiDps";
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
         .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH &&
             mod.path !== NAPALM_GRENADES_MOD_PATH &&
+            !(supportedVolatileVariantSequence && mod.path === VOLATILE_VARIANT_MOD_PATH) &&
             !(truthFlameCycleScope && /^CURSE:/i.test(line)) &&
             DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
     if (mod.path === NAPALM_GRENADES_MOD_PATH) {
@@ -323,7 +343,9 @@ export function getUnmodeledDamageEffectLines(
                 : "Truth's Affinity-earned syndicate effect (radial Gas damage, 25% Health restore, and a temporary +25% Parkour Maneuvers buff) is not modeled, so Auto Optimize skips this mod.");
     }
     if (mod.path === VOLATILE_VARIANT_MOD_PATH) {
-        lines.push("Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.");
+        lines.push(supportedVolatileVariantSequence
+            ? "Volatile Variant's Normal Attack sequence includes the immediate AoE explosion on the directly struck target and applies this rank's AoE Status Chance bonus. Its 3m Punch Through, extra 4m radius against neighbors, and additional enemy hits are outside this single-target score. Wiki: https://wiki.warframe.com/w/Volatile_Variant"
+            : "Volatile Variant removes the 0.9s barb embed delay and adds rank-scaled Status Chance to the AoE explosion. The planner scores the direct-hit sequence only for Sporothrix/Coda Sporothrix Normal Attack against the struck target; the standalone AoE row is reference-only. Punch Through, the extra 4m radius against neighbors, and additional enemy hits are not modeled, so Auto Optimize skips the mod outside the supported single-target sequence. Wiki: https://wiki.warframe.com/w/Volatile_Variant");
     }
     if (mod.path === ACID_SHELLS_MOD_PATH) {
         const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
@@ -581,7 +603,13 @@ export function getUnmodeledDamageEffectLines(
 export function getUnmodeledDamageEffectBadgeLabel(
     mod: { path?: string },
     surface: "slot" | "picker",
+    context?: ScoringEffectContext,
 ): string {
+    if (mod.path === VOLATILE_VARIANT_MOD_PATH && isVolatileVariantDirectSequenceContextSupported(context)) {
+        return surface === "slot"
+            ? "Direct-hit sequence scored; neighbors omitted"
+            : "Direct-hit sequence scored; group hits omitted";
+    }
     if (mod.path === FLUX_OVERDRIVE_MOD_PATH) {
         return surface === "slot"
             ? "Burst snapshot; fixed bonus scored"
@@ -612,6 +640,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
 }): string | undefined {
     if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
         return "https://wiki.warframe.com/w/Energy_Channel";
+    }
+    if (mod.path === VOLATILE_VARIANT_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Volatile_Variant";
     }
     if (mod.path === NAPALM_GRENADES_MOD_PATH) {
         return "https://wiki.warframe.com/w/Napalm_Grenades";
@@ -750,6 +781,7 @@ export function emptyEffect(): ModEffect {
         sentientBarrageCritChanceAndDamageBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
+        volatileVariantInstantExplosion: false,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false, multishotLocked: false,
         magazineCapacityFlatBonus: 0, magazineBonus: 0,
         reloadSpeedBonus: 0, directHitReloadSpeedBonus: 0, directHitReloadSpeedDurationSeconds: 0,

@@ -1800,6 +1800,7 @@ export function calculateBuild(
     const nonCriticalHitDamageProcs: NonCriticalHitDamageProc[] = [];
     let statusChanceBonus = 0;
     let areaDamageStatusChanceBonus = 0;
+    let volatileVariantInstantExplosion = false;
     let comboStatusChanceBonus = 0;
     let finalStatusChanceBonus = 0;
     let multishotBonus = 0;
@@ -1946,6 +1947,7 @@ export function calculateBuild(
         finalCritMultiplierBonus += e.finalCritMultiplierBonus ?? 0;
         statusChanceBonus += e.statusChanceBonus ?? 0;
         areaDamageStatusChanceBonus += e.areaDamageStatusChanceBonus ?? 0;
+        volatileVariantInstantExplosion ||= e.volatileVariantInstantExplosion === true;
         comboStatusChanceBonus += e.comboStatusChanceBonus ?? 0;
         finalStatusChanceBonus += e.finalStatusChanceBonus ?? 0;
         multishotBonus += e.multishotBonus ?? 0;
@@ -3740,9 +3742,15 @@ export function calculateBuild(
 
     const sentientBarrageSuppressesContactExplosion = weapon.name === "Battacor" &&
         weapon.selectedAttackName === "Secondary Fire" && sentientBarrageEquipped;
-    const linkedSequenceRule = sentientBarrageSuppressesContactExplosion
+    const baseLinkedSequenceRule = sentientBarrageSuppressesContactExplosion
         ? undefined
         : weapon.selectedAttackLingeringDamageRule;
+    const volatileVariantDirectHitExplosion = volatileVariantInstantExplosion &&
+        (weapon.name === "Sporothrix" || weapon.name === "Coda Sporothrix") &&
+        weapon.selectedAttackName?.trim().toLowerCase() === "normal attack";
+    const linkedSequenceRule = baseLinkedSequenceRule && volatileVariantDirectHitExplosion
+        ? { ...baseLinkedSequenceRule, firstTickDelaySeconds: 0 }
+        : baseLinkedSequenceRule;
     const enteredAttackDistanceMeters = Number.isFinite(conditionalState.attackFalloffDistanceMeters)
         ? Math.max(0, conditionalState.attackFalloffDistanceMeters ?? 0)
         : null;
@@ -3838,7 +3846,15 @@ export function calculateBuild(
                     intrinsicDamagePerStatusMode: componentStats.intrinsicDamagePerStatusMode,
                     totalDamageBonus: componentStats.totalDamageBonus,
                     uniqueStatusProcsPerAttack: componentWeapon.uniqueStatusProcs ?? [],
-                    steadyStateDotDamageByTypePerTick: componentStats.dotDamagePerShotByType,
+                    // The fast optimizer disables per-tick DoT details. Preserve
+                    // the already-computed steady-state per-shot DoT contribution
+                    // so linked AoE components still score status damage there.
+                    steadyStateDotDamageByTypePerTick: Object.fromEntries(STATUS_DAMAGE_TYPES.map((type) => [
+                        type,
+                        componentStats.fireRate > 0
+                            ? (componentStats.dotDpsByType[type] ?? 0) / componentStats.fireRate
+                            : 0,
+                    ])) as Partial<Record<StatusDamageType, number>>,
                 },
             };
         }
