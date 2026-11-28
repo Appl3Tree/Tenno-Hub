@@ -4,6 +4,16 @@ Last updated: 2026-11-27
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
+## CURRENT WORKING CHECKPOINT — 2026-11-27 (Flux Overdrive snapshot reviewed in current source)
+
+- **Baseline:** isolated current-main worktree on `codex/flux-overdrive-burst-snapshot`, based on Docs PR #427 at `10582c3f`; the original mixed checkout remains untouched.
+- **Source and decision:** the current [Flux Overdrive Wiki page](https://wiki.warframe.com/w/Flux_Overdrive) lists R0–R5 fixed Status Chance of +25/+50/+75/+100/+125/+150% and a separate oscillating component of +16.8/+33.6/+50.4/+67.2/+84/+100.8%. Its notes say the first part stacks additively with other Status Chance mods and the second is multiplicative. The max-rank description says +150% to +250%, which conflicts with the detailed table/notes. The user chose the detailed table/notes; the conflict is disclosed in the planner.
+- **Model:** the fixed additive rank bonus applies across supported objectives. An editable saved 0–rank-cap oscillation snapshot multiplies resulting Status Chance for direct single-target Burst and Burst Auto Optimize. Finite TTK, Scaling, sustained DPS, and 5s Avg DPS strip the snapshot because beam firing-time and average oscillation are not modeled. The Weapons/Mod UI exposes the assumption and source.
+- **Validation:** five Flux tests pass, including seed `20261177`, which matches exhaustive two-slot owned-rank winners across four randomized faction, target-defense, and snapshot scenarios. Existing `damageCalc.test.ts` passes 197/197. Focused ESLint, `npm run validate:sources`, and `npm run audit:mod-effect-coverage` pass; the audit reports 524/600 effect-parsed mod records, 76 without a parsed max-rank effect, and 73 conservative review candidates (53 partial / 20 fully unparsed). TypeScript and the 994-module production build pass with the existing Vite large-chunk warning. The full repository suite was not run.
+- **Rendered review:** the current-source in-app preview verified the R5 fixed bonus (24% base to 60%), and entering 50.4% oscillation raised Status Chance to 90.2% with proc estimates updating. Burst Auto Optimize completed; it chose other mods for this target. The final view visibly shows the shortened selected-mod label, editable rank-capped snapshot, objective limits, Wiki link, and detailed-table versus short-description discrepancy. The temporary test snapshot was reset; no build was saved.
+- **Still open:** release; full-suite validation; exact firing-time behavior, live-game accuracy, Underframe parity, broader optimizer quality, and the rest of the source-backed audit queue. No average oscillation or long-objective Flux snapshot is claimed.
+- **Next:** release this isolated change, then continue the outstanding benchmark/audit work.
+
 ## CURRENT WORKING CHECKPOINT — 2026-11-27 (Necrophagic Vigor released)
 
 - **Baseline:** current `main` includes PR #425 at `a72f60dfad2c61b1ecd6f4b0d2acb2c537586c92`; Pages run #504 succeeded. The original mixed checkout was left untouched.

@@ -33,7 +33,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeFluxOverdriveOscillatingStatusChancePercent, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
 import { calculateStaticDischargeCycle, DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS, normalizeStaticDischargeFirstAnimationSeconds, type StaticDischargeStartingOrder } from "../../domain/logic/staticDischargeCycle";
 import { calculateVileDischargeTimeline } from "../../domain/logic/vileDischargeTimeline";
@@ -3976,6 +3976,7 @@ export default function ModBuilder() {
     const [criticalPrecisionHeadshotProjectiles, setCriticalPrecisionHeadshotProjectiles] = useState(0);
     const [unseenDreadInvisibilityActive, setUnseenDreadInvisibilityActive] = useState(false);
     const [criticalMutationPriorKills, setCriticalMutationPriorKills] = useState(0);
+    const [fluxOverdriveOscillatingStatusChancePercent, setFluxOverdriveOscillatingStatusChancePercent] = useState(0);
     const [battacorAltFireChargeCount, setBattacorAltFireChargeCount] = useState(0);
     const [sentientBarrageNextDischargeReady, setSentientBarrageNextDischargeReady] = useState(false);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
@@ -4038,6 +4039,7 @@ export default function ModBuilder() {
         criticalPrecisionHeadshotProjectiles,
         unseenDreadInvisibilityActive,
         criticalMutationPriorKills,
+        fluxOverdriveOscillatingStatusChancePercent,
         battacorAltFireChargeCount,
         sentientBarrageNextDischargeReady,
         externalStatusTypes,
@@ -4052,7 +4054,7 @@ export default function ModBuilder() {
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, necrophagicVigorHealthDrained, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, necrophagicVigorHealthDrained, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, fluxOverdriveOscillatingStatusChancePercent, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
     const activeBattacorScoringConditionalState = useMemo<ConditionalState>(() => goal === "burst"
         ? conditionalState
         : {
@@ -4359,6 +4361,7 @@ export default function ModBuilder() {
             criticalPrecisionHeadshotProjectiles,
             unseenDreadInvisibilityActive,
             criticalMutationPriorKills,
+            fluxOverdriveOscillatingStatusChancePercent,
             battacorAltFireChargeCount,
             sentientBarrageNextDischargeReady,
             externalStatusTypes,
@@ -4438,6 +4441,7 @@ export default function ModBuilder() {
         criticalPrecisionHeadshotProjectiles,
         unseenDreadInvisibilityActive,
         criticalMutationPriorKills,
+        fluxOverdriveOscillatingStatusChancePercent,
         battacorAltFireChargeCount,
         sentientBarrageNextDischargeReady,
         externalStatusTypes,
@@ -5160,6 +5164,16 @@ export default function ModBuilder() {
         }
         return effects;
     }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
+    const activeFluxOverdriveMaximumOscillatingStatusChancePercent = Math.max(
+        0,
+        ...activeBuildEffects.map((effect) => (effect?.fluxOverdriveMaxOscillatingStatusChanceBonus ?? 0) * 100),
+    );
+    useEffect(() => {
+        if (activeFluxOverdriveMaximumOscillatingStatusChancePercent <= 0) return;
+        setFluxOverdriveOscillatingStatusChancePercent((current) => normalizeFluxOverdriveOscillatingStatusChancePercent(
+            Math.min(current, activeFluxOverdriveMaximumOscillatingStatusChancePercent),
+        ));
+    }, [activeFluxOverdriveMaximumOscillatingStatusChancePercent]);
     const activeAccuracyAffectingEffect = hasAccuracyAffectingPelletEffect(activeBuildEffects);
     const activeSentientBarrageSelected = activeBuildEffects.some((effect) =>
         (effect?.sentientBarrageCritChanceAndDamageBonus ?? 0) > 0,
@@ -6452,6 +6466,7 @@ export default function ModBuilder() {
         setStrainInfectionCystsAtImpact(0);
         setDreadfulKillshotCurrentHealth(0);
         setNecrophagicVigorHealthDrained(0);
+        setFluxOverdriveOscillatingStatusChancePercent(0);
         setBattacorAltFireChargeCount(0);
         setSentientBarrageNextDischargeReady(false);
         setOverpressuredRoundsSpreadMinimumDegrees(undefined);
@@ -6495,6 +6510,9 @@ export default function ModBuilder() {
             ));
             setUnseenDreadInvisibilityActive(plannerConfig.unseenDreadInvisibilityActive === true);
             setCriticalMutationPriorKills(normalizeCriticalMutationPriorKills(plannerConfig.criticalMutationPriorKills));
+            setFluxOverdriveOscillatingStatusChancePercent(normalizeFluxOverdriveOscillatingStatusChancePercent(
+                plannerConfig.fluxOverdriveOscillatingStatusChancePercent,
+            ));
             setBattacorAltFireChargeCount(normalizeBattacorAltFireChargeCount(plannerConfig.battacorAltFireChargeCount));
             setSentientBarrageNextDischargeReady(plannerConfig.sentientBarrageNextDischargeReady === true);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
@@ -7126,6 +7144,33 @@ export default function ModBuilder() {
                                                             With Unseen Dread equipped, the selected rank adds Critical Damage while Dread is invisible. The Wiki says invisibility from any source qualifies. The 3-enemy trigger and 5-second duration/history are not simulated; this snapshot applies only to direct single-target Burst and Burst Auto Optimize. Area coverage, finite TTK, and 5s DPS exclude it.
                                                         </p>
                                                         <a href="https://wiki.warframe.com/w/Unseen_Dread" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Unseen Dread</a>
+                                                    </div>
+                                                )}
+                                                {(activeCalcWeapon?.name === "Flux Rifle" || activeCalcWeapon?.name === "Tenet Flux Rifle") &&
+                                                    activeFluxOverdriveMaximumOscillatingStatusChancePercent > 0 && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Flux Overdrive oscillating Status Chance snapshot (%)</span>
+                                                            <input
+                                                                aria-label="Flux Overdrive oscillating Status Chance snapshot percent"
+                                                                type="number"
+                                                                min={0}
+                                                                max={activeFluxOverdriveMaximumOscillatingStatusChancePercent}
+                                                                step={0.1}
+                                                                value={Math.min(fluxOverdriveOscillatingStatusChancePercent, activeFluxOverdriveMaximumOscillatingStatusChancePercent)}
+                                                                onChange={(event) => setFluxOverdriveOscillatingStatusChancePercent(
+                                                                    Math.min(
+                                                                        activeFluxOverdriveMaximumOscillatingStatusChancePercent,
+                                                                        normalizeFluxOverdriveOscillatingStatusChancePercent(Number(event.target.value)),
+                                                                    ),
+                                                                )}
+                                                                className="w-20 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                            />
+                                                        </label>
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                                            The selected rank's fixed additive Status Chance always applies. Enter the current 0–{fmt(activeFluxOverdriveMaximumOscillatingStatusChancePercent, 1)}% rank-capped oscillating value to multiply the resulting Status Chance for this direct Burst snapshot. The Wiki's short max-rank description (+150% to +250%) conflicts with its detailed rank table/notes; the planner follows the detailed values. Firing history and average oscillation over finite TTK, sustained DPS, and 5s DPS are not modeled, so those objectives use only the fixed rank bonus. Burst Auto Optimize uses this saved snapshot.
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Flux_Overdrive" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Flux Overdrive</a>
                                                     </div>
                                                 )}
                                                 {(activeCalcWeapon?.name === "Catabolyst" || activeCalcWeapon?.name === "Coda Catabolyst") &&
@@ -9297,8 +9342,8 @@ export default function ModBuilder() {
                                                     : `Synth Charge adds its bonus to one hit on the final ammo-consuming attack. This value spreads that hit's bonus across the expected projectiles for the attack.`,
                                             }]
                                             : []),
-                                        { label: "Burst DPS", value: fmt(result.burstDPS), sub: "fresh magazine", tooltip: `Damage per second while attacking through a fresh magazine without reload downtime. Verified attack ramps are averaged across that magazine.${stats.strainInfectionCritDamageBonus > 0 ? ` Strain Infection assumes ${stats.strainInfectionCystsAtImpact}/8 active cysts at impact and keeps that count static within this Burst calculation; cyst timing and average uptime are not modeled.` : ""}${stats.strainFeverDamageBonus > 0 ? ` Strain Fever assumes ${stats.strainInfectionCystsAtImpact}/8 active cysts at impact and adds +${fmt(stats.strainFeverDamageBonus * 100, 0)}% additive Damage; growth and uptime are not modeled.` : ""}${stats.dreadfulKillshotBonus > 0 ? ` Dreadful Killshot assumes ${fmt(stats.dreadfulKillshotCurrentHealth)} current Warframe Health, held static for this Burst calculation.` : ""}${stats.criticalMutationBonus > 0 ? ` Critical Mutation assumes ${stats.criticalMutationPriorKills} prior kills and holds its Critical Chance/Damage bonus static for this Burst calculation; stack changes are not simulated.` : ""}` },
-                                        { label: "Sustained DPS", value: fmt(finiteResult.sustainedDPS), sub: stats.infiniteAmmoActive ? "Gale Force maintained" : "with reload", tooltip: `${stats.infiniteAmmoActive ? "Damage per second assumes Gale Force stays active, so no reload downtime or recurring first-shot Chamber bonus is applied." : "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable."}${stats.strainInfectionCritDamageBonus > 0 ? " Strain Infection cysts are excluded because their timing and uptime are not modeled." : ""}${stats.strainFeverDamageBonus > 0 ? " Strain Fever active-cyst Damage snapshot is excluded because growth and uptime are not modeled." : ""}${stats.dreadfulKillshotBonus > 0 ? " Dreadful Killshot's current-Health snapshot is excluded from sustained scoring." : ""}` },
+                                        { label: "Burst DPS", value: fmt(result.burstDPS), sub: "fresh magazine", tooltip: `Damage per second while attacking through a fresh magazine without reload downtime. Verified attack ramps are averaged across that magazine.${stats.fluxOverdriveOscillatingStatusChanceBonus > 0 ? ` Flux Overdrive uses the saved +${fmt(stats.fluxOverdriveOscillatingStatusChanceBonus * 100, 1)}% oscillating Status Chance snapshot for this Burst; its fixed additive rank bonus also applies.` : ""}${stats.strainInfectionCritDamageBonus > 0 ? ` Strain Infection assumes ${stats.strainInfectionCystsAtImpact}/8 active cysts at impact and keeps that count static within this Burst calculation; cyst timing and average uptime are not modeled.` : ""}${stats.strainFeverDamageBonus > 0 ? ` Strain Fever assumes ${stats.strainInfectionCystsAtImpact}/8 active cysts at impact and adds +${fmt(stats.strainFeverDamageBonus * 100, 0)}% additive Damage; growth and uptime are not modeled.` : ""}${stats.dreadfulKillshotBonus > 0 ? ` Dreadful Killshot assumes ${fmt(stats.dreadfulKillshotCurrentHealth)} current Warframe Health, held static for this Burst calculation.` : ""}${stats.criticalMutationBonus > 0 ? ` Critical Mutation assumes ${stats.criticalMutationPriorKills} prior kills and holds its Critical Chance/Damage bonus static for this Burst calculation; stack changes are not simulated.` : ""}` },
+                                        { label: "Sustained DPS", value: fmt(finiteResult.sustainedDPS), sub: stats.infiniteAmmoActive ? "Gale Force maintained" : "with reload", tooltip: `${stats.infiniteAmmoActive ? "Damage per second assumes Gale Force stays active, so no reload downtime or recurring first-shot Chamber bonus is applied." : "Damage per second including reload downtime and the stable attack-ramp level across repeated magazines when applicable."}${activeFluxOverdriveMaximumOscillatingStatusChancePercent > 0 ? ` Flux Overdrive's fixed additive rank bonus remains scored, while the saved oscillating snapshot (${fmt(fluxOverdriveOscillatingStatusChancePercent, 1)}%) is excluded because the firing timeline and average are not modeled.` : ""}${stats.strainInfectionCritDamageBonus > 0 ? " Strain Infection cysts are excluded because their timing and uptime are not modeled." : ""}${stats.strainFeverDamageBonus > 0 ? " Strain Fever active-cyst Damage snapshot is excluded because growth and uptime are not modeled." : ""}${stats.dreadfulKillshotBonus > 0 ? " Dreadful Killshot's current-Health snapshot is excluded from sustained scoring." : ""}` },
                                         { label: `DoT / ${damageUnitLabel}`, value: fmt(finiteStats.dotDamagePerShot), sub: "full-life estimate", tooltip: `Expected status damage-over-time contributed by one ${damageUnit} if the target survives for every proc's full duration. This is not damage delivered before a target dies.` },
                                         { label: "DoT DPS", value: fmt(finiteStats.dotDps), sub: "steady-state estimate", tooltip: "Estimated DoT damage per second against a target that survives long enough for status stacks to reach steady state. Ramp-enabled attacks assume fully warmed damage for this long-run estimate; the expected encounter scales each proc seed by its attack-time ramp." },
                                         ...(stats.nightwatchNapalm ? [
