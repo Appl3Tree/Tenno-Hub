@@ -32,6 +32,7 @@ export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nig
 export const NECROPHAGIC_VIGOR_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveHemaAugmentMod";
 export const FLUX_OVERDRIVE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/FluxRifleCorpusArenaMod";
 export const ENERGY_CHANNEL_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponPowerDamageMod";
+export const AVENGING_TRUTH_MOD_PATH = "/Lotus/Upgrades/Mods/Syndicate/SilvaAegisMod";
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
 export const AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Rifle/JavlokSwordShieldMod";
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
@@ -292,6 +293,13 @@ export function getUnmodeledDamageEffectLines(
             ? Math.max(0, effect.energyChannelMaximumBonusDamage ?? 0)
             : 0;
         lines.push(`Energy Channel R${rank} converts ${conversion}% of Energy spent into up to +${cap} raw bonus damage on the next melee attack. The planner exposes this only as a manual raw next-hit Burst estimate for one direct, single-target melee event. The Wiki's Max Rank metadata says 5, but its effect table and the generated catalog data list R0–R3; the planner uses those four rows. The Wiki says the bonus is added after critical damage and is amplified by Elemental Mods; because its damage type and target-pool mitigation are not verified, this estimate does not apply elemental scaling and is excluded from target-aware scoring, finite TTK, sustained/5-second DPS, multi-hit or area attacks, and Auto Optimize.`);
+    }
+    if (mod.path === AVENGING_TRUTH_MOD_PATH) {
+        const avengingTruthEffect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
+        const fraction = Number.isFinite(avengingTruthEffect.avengingTruthDamageAbsorptionFraction)
+            ? Math.max(0, avengingTruthEffect.avengingTruthDamageAbsorptionFraction ?? 0)
+            : 0;
+        lines.push(`Avenging Truth R${rank} stores ${fraction * 100}% of the assumed incoming damage that was blocked for the next Silva & Aegis Heavy Attack. The planner shows a manual single-target Burst snapshot as a separate raw bonus only; it does not assign a damage type or apply the Wiki's Elemental Mod and Combo Multiplier steps, so the value is excluded from target-aware scoring, finite TTK, sustained/5-second DPS, and Auto Optimize. The Truth syndicate effect also remains unmodeled. Wiki: https://wiki.warframe.com/w/Avenging_Truth`);
     }
     if (hasUnparsedTruthSyndicateStat(mod.unparsedStatsByRank?.[rank])) {
         // Syndicate augments gain this combat effect from weapon-earned Affinity.
@@ -574,6 +582,11 @@ export function getUnmodeledDamageEffectBadgeLabel(
             ? "Manual Burst estimate; Auto Optimize excludes"
             : "Raw next-hit estimate; optimizer excludes";
     }
+    if (mod.path === AVENGING_TRUTH_MOD_PATH) {
+        return surface === "slot"
+            ? "Raw Burst estimate; Auto Optimize excludes"
+            : "Raw Heavy Attack snapshot; optimizer excludes";
+    }
     if (mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH) {
         return "Linked Sword-and-Shield combo effect unscored; Magazine Capacity remains optimizer-eligible";
     }
@@ -589,6 +602,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
 }): string | undefined {
     if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
         return "https://wiki.warframe.com/w/Energy_Channel";
+    }
+    if (mod.path === AVENGING_TRUTH_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Avenging_Truth";
     }
     if (mod.path === FLUX_OVERDRIVE_MOD_PATH) {
         return "https://wiki.warframe.com/w/Flux_Overdrive";
@@ -717,6 +733,7 @@ export function emptyEffect(): ModEffect {
         criticalMutationCritChanceAndDamagePerKill: 0,
         fluxOverdriveMaxOscillatingStatusChanceBonus: 0,
         energyChannelBonusDamagePerEnergy: 0, energyChannelMaximumBonusDamage: 0,
+        avengingTruthDamageAbsorptionFraction: 0,
         sentientBarrageCritChanceAndDamageBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,

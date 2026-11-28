@@ -33,7 +33,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeEnergyChannelEnergySpent, normalizeFluxOverdriveOscillatingStatusChancePercent, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeAvengingTruthIncomingDamageBlocked, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeEnergyChannelEnergySpent, normalizeFluxOverdriveOscillatingStatusChancePercent, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
 import { calculateStaticDischargeCycle, DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS, normalizeStaticDischargeFirstAnimationSeconds, type StaticDischargeStartingOrder } from "../../domain/logic/staticDischargeCycle";
 import { calculateVileDischargeTimeline } from "../../domain/logic/vileDischargeTimeline";
@@ -925,6 +925,9 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
         (stats?.energyChannelNextHitBonusDamage ?? 0) > 0
             ? `Energy Channel assumes ${fmt(stats?.energyChannelEnergySpent ?? 0, 1)} Energy spent before one next melee hit and shows +${fmt(stats?.energyChannelNextHitBonusDamage ?? 0)} raw bonus damage after the critical multiplier. The Wiki says Elemental Mods amplify it, but this estimate does not apply elemental scaling or target mitigation because the damage type is not assigned.`
             : "",
+        (stats?.avengingTruthStoredDamage ?? 0) > 0
+            ? `Avenging Truth assumes ${fmt(stats?.avengingTruthIncomingDamageBlocked ?? 0)} incoming damage was blocked and shows +${fmt(stats?.avengingTruthStoredDamage ?? 0)} raw stored damage for one direct Heavy Attack. The Wiki says this is added after base-damage mods and before elemental bonuses, and is multiplied by combo; this separate value is not converted to target damage or included in the selected score.`
+            : "",
         (stats?.deadlyManeuversHeadshotCritChanceBonus ?? 0) > 0
             ? `Deadly Maneuvers assumes ${stats?.deadlyManeuversShotsRemaining ?? 0} buffed shot(s) remain after a dodge; Burst averages the next two shots at the configured headshot share. Dodge and shot history are not modeled.`
             : "",
@@ -1316,6 +1319,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         acc.criticalMutationCritChanceAndDamagePerKill += effect.criticalMutationCritChanceAndDamagePerKill ?? 0;
         acc.energyChannelBonusDamagePerEnergy += effect.energyChannelBonusDamagePerEnergy ?? 0;
         acc.energyChannelMaximumBonusDamage += effect.energyChannelMaximumBonusDamage ?? 0;
+        acc.avengingTruthDamageAbsorptionFraction += effect.avengingTruthDamageAbsorptionFraction ?? 0;
         acc.finalCritMultiplierBonus += effect.finalCritMultiplierBonus ?? 0;
         acc.statusChanceBonus += effect.statusChanceBonus ?? 0;
         acc.areaDamageStatusChanceBonus += effect.areaDamageStatusChanceBonus ?? 0;
@@ -1368,6 +1372,7 @@ function sumEffects(effects: (ModEffect | null)[]) {
         criticalMutationCritChanceAndDamagePerKill: 0,
         energyChannelBonusDamagePerEnergy: 0,
         energyChannelMaximumBonusDamage: 0,
+        avengingTruthDamageAbsorptionFraction: 0,
         finalCritMultiplierBonus: 0,
         statusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
@@ -2041,6 +2046,9 @@ function buildMathBreakdown(
                     : []),
                 ...(stats.energyChannelNextHitBonusDamage > 0
                     ? [`Energy Channel = min(${fmt(stats.energyChannelEnergySpent, 1)} Energy × ${fmt(totals.energyChannelBonusDamagePerEnergy, 2)} raw damage per Energy, ${fmt(totals.energyChannelMaximumBonusDamage, 0)} rank cap) = +${fmt(stats.energyChannelNextHitBonusDamage, 2)} raw damage on one next-hit Burst event, added after crit weighting. The Wiki says Elemental Mods amplify it, but this raw estimate does not apply elemental scaling or target-pool mitigation because the damage type is not assigned. It is excluded from repeated-hit DPS, Scaling, finite TTK, sustained/5-second DPS, multi-hit/area scoring, and Auto Optimize. Wiki: https://wiki.warframe.com/w/Energy_Channel`]
+                    : []),
+                ...(stats.avengingTruthStoredDamage > 0
+                    ? [`Avenging Truth = ${fmt(stats.avengingTruthIncomingDamageBlocked, 0)} assumed incoming damage blocked × ${fmt(totals.avengingTruthDamageAbsorptionFraction * 100, 0)}% at the selected rank = +${fmt(stats.avengingTruthStoredDamage, 2)} raw stored damage for this direct Heavy Attack Burst snapshot. The Wiki places it after base-damage mods and before elemental bonuses, and says combo multiplies it; this separate value does not apply those later steps or target mitigation and is excluded from target-aware scoring, finite TTK, sustained/5-second DPS, and Auto Optimize. Truth is also not modeled. Wiki: https://wiki.warframe.com/w/Avenging_Truth`]
                     : []),
         ...(stats.deadlyManeuversHeadshotCritChanceBonus > 0
             ? [`Deadly Maneuvers Burst = ${stats.deadlyManeuversShotsRemaining} remaining buffed shot(s) after a dodge; +${fmt(totals.deadlyManeuversHeadshotCritChanceBonus * 100, 0)}% headshot Critical Chance is multiplicative after other bonuses (×${fmt(1 + totals.deadlyManeuversHeadshotCritChanceBonus, 0)} on each buffed shot). Burst averages the next two shots using the configured headshot share. Dodge/shot history is not modeled; finite TTK and 5s Avg DPS exclude it. Wiki: https://wiki.warframe.com/w/Deadly_Maneuvers`]
@@ -3568,6 +3576,9 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
         if (stats.modded.energyChannelNextHitBonusDamage > 0) {
             rows.push(["Energy Channel next-hit raw bonus", `+${fmt(stats.modded.energyChannelNextHitBonusDamage)} at ${fmt(stats.modded.energyChannelEnergySpent, 1)} Energy`]);
         }
+        if (stats.modded.avengingTruthStoredDamage > 0) {
+            rows.push(["Avenging Truth stored raw damage", `+${fmt(stats.modded.avengingTruthStoredDamage)} from ${fmt(stats.modded.avengingTruthIncomingDamageBlocked, 0)} blocked`]);
+        }
         if (stats.modded.dreadfulKillshotBonus > 0) {
             rows.push(["Dreadful Killshot Burst bonus", `+${fmt(stats.modded.dreadfulKillshotBonus * 100, 0)}% at ${fmt(stats.modded.dreadfulKillshotCurrentHealth)} current Health`]);
         }
@@ -3994,6 +4005,7 @@ export default function ModBuilder() {
     const [criticalMutationPriorKills, setCriticalMutationPriorKills] = useState(0);
     const [fluxOverdriveOscillatingStatusChancePercent, setFluxOverdriveOscillatingStatusChancePercent] = useState(0);
     const [energyChannelEnergySpent, setEnergyChannelEnergySpent] = useState(0);
+    const [avengingTruthIncomingDamageBlocked, setAvengingTruthIncomingDamageBlocked] = useState(0);
     const [battacorAltFireChargeCount, setBattacorAltFireChargeCount] = useState(0);
     const [sentientBarrageNextDischargeReady, setSentientBarrageNextDischargeReady] = useState(false);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
@@ -4058,6 +4070,9 @@ export default function ModBuilder() {
         criticalMutationPriorKills,
         fluxOverdriveOscillatingStatusChancePercent,
         energyChannelEnergySpent: goal === "burst" ? normalizeEnergyChannelEnergySpent(energyChannelEnergySpent) : 0,
+        avengingTruthIncomingDamageBlocked: goal === "burst"
+            ? normalizeAvengingTruthIncomingDamageBlocked(avengingTruthIncomingDamageBlocked)
+            : 0,
         battacorAltFireChargeCount,
         sentientBarrageNextDischargeReady,
         externalStatusTypes,
@@ -4072,7 +4087,7 @@ export default function ModBuilder() {
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
-    }), [goal, conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, necrophagicVigorHealthDrained, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, fluxOverdriveOscillatingStatusChancePercent, energyChannelEnergySpent, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    }), [goal, conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, necrophagicVigorHealthDrained, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, fluxOverdriveOscillatingStatusChancePercent, energyChannelEnergySpent, avengingTruthIncomingDamageBlocked, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
     const activeBattacorScoringConditionalState = useMemo<ConditionalState>(() => goal === "burst"
         ? conditionalState
         : {
@@ -4381,6 +4396,7 @@ export default function ModBuilder() {
             criticalMutationPriorKills,
             fluxOverdriveOscillatingStatusChancePercent,
             energyChannelEnergySpent,
+            avengingTruthIncomingDamageBlocked,
             battacorAltFireChargeCount,
             sentientBarrageNextDischargeReady,
             externalStatusTypes,
@@ -4462,6 +4478,7 @@ export default function ModBuilder() {
         criticalMutationPriorKills,
         fluxOverdriveOscillatingStatusChancePercent,
         energyChannelEnergySpent,
+        avengingTruthIncomingDamageBlocked,
         battacorAltFireChargeCount,
         sentientBarrageNextDischargeReady,
         externalStatusTypes,
@@ -5191,6 +5208,10 @@ export default function ModBuilder() {
     const activeEnergyChannelMaximumBonusDamage = Math.max(
         0,
         ...activeBuildEffects.map((effect) => effect?.energyChannelMaximumBonusDamage ?? 0),
+    );
+    const activeAvengingTruthDamageAbsorptionFraction = Math.max(
+        0,
+        ...activeBuildEffects.map((effect) => effect?.avengingTruthDamageAbsorptionFraction ?? 0),
     );
     const activeFluxOverdriveMaximumOscillatingStatusChancePercent = Math.max(
         0,
@@ -6542,6 +6563,9 @@ export default function ModBuilder() {
                 plannerConfig.fluxOverdriveOscillatingStatusChancePercent,
             ));
             setEnergyChannelEnergySpent(normalizeEnergyChannelEnergySpent(plannerConfig.energyChannelEnergySpent));
+            setAvengingTruthIncomingDamageBlocked(normalizeAvengingTruthIncomingDamageBlocked(
+                plannerConfig.avengingTruthIncomingDamageBlocked,
+            ));
             setBattacorAltFireChargeCount(normalizeBattacorAltFireChargeCount(plannerConfig.battacorAltFireChargeCount));
             setSentientBarrageNextDischargeReady(plannerConfig.sentientBarrageNextDischargeReady === true);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
@@ -7226,6 +7250,32 @@ export default function ModBuilder() {
                                                             Enter 0–100 energy spent before the next successful melee strike. The selected rank converts {fmt(activeEnergyChannelBonusDamagePerEnergy * 100, 0)}% per Energy, up to +{fmt(activeEnergyChannelMaximumBonusDamage, 0)} raw bonus damage after the critical multiplier. The Wiki says Elemental Mods amplify it, but this estimate does not apply elemental scaling or target-pool mitigation because its damage type is not assigned. This is one direct, single-target Burst event only. Repeated/multi-hit and area attacks, Scaling, finite TTK, sustained/5-second DPS, and Auto Optimize exclude it.
                                                         </p>
                                                         <a href="https://wiki.warframe.com/w/Energy_Channel" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Energy Channel</a>
+                                                    </div>
+                                                )}
+                                                {(activeCalcWeapon?.name === "Silva & Aegis" || activeCalcWeapon?.name === "Silva & Aegis Prime") &&
+                                                    activeCalcWeapon.selectedAttackName === "Heavy Attack" &&
+                                                    activeCalcWeapon.selectedAttackIsAreaDamage === false &&
+                                                    activeCalcWeapon.multishot === 1 &&
+                                                    activeAvengingTruthDamageAbsorptionFraction > 0 && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Incoming damage blocked before Heavy Attack</span>
+                                                            <input
+                                                                aria-label="Avenging Truth incoming damage blocked"
+                                                                type="number"
+                                                                min={0}
+                                                                step={1}
+                                                                value={avengingTruthIncomingDamageBlocked}
+                                                                onChange={(event) => setAvengingTruthIncomingDamageBlocked(
+                                                                    normalizeAvengingTruthIncomingDamageBlocked(Number(event.target.value)),
+                                                                )}
+                                                                className="w-24 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                            />
+                                                        </label>
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                                            Enter the incoming damage blocked before this Heavy Attack. Avenging Truth stores {fmt(activeAvengingTruthDamageAbsorptionFraction * 100, 0)}% of that value; the planner shows the raw stored amount separately for this direct single-target Burst snapshot. The Wiki places it after base-damage mods and before elemental bonuses, and says combo multiplies it. Its damage type and target-pool result are not assigned here, so the value does not change the target score, finite TTK, sustained/5-second DPS, or Auto Optimize. The Truth syndicate effect is also not modeled.
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Avenging_Truth" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Avenging Truth</a>
                                                     </div>
                                                 )}
                                                 {(activeCalcWeapon?.name === "Catabolyst" || activeCalcWeapon?.name === "Coda Catabolyst") &&
@@ -9386,6 +9436,14 @@ export default function ModBuilder() {
                                                 value: `+${fmt(stats.energyChannelNextHitBonusDamage)}`,
                                                 sub: "raw bonus after crit",
                                                 tooltip: `One assumed next direct melee hit receives +${fmt(stats.energyChannelNextHitBonusDamage)} raw bonus damage after crit weighting. The Wiki says Elemental Mods amplify this bonus, but the estimate does not apply elemental scaling or target-pool mitigation because no damage type is assigned. It is not included in repeated-hit DPS, finite TTK, 5-second DPS, multi-hit/area rows, or Auto Optimize.`,
+                                            }]
+                                            : []),
+                                        ...(stats.avengingTruthStoredDamage > 0
+                                            ? [{
+                                                label: "Avenging Truth next Heavy Attack",
+                                                value: `+${fmt(stats.avengingTruthStoredDamage)}`,
+                                                sub: "raw stored bonus",
+                                                tooltip: `Avenging Truth assumes ${fmt(stats.avengingTruthIncomingDamageBlocked, 0)} incoming damage was blocked and stores ${fmt(stats.avengingTruthStoredDamage)} at the selected rank. The Wiki says this is added after base-damage mods, before elemental bonuses, and multiplied by combo. Its damage type and target-pool behavior are not applied here, so this separate raw value is excluded from target scoring, finite TTK, 5-second DPS, and Auto Optimize.`,
                                             }]
                                             : []),
                                         ...(stats.firstShotMagazineDamageBonus > 0

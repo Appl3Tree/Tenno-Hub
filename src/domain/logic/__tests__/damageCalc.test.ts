@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
-import { ENERGY_CHANNEL_MOD_PATH } from "../../catalog/modEffectUtils";
+import { AVENGING_TRUTH_MOD_PATH, ENERGY_CHANNEL_MOD_PATH } from "../../catalog/modEffectUtils";
 import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, necrophagicVigorBonusFromHealthDrained, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
+import { avgHitDamageMultiplier, calculateAvengingTruthStoredDamage, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeAvengingTruthIncomingDamageBlocked, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, necrophagicVigorBonusFromHealthDrained, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
 import { calculateEnergyChannelNextHitBonusDamage, normalizeEnergyChannelEnergySpent } from "../damageCalc";
@@ -6583,6 +6583,69 @@ describe("Energy Channel raw next-hit Burst snapshot", () => {
         expect(finite.energyChannelEnergySpent).toBe(0);
         expect(withoutBurstOnlyConditionalAssumptions({ mode: "initial", energyChannelEnergySpent: 100 }))
             .toMatchObject({ energyChannelEnergySpent: 0 });
+    });
+});
+
+describe("Avenging Truth raw Heavy Attack Burst snapshot", () => {
+    const weapons = getWeaponCatalog();
+    const silva = weapons.find((weapon) => weapon.uniqueName === "/Lotus/Weapons/Tenno/Melee/SwordsAndBoards/MeleeContestWinnerOne/TennoSwordShield")!;
+    const silvaPrime = weapons.find((weapon) => weapon.uniqueName === "/Lotus/Weapons/Tenno/Melee/PrimeSilvaAegis/PrimeSilvaAegis")!;
+    const avengingTruth = getModsForWeapon(silva).find((mod) => mod.path === AVENGING_TRUTH_MOD_PATH)!;
+
+    it("parses the four absorption ranks and provides source-backed direct Heavy Attack rows", () => {
+        expect(avengingTruth).toBeDefined();
+        expect(avengingTruth.effectsByRank.map((effect) => effect.avengingTruthDamageAbsorptionFraction))
+            .toEqual([0.2, 0.3, 0.4, 0.5]);
+        expect((avengingTruth.unparsedStatsByRank ?? []).map((rank) => rank.join(" "))
+            .every((lines) => !/Blocking absorbs/i.test(lines) && /Truth/.test(lines))).toBe(true);
+
+        const standardHeavy = silva.attacks.find((attack) => attack.name === "Heavy Attack");
+        const primeHeavy = silvaPrime.attacks.find((attack) => attack.name === "Heavy Attack");
+        expect(standardHeavy).toMatchObject({
+            damageTotal: 490,
+            chargeTime: 0.7,
+            chargeTimeAffectedByFireRate: false,
+            isAreaDamage: false,
+            multishot: 1,
+        });
+        expect(standardHeavy?.damage.heat).toBeCloseTo(490, 8);
+        expect(primeHeavy).toMatchObject({ damageTotal: 1590, chargeTime: 0.7, isAreaDamage: false, multishot: 1 });
+        expect(primeHeavy?.damage.heat).toBeCloseTo(1590, 8);
+    });
+
+    it("shows the rank-scaled stored amount separately without changing typed damage or target scoring", () => {
+        const heavyIndex = silva.attacks.findIndex((attack) => attack.name === "Heavy Attack");
+        const heavyAttack = withSelectedAttack(silva, heavyIndex);
+        const rankThree = avengingTruth.effectsByRank[3]!;
+        expect(normalizeAvengingTruthIncomingDamageBlocked(-1)).toBe(0);
+        expect(normalizeAvengingTruthIncomingDamageBlocked(2500)).toBe(2500);
+        expect(normalizeAvengingTruthIncomingDamageBlocked(Number.NaN)).toBe(0);
+        expect(calculateAvengingTruthStoredDamage(0.5, 3000)).toBe(1500);
+        expect(calculateAvengingTruthStoredDamage(0.5, -1)).toBe(0);
+
+        const baseline = calculateBuild(heavyAttack, [], "");
+        const snapshot = calculateBuild(heavyAttack, [rankThree], "", {
+            conditionalState: { mode: "initial", avengingTruthIncomingDamageBlocked: 3000 },
+        });
+        expect(snapshot.modded.avengingTruthStoredDamage).toBe(1500);
+        expect(snapshot.modded.avengingTruthIncomingDamageBlocked).toBe(3000);
+        expect(snapshot.modded.damageBreakdown).toEqual(baseline.modded.damageBreakdown);
+        expect(snapshot.modded.averageShotDamage).toBe(baseline.modded.averageShotDamage);
+        expect(snapshot.burstDPS).toBe(baseline.burstDPS);
+        expect(snapshot.sustainedDPS).toBe(baseline.sustainedDPS);
+
+        const normalAttack = withSelectedAttack(silva, silva.attacks.findIndex((attack) => attack.name === "Normal Attack"));
+        expect(calculateBuild(normalAttack, [rankThree], "", {
+            conditionalState: { mode: "initial", avengingTruthIncomingDamageBlocked: 3000 },
+        }).modded.avengingTruthStoredDamage).toBe(0);
+
+        const finite = calculateBuildForExpectedEncounter(heavyAttack, [rankThree], "", {
+            conditionalState: { mode: "initial", avengingTruthIncomingDamageBlocked: 3000 },
+        }).modded;
+        expect(finite.avengingTruthStoredDamage).toBe(0);
+        expect(finite.avengingTruthIncomingDamageBlocked).toBe(0);
+        expect(withoutBurstOnlyConditionalAssumptions({ mode: "initial", avengingTruthIncomingDamageBlocked: 3000 }))
+            .toMatchObject({ avengingTruthIncomingDamageBlocked: 0 });
     });
 });
 

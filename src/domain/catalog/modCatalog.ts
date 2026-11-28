@@ -25,6 +25,7 @@ import {
     DEADLY_MANEUVERS_MOD_PATH,
     emptyEffect,
     ENERGY_CHANNEL_MOD_PATH,
+    AVENGING_TRUTH_MOD_PATH,
     FLUX_OVERDRIVE_MOD_PATH,
     NIGHTWATCH_NAPALM_MOD_PATH,
     NECROPHAGIC_VIGOR_MOD_PATH,
@@ -284,6 +285,8 @@ export interface ModEffect {
     energyChannelBonusDamagePerEnergy?: number;
     /** Energy Channel's rank-specific raw bonus damage cap. */
     energyChannelMaximumBonusDamage?: number;
+    /** Avenging Truth's incoming-damage fraction stored for the next Silva & Aegis Heavy Attack. */
+    avengingTruthDamageAbsorptionFraction?: number;
     /** Sentient Barrage's rank-scaled bonus to both crit stats when its next-discharge snapshot is ready. */
     sentientBarrageCritChanceAndDamageBonus: number;
     finalCritMultiplierBonus: number;
@@ -1860,6 +1863,28 @@ function buildCaches(): ModCaches {
                 effectsByRank[rank]!.energyChannelMaximumBonusDamage = Number(match[2].replace(/,/g, ""));
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^Converts \d+(?:\.\d+)?% of Energy used to up to [\d,]+ Bonus Damage on next Melee Attack\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
+                );
+            });
+        }
+        if (path === AVENGING_TRUTH_MOD_PATH) {
+            // Keep the stored damage as a source-backed manual snapshot until
+            // its damage type and target-pool behavior can be scored exactly.
+            // https://wiki.warframe.com/w/Avenging_Truth
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                const stat = (levelStat.stats ?? [])
+                    .flatMap(explodeStatLines)
+                    .map((line) => stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim())
+                    .find((line) => /^Blocking absorbs \d+(?:\.\d+)?% of incoming damage, stored as Extra Damage for the next charge attack\.?$/i.test(line));
+                const match = stat?.match(/^Blocking absorbs (\d+(?:\.\d+)?)% of incoming damage, stored as Extra Damage for the next charge attack\.?$/i);
+                if (!match) return;
+                effectsByRank[rank] = emptyEffect();
+                effectsByRank[rank]!.avengingTruthDamageAbsorptionFraction = Number(match[1]) / 100;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Blocking absorbs \d+(?:\.\d+)?% of incoming damage, stored as Extra Damage for the next charge attack\.?$/i.test(
                         stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
                     ),
                 );
