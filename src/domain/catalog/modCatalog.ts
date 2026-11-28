@@ -35,6 +35,7 @@ import {
     PRECISION_CONDITIONING_MOD_PATH,
     SEPSIS_CLAWS_MOD_PATH,
     SENTIENT_BARRAGE_MOD_PATH,
+    SPONTANEOUS_SINGULARITY_MOD_PATH,
     SHOCKING_CLAWS_MOD_PATH,
     STRAIN_FEVER_MOD_PATH,
     STATIC_DISCHARGE_MOD_PATH,
@@ -296,6 +297,10 @@ export interface ModEffect {
     areaDamageStatusChanceBonus: number;
     /** Volatile Variant removes Sporothrix's embed delay on its linked direct-hit explosion. */
     volatileVariantInstantExplosion?: boolean;
+    /** Spontaneous Singularity rank Damage bonus for its Simulor impact explosion. */
+    spontaneousSingularityDamageBonus: number;
+    /** Per-impact chance that Spontaneous Singularity creates a singularity instead of exploding. */
+    spontaneousSingularityChance: number;
     /** Status chance per combo tier above 1x (e.g. Weeping Wounds). */
     comboStatusChanceBonus: number;
     multishotBonus: number;
@@ -2067,6 +2072,31 @@ function buildCaches(): ModCaches {
                 rankEffect.areaDamageStatusChanceBonus = Number(match[1]) / 100;
                 unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
                     !/^\+?\d+(?:\.\d+)?%\s*Status Chance\.?$/i.test(stripColorTags(line).trim()),
+                );
+            });
+        }
+        if (path === SPONTANEOUS_SINGULARITY_MOD_PATH) {
+            // The rank gives a damage bonus when an orb explodes and a separate
+            // chance to create a singularity instead. Those branches are mutually
+            // exclusive; the bounded Burst model scores only the expected immediate
+            // explosion against the struck target. It does not score singularity
+            // damage/pull or neighboring targets.
+            // https://wiki.warframe.com/w/Spontaneous_Singularity
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const rankEffect = effectsByRank[rank];
+                if (!rankEffect) return;
+                const line = (levelStat.stats ?? [])
+                    .flatMap(explodeStatLines)
+                    .map((stat) => stripColorTags(stat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim())
+                    .find((stat) => /^Orbs that strike targets will explode immediately with \d+(?:\.\d+)?% Bonus Damage and a \d+(?:\.\d+)?% chance of Singularity that pulls in more targets\. Orbs do not bounce or combine\.?$/i.test(stat));
+                const match = line?.match(/^Orbs that strike targets will explode immediately with (\d+(?:\.\d+)?)% Bonus Damage and a (\d+(?:\.\d+)?)% chance of Singularity that pulls in more targets\. Orbs do not bounce or combine\.?$/i);
+                if (!match) return;
+                rankEffect.spontaneousSingularityDamageBonus = Number(match[1]) / 100;
+                rankEffect.spontaneousSingularityChance = Number(match[2]) / 100;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((stat) =>
+                    !/^Orbs that strike targets will explode immediately with \d+(?:\.\d+)?% Bonus Damage and a \d+(?:\.\d+)?% chance of Singularity that pulls in more targets\. Orbs do not bounce or combine\.?$/i.test(
+                        stripColorTags(stat).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
                 );
             });
         }

@@ -2,6 +2,7 @@ import type { ModEffect } from "./modCatalog";
 import { getSentientIncisionDamageType } from "../logic/sentientIncision";
 
 export const VOLATILE_VARIANT_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveSporothrixAugmentMod";
+export const SPONTANEOUS_SINGULARITY_MOD_PATH = "/Lotus/Upgrades/Mods/Nightwave/NightwaveCephPrimaryAugmentMod";
 export const ACID_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Shotgun/Event/ProjectNightwatch/SobekNightwatchMod";
 export const THERMAGNETIC_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/SupraCorpusArenaMod";
 export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamExplodeOnDeath";
@@ -140,6 +141,18 @@ export function isVolatileVariantDirectSequenceContextSupported(
         VOLATILE_VARIANT_SINGLE_TARGET_GOALS.has(context.selectedGoal ?? "");
 }
 
+/** Spontaneous Singularity's stochastic immediate explosion has a bounded primary-target Burst score. */
+export function isSpontaneousSingularityBurstContextSupported(
+    effect: Partial<ModEffect>,
+    context?: ScoringEffectContext,
+): boolean {
+    return (context?.selectedWeaponName === "Simulor" || context?.selectedWeaponName === "Synoid Simulor") &&
+        context.selectedAttackName?.trim().toLowerCase() === "orb impact (spontaneous singularity)" &&
+        context.selectedAttackIsAreaDamage === true &&
+        context.selectedGoal === "burst" &&
+        Number(effect.spontaneousSingularityDamageBonus ?? 0) > 0;
+}
+
 export function isVulcanBlitzBurstContextSupported(
     effect: Partial<ModEffect>,
     context?: ScoringEffectContext,
@@ -268,6 +281,12 @@ export function getUnmodeledScoringEffectLines(
         }
         if (Number(source.stats.fluxOverdriveMaxOscillatingStatusChanceBonus ?? 0) > 0) {
             lines.push("Flux Overdrive's rank-table fixed additive Status Chance bonus is scored; its separate rank-capped oscillating multiplier uses the saved Burst snapshot. The Wiki's max-rank description says +150% to +250%, which conflicts with its separate rank table/notes; the planner follows the detailed table/notes. Firing-time changes and the average over longer objectives are not modeled. Wiki: https://wiki.warframe.com/w/Flux_Overdrive");
+        }
+        if (Number(source.stats.spontaneousSingularityDamageBonus ?? 0) > 0) {
+            const supported = isSpontaneousSingularityBurstContextSupported(source.stats as Partial<ModEffect>, context);
+            lines.push(supported
+                ? "Spontaneous Singularity Burst estimates the selected rank's additive weapon Damage bonus on the unmerged Orb Explosion, weighted by the chance that the orb explodes instead of creating a singularity. The singularity's own damage/pull and all other targets are omitted. Expected value only; hit history and projectile travel time are not modeled. Wiki: https://wiki.warframe.com/w/Spontaneous_Singularity"
+                : "Spontaneous Singularity is modeled only for Simulor/Synoid Simulor Orb Impact Burst. That estimate uses the unmerged Orb Explosion, applies the rank's Bonus Damage and weights it by the no-singularity chance; singularity damage/pull, other targets, and projectile travel time remain unmodeled. Auto Optimize skips it outside that attack and Burst objective. Wiki: https://wiki.warframe.com/w/Spontaneous_Singularity");
         }
         if (context?.headIsWeakPoint !== true) {
             for (const [key, label] of UNSCORED_HIT_LOCATION_EFFECTS) {
@@ -601,7 +620,7 @@ export function getUnmodeledDamageEffectLines(
 }
 
 export function getUnmodeledDamageEffectBadgeLabel(
-    mod: { path?: string },
+    mod: { path?: string; effectsByRank?: Partial<ModEffect>[] },
     surface: "slot" | "picker",
     context?: ScoringEffectContext,
 ): string {
@@ -609,6 +628,14 @@ export function getUnmodeledDamageEffectBadgeLabel(
         return surface === "slot"
             ? "Direct-hit sequence scored; neighbors omitted"
             : "Direct-hit sequence scored; group hits omitted";
+    }
+    if (mod.path === SPONTANEOUS_SINGULARITY_MOD_PATH && isSpontaneousSingularityBurstContextSupported(
+        mod.effectsByRank?.[0] ?? {},
+        context,
+    )) {
+        return surface === "slot"
+            ? "Burst impact scored; singularity branch omitted"
+            : "Burst impact scored; pull and other targets omitted";
     }
     if (mod.path === FLUX_OVERDRIVE_MOD_PATH) {
         return surface === "slot"
@@ -619,6 +646,9 @@ export function getUnmodeledDamageEffectBadgeLabel(
         return surface === "slot"
             ? "Manual Burst estimate; Auto Optimize excludes"
             : "Raw next-hit estimate; optimizer excludes";
+    }
+    if (mod.path === SPONTANEOUS_SINGULARITY_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Spontaneous_Singularity";
     }
     if (mod.path === AVENGING_TRUTH_MOD_PATH) {
         return surface === "slot"
@@ -782,6 +812,8 @@ export function emptyEffect(): ModEffect {
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
         volatileVariantInstantExplosion: false,
+        spontaneousSingularityDamageBonus: 0,
+        spontaneousSingularityChance: 0,
         multishotBonus: 0, multishotDamageBonus: 0, fireRateBonus: 0, chargeRateBonus: 0, fireRateLocked: false, multishotLocked: false,
         magazineCapacityFlatBonus: 0, magazineBonus: 0,
         reloadSpeedBonus: 0, directHitReloadSpeedBonus: 0, directHitReloadSpeedDurationSeconds: 0,

@@ -4,7 +4,7 @@ import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
-import { AVENGING_TRUTH_MOD_PATH, getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
+import { AVENGING_TRUTH_MOD_PATH, getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isSpontaneousSingularityBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH, SPONTANEOUS_SINGULARITY_MOD_PATH } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, getWeaponDisplayName, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
@@ -5272,9 +5272,9 @@ describe("build optimizer scoring", () => {
         for (const [weaponName, sourceUrl] of cases) {
             const weapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
             expect(weapon, weaponName).toBeTruthy();
-            expect(weapon!.attacks.length).toBe(weaponName === "Simulor" ? 3 : 4);
+            expect(weapon!.attacks.length).toBe(weaponName === "Simulor" ? 4 : 5);
 
-            for (const attack of weapon!.attacks) {
+            for (const attack of weapon!.attacks.filter((candidate) => !candidate.spontaneousSingularityImpact)) {
                 const attackIndex = weapon!.attacks.indexOf(attack);
                 const selected = withSelectedAttack(weapon!, attackIndex);
                 expect(attack.modelLimitation?.sourceUrl, `${weaponName} / ${attack.name}`).toBe(sourceUrl);
@@ -5282,6 +5282,28 @@ describe("build optimizer scoring", () => {
                 expect(selected.selectedAttackModelLimitation).toEqual(attack.modelLimitation);
                 expect(() => optimizeBuild(selected, [], "burst", 8)).toThrow(/Optimization is unavailable/);
                 expect(() => optimizeBuild(selected, [], "timeToKill", 8)).toThrow(/Optimization is unavailable/);
+            }
+
+            const impactIdx = weapon!.attacks.findIndex((attack) => attack.spontaneousSingularityImpact === true);
+            expect(impactIdx).toBeGreaterThanOrEqual(0);
+            const impact = weapon!.attacks[impactIdx]!;
+            expect(impact.name).toBe("Orb Impact (Spontaneous Singularity)");
+            expect(impact.modelLimitation).toBeUndefined();
+            expect(impact.burstOnlyModelLimitation?.reason).toContain("singularity branch's damage");
+            const selectedImpact = withSelectedAttack(weapon!, impactIdx);
+            const singularity = getModsForWeapon(weapon!).find((mod) => mod.name === "Spontaneous Singularity");
+            expect(singularity).toBeDefined();
+            const burst = optimizeBuild(selectedImpact, [singularity!], "burst", 1, {
+                slotPolarities: [""],
+                defaultSlotPolarities: [""],
+                allowForma: false,
+                optimizeArcane: false,
+            });
+            expect(burst.mods[0]?.name).toBe("Spontaneous Singularity");
+            for (const unsupportedGoal of ["scaling", "timeToKill", "windowDps"] as const) {
+                expect(() => optimizeBuild(selectedImpact, [singularity!], unsupportedGoal, 1, {
+                    optimizeArcane: false,
+                })).toThrow(/Only direct single-target Burst is supported/);
             }
         }
     });
@@ -14920,6 +14942,113 @@ describe("Critical Precision and Unseen Dread optimizer scope", () => {
 });
 
 describe("seeded Burst and Scaling optimizer oracles", () => {
+    it("matches exhaustive one-slot owned-rank Burst winners for both Simulor profiles", () => {
+        let seed = 20261129;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const factions = ["Grineer", "Corpus", "Infested", "Corrupted"];
+        const candidateNames = ["Spontaneous Singularity", "Serration", "Point Strike", "Split Chamber", "Vital Sense"];
+
+        for (const weaponName of ["Simulor", "Synoid Simulor"]) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
+            expect(weapon, weaponName).toBeTruthy();
+            const impactIndex = weapon!.attacks.findIndex((entry) => entry.spontaneousSingularityImpact === true);
+            expect(impactIndex, `${weaponName} impact event`).toBeGreaterThanOrEqual(0);
+            const scoringWeapon = withSelectedAttack(weapon!, impactIndex);
+            const mods = candidateNames.map((name) =>
+                getModsForWeapon(scoringWeapon).find((entry) => entry.name === name),
+            );
+            expect(mods[0]?.name, `${weaponName} Spontaneous Singularity`).toBe("Spontaneous Singularity");
+            expect(mods.every(Boolean), `${weaponName} candidate mods`).toBe(true);
+
+            for (const [scenarioIndex, targetFaction] of factions.entries()) {
+                const targetProfileOverride = {
+                    health: 5_000 + Math.floor(random() * 45_000),
+                    shields: scenarioIndex % 2 === 0 ? 0 : 500 + Math.floor(random() * 9_500),
+                    armor: [0, 150, 600, 1_200][Math.floor(random() * 4)]!,
+                    overguard: scenarioIndex === 3 ? 500 + Math.floor(random() * 4_500) : 0,
+                };
+                const scoringContext = {
+                    selectedWeaponName: weaponName,
+                    selectedAttackName: scoringWeapon.selectedAttackName,
+                    selectedAttackIsAreaDamage: true,
+                    targetFaction,
+                    targetHasShields: targetProfileOverride.shields > 0,
+                    targetHasOverguard: targetProfileOverride.overguard > 0,
+                    selectedGoal: "burst",
+                };
+                const candidates = mods.filter((mod): mod is ModEntry => !!mod).filter((mod) =>
+                    mod.isPveEligible !== false && mod.hasDamageEffect && !mod.isAura &&
+                    Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank).every((rank) => {
+                        const effect = mod.effectsByRank[rank] ?? mod.effect;
+                        const damageLines = getUnmodeledDamageEffectLines(mod, rank, scoringContext);
+                        const scoringLines = getUnmodeledScoringEffectLines(effect, scoringContext);
+                        const supportedSingularityDisclosure = mod.path === SPONTANEOUS_SINGULARITY_MOD_PATH &&
+                            isSpontaneousSingularityBurstContextSupported(effect, scoringContext) &&
+                            scoringLines.every((line) => line.startsWith("Spontaneous Singularity Burst estimates"));
+                        return (damageLines.length === 0 || (supportedSingularityDisclosure && damageLines.every((line) => line.startsWith("Spontaneous Singularity Burst estimates")))) &&
+                            (scoringLines.length === 0 || supportedSingularityDisclosure);
+                    }),
+                );
+                expect(
+                    candidates.some((mod) => mod.name === "Spontaneous Singularity"),
+                    `${weaponName} seed ${scenarioIndex} supported augment`,
+                ).toBe(true);
+
+                const rankCountsByUniqueName: Record<string, Record<string, number>> = {};
+                const ownedRanksByUniqueName = new Map<string, number[]>();
+                for (const mod of candidates) {
+                    const possibleRanks = Array.from({ length: Math.min(2, mod.fusionLimit) + 1 }, (_, rank) => rank);
+                    const ownedRanks = possibleRanks.filter(() => random() < 0.6);
+                    if (ownedRanks.length === 0) ownedRanks.push(possibleRanks[Math.floor(random() * possibleRanks.length)]!);
+                    rankCountsByUniqueName[mod.uniqueName] = Object.fromEntries(ownedRanks.map((rank) => [String(rank), 1]));
+                    ownedRanksByUniqueName.set(mod.uniqueName, ownedRanks);
+                }
+                const result = optimizeBuild(scoringWeapon, candidates, "burst", 1, {
+                    targetFaction,
+                    targetProfileOverride,
+                    allowForma: false,
+                    allowNonMaxRank: true,
+                    ownedModUniqueNames: new Set(candidates.map((mod) => mod.uniqueName)),
+                    ownedModMaxRankByUniqueName: Object.fromEntries(candidates.map((mod) => [mod.uniqueName, Math.min(2, mod.fusionLimit)])),
+                    ownedModRankCountsByUniqueName: rankCountsByUniqueName,
+                    capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: weapon!.canOverLevel },
+                    slotPolarities: [weapon!.polarities[0] ?? ""],
+                    defaultSlotPolarities: [weapon!.polarities[0] ?? ""],
+                    optimizeExilus: false,
+                    optimizeArcane: false,
+                });
+
+                const score = (mod: ModEntry | null, rank: number | null) => debugScoreBuild(
+                    scoringWeapon,
+                    mod && rank !== null ? [mod.effectsByRank[rank] ?? mod.effect] : [],
+                    "burst",
+                    targetFaction,
+                    null,
+                    targetProfileOverride,
+                );
+                const exhaustiveBest = Math.max(
+                    score(null, null),
+                    ...candidates.flatMap((mod) =>
+                        (ownedRanksByUniqueName.get(mod.uniqueName) ?? []).map((rank) => score(mod, rank)),
+                    ),
+                );
+                const selectedMod = result.slots[0] ?? null;
+                const selectedRank = selectedMod ? result.slotRanks[0] ?? Math.min(2, selectedMod.fusionLimit) : null;
+                const optimizedScore = score(selectedMod, selectedRank);
+
+                expect(result.capacityValid, `${weaponName} seed ${scenarioIndex} capacity`).toBe(true);
+                expect(optimizedScore, `${weaponName} seed ${scenarioIndex} exhaustive owned-rank winner`).toBeCloseTo(exhaustiveBest, 8);
+                if (selectedMod) {
+                    expect(ownedRanksByUniqueName.get(selectedMod.uniqueName), `${weaponName} seed ${scenarioIndex} selected owned rank`)
+                        .toContain(selectedRank);
+                }
+            }
+        }
+    });
+
     it("matches exhaustive owned Volatile Variant ranks across randomized target snapshots", () => {
         let seed = 20261128;
         const random = () => {

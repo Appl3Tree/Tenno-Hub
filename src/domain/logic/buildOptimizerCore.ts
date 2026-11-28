@@ -12,6 +12,7 @@ import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
 import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, FLUX_OVERDRIVE_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH, NECROPHAGIC_VIGOR_MOD_PATH } from "../catalog/modEffectUtils";
 import { ENERGY_CHANNEL_MOD_PATH, isVolatileVariantDirectSequenceContextSupported, VOLATILE_VARIANT_MOD_PATH } from "../catalog/modEffectUtils";
+import { isSpontaneousSingularityBurstContextSupported, SPONTANEOUS_SINGULARITY_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -1963,6 +1964,8 @@ function getBlockingOptimizerEffectLines(
         isCombustionBeamBurstContextSupported(effect, context);
     const supportedVolatileVariantSequence = mod.path === VOLATILE_VARIANT_MOD_PATH &&
         isVolatileVariantDirectSequenceContextSupported(context);
+    const supportedSpontaneousSingularityBurst = mod.path === SPONTANEOUS_SINGULARITY_MOD_PATH &&
+        isSpontaneousSingularityBurstContextSupported(effect, context);
     const linkedJavlokComboBoundary = mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH;
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
         !(mod.path === FLUX_OVERDRIVE_MOD_PATH && line.startsWith("Flux Overdrive's rank-table fixed additive Status Chance bonus is scored;")) &&
@@ -1973,6 +1976,7 @@ function getBlockingOptimizerEffectLines(
         !(supportedThermomagneticShellsBurst && mod.path === THERMAGNETIC_SHELLS_MOD_PATH) &&
         !(supportedCombustionBeamBurst && mod.path === COMBUSTION_BEAM_MOD_PATH) &&
         !(supportedVolatileVariantSequence && mod.path === VOLATILE_VARIANT_MOD_PATH) &&
+        !(supportedSpontaneousSingularityBurst && mod.path === SPONTANEOUS_SINGULARITY_MOD_PATH) &&
         !(linkedJavlokComboBoundary && (
             /Combo Count Chance while Blocking with a Shield/i.test(line) ||
             line.includes("Amalgam Javlok Magazine Warp's rank-scaled Magazine Capacity applies to Javlok.")
@@ -5906,6 +5910,15 @@ export function optimizeBuildCore(
         throw new Error(
             `Optimization is unavailable for ${weapon.selectedAttackName ?? opts.buildForAttack?.name ?? weapon.name}: ` +
             `${attackModelLimitation.reason} Wiki: ${attackModelLimitation.sourceUrl}`,
+        );
+    }
+
+    const burstOnlyModelLimitation = opts.buildForAttack?.burstOnlyModelLimitation ??
+        weapon.selectedAttackBurstOnlyModelLimitation;
+    if (burstOnlyModelLimitation && goal !== "burst") {
+        throw new Error(
+            `Optimization is unavailable for ${weapon.selectedAttackName ?? opts.buildForAttack?.name ?? weapon.name} with ${goal}: ` +
+            `${burstOnlyModelLimitation.reason} Wiki: ${burstOnlyModelLimitation.sourceUrl}`,
         );
     }
 
