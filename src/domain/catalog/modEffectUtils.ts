@@ -8,6 +8,7 @@ export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamEx
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
 export const ENTROPY_DETONATION_MOD_PATH = "/Lotus/Upgrades/Mods/Syndicate/ObexMod";
 export const FINISHING_TOUCH_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeFinisherDamageMod";
+export const BURSTING_MASS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/InfCrpShockSwarmRifleArbitrationMod";
 export const AMALGAM_FURAX_BODY_COUNT_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod";
 export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
 export const BRUTE_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastBruteConditioningMod";
@@ -362,6 +363,9 @@ export function getUnmodeledDamageEffectLines(
     if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
         lines.push("Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled Blast explosion combines flat damage with a percentage of enemy Max Health, reaches the selected rank’s radius, and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.");
     }
+    if (mod.path === BURSTING_MASS_MOD_PATH) {
+        lines.push("Bursting Mass stores rank-scaled damage from eligible projectiles passing through Mutalist Quanta's mass, then Alt-Fire or expiration detonates a 15m explosion. Its Wiki entry says the blast preserves accumulated damage types, excludes critical bonus, cannot crit or proc status, and applies orb-configuration and Multishot-specific changes. Orb placement, cross-weapon projectile or ability contributors, accumulated typed damage, and detonation timing are not modeled, so Auto Optimize skips this mod. Wiki: https://wiki.warframe.com/w/Bursting_Mass");
+    }
     if (mod.path === FINISHING_TOUCH_MOD_PATH) {
         lines.push("Finishing Touch adds rank-scaled Finisher Damage to melee finisher events. The planner's attack rows do not represent Stealth, Counterattack, or Ground Finisher events, so this bonus is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Finishing_Touch");
     }
@@ -609,6 +613,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Entropy_Detonation";
+    }
+    if (mod.path === BURSTING_MASS_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Bursting_Mass";
     }
     if (mod.path === FINISHING_TOUCH_MOD_PATH) {
         return "https://wiki.warframe.com/w/Finishing_Touch";
