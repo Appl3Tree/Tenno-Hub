@@ -10,6 +10,8 @@ A temporary `calculateBuild` rewrite removed per-mod temporary primary-element o
 
 This checkpoint addresses slow validation fixtures, not full-pool optimizer latency. The full repository suite, browser Worker tail latency, Underframe parity, and global optimality remain open.
 
+PR [#446](https://github.com/Appl3Tree/Tenno-Hub/pull/446) squash-merged this test/docs-only checkpoint as `920c531475828af50ecd87a5bdc035eacf4ef8bd`; Pages run [#525](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/46140295799) succeeded. Application scoring and UI did not change.
+
 ### Braton fixed-window regression timeout budget (2026-11-28)
 
 The separate full-catalog Braton Prime / Normal Attack / Grineer / Realistic fixed-window test exceeded its 15s explicit budget in an isolated run (15.95s test body). The same optimizer configuration measured 17.225s in `auditFixedWindowDpsFullPool.ts` with one run and `--optimizer-only` (106 candidates, 62 score-eligible). Its test timeout is now 30s to accommodate the observed exact-search cost and ordinary host variance; the test passes within that budget. This is a test reliability change, not a production speedup; full-catalog Worker latency remains open. A one-run Node CPU profile of the standalone search contained 13,008 samples, with 6,233 in `calculateBuild` (47.9%) and 2,391 in garbage collection (18.4%).
