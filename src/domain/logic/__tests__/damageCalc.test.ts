@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { getWeaponCatalog, withSelectedAttack, type WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect, getModsForWeapon, getUnmodeledDamageEffectLines, type ModEffect } from "../../catalog/modCatalog";
+import { ENERGY_CHANNEL_MOD_PATH } from "../../catalog/modEffectUtils";
 import { ACID_SHELLS_MOD_PATH, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, SENTIENT_BARRAGE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH } from "../../catalog/modEffectUtils";
 import { buildCustomRivenEntry, CURRENT_RIVEN_STAT_MULTIPLIER, type CustomRivenStatValue } from "../../rivens";
 import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, dreadfulKillshotBonusFromCurrentHealth, estimateConditionalStackFactor, estimateConditionalUptime, estimateFiniteIndependentDotDps, estimatePelletHits, hasAccuracyAffectingPelletEffect, getHitLocationDotDamageMultiplier, estimateNonCriticalNoStatusHitGroupProbability, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, necrophagicVigorBonusFromHealthDrained, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState } from "../damageCalc";
 import { STATUS_DAMAGE_TYPES, STATUS_EFFECT_RULES, gasCloudRadiusFromStacks } from "../damageRuleset";
 import { simulateExpectedWeaponEncounter } from "../targetDamage";
+import { calculateEnergyChannelNextHitBonusDamage, normalizeEnergyChannelEnergySpent } from "../damageCalc";
 
 function makeWeapon(damage: Partial<WeaponEntry["damage"]>): WeaponEntry {
     const damageByType = {
@@ -3647,6 +3649,24 @@ describe("damage calculation status eligibility", () => {
         expect(result.toxin).toBe(0);
     });
 
+    it("preserves custom Riven element order when combining elements", () => {
+        const weapon = makeWeapon({ impact: 100 });
+        const effect: ModEffect = {
+            ...emptyEffect(),
+            heatBonus: 1,
+            coldBonus: 1,
+            toxinBonus: 1,
+            primaryElementOrder: ["toxin", "cold", "heat"],
+        };
+
+        const result = calculateBuild(weapon, [effect]).modded.damageBreakdown;
+
+        expect(result.viral).toBeCloseTo(200, 12);
+        expect(result.heat).toBeCloseTo(100, 12);
+        expect(result.blast).toBe(0);
+        expect(result.toxin).toBe(0);
+    });
+
     it("anchors innate elemental damage to the first matching mod slot", () => {
         const weapon = makeWeapon({ impact: 100, electricity: 100 });
         const mods = [
@@ -6503,6 +6523,66 @@ describe("Battacor Alt-Fire and Sentient Barrage snapshots", () => {
         });
         expect(stripped?.battacorAltFireChargeCount).toBe(0);
         expect(stripped?.sentientBarrageNextDischargeReady).toBe(false);
+    });
+});
+
+describe("Energy Channel raw next-hit Burst snapshot", () => {
+    const brokenWar = getWeaponCatalog().find((weapon) => weapon.name === "Broken War")!;
+    const normalAttackIndex = brokenWar.attacks.findIndex((attack) => attack.name === "Normal Attack");
+    const directSingleHit = {
+        ...withSelectedAttack(brokenWar, normalAttackIndex),
+        selectedAttackIsAreaDamage: false,
+        multishot: 1,
+    };
+    const energyChannel = getModsForWeapon(brokenWar).find((mod) => mod.path === ENERGY_CHANNEL_MOD_PATH)!;
+
+    it("parses the generated four rank conversions and their damage caps", () => {
+        expect(energyChannel).toBeDefined();
+        expect(energyChannel.effectsByRank.map((effect) => effect.energyChannelBonusDamagePerEnergy))
+            .toEqual([0.5, 1, 1.5, 2]);
+        expect(energyChannel.effectsByRank.map((effect) => effect.energyChannelMaximumBonusDamage))
+            .toEqual([50, 100, 150, 200]);
+        expect((energyChannel.unparsedStatsByRank ?? []).flat().some((line) => /Converts .* Energy used/i.test(line)))
+            .toBe(false);
+        expect(normalizeEnergyChannelEnergySpent(-1)).toBe(0);
+        expect(normalizeEnergyChannelEnergySpent(37.5)).toBe(37.5);
+        expect(normalizeEnergyChannelEnergySpent(101)).toBe(100);
+        expect(normalizeEnergyChannelEnergySpent(Number.NaN)).toBe(0);
+        expect(calculateEnergyChannelNextHitBonusDamage(0.5, 50, 100)).toBe(50);
+        expect(calculateEnergyChannelNextHitBonusDamage(2, 200, 37.5)).toBe(75);
+        expect(calculateEnergyChannelNextHitBonusDamage(2, 200, 150)).toBe(200);
+    });
+
+    it("shows one direct raw bonus without changing damage-type totals or repeating it in DPS", () => {
+        const rankThree = energyChannel.effectsByRank[3]!;
+        const baseline = calculateBuild(directSingleHit, [], "");
+        const snapshot = calculateBuild(directSingleHit, [rankThree], "", {
+            conditionalState: { mode: "initial", energyChannelEnergySpent: 37.5 },
+        });
+
+        expect(snapshot.modded.energyChannelNextHitBonusDamage).toBe(75);
+        expect(snapshot.modded.energyChannelEnergySpent).toBe(37.5);
+        expect(snapshot.modded.damageBreakdown).toEqual(baseline.modded.damageBreakdown);
+        expect(snapshot.modded.averageShotDamage).toBe(baseline.modded.averageShotDamage);
+        expect(snapshot.burstDPS).toBe(baseline.burstDPS);
+        expect(snapshot.sustainedDPS).toBe(baseline.sustainedDPS);
+
+        const areaAttack = calculateBuild({ ...directSingleHit, selectedAttackIsAreaDamage: true }, [rankThree], "", {
+            conditionalState: { mode: "initial", energyChannelEnergySpent: 100 },
+        }).modded;
+        const multiHitAttack = calculateBuild({ ...directSingleHit, multishot: 2 }, [rankThree], "", {
+            conditionalState: { mode: "initial", energyChannelEnergySpent: 100 },
+        }).modded;
+        expect(areaAttack.energyChannelNextHitBonusDamage).toBe(0);
+        expect(multiHitAttack.energyChannelNextHitBonusDamage).toBe(0);
+
+        const finite = calculateBuildForExpectedEncounter(directSingleHit, [rankThree], "", {
+            conditionalState: { mode: "initial", energyChannelEnergySpent: 100 },
+        }).modded;
+        expect(finite.energyChannelNextHitBonusDamage).toBe(0);
+        expect(finite.energyChannelEnergySpent).toBe(0);
+        expect(withoutBurstOnlyConditionalAssumptions({ mode: "initial", energyChannelEnergySpent: 100 }))
+            .toMatchObject({ energyChannelEnergySpent: 0 });
     });
 });
 

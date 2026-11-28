@@ -43,4 +43,11 @@ describe("external unique status rules", () => {
             { heat: 0 },
         )).toEqual(["lifted"]);
     });
+
+    it("keeps empty and invalid external status inputs empty for any target profile", () => {
+        const immuneTypes = new Set(["viral"] as const);
+        expect(filterExternalStatusTypesForTarget(undefined, immuneTypes)).toEqual([]);
+        expect(filterExternalStatusTypesForTarget([], immuneTypes)).toEqual([]);
+        expect(filterExternalStatusTypesForTarget(["unsupported"], immuneTypes)).toEqual([]);
+    });
 });

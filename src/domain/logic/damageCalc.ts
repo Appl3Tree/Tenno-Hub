@@ -36,13 +36,15 @@ import {
 } from "./weaponAutoSpool";
 import {
     filterExternalStatusTypesForTarget,
-    getDirectDamageEligibleStatusTypes,
     isUniqueStatusType,
     unionUniqueStatusTypes,
     type ExternalStatusType,
 } from "./uniqueStatusRules";
 
 type DamageKey = DamageType;
+
+const EMPTY_EXTERNAL_STATUS_TYPE_SET: ReadonlySet<ExternalStatusType> = new Set();
+const EMPTY_WEAPON_UNIQUE_STATUS_TYPES: readonly WeaponUniqueStatusType[] = [];
 
 const DAMAGE_KEYS: DamageKey[] = [...DAMAGE_TYPES];
 
@@ -306,6 +308,10 @@ export interface ModdedWeaponStats {
     criticalMutationPriorKills: number;
     /** Active Flux Overdrive oscillating Status Chance multiplier from a bounded Burst snapshot. */
     fluxOverdriveOscillatingStatusChanceBonus: number;
+    /** Raw Energy Channel bonus for one direct next-hit Burst snapshot; kept outside damage-type totals. */
+    energyChannelNextHitBonusDamage: number;
+    /** Energy assumed spent before the next successful melee strike (0–100). */
+    energyChannelEnergySpent: number;
     /** Current Battacor Alt-Fire charges represented by a direct Burst snapshot (0–3). */
     battacorAltFireChargeCount: number;
     /** Multiplicative damage factor from the represented Battacor charge count (1 for other attacks). */
@@ -623,6 +629,8 @@ export interface ConditionalState {
     criticalMutationPriorKills?: number;
     /** Flux Overdrive's current oscillating Status Chance bonus in percent; Burst snapshot only. */
     fluxOverdriveOscillatingStatusChancePercent?: number;
+    /** Energy spent before Energy Channel's next melee strike (0–100); raw Burst estimate only. */
+    energyChannelEnergySpent?: number;
     /** Stored Battacor Alt-Fire charges at impact (0–3); used for single-target Burst only. */
     battacorAltFireChargeCount?: number;
     /** Assume Sentient Barrage's full-charge bonus is ready for the next Alt-Fire discharge. */
@@ -812,6 +820,28 @@ export function normalizeFluxOverdriveOscillatingStatusChancePercent(value: numb
         : 0;
 }
 
+export const MAX_ENERGY_CHANNEL_ENERGY_SPENT = 100;
+
+export function normalizeEnergyChannelEnergySpent(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(MAX_ENERGY_CHANNEL_ENERGY_SPENT, value ?? 0))
+        : 0;
+}
+
+/** Raw rank-scaled bonus for one assumed next melee hit, before target mitigation. */
+export function calculateEnergyChannelNextHitBonusDamage(
+    bonusDamagePerEnergy: number,
+    maximumBonusDamage: number,
+    energySpent: number | undefined,
+): number {
+    if (!Number.isFinite(bonusDamagePerEnergy) || bonusDamagePerEnergy <= 0 ||
+        !Number.isFinite(maximumBonusDamage) || maximumBonusDamage <= 0) return 0;
+    return Math.min(
+        normalizeEnergyChannelEnergySpent(energySpent) * bonusDamagePerEnergy,
+        maximumBonusDamage,
+    );
+}
+
 export const MAX_BATTACOR_ALT_FIRE_CHARGES = 3;
 
 export function normalizeBattacorAltFireChargeCount(value: number | undefined): number {
@@ -846,6 +876,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         state.unseenDreadInvisibilityActive !== true &&
         normalizeCriticalMutationPriorKills(state.criticalMutationPriorKills) === 0 &&
         normalizeFluxOverdriveOscillatingStatusChancePercent(state.fluxOverdriveOscillatingStatusChancePercent) === 0 &&
+        normalizeEnergyChannelEnergySpent(state.energyChannelEnergySpent) === 0 &&
         normalizeBattacorAltFireChargeCount(state.battacorAltFireChargeCount) === 0 &&
         state.sentientBarrageNextDischargeReady !== true &&
         normalizeOverpressuredRoundsSpreadSnapshot(
@@ -863,6 +894,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         unseenDreadInvisibilityActive: false,
         criticalMutationPriorKills: 0,
         fluxOverdriveOscillatingStatusChancePercent: 0,
+        energyChannelEnergySpent: 0,
         battacorAltFireChargeCount: 0,
         sentientBarrageNextDischargeReady: false,
         overpressuredRoundsSpreadMinimumDegrees: undefined,
@@ -1659,6 +1691,7 @@ export function calculateBuild(
     const fluxOverdriveOscillatingStatusChancePercent = normalizeFluxOverdriveOscillatingStatusChancePercent(
         conditionalState.fluxOverdriveOscillatingStatusChancePercent,
     );
+    const energyChannelEnergySpent = normalizeEnergyChannelEnergySpent(conditionalState.energyChannelEnergySpent);
     const fluxOverdriveMaximumOscillatingStatusChanceBonus = Math.max(
         0,
         ...mods.map((effect) => effect?.fluxOverdriveMaxOscillatingStatusChanceBonus ?? 0),
@@ -1785,12 +1818,19 @@ export function calculateBuild(
     let statusDamageBonus = 0;
     let targetStatusDamageVulnerabilityBonus = 0;
     const targetFactionKey = targetFaction.toLowerCase();
-    const sacrificialSetMemberIds = new Set(mods.flatMap((effect) =>
-        effect?.sacrificialSetModCount && effect.sacrificialSetModId
-            ? [effect.sacrificialSetModId]
-            : [],
-    ));
-    const sacrificialSetModCount = Math.min(2, sacrificialSetMemberIds.size);
+    let firstSacrificialSetMemberId: string | undefined;
+    let secondSacrificialSetMemberId: string | undefined;
+    for (const effect of mods) {
+        if (!effect?.sacrificialSetModCount) continue;
+        const memberId = effect.sacrificialSetModId;
+        if (!memberId || memberId === firstSacrificialSetMemberId || memberId === secondSacrificialSetMemberId) {
+            continue;
+        }
+        if (firstSacrificialSetMemberId === undefined) firstSacrificialSetMemberId = memberId;
+        else if (secondSacrificialSetMemberId === undefined) secondSacrificialSetMemberId = memberId;
+    }
+    // Only whether zero, one, or at least two distinct members are present matters.
+    const sacrificialSetModCount = secondSacrificialSetMemberId ? 2 : firstSacrificialSetMemberId ? 1 : 0;
     const sacrificialSetBonusActive = weapon.category === "Melee" && sacrificialSetModCount === 2;
 
     for (let index = 0; index < mods.length; index++) {
@@ -2521,6 +2561,23 @@ export function calculateBuild(
         conditionalState.attackFalloffDistanceMeters,
     );
     const moddedMultishot = pelletHitEstimate?.nominalExpectedHits ?? projectileCount;
+    const energyChannelBonusDamagePerEnergy = Math.max(
+        0,
+        ...mods.map((effect) => effect?.energyChannelBonusDamagePerEnergy ?? 0),
+    );
+    const energyChannelMaximumBonusDamage = Math.max(
+        0,
+        ...mods.map((effect) => effect?.energyChannelMaximumBonusDamage ?? 0),
+    );
+    const energyChannelNextHitBonusDamage = weapon.category === "Melee" &&
+        weapon.selectedAttackIsAreaDamage === false &&
+        Math.abs(moddedMultishot - 1) < 1e-9
+        ? calculateEnergyChannelNextHitBonusDamage(
+            energyChannelBonusDamagePerEnergy,
+            energyChannelMaximumBonusDamage,
+            energyChannelEnergySpent,
+        )
+        : 0;
     const basePelletHitEstimate = pelletHitEstimate
         ? estimatePelletHits(
             weapon.selectedAttackPelletSpreadCone,
@@ -2771,7 +2828,9 @@ export function calculateBuild(
         statusImmuneTypes,
         options.statusStackCaps,
     );
-    const externalStatusTypeSet = new Set(externalStatusTypes);
+    const externalStatusTypeSet = externalStatusTypes.length > 0
+        ? new Set(externalStatusTypes)
+        : EMPTY_EXTERNAL_STATUS_TYPE_SET;
     const addExtraProc = (key: DamageKey, value: number) => {
         if (!attackCanHitTarget || value <= 0) return;
         unfilteredExtraProcsPerShot[key] = (unfilteredExtraProcsPerShot[key] ?? 0) + value;
@@ -2899,7 +2958,9 @@ export function calculateBuild(
     let directDamageStatusTypes = 0;
     let conditionOverloadStatusTypes = 0;
     let intrinsicDamageStatusTypes = 0;
-    const directEligibleExternalStatusTypes = getDirectDamageEligibleStatusTypes(externalStatusTypes);
+    const directEligibleExternalStatusTypes = externalStatusTypes.length > 0
+        ? new Set(externalStatusTypes.filter((type) => type !== "tau"))
+        : EMPTY_EXTERNAL_STATUS_TYPE_SET;
     for (const type of STATUS_DAMAGE_TYPES) {
         const rate = procRatePerSecondByType[type] ?? 0;
         const expectedStackCount = expectedStacksForRate(type, rate);
@@ -2924,10 +2985,18 @@ export function calculateBuild(
             directDamageStatusTypes += presence;
         }
     }
-    const activeUniqueStatusTypes = unionUniqueStatusTypes(
-        options.targetStatusState === "initial" || !attackCanHitTarget ? [] : weapon.uniqueStatusProcs ?? [],
-        externalStatusTypes.filter(isUniqueStatusType),
-    );
+    const activeWeaponUniqueStatusTypes = options.targetStatusState === "initial" || !attackCanHitTarget
+        ? undefined
+        : weapon.uniqueStatusProcs;
+    const activeExternalUniqueStatusTypes = externalStatusTypes.length > 0
+        ? externalStatusTypes.filter(isUniqueStatusType)
+        : undefined;
+    const activeUniqueStatusTypes = activeWeaponUniqueStatusTypes?.length || activeExternalUniqueStatusTypes?.length
+        ? unionUniqueStatusTypes(
+            activeWeaponUniqueStatusTypes ?? EMPTY_WEAPON_UNIQUE_STATUS_TYPES,
+            activeExternalUniqueStatusTypes ?? EMPTY_WEAPON_UNIQUE_STATUS_TYPES,
+        )
+        : EMPTY_EXTERNAL_STATUS_TYPE_SET;
     conditionOverloadStatusTypes = Math.min(16, conditionOverloadStatusTypes + activeUniqueStatusTypes.size);
     intrinsicDamageStatusTypes = Math.min(16, intrinsicDamageStatusTypes + activeUniqueStatusTypes.size);
     directDamageStatusTypes = Math.min(16, directDamageStatusTypes + activeUniqueStatusTypes.size);
@@ -3493,6 +3562,8 @@ export function calculateBuild(
         criticalMutationBonus,
         criticalMutationPriorKills: criticalMutationBonus > 0 ? criticalMutationPriorKills : 0,
         fluxOverdriveOscillatingStatusChanceBonus,
+        energyChannelNextHitBonusDamage,
+        energyChannelEnergySpent: energyChannelNextHitBonusDamage > 0 ? energyChannelEnergySpent : 0,
         battacorAltFireChargeCount: isBattacorAltFireAttack ? battacorAltFireChargeCount : 0,
         battacorAltFireChargeMultiplier,
         sentientBarrageEquipped,

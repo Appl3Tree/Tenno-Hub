@@ -33,7 +33,7 @@ import { ENEMY_PROFILES, getEnemyProfile } from "../../domain/catalog/enemyProfi
 import { getArcanesForWeapon, type ArcaneEntry } from "../../domain/catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../../domain/logic/arcaneEffects";
 import { getSentientIncisionDamageType } from "../../domain/logic/sentientIncision";
-import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeFluxOverdriveOscillatingStatusChancePercent, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
+import { avgHitDamageMultiplier, calculateBuild, calculateBuildForExpectedEncounter, calculateMeleeAverageDps, DEFAULT_CONDITIONAL_STATE, estimateConditionalStackFactor, estimateConditionalUptime, estimateNonCriticalNoStatusHitGroupProbability, estimatePelletHits, hasAccuracyAffectingPelletEffect, normalizeBattacorAltFireChargeCount, normalizeCriticalMutationPriorKills, normalizeCriticalPrecisionHeadshotProjectiles, normalizeDeadlyManeuversShotsRemaining, normalizeDreadfulKillshotCurrentHealth, normalizeEnergyChannelEnergySpent, normalizeFluxOverdriveOscillatingStatusChancePercent, normalizeNecrophagicVigorHealthDrained, normalizeOverpressuredRoundsSpreadSnapshot, normalizeStrainInfectionCystCount, withoutBurstOnlyConditionalAssumptions, type ConditionalState, type HitLocationDamageProfile, type MeleeAverageDpsParameters } from "../../domain/logic/damageCalc";
 import { calculateTennokaiAttackTimeline, findSupportedTennokaiAttackPair } from "../../domain/logic/tennokaiTimeline";
 import { calculateStaticDischargeCycle, DEFAULT_STATIC_DISCHARGE_FIRST_ANIMATION_SECONDS, normalizeStaticDischargeFirstAnimationSeconds, type StaticDischargeStartingOrder } from "../../domain/logic/staticDischargeCycle";
 import { calculateVileDischargeTimeline } from "../../domain/logic/vileDischargeTimeline";
@@ -891,6 +891,9 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
         ["Burst DPS", scoreUnavailable ? "Unavailable" : fmt(burstDps)],
         ["Sustain DPS", sustainedDpsUnavailable ? "Unavailable" : fmt(sustainedDps)],
         [scoreUnavailable ? `Reference ${avgDamageStatLabel}` : avgDamageStatLabel, fmt(stats?.averageShotDamage ?? 0)],
+        ...((stats?.energyChannelNextHitBonusDamage ?? 0) > 0
+            ? [["Energy Channel next-hit bonus", `+${fmt(stats?.energyChannelNextHitBonusDamage ?? 0)}`]]
+            : []),
         [scoreUnavailable ? "Reference Direct" : "Quantized Direct", fmt(stats?.totalDamage ?? 0)],
         [scoreUnavailable ? "Reference Arsenal Total" : "Arsenal Total", fmt(stats?.arsenalDamage ?? 0)],
         ["Crit Chance", `${fmt((stats?.critChance ?? 0) * 100, 1)}%`],
@@ -918,6 +921,9 @@ function renderBuildShareSvg(payload: BuildExportPayload) {
             : "",
         (stats?.necrophagicVigorBonus ?? 0) > 0
             ? `Necrophagic Vigor assumes ${fmt(stats?.necrophagicVigorHealthDrained ?? 0)} Health drained by the prior Hema reload and adds +${fmt((stats?.necrophagicVigorBonus ?? 0) * 100, 0)}% to Critical Chance and Critical Damage for Burst scoring; it assumes solo/host play.`
+            : "",
+        (stats?.energyChannelNextHitBonusDamage ?? 0) > 0
+            ? `Energy Channel assumes ${fmt(stats?.energyChannelEnergySpent ?? 0, 1)} Energy spent before one next melee hit and shows +${fmt(stats?.energyChannelNextHitBonusDamage ?? 0)} raw bonus damage after the critical multiplier. The Wiki says Elemental Mods amplify it, but this estimate does not apply elemental scaling or target mitigation because the damage type is not assigned.`
             : "",
         (stats?.deadlyManeuversHeadshotCritChanceBonus ?? 0) > 0
             ? `Deadly Maneuvers assumes ${stats?.deadlyManeuversShotsRemaining ?? 0} buffed shot(s) remain after a dodge; Burst averages the next two shots at the configured headshot share. Dodge and shot history are not modeled.`
@@ -1308,6 +1314,8 @@ function sumEffects(effects: (ModEffect | null)[]) {
         acc.criticalPrecisionCritChancePerHeadshot += effect.criticalPrecisionCritChancePerHeadshot ?? 0;
         acc.unseenDreadCritDamageBonus += effect.unseenDreadCritDamageBonus ?? 0;
         acc.criticalMutationCritChanceAndDamagePerKill += effect.criticalMutationCritChanceAndDamagePerKill ?? 0;
+        acc.energyChannelBonusDamagePerEnergy += effect.energyChannelBonusDamagePerEnergy ?? 0;
+        acc.energyChannelMaximumBonusDamage += effect.energyChannelMaximumBonusDamage ?? 0;
         acc.finalCritMultiplierBonus += effect.finalCritMultiplierBonus ?? 0;
         acc.statusChanceBonus += effect.statusChanceBonus ?? 0;
         acc.areaDamageStatusChanceBonus += effect.areaDamageStatusChanceBonus ?? 0;
@@ -1358,6 +1366,8 @@ function sumEffects(effects: (ModEffect | null)[]) {
         criticalPrecisionCritChancePerHeadshot: 0,
         unseenDreadCritDamageBonus: 0,
         criticalMutationCritChanceAndDamagePerKill: 0,
+        energyChannelBonusDamagePerEnergy: 0,
+        energyChannelMaximumBonusDamage: 0,
         finalCritMultiplierBonus: 0,
         statusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,
@@ -2028,6 +2038,9 @@ function buildMathBreakdown(
                 ...(totals.necrophagicVigorCritChanceAndDamagePer20HealthDrained > 0 &&
                     (weapon.name === "Hema" || weapon.name === "Coda Hema")
                     ? [`Necrophagic Vigor = +${fmt(totals.necrophagicVigorCritChanceAndDamagePer20HealthDrained * 100, 0)}% Critical Chance and Critical Damage per 20 Health drained × ${Math.floor(stats.necrophagicVigorHealthDrained / 20)} Health steps, capped at +360% each = +${fmt(stats.necrophagicVigorBonus * 100, 0)}% to both mod pools for this direct Burst snapshot. Health drain is entered from the prior reload; magazine refill and later Health changes are not simulated. This assumes solo/host play because the Wiki reports a non-host client bug. Finite TTK, Scaling, sustained DPS, and 5s Avg DPS exclude it. Wiki: https://wiki.warframe.com/w/Necrophagic_Vigor`]
+                    : []),
+                ...(stats.energyChannelNextHitBonusDamage > 0
+                    ? [`Energy Channel = min(${fmt(stats.energyChannelEnergySpent, 1)} Energy × ${fmt(totals.energyChannelBonusDamagePerEnergy, 2)} raw damage per Energy, ${fmt(totals.energyChannelMaximumBonusDamage, 0)} rank cap) = +${fmt(stats.energyChannelNextHitBonusDamage, 2)} raw damage on one next-hit Burst event, added after crit weighting. The Wiki says Elemental Mods amplify it, but this raw estimate does not apply elemental scaling or target-pool mitigation because the damage type is not assigned. It is excluded from repeated-hit DPS, Scaling, finite TTK, sustained/5-second DPS, multi-hit/area scoring, and Auto Optimize. Wiki: https://wiki.warframe.com/w/Energy_Channel`]
                     : []),
         ...(stats.deadlyManeuversHeadshotCritChanceBonus > 0
             ? [`Deadly Maneuvers Burst = ${stats.deadlyManeuversShotsRemaining} remaining buffed shot(s) after a dodge; +${fmt(totals.deadlyManeuversHeadshotCritChanceBonus * 100, 0)}% headshot Critical Chance is multiplicative after other bonuses (×${fmt(1 + totals.deadlyManeuversHeadshotCritChanceBonus, 0)} on each buffed shot). Burst averages the next two shots using the configured headshot share. Dodge/shot history is not modeled; finite TTK and 5s Avg DPS exclude it. Wiki: https://wiki.warframe.com/w/Deadly_Maneuvers`]
@@ -3552,6 +3565,9 @@ function SavedBuildsPanel({ weapon, selectedAttackIdx, scoreUnavailable, scoreUn
         if (stats.modded.strainInfectionCritDamageBonus > 0 || stats.modded.strainFeverDamageBonus > 0) {
             rows.push(["Burst cyst assumption", `${stats.modded.strainInfectionCystsAtImpact}/8 at impact`]);
         }
+        if (stats.modded.energyChannelNextHitBonusDamage > 0) {
+            rows.push(["Energy Channel next-hit raw bonus", `+${fmt(stats.modded.energyChannelNextHitBonusDamage)} at ${fmt(stats.modded.energyChannelEnergySpent, 1)} Energy`]);
+        }
         if (stats.modded.dreadfulKillshotBonus > 0) {
             rows.push(["Dreadful Killshot Burst bonus", `+${fmt(stats.modded.dreadfulKillshotBonus * 100, 0)}% at ${fmt(stats.modded.dreadfulKillshotCurrentHealth)} current Health`]);
         }
@@ -3977,6 +3993,7 @@ export default function ModBuilder() {
     const [unseenDreadInvisibilityActive, setUnseenDreadInvisibilityActive] = useState(false);
     const [criticalMutationPriorKills, setCriticalMutationPriorKills] = useState(0);
     const [fluxOverdriveOscillatingStatusChancePercent, setFluxOverdriveOscillatingStatusChancePercent] = useState(0);
+    const [energyChannelEnergySpent, setEnergyChannelEnergySpent] = useState(0);
     const [battacorAltFireChargeCount, setBattacorAltFireChargeCount] = useState(0);
     const [sentientBarrageNextDischargeReady, setSentientBarrageNextDischargeReady] = useState(false);
     const [externalStatusTypes, setExternalStatusTypes] = useState<ExternalStatusType[]>([]);
@@ -4040,6 +4057,7 @@ export default function ModBuilder() {
         unseenDreadInvisibilityActive,
         criticalMutationPriorKills,
         fluxOverdriveOscillatingStatusChancePercent,
+        energyChannelEnergySpent: goal === "burst" ? normalizeEnergyChannelEnergySpent(energyChannelEnergySpent) : 0,
         battacorAltFireChargeCount,
         sentientBarrageNextDischargeReady,
         externalStatusTypes,
@@ -4054,7 +4072,7 @@ export default function ModBuilder() {
         targetDistanceMeters,
         attackFalloffDistanceMeters,
         targetRadiusMeters,
-    }), [conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, necrophagicVigorHealthDrained, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, fluxOverdriveOscillatingStatusChancePercent, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
+    }), [goal, conditionalMode, externalConditionalStacks, externalStatusTypeCount, externalVigilanteSetModCount, externalGladiatorSetModCount, externalNiraSetModCount, strainInfectionCystsAtImpact, dreadfulKillshotCurrentHealth, necrophagicVigorHealthDrained, deadlyManeuversShotsRemaining, criticalPrecisionHeadshotProjectiles, unseenDreadInvisibilityActive, criticalMutationPriorKills, fluxOverdriveOscillatingStatusChancePercent, energyChannelEnergySpent, battacorAltFireChargeCount, sentientBarrageNextDischargeReady, externalStatusTypes, targetStartsWithHeat, externalHeatElementalDamageBonusPercentInput, externalHeatFactionDamageBonusPercentInput, supportsKineticKiller, playerSlidingAtImpact, meleeComboMultiplier, tennokaiRegularHitsBetweenHeavy, tennokaiBlockedHitsBetweenHeavy, phantasmaChargeAmmo, targetDistanceMeters, attackFalloffDistanceMeters, targetRadiusMeters]);
     const activeBattacorScoringConditionalState = useMemo<ConditionalState>(() => goal === "burst"
         ? conditionalState
         : {
@@ -4362,6 +4380,7 @@ export default function ModBuilder() {
             unseenDreadInvisibilityActive,
             criticalMutationPriorKills,
             fluxOverdriveOscillatingStatusChancePercent,
+            energyChannelEnergySpent,
             battacorAltFireChargeCount,
             sentientBarrageNextDischargeReady,
             externalStatusTypes,
@@ -4442,6 +4461,7 @@ export default function ModBuilder() {
         unseenDreadInvisibilityActive,
         criticalMutationPriorKills,
         fluxOverdriveOscillatingStatusChancePercent,
+        energyChannelEnergySpent,
         battacorAltFireChargeCount,
         sentientBarrageNextDischargeReady,
         externalStatusTypes,
@@ -5164,6 +5184,14 @@ export default function ModBuilder() {
         }
         return effects;
     }, [activeWeaponState, allSlotsForCap, allRanksForCap, includeArcaneStats, arcane1, arcane1Rank, warframeArmor, arcaneEnergyContext]);
+    const activeEnergyChannelBonusDamagePerEnergy = Math.max(
+        0,
+        ...activeBuildEffects.map((effect) => effect?.energyChannelBonusDamagePerEnergy ?? 0),
+    );
+    const activeEnergyChannelMaximumBonusDamage = Math.max(
+        0,
+        ...activeBuildEffects.map((effect) => effect?.energyChannelMaximumBonusDamage ?? 0),
+    );
     const activeFluxOverdriveMaximumOscillatingStatusChancePercent = Math.max(
         0,
         ...activeBuildEffects.map((effect) => (effect?.fluxOverdriveMaxOscillatingStatusChanceBonus ?? 0) * 100),
@@ -6513,6 +6541,7 @@ export default function ModBuilder() {
             setFluxOverdriveOscillatingStatusChancePercent(normalizeFluxOverdriveOscillatingStatusChancePercent(
                 plannerConfig.fluxOverdriveOscillatingStatusChancePercent,
             ));
+            setEnergyChannelEnergySpent(normalizeEnergyChannelEnergySpent(plannerConfig.energyChannelEnergySpent));
             setBattacorAltFireChargeCount(normalizeBattacorAltFireChargeCount(plannerConfig.battacorAltFireChargeCount));
             setSentientBarrageNextDischargeReady(plannerConfig.sentientBarrageNextDischargeReady === true);
             const restoredExternalStatusTypes = normalizeExternalStatusTypes(plannerConfig.externalStatusTypes);
@@ -7171,6 +7200,32 @@ export default function ModBuilder() {
                                                             The selected rank's fixed additive Status Chance always applies. Enter the current 0–{fmt(activeFluxOverdriveMaximumOscillatingStatusChancePercent, 1)}% rank-capped oscillating value to multiply the resulting Status Chance for this direct Burst snapshot. The Wiki's short max-rank description (+150% to +250%) conflicts with its detailed rank table/notes; the planner follows the detailed values. Firing history and average oscillation over finite TTK, sustained DPS, and 5s DPS are not modeled, so those objectives use only the fixed rank bonus. Burst Auto Optimize uses this saved snapshot.
                                                         </p>
                                                         <a href="https://wiki.warframe.com/w/Flux_Overdrive" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Flux Overdrive</a>
+                                                    </div>
+                                                )}
+                                                {activeCalcWeapon?.category === "Melee" &&
+                                                    activeCalcWeapon.selectedAttackIsAreaDamage === false &&
+                                                    activeCalcWeapon.multishot === 1 &&
+                                                    activeEnergyChannelBonusDamagePerEnergy > 0 && (
+                                                    <div className="basis-full rounded-md border border-slate-700/70 bg-slate-950/40 p-2">
+                                                        <label className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                                                            <span>Energy Channel energy spent before next melee hit</span>
+                                                            <input
+                                                                aria-label="Energy Channel energy spent before next melee hit"
+                                                                type="number"
+                                                                min={0}
+                                                                max={100}
+                                                                step={0.1}
+                                                                value={energyChannelEnergySpent}
+                                                                onChange={(event) => setEnergyChannelEnergySpent(
+                                                                    normalizeEnergyChannelEnergySpent(Number(event.target.value)),
+                                                                )}
+                                                                className="w-20 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                                                            />
+                                                        </label>
+                                                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                                            Enter 0–100 energy spent before the next successful melee strike. The selected rank converts {fmt(activeEnergyChannelBonusDamagePerEnergy * 100, 0)}% per Energy, up to +{fmt(activeEnergyChannelMaximumBonusDamage, 0)} raw bonus damage after the critical multiplier. The Wiki says Elemental Mods amplify it, but this estimate does not apply elemental scaling or target-pool mitigation because its damage type is not assigned. This is one direct, single-target Burst event only. Repeated/multi-hit and area attacks, Scaling, finite TTK, sustained/5-second DPS, and Auto Optimize exclude it.
+                                                        </p>
+                                                        <a href="https://wiki.warframe.com/w/Energy_Channel" target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] text-sky-400 underline underline-offset-2">WARFRAME Wiki: Energy Channel</a>
                                                     </div>
                                                 )}
                                                 {(activeCalcWeapon?.name === "Catabolyst" || activeCalcWeapon?.name === "Coda Catabolyst") &&
@@ -9325,6 +9380,14 @@ export default function ModBuilder() {
                                         { label: "Direct Damage", value: fmt(stats.totalDamage), sub: "post-quantization", tooltip: "Final direct damage after damage construction and Warframe's damage quantization step, before crit and multishot." },
                                         { label: "Arsenal Total", value: fmt(stats.arsenalDamage), sub: `per ${damageUnit}, no crit`, tooltip: `Unquantized Arsenal Total Damage after multishot for one ${damageUnit}, before crit weighting. Target modifiers and mission rounding are not included.` },
                                         { label: avgDamageLabel, value: fmt(stats.averageShotDamage), sub: "crit-weighted", tooltip: `Expected damage per ${damageUnit} after weighting in crit chance and crit multiplier.` },
+                                        ...(stats.energyChannelNextHitBonusDamage > 0
+                                            ? [{
+                                                label: "Energy Channel next hit",
+                                                value: `+${fmt(stats.energyChannelNextHitBonusDamage)}`,
+                                                sub: "raw bonus after crit",
+                                                tooltip: `One assumed next direct melee hit receives +${fmt(stats.energyChannelNextHitBonusDamage)} raw bonus damage after crit weighting. The Wiki says Elemental Mods amplify this bonus, but the estimate does not apply elemental scaling or target-pool mitigation because no damage type is assigned. It is not included in repeated-hit DPS, finite TTK, 5-second DPS, multi-hit/area rows, or Auto Optimize.`,
+                                            }]
+                                            : []),
                                         ...(stats.firstShotMagazineDamageBonus > 0
                                             ? [{ label: "First shot", value: fmt(stats.averageShotDamage * stats.firstShotMagazineDamageMultiplier), sub: "after reload", tooltip: `Expected direct damage for the first ammo-consuming shot in a fresh magazine, including first-shot Chamber mods and crit weighting. Later shots use the ordinary per-${damageUnit} damage above.` }]
                                             : []),
