@@ -27,6 +27,7 @@ import {
     ENERGY_CHANNEL_MOD_PATH,
     AVENGING_TRUTH_MOD_PATH,
     FLUX_OVERDRIVE_MOD_PATH,
+    NAPALM_GRENADES_MOD_PATH,
     NIGHTWATCH_NAPALM_MOD_PATH,
     NECROPHAGIC_VIGOR_MOD_PATH,
     OVERPRESSURED_ROUNDS_MOD_PATH,
@@ -322,6 +323,8 @@ export interface ModEffect {
     targetStatusDamageVulnerabilityBonus: number;
     /** Enables the Ogris Nightwatch Napalm blaze on its Rocket Explosion attack. */
     nightwatchNapalmEffect: number;
+    /** Converts the Penta impact/detonation damage pair to Napalm Grenades' pure-Heat profile. */
+    napalmGrenadesDamageConversion: boolean;
     projectileSpeedBonus: number;
     accuracyBonus: number;
     blastRadiusBonus: number;
@@ -404,7 +407,6 @@ const SHATTERING_IMPACT_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeArmorShatt
 const MAIMING_STRIKE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/SlideAttackCritChanceMod";
 const BURNING_HATE_PATH = "/Lotus/Upgrades/Mods/Melee/Event/Nightwave/NightwaveStalkerScytheAugmentMod";
 const PROTOTYPE_SHOCK_COILS_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
-const NAPALM_GRENADES_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjectileMod";
 const SENTIENT_SURGE_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveOcucorAugmentMod";
 const PROTON_JET_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModB";
 const PROTON_SNAP_PATH = "/Lotus/Upgrades/Mods/Sets/Spider/SpiderModC";
@@ -2113,15 +2115,16 @@ function buildCaches(): ModCaches {
                 }
             });
         }
-        if (path === NAPALM_GRENADES_PATH) {
-            // The current Penta augment also converts its explosion to Heat and
-            // leaves a damaging ground patch; those weapon-specific effects are
-            // not represented by the selected attack rows. Keep its parsed flat
-            // status bonus available for manual builds, but block auto-selection.
+        if (path === NAPALM_GRENADES_MOD_PATH) {
+            // The Wiki describes the Penta's damage conversion and per-rank
+            // status bonus. The calculator models the immediate single-target
+            // hit pair, but not the separate direct proc or fire-patch history,
+            // so keep Auto Optimize conservative.
             // https://wiki.warframe.com/w/Napalm_Grenades
+            for (const effect of effectsByRank) effect.napalmGrenadesDamageConversion = true;
             for (let rank = 0; rank < unparsedStatsByRank.length; rank++) {
                 unparsedStatsByRank[rank].push(
-                    "Penta explosion damage conversion and lingering fire patch are not modeled.",
+                    "Napalm Grenades' separate 100 Heat direct proc and entry-triggered fire-patch status are not modeled.",
                 );
             }
         }

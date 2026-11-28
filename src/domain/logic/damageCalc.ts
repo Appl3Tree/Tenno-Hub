@@ -2431,6 +2431,26 @@ export function calculateBuild(
     const weaponBaseDamage = Object.fromEntries(
         DAMAGE_KEYS.map((key) => [key, weapon.damage[key] * chargeDamageScale * battacorAltFireChargeMultiplier]),
     ) as Record<DamageKey, number>;
+    const napalmGrenadesDamageConversion = mods.some((effect) => effect?.napalmGrenadesDamageConversion === true);
+    const pentaProfile = ["Penta", "Carmine Penta", "Secura Penta"].includes(weapon.name);
+    const selectedPentaSequenceEvent = ["grenade impact", "grenade detonation"].includes(
+        weapon.selectedAttackName?.trim().toLowerCase() ?? "",
+    );
+    if (napalmGrenadesDamageConversion && pentaProfile && selectedPentaSequenceEvent) {
+        // Napalm Grenades' Wiki example converts Secura Penta's 375 total
+        // base damage into two 325 Heat events. Apply that same ~73% total
+        // increase and even split to each Penta profile's linked event pair.
+        // The separate direct-hit proc and entry-based fire patch are disclosed
+        // as unmodeled and keep this mod out of Auto Optimize.
+        const pentaSequenceBaseDamage = weapon.attacks
+            .filter((attack) => ["grenade impact", "grenade detonation"].includes(attack.name.trim().toLowerCase()))
+            .reduce((sum, attack) => sum + DAMAGE_KEYS.reduce((attackSum, key) => attackSum + attack.damage[key], 0), 0);
+        if (pentaSequenceBaseDamage > 0) {
+            const heatDamagePerEvent = pentaSequenceBaseDamage * (650 / 375) / 2 * chargeDamageScale * battacorAltFireChargeMultiplier;
+            for (const key of DAMAGE_KEYS) weaponBaseDamage[key] = 0;
+            weaponBaseDamage.heat = heatDamagePerEvent;
+        }
+    }
     if (physicalDamageConversion) {
         const basePhysicalDamage = weaponBaseDamage.impact + weaponBaseDamage.puncture + weaponBaseDamage.slash;
         weaponBaseDamage.impact = 0;

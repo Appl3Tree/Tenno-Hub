@@ -11,6 +11,7 @@ export const FINISHING_TOUCH_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeF
 export const BURSTING_MASS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/InfCrpShockSwarmRifleArbitrationMod";
 export const AMALGAM_FURAX_BODY_COUNT_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod";
 export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
+export const NAPALM_GRENADES_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/GrenadeLauncherProjectileMod";
 export const BRUTE_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastBruteConditioningMod";
 export const DISABLING_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastDisablingConditioningMod";
 export const PRECISION_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastPrecisionConditioningMod";
@@ -282,8 +283,17 @@ export function getUnmodeledDamageEffectLines(
     const truthFlameCycleScope = mod.path === TRUTH_FLAME_MOD_PATH && context?.selectedGoal === "tennokaiDps";
     const lines = (mod.unparsedStatsByRank?.[rank] ?? [])
         .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH &&
+            mod.path !== NAPALM_GRENADES_MOD_PATH &&
             !(truthFlameCycleScope && /^CURSE:/i.test(line)) &&
             DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    if (mod.path === NAPALM_GRENADES_MOD_PATH) {
+        const selectedPentaImpact = ["Penta", "Carmine Penta", "Secura Penta"].includes(context?.selectedWeaponName ?? "") &&
+            context?.selectedAttackName?.trim().toLowerCase() === "grenade impact" &&
+            context?.selectedAttackIsAreaDamage === false;
+        lines.push(selectedPentaImpact
+            ? "Napalm Grenades converts the Penta's impact and linked detonation into two pure-Heat events. The model uses the Wiki's ~73% total-damage increase, split evenly between those events; it reproduces Secura Penta's listed 325 direct + 325 area Heat example and proportionally applies that inferred split to Penta and Carmine Penta. The selected impact includes its immediate linked detonation. The separate 100 Heat direct proc and entry-triggered fire patch are excluded; their proc damage/timing is not fully specified. Auto Optimize skips the mod until those effects are modeled. Wiki: https://wiki.warframe.com/w/Napalm_Grenades"
+            : "Napalm Grenades converts Penta impact and detonation damage to pure Heat and increases total damage by about 73%; the model splits that total evenly across the two events, matching the Wiki's Secura Penta example. A direct Grenade Impact row includes its immediate linked detonation. The separate 100 Heat direct proc, entry-triggered fire patch, and area coverage are not modeled, so Auto Optimize skips this mod. Wiki: https://wiki.warframe.com/w/Napalm_Grenades");
+    }
     if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
         const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
         const conversion = Number.isFinite(effect.energyChannelBonusDamagePerEnergy)
@@ -603,6 +613,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
         return "https://wiki.warframe.com/w/Energy_Channel";
     }
+    if (mod.path === NAPALM_GRENADES_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Napalm_Grenades";
+    }
     if (mod.path === AVENGING_TRUTH_MOD_PATH) {
         return "https://wiki.warframe.com/w/Avenging_Truth";
     }
@@ -744,6 +757,7 @@ export function emptyEffect(): ModEffect {
         attackSpeedBonus: 0,
         statusDurationBonus: 0, statusDamageBonus: 0, targetStatusDamageVulnerabilityBonus: 0,
         nightwatchNapalmEffect: 0,
+        napalmGrenadesDamageConversion: false,
         projectileSpeedBonus: 0, accuracyBonus: 0, blastRadiusBonus: 0,
         beamRangeBonus: 0, punchThrough: 0, rangeBonus: 0,
         swipeAdditionalEnemyCount: 0, swipeAttackRangeBonusMeters: 0,

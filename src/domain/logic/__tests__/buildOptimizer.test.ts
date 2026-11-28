@@ -170,6 +170,37 @@ describe("source-backed Penta grenade optimizer coverage", () => {
                 .toThrow(/Select Grenade Impact/);
         }
     });
+
+    it("uses Napalm Grenades' bounded damage conversion manually but excludes its unmodeled side events from Auto Optimize", () => {
+        const weapon = getWeaponCatalog().find((candidate) => candidate.name === "Secura Penta");
+        expect(weapon).toBeDefined();
+        const impactIndex = weapon!.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+        const impact = withSelectedAttack(weapon!, impactIndex);
+        const napalm = filterBuilderExpertVariants(getModsForWeapon(weapon!))
+            .find((candidate) => candidate.name === "Napalm Grenades");
+        expect(napalm).toBeDefined();
+
+        const explanation = getUnmodeledDamageEffectLines(napalm!, napalm!.fusionLimit, {
+            selectedWeaponName: weapon!.name,
+            selectedAttackName: impact.selectedAttackName,
+            selectedAttackIsAreaDamage: impact.selectedAttackIsAreaDamage,
+        });
+        expect(explanation).toHaveLength(1);
+        expect(explanation[0]).toContain("325 direct + 325 area Heat");
+        expect(explanation[0]).toContain("Auto Optimize skips");
+
+        const options = {
+            targetFaction: "Infested",
+            targetProfileOverride: { health: 1_000, shields: 0, overguard: 0, armor: 0 },
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+        } as const;
+        for (const goal of ["burst", "timeToKill"] as const) {
+            const optimized = optimizeBuild(impact, [napalm!], goal, 1, options);
+            expect(optimized.slots).not.toContain(napalm);
+        }
+    });
 });
 
 describe("source-backed Aegrit single-bomb optimizer coverage", () => {

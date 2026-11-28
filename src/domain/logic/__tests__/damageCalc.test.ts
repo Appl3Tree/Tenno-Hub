@@ -1908,6 +1908,35 @@ describe("source-backed per-attack Auto-Charge profiles", () => {
         }
     });
 
+    it("converts Napalm Grenades Penta impact and detonation into the sourced pure-Heat pair", () => {
+        for (const weaponName of ["Penta", "Carmine Penta", "Secura Penta"]) {
+            const weapon = catalog.find((candidate) => candidate.name === weaponName)!;
+            const napalm = getModsForWeapon(weapon).find((candidate) => candidate.name === "Napalm Grenades");
+            expect(napalm, weaponName).toBeDefined();
+            expect(napalm!.effectsByRank.every((effect) => effect.napalmGrenadesDamageConversion)).toBe(true);
+
+            const pairDamage = weapon.attacks
+                .filter((attack) => ["grenade impact", "grenade detonation"].includes(attack.name.toLowerCase()))
+                .reduce((sum, attack) => sum + Object.entries(attack.damage)
+                    .filter(([type]) => type !== "total")
+                    .reduce((attackSum, [, amount]) => attackSum + amount, 0), 0);
+            const expectedEventHeat = pairDamage * (650 / 375) / 2;
+            const impactIndex = weapon.attacks.findIndex((attack) => attack.name === "Grenade Impact");
+            const impactStats = calculateBuild(
+                withSelectedAttack(weapon, impactIndex),
+                [napalm!.effectsByRank[napalm!.fusionLimit]],
+            ).modded;
+
+            expect(impactStats.rawDamageBreakdownBeforePerStatus.heat, weaponName).toBeCloseTo(expectedEventHeat, 8);
+            expect(impactStats.rawDamageBreakdownBeforePerStatus.impact, weaponName).toBe(0);
+            expect(impactStats.rawDamageBreakdownBeforePerStatus.blast, weaponName).toBe(0);
+            expect(impactStats.attachedAttackDamageSequence?.profile.rawDamageByType.heat, weaponName)
+                .toBeCloseTo(expectedEventHeat, 8);
+            expect(impactStats.attachedAttackDamageSequence?.profile.rawDamageByType.blast, weaponName).toBe(0);
+            if (weaponName === "Secura Penta") expect(expectedEventHeat).toBeCloseTo(325, 10);
+        }
+    });
+
     it("scores Aegrit's direct hit plus immediate attached-target detonation", () => {
         const aegrit = catalog.find((candidate) => candidate.name === "Aegrit")!;
         const directIndex = aegrit.attacks.findIndex((attack) => attack.name === "Direct Hit");
@@ -2713,8 +2742,12 @@ describe("damage calculation status eligibility", () => {
         expect(napalmGrenades).toBeDefined();
         expect(napalmGrenades!.effectsByRank.map((effect) => effect.finalStatusChanceBonus))
             .toEqual([0.05, 0.1, 0.15, 0.2, 0.25, 0.3]);
-        expect(getUnmodeledDamageEffectLines(napalmGrenades!, napalmGrenades!.fusionLimit))
-            .toContain("Penta explosion damage conversion and lingering fire patch are not modeled.");
+        const napalmExplanation = getUnmodeledDamageEffectLines(napalmGrenades!, napalmGrenades!.fusionLimit);
+        expect(napalmExplanation).toHaveLength(1);
+        expect(napalmExplanation[0]).toContain("separate 100 Heat direct proc");
+        expect(napalmExplanation[0]).toContain("entry-triggered fire patch");
+        expect(napalmExplanation[0]).toContain("Auto Optimize skips");
+        expect(getUnmodeledDamageEffectSourceUrl(napalmGrenades!)).toBe("https://wiki.warframe.com/w/Napalm_Grenades");
         expect(napalmGrenades!.hasDamageEffect).toBe(true);
         const pentaBase = calculateBuild(carminePenta!, []).modded;
         const pentaModded = calculateBuild(carminePenta!, [napalmGrenades!.effect]).modded;
