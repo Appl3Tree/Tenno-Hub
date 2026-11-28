@@ -312,6 +312,10 @@ export interface ModdedWeaponStats {
     energyChannelNextHitBonusDamage: number;
     /** Energy assumed spent before the next successful melee strike (0–100). */
     energyChannelEnergySpent: number;
+    /** Raw Avenging Truth bonus from assumed blocked incoming damage for one Heavy Attack Burst snapshot. */
+    avengingTruthStoredDamage: number;
+    /** Incoming damage before the selected rank's Avenging Truth absorption fraction (Burst snapshot only). */
+    avengingTruthIncomingDamageBlocked: number;
     /** Current Battacor Alt-Fire charges represented by a direct Burst snapshot (0–3). */
     battacorAltFireChargeCount: number;
     /** Multiplicative damage factor from the represented Battacor charge count (1 for other attacks). */
@@ -631,6 +635,8 @@ export interface ConditionalState {
     fluxOverdriveOscillatingStatusChancePercent?: number;
     /** Energy spent before Energy Channel's next melee strike (0–100); raw Burst estimate only. */
     energyChannelEnergySpent?: number;
+    /** Incoming damage blocked before the next Silva & Aegis Heavy Attack; raw Burst estimate only. */
+    avengingTruthIncomingDamageBlocked?: number;
     /** Stored Battacor Alt-Fire charges at impact (0–3); used for single-target Burst only. */
     battacorAltFireChargeCount?: number;
     /** Assume Sentient Barrage's full-charge bonus is ready for the next Alt-Fire discharge. */
@@ -842,6 +848,20 @@ export function calculateEnergyChannelNextHitBonusDamage(
     );
 }
 
+/** Keep the user-supplied blocked hit finite and nonnegative without inventing a gameplay cap. */
+export function normalizeAvengingTruthIncomingDamageBlocked(value: number | undefined): number {
+    return Number.isFinite(value) ? Math.max(0, value ?? 0) : 0;
+}
+
+/** Separate raw stored damage; damage-type, elemental, combo, and target mitigation steps are intentionally omitted. */
+export function calculateAvengingTruthStoredDamage(
+    damageAbsorptionFraction: number,
+    incomingDamageBlocked: number | undefined,
+): number {
+    if (!Number.isFinite(damageAbsorptionFraction) || damageAbsorptionFraction <= 0) return 0;
+    return normalizeAvengingTruthIncomingDamageBlocked(incomingDamageBlocked) * damageAbsorptionFraction;
+}
+
 export const MAX_BATTACOR_ALT_FIRE_CHARGES = 3;
 
 export function normalizeBattacorAltFireChargeCount(value: number | undefined): number {
@@ -877,6 +897,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         normalizeCriticalMutationPriorKills(state.criticalMutationPriorKills) === 0 &&
         normalizeFluxOverdriveOscillatingStatusChancePercent(state.fluxOverdriveOscillatingStatusChancePercent) === 0 &&
         normalizeEnergyChannelEnergySpent(state.energyChannelEnergySpent) === 0 &&
+        normalizeAvengingTruthIncomingDamageBlocked(state.avengingTruthIncomingDamageBlocked) === 0 &&
         normalizeBattacorAltFireChargeCount(state.battacorAltFireChargeCount) === 0 &&
         state.sentientBarrageNextDischargeReady !== true &&
         normalizeOverpressuredRoundsSpreadSnapshot(
@@ -895,6 +916,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         criticalMutationPriorKills: 0,
         fluxOverdriveOscillatingStatusChancePercent: 0,
         energyChannelEnergySpent: 0,
+        avengingTruthIncomingDamageBlocked: 0,
         battacorAltFireChargeCount: 0,
         sentientBarrageNextDischargeReady: false,
         overpressuredRoundsSpreadMinimumDegrees: undefined,
@@ -1692,6 +1714,9 @@ export function calculateBuild(
         conditionalState.fluxOverdriveOscillatingStatusChancePercent,
     );
     const energyChannelEnergySpent = normalizeEnergyChannelEnergySpent(conditionalState.energyChannelEnergySpent);
+    const avengingTruthIncomingDamageBlocked = normalizeAvengingTruthIncomingDamageBlocked(
+        conditionalState.avengingTruthIncomingDamageBlocked,
+    );
     const fluxOverdriveMaximumOscillatingStatusChanceBonus = Math.max(
         0,
         ...mods.map((effect) => effect?.fluxOverdriveMaxOscillatingStatusChanceBonus ?? 0),
@@ -2576,6 +2601,20 @@ export function calculateBuild(
             energyChannelBonusDamagePerEnergy,
             energyChannelMaximumBonusDamage,
             energyChannelEnergySpent,
+        )
+        : 0;
+    const avengingTruthDamageAbsorptionFraction = Math.max(
+        0,
+        ...mods.map((effect) => effect?.avengingTruthDamageAbsorptionFraction ?? 0),
+    );
+    const avengingTruthStoredDamage = weapon.category === "Melee" &&
+        (weapon.name === "Silva & Aegis" || weapon.name === "Silva & Aegis Prime") &&
+        weapon.selectedAttackName === "Heavy Attack" &&
+        weapon.selectedAttackIsAreaDamage === false &&
+        Math.abs(moddedMultishot - 1) < 1e-9
+        ? calculateAvengingTruthStoredDamage(
+            avengingTruthDamageAbsorptionFraction,
+            avengingTruthIncomingDamageBlocked,
         )
         : 0;
     const basePelletHitEstimate = pelletHitEstimate
@@ -3564,6 +3603,10 @@ export function calculateBuild(
         fluxOverdriveOscillatingStatusChanceBonus,
         energyChannelNextHitBonusDamage,
         energyChannelEnergySpent: energyChannelNextHitBonusDamage > 0 ? energyChannelEnergySpent : 0,
+        avengingTruthStoredDamage,
+        avengingTruthIncomingDamageBlocked: avengingTruthStoredDamage > 0
+            ? avengingTruthIncomingDamageBlocked
+            : 0,
         battacorAltFireChargeCount: isBattacorAltFireAttack ? battacorAltFireChargeCount : 0,
         battacorAltFireChargeMultiplier,
         sentientBarrageEquipped,

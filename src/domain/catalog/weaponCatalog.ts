@@ -246,6 +246,10 @@ const PROVA_HEAVY_ATTACK_PROFILES = new Set([
     "/Lotus/Weapons/ClanTech/Energy/ElectroProd",
     "/Lotus/Weapons/ClanTech/Energy/VandalElectroProd",
 ]);
+const SILVA_AND_AEGIS_HEAVY_ATTACK_PROFILES = new Set([
+    "/Lotus/Weapons/Tenno/Melee/SwordsAndBoards/MeleeContestWinnerOne/TennoSwordShield",
+    "/Lotus/Weapons/Tenno/Melee/PrimeSilvaAegis/PrimeSilvaAegis",
+]);
 
 export interface WeaponEntry {
     uniqueName: string;
@@ -3630,13 +3634,15 @@ export function getWeaponCatalog(): WeaponEntry[] {
             };
         });
         const heavyAttackDamage = n(item.heavyAttackDamage);
-        if (PROVA_HEAVY_ATTACK_PROFILES.has(uniqueName) && heavyAttackDamage > 0 && dmg.total > 0 &&
+        if ((PROVA_HEAVY_ATTACK_PROFILES.has(uniqueName) || SILVA_AND_AEGIS_HEAVY_ATTACK_PROFILES.has(uniqueName)) &&
+            heavyAttackDamage > 0 && dmg.total > 0 &&
             !attacks.some((attack) => /^heavy attack$/i.test(attack.name.trim()))) {
             // The weapon feed supplies the Heavy Damage total but no separate
-            // row. Prova's Wiki lists only its total Heavy Damage, so preserve
-            // the Normal Attack's physical/elemental ratios and scale them to
-            // that sourced total. Wiki: https://wiki.warframe.com/w/Prova and
-            // https://wiki.warframe.com/w/Prova_Vandal
+            // row for these profiles. Preserve the Normal Attack's damage-type
+            // ratios and scale them to that total. Prova: https://wiki.warframe.com/w/Prova
+            // and https://wiki.warframe.com/w/Prova_Vandal. Silva & Aegis:
+            // https://wiki.warframe.com/w/Silva_%26_Aegis and
+            // https://wiki.warframe.com/w/Silva_%26_Aegis_Prime (0.7s wind-up).
             const heavyDamageScale = heavyAttackDamage / dmg.total;
             const normalAttack = attacks.find((attack) => /^normal attack$/i.test(attack.name.trim()));
             const heavyDamage: WeaponDamage = {

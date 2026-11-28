@@ -4,7 +4,7 @@ import type { ArcaneEntry } from "../../catalog/arcaneCatalog";
 import { getArcaneEffectAtRank } from "../arcaneEffects";
 import { buildIncarnonCandidateConfigs, getIncarnonRecordForWeapon, resolveIncarnonState, selectIncarnonSearchShortlist } from "../../catalog/incarnonCatalog";
 import { filterBuilderExpertVariants, getModsForWeapon, getStancesForWeapon, getUnmodeledDamageEffectLines, sortBuilderModsForDisplay, type ModEffect, type ModEntry } from "../../catalog/modCatalog";
-import { getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
+import { AVENGING_TRUTH_MOD_PATH, getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, getUnmodeledScoringEffectLines, SENTIENT_BARRAGE_MOD_PATH } from "../../catalog/modEffectUtils";
 import { getWeaponCatalog, getWeaponDisplayName, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
@@ -13761,6 +13761,35 @@ describe("Energy Channel optimizer scope", () => {
         expect(disclosure).toContain("does not apply elemental scaling");
         expect(getUnmodeledDamageEffectBadgeLabel(energyChannel, "slot")).toContain("Auto Optimize excludes");
         expect(getUnmodeledDamageEffectSourceUrl(energyChannel)).toBe("https://wiki.warframe.com/w/Energy_Channel");
+    });
+});
+
+describe("Avenging Truth optimizer scope", () => {
+    it("keeps the raw Heavy Attack snapshot outside target scoring and Auto Optimize", () => {
+        const silva = getWeaponCatalog().find((weapon) => weapon.name === "Silva & Aegis")!;
+        const heavyAttack = silva.attacks.find((attack) => attack.name === "Heavy Attack")!;
+        const avengingTruth = getModsForWeapon(silva).find((mod) => mod.path === AVENGING_TRUTH_MOD_PATH)!;
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            conditionalState: { mode: "initial" as const, avengingTruthIncomingDamageBlocked: 3000 },
+            buildForAttack: heavyAttack,
+        };
+
+        const burst = optimizeBuild(silva, [avengingTruth], "burst", 1, options);
+        const scaling = optimizeBuild(silva, [avengingTruth], "scaling", 1, options);
+        const disclosure = getUnmodeledDamageEffectLines(avengingTruth, 3).join(" ");
+
+        expect(burst.slots.some((mod) => mod?.path === AVENGING_TRUTH_MOD_PATH)).toBe(false);
+        expect(scaling.slots.some((mod) => mod?.path === AVENGING_TRUTH_MOD_PATH)).toBe(false);
+        expect(disclosure).toContain("manual single-target Burst snapshot as a separate raw bonus");
+        expect(disclosure).toContain("damage type");
+        expect(disclosure).toContain("Truth syndicate effect");
+        expect(getUnmodeledDamageEffectBadgeLabel(avengingTruth, "slot")).toContain("Auto Optimize excludes");
+        expect(getUnmodeledDamageEffectSourceUrl(avengingTruth)).toBe("https://wiki.warframe.com/w/Avenging_Truth");
     });
 });
 

@@ -264,6 +264,8 @@ export interface SavedBuildPlannerConfig {
     fluxOverdriveOscillatingStatusChancePercent?: number;
     /** Energy spent before Energy Channel's next melee hit (0–100); manual raw Burst estimate only. */
     energyChannelEnergySpent?: number;
+    /** Incoming damage blocked before Avenging Truth's Silva & Aegis Heavy Attack (manual Burst snapshot only). */
+    avengingTruthIncomingDamageBlocked?: number;
     /** Battacor Alt-Fire charges assumed for direct single-target Burst (0–3). */
     battacorAltFireChargeCount?: number;
     /** Assume Sentient Barrage's full-charge next-discharge crit bonus is ready. */
