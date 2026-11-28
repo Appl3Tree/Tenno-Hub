@@ -24,6 +24,7 @@ import {
     DISABLING_CONDITIONING_MOD_PATH,
     DEADLY_MANEUVERS_MOD_PATH,
     emptyEffect,
+    FLUX_OVERDRIVE_MOD_PATH,
     NIGHTWATCH_NAPALM_MOD_PATH,
     NECROPHAGIC_VIGOR_MOD_PATH,
     OVERPRESSURED_ROUNDS_MOD_PATH,
@@ -66,6 +67,8 @@ const DEADLY_MANEUVERS_HEADSHOT_CRIT_CHANCE_BONUS_BY_RANK = [1, 2, 3, 4];
 const CRITICAL_PRECISION_CRIT_CHANCE_PER_HEADSHOT_BY_RANK = [0.025, 0.04, 0.055, 0.07, 0.085, 0.1];
 const UNSEEN_DREAD_CRIT_DAMAGE_BONUS_BY_RANK = [0.5, 0.75, 1, 1.25, 1.5, 1.75];
 const CRITICAL_MUTATION_CRIT_CHANCE_AND_DAMAGE_PER_KILL_BY_RANK = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3];
+const FLUX_OVERDRIVE_FIXED_STATUS_CHANCE_BY_RANK = [0.25, 0.5, 0.75, 1, 1.25, 1.5];
+const FLUX_OVERDRIVE_MAX_OSCILLATING_STATUS_CHANCE_BY_RANK = [0.168, 0.336, 0.504, 0.672, 0.84, 1.008];
 const SENTIENT_BARRAGE_CRIT_CHANCE_AND_DAMAGE_BY_RANK = [0.5, 1, 1.5, 2, 2.5, 3];
 const OVERPRESSURED_ROUNDS_FALLOFF_DISTANCE_BY_RANK = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 const BEAST_CLAW_CONDITIONING_CONVERSIONS: Record<string, "impact" | "puncture" | "slash"> = {
@@ -274,6 +277,8 @@ export interface ModEffect {
     unseenDreadCritDamageBonus: number;
     /** Critical Mutation's rank value for both crit stats per prior kill, used in a Burst snapshot. */
     criticalMutationCritChanceAndDamagePerKill: number;
+    /** Flux Overdrive's max oscillating Status Chance multiplier; timing is supplied through a Burst snapshot. */
+    fluxOverdriveMaxOscillatingStatusChanceBonus?: number;
     /** Sentient Barrage's rank-scaled bonus to both crit stats when its next-discharge snapshot is ready. */
     sentientBarrageCritChanceAndDamageBonus: number;
     finalCritMultiplierBonus: number;
@@ -1808,6 +1813,26 @@ function buildCaches(): ModCaches {
                         stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
                     ),
                 );
+            });
+        }
+        if (path === FLUX_OVERDRIVE_MOD_PATH) {
+            // The Wiki separates an always-applied additive Status Chance
+            // bonus from an oscillating bonus that multiplies other Status
+            // Chance bonuses. The second component is a user-entered Burst
+            // snapshot; firing-time changes are not inferred here.
+            // https://wiki.warframe.com/w/Flux_Overdrive
+            effectsByRank.forEach((effect, rank) => {
+                effect.statusChanceBonus = FLUX_OVERDRIVE_FIXED_STATUS_CHANCE_BY_RANK[rank] ?? 0;
+                effect.fluxOverdriveMaxOscillatingStatusChanceBonus =
+                    FLUX_OVERDRIVE_MAX_OSCILLATING_STATUS_CHANCE_BY_RANK[rank] ?? 0;
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) => {
+                    const text = stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
+                    return !/^[+]?\d+(?:\.\d+)?%\s+Status Chance$/i.test(text) &&
+                        !/^[+]?\d+(?:\.\d+)?%\s+Oscillating Status Chance$/i.test(text) &&
+                        !/^Status Chance fluctuates between \+?\d+(?:\.\d+)?% and \+?\d+(?:\.\d+)?% over 5s while (?:the )?beam is fired\.?$/i.test(text) &&
+                        !/^Status Chance fluctuates between \+?\d+(?:\.\d+)?%$/i.test(text) &&
+                        !/^\+?\d+(?:\.\d+)?% over 5s while (?:the )?beam is fired\.?$/i.test(text);
+                });
             });
         }
         if (path === SENTIENT_BARRAGE_MOD_PATH) {

@@ -10,7 +10,7 @@
 import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
-import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH, NECROPHAGIC_VIGOR_MOD_PATH } from "../catalog/modEffectUtils";
+import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, FLUX_OVERDRIVE_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH, NECROPHAGIC_VIGOR_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -1959,6 +1959,7 @@ function getBlockingOptimizerEffectLines(
         isCombustionBeamBurstContextSupported(effect, context);
     const linkedJavlokComboBoundary = mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH;
     return getUnmodeledDamageEffectLines(mod, rank, context).filter((line) =>
+        !(mod.path === FLUX_OVERDRIVE_MOD_PATH && line.startsWith("Flux Overdrive's rank-table fixed additive Status Chance bonus is scored;")) &&
         !line.includes("does not change the score; its opportunity-window bonus is modeled.") &&
         !(separateRipkasShotgunEffect && /Reload Speed on Shotguns|separate Shotgun equipment|Gore Chance is a utility effect/i.test(line)) &&
         !(supportedVulcanBlitzBurst && mod.path === VULCAN_BLITZ_MOD_PATH) &&
@@ -6575,6 +6576,9 @@ export function explainBuild(
     }
     if (changed(baselineStats.statusChance, selectedStats.statusChance)) {
         buildHighlights.push(`Status Chance for this attack: ${formatExplanationPercent(selectedStats.statusChance)} (configured baseline ${formatExplanationPercent(baselineStats.statusChance)}).`);
+    }
+    if (selectedStats.fluxOverdriveOscillatingStatusChanceBonus > 0) {
+        buildHighlights.push(`Flux Overdrive's fixed additive Status Chance bonus for the selected rank remains active. This Burst snapshot adds ${formatExplanationPercent(selectedStats.fluxOverdriveOscillatingStatusChanceBonus)} multiplicatively to resulting Status Chance for this direct hit. The Wiki's short max-rank description says +150% to +250%, which conflicts with its detailed rank table/notes; this score follows the detailed table/notes. Beam firing history and the average oscillation over finite TTK, sustained DPS, and fixed-window DPS are not modeled; those objectives exclude the snapshot.`);
     }
     if (changed(baselineStats.multishot, selectedStats.multishot)) {
         buildHighlights.push(`Expected projectiles per trigger: ${formatExplanationNumber(selectedStats.multishot, 2)} (configured baseline ${formatExplanationNumber(baselineStats.multishot, 2)}).`);

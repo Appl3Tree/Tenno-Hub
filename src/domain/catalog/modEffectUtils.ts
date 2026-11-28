@@ -28,6 +28,7 @@ export const CRITICAL_PRECISION_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nig
 export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/NightwaveStalkerBowAugmentMod";
 export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
 export const NECROPHAGIC_VIGOR_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveHemaAugmentMod";
+export const FLUX_OVERDRIVE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/FluxRifleCorpusArenaMod";
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
 export const AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Rifle/JavlokSwordShieldMod";
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
@@ -237,6 +238,9 @@ export function getUnmodeledScoringEffectLines(
             lines.push(
                 "Bell Ringer's knockdown contribution to Condition Overload/Galvanized per-status counts is not modeled because target susceptibility and knockdown duration are unknown; Auto Optimize skips this mod.",
             );
+        }
+        if (Number(source.stats.fluxOverdriveMaxOscillatingStatusChanceBonus ?? 0) > 0) {
+            lines.push("Flux Overdrive's rank-table fixed additive Status Chance bonus is scored; its separate rank-capped oscillating multiplier uses the saved Burst snapshot. The Wiki's max-rank description says +150% to +250%, which conflicts with its separate rank table/notes; the planner follows the detailed table/notes. Firing-time changes and the average over longer objectives are not modeled. Wiki: https://wiki.warframe.com/w/Flux_Overdrive");
         }
         if (context?.headIsWeakPoint !== true) {
             for (const [key, label] of UNSCORED_HIT_LOCATION_EFFECTS) {
@@ -532,6 +536,11 @@ export function getUnmodeledDamageEffectBadgeLabel(
     mod: { path?: string },
     surface: "slot" | "picker",
 ): string {
+    if (mod.path === FLUX_OVERDRIVE_MOD_PATH) {
+        return surface === "slot"
+            ? "Burst snapshot; fixed bonus scored"
+            : "Fixed bonus scored; Burst snapshot";
+    }
     if (mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH) {
         return "Linked Sword-and-Shield combo effect unscored; Magazine Capacity remains optimizer-eligible";
     }
@@ -545,6 +554,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     path?: string;
     unparsedStatsByRank?: string[][];
 }): string | undefined {
+    if (mod.path === FLUX_OVERDRIVE_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Flux_Overdrive";
+    }
     if (mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH) {
         return "https://wiki.warframe.com/w/Amalgam_Javlok_Magazine_Warp";
     }
@@ -658,6 +670,7 @@ export function emptyEffect(): ModEffect {
         deadlyManeuversHeadshotCritChanceBonus: 0, criticalPrecisionCritChancePerHeadshot: 0,
         unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
         criticalMutationCritChanceAndDamagePerKill: 0,
+        fluxOverdriveMaxOscillatingStatusChanceBonus: 0,
         sentientBarrageCritChanceAndDamageBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,

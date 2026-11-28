@@ -304,6 +304,8 @@ export interface ModdedWeaponStats {
     criticalMutationBonus: number;
     /** Prior kills represented by Critical Mutation's current Burst snapshot. */
     criticalMutationPriorKills: number;
+    /** Active Flux Overdrive oscillating Status Chance multiplier from a bounded Burst snapshot. */
+    fluxOverdriveOscillatingStatusChanceBonus: number;
     /** Current Battacor Alt-Fire charges represented by a direct Burst snapshot (0–3). */
     battacorAltFireChargeCount: number;
     /** Multiplicative damage factor from the represented Battacor charge count (1 for other attacks). */
@@ -619,6 +621,8 @@ export interface ConditionalState {
     unseenDreadInvisibilityActive?: boolean;
     /** Prior Catabolyst kills for Critical Mutation; direct Normal Attack Burst snapshot only. */
     criticalMutationPriorKills?: number;
+    /** Flux Overdrive's current oscillating Status Chance bonus in percent; Burst snapshot only. */
+    fluxOverdriveOscillatingStatusChancePercent?: number;
     /** Stored Battacor Alt-Fire charges at impact (0–3); used for single-target Burst only. */
     battacorAltFireChargeCount?: number;
     /** Assume Sentient Barrage's full-charge bonus is ready for the next Alt-Fire discharge. */
@@ -800,6 +804,14 @@ export function normalizeCriticalMutationPriorKills(value: number | undefined): 
         : 0;
 }
 
+export const MAX_FLUX_OVERDRIVE_OSCILLATING_STATUS_CHANCE_PERCENT = 100.8;
+
+export function normalizeFluxOverdriveOscillatingStatusChancePercent(value: number | undefined): number {
+    return Number.isFinite(value)
+        ? Math.max(0, Math.min(MAX_FLUX_OVERDRIVE_OSCILLATING_STATUS_CHANCE_PERCENT, value ?? 0))
+        : 0;
+}
+
 export const MAX_BATTACOR_ALT_FIRE_CHARGES = 3;
 
 export function normalizeBattacorAltFireChargeCount(value: number | undefined): number {
@@ -833,6 +845,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         normalizeCriticalPrecisionHeadshotProjectiles(state.criticalPrecisionHeadshotProjectiles) === 0 &&
         state.unseenDreadInvisibilityActive !== true &&
         normalizeCriticalMutationPriorKills(state.criticalMutationPriorKills) === 0 &&
+        normalizeFluxOverdriveOscillatingStatusChancePercent(state.fluxOverdriveOscillatingStatusChancePercent) === 0 &&
         normalizeBattacorAltFireChargeCount(state.battacorAltFireChargeCount) === 0 &&
         state.sentientBarrageNextDischargeReady !== true &&
         normalizeOverpressuredRoundsSpreadSnapshot(
@@ -849,6 +862,7 @@ export function withoutBurstOnlyConditionalAssumptions(
         criticalPrecisionHeadshotProjectiles: 0,
         unseenDreadInvisibilityActive: false,
         criticalMutationPriorKills: 0,
+        fluxOverdriveOscillatingStatusChancePercent: 0,
         battacorAltFireChargeCount: 0,
         sentientBarrageNextDischargeReady: false,
         overpressuredRoundsSpreadMinimumDegrees: undefined,
@@ -1642,6 +1656,18 @@ export function calculateBuild(
     );
     const unseenDreadInvisibilityActive = conditionalState.unseenDreadInvisibilityActive === true;
     const criticalMutationPriorKills = normalizeCriticalMutationPriorKills(conditionalState.criticalMutationPriorKills);
+    const fluxOverdriveOscillatingStatusChancePercent = normalizeFluxOverdriveOscillatingStatusChancePercent(
+        conditionalState.fluxOverdriveOscillatingStatusChancePercent,
+    );
+    const fluxOverdriveMaximumOscillatingStatusChanceBonus = Math.max(
+        0,
+        ...mods.map((effect) => effect?.fluxOverdriveMaxOscillatingStatusChanceBonus ?? 0),
+    );
+    const fluxOverdriveOscillatingStatusChanceBonus = Math.min(
+        fluxOverdriveOscillatingStatusChancePercent / 100,
+        fluxOverdriveMaximumOscillatingStatusChanceBonus,
+    );
+    const fluxOverdriveStatusChanceMultiplier = 1 + fluxOverdriveOscillatingStatusChanceBonus;
     const battacorAltFireChargeCount = normalizeBattacorAltFireChargeCount(conditionalState.battacorAltFireChargeCount);
     const attackDamageFalloff = calculateAttackDamageFalloff(
         weapon,
@@ -2083,6 +2109,7 @@ export function calculateBuild(
             1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus +
                 comboStatusChanceBonus * comboTiersForTrigger + eligibilityStatusChanceBonus
         ) + finalStatusChanceBonus + eligibilityFinalStatusChanceBonus;
+        const eligibilityStatusChanceWithFlux = eligibilityStatusChanceBeforeImmunity * fluxOverdriveStatusChanceMultiplier;
         const eligibilityMultishot = weapon.multishot * (1 + (multishotLocked
             ? 0
             : multishotBonus + eligibilityMultishotBonus));
@@ -2116,7 +2143,7 @@ export function calculateBuild(
         const eligibilityStatusChance = hasUnimmuneForcedStatus
             ? 1
             : hasUnimmuneStatusDamageType
-                ? eligibilityStatusChanceBeforeImmunity
+                ? eligibilityStatusChanceWithFlux
                 : 0;
         qualifyingHitGroupProbability = estimateNonCriticalNoStatusHitGroupProbability(
             eligibilityCritChance,
@@ -2581,9 +2608,9 @@ export function calculateBuild(
         )
         : 0;
     const baseStatusChance = weapon.statusChance + statusChanceFromCritChanceBonus;
-    const statusChance = baseStatusChance * (
+    const statusChance = (baseStatusChance * (
         1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase
-    ) + finalStatusChanceBonus;
+    ) + finalStatusChanceBonus) * fluxOverdriveStatusChanceMultiplier;
 
     const magazineSize = ignoresReloadAndMagazine
         ? Math.max(1, weapon.selectedAttackIsIncarnon
@@ -2835,7 +2862,8 @@ export function calculateBuild(
             const chanceWithMods = baseChance * (
                 1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase
             ) + finalStatusChanceBonus;
-            const chanceWithTargetState = chanceWithMods * (type === "tau" ? 1 : tauStatusChanceMultiplier);
+            const fluxAdjustedChanceWithMods = chanceWithMods * fluxOverdriveStatusChanceMultiplier;
+            const chanceWithTargetState = fluxAdjustedChanceWithMods * (type === "tau" ? 1 : tauStatusChanceMultiplier);
             const perHitChance = Math.min(1, Math.max(0, chanceWithTargetState));
             if (perHitChance <= 0) continue;
             const expectedCount = Math.max(0, moddedMultishot) * perHitChance;
@@ -3464,6 +3492,7 @@ export function calculateBuild(
         unseenDreadCritDamageBonus,
         criticalMutationBonus,
         criticalMutationPriorKills: criticalMutationBonus > 0 ? criticalMutationPriorKills : 0,
+        fluxOverdriveOscillatingStatusChanceBonus,
         battacorAltFireChargeCount: isBattacorAltFireAttack ? battacorAltFireChargeCount : 0,
         battacorAltFireChargeMultiplier,
         sentientBarrageEquipped,
@@ -3691,7 +3720,8 @@ export function calculateBuild(
         modded.deadlyManeuversHeadshotCritChanceBonus > 0 ||
         modded.criticalPrecisionCritChanceBonus > 0 ||
         modded.unseenDreadCritDamageBonus > 0 ||
-        modded.criticalMutationBonus > 0;
+        modded.criticalMutationBonus > 0 ||
+        modded.fluxOverdriveOscillatingStatusChanceBonus > 0;
     const hasActiveBattacorAltFireSnapshot = isBattacorAltFireAttack && battacorAltFireChargeCount > 0;
     const sustainedSnapshotFreeDps = hasActiveBurstOnlyDamageSnapshot || hasActiveBattacorAltFireSnapshot
         ? calculateBuild(weapon, mods, targetFaction, {
