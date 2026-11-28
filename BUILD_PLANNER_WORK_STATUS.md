@@ -4,11 +4,13 @@ Last updated: 2026-11-28
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
-## CURRENT WORKING CHECKPOINT — 2026-11-28 (Hunter's Bonesaw audit boundary implemented; release/review pending)
+## CURRENT WORKING CHECKPOINT — 2026-11-28 (Hunter's Bonesaw audit boundary released and rendered-reviewed)
 
-- **Disposition:** Hunter's Bonesaw's rank-scaled Finisher Damage is limited to Ground Finishers on prone enemies. The planner has neither a Ground Finisher attack event nor a prone-target state, so the effect stays out of scores and Auto Optimize. Its mod explanation now states the boundary and links the Wiki.
-- **Validation:** the focused optimizer regression passes at every rank and confirms the mod is not selected; test-project TypeScript, focused ESLint, source validation, mod-effect audit, and 994-module production build pass. Audit counts remain 527/600 parsed effects and 73 conservative candidates (56 partial / 17 fully unparsed). Local current-source IAB preview timed out on port 5178; rendered review remains pending.
-- **Next:** publish and review this explanation-only audit disposition, then continue source triage, measured full-pool latency work, and the read-only Underframe matched corpus. Ground Finisher scoring, repository-wide validation, Underframe parity, global optimizer quality, local host mapping, and live-game accuracy remain open.
+- **Disposition:** Hunter's Bonesaw's rank-scaled Finisher Damage applies to Ground Finishers against prone enemies. The planner has neither a Ground Finisher attack event nor a prone-target state, so the effect stays out of scores and Auto Optimize. Its mod explanation states the boundary and links the Wiki.
+- **Validation:** the focused optimizer regression passes at every rank and confirms the mod is not selected; test-project TypeScript, focused ESLint, source validation, mod-effect audit, and 994-module production build pass. Audit counts remain 527/600 parsed effects and 73 conservative candidates (56 partial / 17 fully unparsed). Local current-source IAB preview timed out on port 5178.
+- **Release:** PR [#444](https://github.com/Appl3Tree/Tenno-Hub/pull/444) squash-merged as `1f8e68e598728fcf0a8b7c3cf458c52ef79f26e`; Pages run [#523](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/46136953186) succeeded.
+- **Rendered review:** deployed IAB selected Ripkas with Hunter's Bonesaw R5. The selected card showed +120% Finisher Damage against prone enemies, explained the missing Ground Finisher/prone-state model, and displayed the unscored/Auto Optimize exclusion with a Wiki source link. The temporary mod was removed without saving a build. This verifies the deployed explanation only, not finisher scoring or live-game behavior.
+- **Next:** continue source-backed mod triage, measured full-pool latency work, and the read-only Underframe matched corpus. Ground Finisher scoring, repository-wide validation, Underframe parity, global optimizer quality, local host mapping, and live-game accuracy remain open.
 
 ## PREVIOUS CHECKPOINT — 2026-11-28 (Volatile Variant linked math trace deployed; rendered review complete)
 
