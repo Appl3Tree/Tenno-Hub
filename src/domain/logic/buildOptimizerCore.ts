@@ -11,6 +11,7 @@ import type { WeaponEntry, WeaponAttack } from "../catalog/weaponCatalog";
 import { isBurstTriggerType, withSelectedAttack } from "../catalog/weaponRules";
 import type { ConditionalTrigger, ModEntry, ModEffect, PrimaryDamageElement } from "../catalog/modCatalog";
 import { emptyEffect, getUnmodeledDamageEffectLines, getUnmodeledScoringEffectLines, isAcidShellsBurstContextSupported, isCombustionBeamBurstContextSupported, isThermomagneticShellsBurstContextSupported, isVulcanBlitzBurstContextSupported, ACID_SHELLS_MOD_PATH, AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH, AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH, COMBUSTION_BEAM_MOD_PATH, CRITICAL_MUTATION_MOD_PATH, FLUX_OVERDRIVE_MOD_PATH, PRECISION_STRIKE_MOD_PATH, SENTIENT_BARRAGE_MOD_PATH, SWIPE_MOD_PATH, THERMAGNETIC_SHELLS_MOD_PATH, VILE_DISCHARGE_MOD_PATH, VULCAN_BLITZ_MOD_PATH, NECROPHAGIC_VIGOR_MOD_PATH } from "../catalog/modEffectUtils";
+import { ENERGY_CHANNEL_MOD_PATH } from "../catalog/modEffectUtils";
 import type { ArcaneEntry } from "../catalog/arcaneCatalog";
 import { getFactionHitLocationProfile } from "../catalog/enemyProfiles";
 import { getArcaneEffectAtRank } from "./arcaneEffects";
@@ -1936,6 +1937,9 @@ function getBlockingOptimizerEffectLines(
     context: Parameters<typeof getUnmodeledDamageEffectLines>[2],
 ): string[] {
     const effect = mod.effectsByRank[rank] ?? mod.effect;
+    if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
+        return ["Energy Channel has no verified damage-type or target-pool model. Its manual raw next-hit Burst estimate is excluded from Auto Optimize."];
+    }
     if ((effect.liftedComboCountChanceBonus ?? 0) > 0 &&
         (context?.selectedGoal !== "tennokaiDps" || context.targetHasLiftedStatus !== true)) {
         return ["Enduring Strike is eligible for Auto Optimize only for Tennokai Cycle DPS with Lifted selected as an external target status."];

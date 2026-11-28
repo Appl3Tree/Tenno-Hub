@@ -8,6 +8,7 @@ import { getUnmodeledDamageEffectBadgeLabel, getUnmodeledDamageEffectSourceUrl, 
 import { getWeaponCatalog, getWeaponDisplayName, selectedAttackUsesIncarnonForm, withSelectedAttack } from "../../catalog/weaponCatalog";
 import type { WeaponEntry } from "../../catalog/weaponCatalog";
 import { emptyEffect } from "../../catalog/modCatalog";
+import { ENERGY_CHANNEL_MOD_PATH } from "../../catalog/modEffectUtils";
 import { assignModsToSlots, debugEvaluateExpectedEncounter, debugEvaluateFixedWindowDps, debugExpectedEncounterElementTheme, debugScoreBuild, debugScoreExpectedEncounter, explainBuild, getBeamStateSignature, getTargetProfileAssumptions, minimizePolaritiesByCapacity, normalizeOptimizeGoal, optimizeBuild, optimizeBuildCore, rankExpectedEncounter, scoreOptimizerResultForConfiguration } from "../buildOptimizer";
 import { computeCapacity, countPolarityChanges } from "../capacityCalc";
 import { avgHitDamageMultiplier, calculateBuild, type ConditionalState } from "../damageCalc";
@@ -3404,6 +3405,45 @@ describe("build optimizer scoring", () => {
         }
         const result = optimizeBuild(obex!, [entropyDetonation!], "meleeDps", 1, { allowForma: false });
         expect(result.slots).toEqual([null]);
+    });
+
+    it("keeps Finishing Touch out of Auto Optimize while explaining the unsupported finisher event", () => {
+        const brokenWar = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(brokenWar).toBeDefined();
+        const finishingTouch = getModsForWeapon(brokenWar!).find((mod) => mod.name === "Finishing Touch");
+        expect(finishingTouch).toBeDefined();
+        expect(getUnmodeledDamageEffectSourceUrl(finishingTouch!)).toBe("https://wiki.warframe.com/w/Finishing_Touch");
+        for (let rank = 0; rank <= finishingTouch!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(finishingTouch!, rank)).toContain(
+                "Finishing Touch adds rank-scaled Finisher Damage to melee finisher events. The planner's attack rows do not represent Stealth, Counterattack, or Ground Finisher events, so this bonus is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Finishing_Touch",
+            );
+        }
+        const result = optimizeBuild(brokenWar!, [finishingTouch!], "meleeDps", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
+    it("keeps holstered magazine reload mods out of Auto Optimize until weapon-switch timing is modeled", () => {
+        const cases = [
+            { weaponName: "Lato", modName: "Eject Magazine", wikiUrl: "https://wiki.warframe.com/w/Eject_Magazine" },
+            { weaponName: "Arca Plasmor", modName: "Lock And Load", wikiUrl: "https://wiki.warframe.com/w/Lock_and_Load" },
+            { weaponName: "Braton", modName: "Tactical Reload", wikiUrl: "https://wiki.warframe.com/w/Tactical_Reload" },
+        ];
+        for (const { weaponName, modName, wikiUrl } of cases) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name.toLowerCase() === modName.toLowerCase());
+            expect(mod, modName).toBeDefined();
+            expect(getUnmodeledDamageEffectSourceUrl(mod!)).toBe(wikiUrl);
+            for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
+                const rawLine = mod!.unparsedStatsByRank?.[rank]?.[0];
+                expect(rawLine, `${modName} R${rank} rank text`).toMatch(/^\+\d+% Magazine Reloaded\/s when Holstered$/);
+                expect(getUnmodeledDamageEffectLines(mod!, rank)).toContain(
+                    `${modName} restores a rank-scaled portion of its magazine each second while holstered. Weapon switching, holstered time, and magazine-refill history are not modeled, so Auto Optimize skips the mod. Wiki: ${wikiUrl}`,
+                );
+            }
+            const result = optimizeBuild(weapon!, [mod!], "burst", 1, { allowForma: false });
+            expect(result.slots, modName).toEqual([null]);
+        }
     });
 
     it("keeps Amalgam Furax Body Count out of Auto Optimize instead of scoring only its supported stats", () => {
@@ -13672,6 +13712,40 @@ describe("Static Discharge optimizer scope", () => {
         expect(result.slots.some((mod) => mod?.name === "Static Discharge")).toBe(false);
         expect(getUnmodeledDamageEffectLines(staticDischarge, staticDischarge.fusionLimit)
             .join(" ")).toContain("manual Prova cycle estimate");
+    });
+});
+
+describe("Energy Channel optimizer scope", () => {
+    it("keeps the mod out of Burst and sustained Auto Optimize while exposing its manual raw snapshot", () => {
+        const brokenWar = getWeaponCatalog().find((weapon) => weapon.name === "Broken War")!;
+        const normalAttackIndex = brokenWar.attacks.findIndex((attack) => attack.name === "Normal Attack");
+        const attack = {
+            ...brokenWar.attacks[normalAttackIndex]!,
+            isAreaDamage: false,
+            multishot: 1,
+        };
+        const energyChannel = getModsForWeapon(brokenWar).find((mod) => mod.path === ENERGY_CHANNEL_MOD_PATH)!;
+        const options = {
+            slotPolarities: [""],
+            defaultSlotPolarities: [""],
+            allowForma: false,
+            optimizeArcane: false,
+            optimizeExilus: false,
+            conditionalState: { mode: "initial" as const, energyChannelEnergySpent: 100 },
+            buildForAttack: attack,
+        };
+        const burst = optimizeBuild(brokenWar, [energyChannel], "burst", 1, options);
+        const scaling = optimizeBuild(brokenWar, [energyChannel], "scaling", 1, options);
+        const disclosure = getUnmodeledDamageEffectLines(energyChannel, energyChannel.fusionLimit).join(" ");
+
+        expect(burst.slots.some((mod) => mod?.path === ENERGY_CHANNEL_MOD_PATH)).toBe(false);
+        expect(scaling.slots.some((mod) => mod?.path === ENERGY_CHANNEL_MOD_PATH)).toBe(false);
+        expect(disclosure).toContain("manual raw next-hit Burst estimate");
+        expect(disclosure).toContain("Max Rank metadata says 5");
+        expect(disclosure).toContain("target-pool mitigation");
+        expect(disclosure).toContain("does not apply elemental scaling");
+        expect(getUnmodeledDamageEffectBadgeLabel(energyChannel, "slot")).toContain("Auto Optimize excludes");
+        expect(getUnmodeledDamageEffectSourceUrl(energyChannel)).toBe("https://wiki.warframe.com/w/Energy_Channel");
     });
 });
 

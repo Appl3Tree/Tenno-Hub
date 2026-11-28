@@ -7,6 +7,7 @@ export const THERMAGNETIC_SHELLS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Co
 export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamExplodeOnDeath";
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
 export const ENTROPY_DETONATION_MOD_PATH = "/Lotus/Upgrades/Mods/Syndicate/ObexMod";
+export const FINISHING_TOUCH_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeFinisherDamageMod";
 export const AMALGAM_FURAX_BODY_COUNT_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod";
 export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
 export const BRUTE_CONDITIONING_MOD_PATH = "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastBruteConditioningMod";
@@ -29,12 +30,18 @@ export const UNSEEN_DREAD_MOD_PATH = "/Lotus/Upgrades/Mods/Bows/Event/Nightwave/
 export const CRITICAL_MUTATION_MOD_PATH = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveCatabolystAugmentMod";
 export const NECROPHAGIC_VIGOR_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveHemaAugmentMod";
 export const FLUX_OVERDRIVE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/CorpusArena/FluxRifleCorpusArenaMod";
+export const ENERGY_CHANNEL_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponPowerDamageMod";
 export const AMALGAM_RIPKAS_TRUE_STEEL_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/RipkasShotgunMod";
 export const AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Rifle/JavlokSwordShieldMod";
 export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthStrainFeverMod";
 export const STATIC_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/CorpusArena/ProvaCorpusArenaMod";
 export const SWIPE_MOD_PATH = "/Lotus/Types/Friendly/Pets/CatbrowPetPrecepts/CatbrowSwipePrecept";
 export const SENTIENT_BARRAGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBattacorAugmentMod";
+const HOLSTERED_RELOAD_MOD_WIKI_URLS: Record<string, string> = {
+    "/Lotus/Upgrades/Mods/PvPMods/Pistol/PassiveReloadMod": "https://wiki.warframe.com/w/Eject_Magazine",
+    "/Lotus/Upgrades/Mods/PvPMods/Shotgun/PassiveReloadMod": "https://wiki.warframe.com/w/Lock_and_Load",
+    "/Lotus/Upgrades/Mods/PvPMods/Rifle/PassiveReloadMod": "https://wiki.warframe.com/w/Tactical_Reload",
+};
 const TRUTH_FLAME_MOD_PATH = "/Lotus/Upgrades/EmpoweredHeavyMelee/CursedSyndicateEmpoweredHeavyMeleeMod";
 const RELENTLESS_COMBINATION_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeComboChanceFromDot";
 const TRUE_PUNISHMENT_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Channel/ChannelCritsMod";
@@ -275,6 +282,16 @@ export function getUnmodeledDamageEffectLines(
         .filter((line) => mod.path !== BLOODTHIRST_MOD_PATH &&
             !(truthFlameCycleScope && /^CURSE:/i.test(line)) &&
             DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
+        const effect = mod.effectsByRank?.[rank] ?? mod.effect ?? {};
+        const conversion = Number.isFinite(effect.energyChannelBonusDamagePerEnergy)
+            ? Math.max(0, effect.energyChannelBonusDamagePerEnergy ?? 0) * 100
+            : 0;
+        const cap = Number.isFinite(effect.energyChannelMaximumBonusDamage)
+            ? Math.max(0, effect.energyChannelMaximumBonusDamage ?? 0)
+            : 0;
+        lines.push(`Energy Channel R${rank} converts ${conversion}% of Energy spent into up to +${cap} raw bonus damage on the next melee attack. The planner exposes this only as a manual raw next-hit Burst estimate for one direct, single-target melee event. The Wiki's Max Rank metadata says 5, but its effect table and the generated catalog data list R0–R3; the planner uses those four rows. The Wiki says the bonus is added after critical damage and is amplified by Elemental Mods; because its damage type and target-pool mitigation are not verified, this estimate does not apply elemental scaling and is excluded from target-aware scoring, finite TTK, sustained/5-second DPS, multi-hit or area attacks, and Auto Optimize.`);
+    }
     if (hasUnparsedTruthSyndicateStat(mod.unparsedStatsByRank?.[rank])) {
         // Syndicate augments gain this combat effect from weapon-earned Affinity.
         // Its radial damage and encounter timing are not represented by the single-target score.
@@ -344,6 +361,13 @@ export function getUnmodeledDamageEffectLines(
     }
     if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
         lines.push("Entropy Detonation triggers only when a Ground Finisher kills an enemy. Its rank-scaled Blast explosion combines flat damage with a percentage of enemy Max Health, reaches the selected rank’s radius, and requires line of sight; Ground Finishers, explosion damage resolution, and the Entropy effect are not modeled, so Auto Optimize skips this mod.");
+    }
+    if (mod.path === FINISHING_TOUCH_MOD_PATH) {
+        lines.push("Finishing Touch adds rank-scaled Finisher Damage to melee finisher events. The planner's attack rows do not represent Stealth, Counterattack, or Ground Finisher events, so this bonus is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Finishing_Touch");
+    }
+    const holsteredReloadWikiUrl = mod.path ? HOLSTERED_RELOAD_MOD_WIKI_URLS[mod.path] : undefined;
+    if (holsteredReloadWikiUrl) {
+        lines.push(`${mod.name ?? "This mod"} restores a rank-scaled portion of its magazine each second while holstered. Weapon switching, holstered time, and magazine-refill history are not modeled, so Auto Optimize skips the mod. Wiki: ${holsteredReloadWikiUrl}`);
     }
     if (mod.path === AMALGAM_FURAX_BODY_COUNT_MOD_PATH) {
         lines.push("Amalgam Furax Body Count triggers on melee kills, including melee DoT kills but not Exalted or pseudo-exalted kills. It applies Blast/Stagger in the selected rank’s radius through line of sight. The Wiki reports a variable ~6 Blast/Impact procs (up to 10) and only 1 damage per Blast stack; it also notes these procs can trigger Shattering Impact. That armor-strip interaction, neighboring-target proc history, and stagger utility are not modeled, so Auto Optimize skips this mod.");
@@ -541,6 +565,11 @@ export function getUnmodeledDamageEffectBadgeLabel(
             ? "Burst snapshot; fixed bonus scored"
             : "Fixed bonus scored; Burst snapshot";
     }
+    if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
+        return surface === "slot"
+            ? "Manual Burst estimate; Auto Optimize excludes"
+            : "Raw next-hit estimate; optimizer excludes";
+    }
     if (mod.path === AMALGAM_JAVLOK_MAGAZINE_WARP_MOD_PATH) {
         return "Linked Sword-and-Shield combo effect unscored; Magazine Capacity remains optimizer-eligible";
     }
@@ -554,6 +583,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     path?: string;
     unparsedStatsByRank?: string[][];
 }): string | undefined {
+    if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Energy_Channel";
+    }
     if (mod.path === FLUX_OVERDRIVE_MOD_PATH) {
         return "https://wiki.warframe.com/w/Flux_Overdrive";
     }
@@ -577,6 +609,12 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === ENTROPY_DETONATION_MOD_PATH) {
         return "https://wiki.warframe.com/w/Entropy_Detonation";
+    }
+    if (mod.path === FINISHING_TOUCH_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Finishing_Touch";
+    }
+    if (mod.path && HOLSTERED_RELOAD_MOD_WIKI_URLS[mod.path]) {
+        return HOLSTERED_RELOAD_MOD_WIKI_URLS[mod.path];
     }
     if (mod.path === AMALGAM_FURAX_BODY_COUNT_MOD_PATH) {
         return "https://wiki.warframe.com/w/Amalgam_Furax_Body_Count";
@@ -671,6 +709,7 @@ export function emptyEffect(): ModEffect {
         unseenDreadCritDamageBonus: 0, finalCritMultiplierBonus: 0,
         criticalMutationCritChanceAndDamagePerKill: 0,
         fluxOverdriveMaxOscillatingStatusChanceBonus: 0,
+        energyChannelBonusDamagePerEnergy: 0, energyChannelMaximumBonusDamage: 0,
         sentientBarrageCritChanceAndDamageBonus: 0,
         statusChanceBonus: 0, comboStatusChanceBonus: 0,
         areaDamageStatusChanceBonus: 0,

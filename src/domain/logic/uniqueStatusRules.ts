@@ -68,8 +68,11 @@ export function filterExternalStatusTypesForTarget(
     statusImmuneTypes: Iterable<StatusDamageType> = [],
     statusStackCaps: Partial<Record<StatusDamageType, number>> = {},
 ): ExternalStatusType[] {
-    const immuneTypes = new Set(statusImmuneTypes);
-    return normalizeExternalStatusTypes(statusTypes).filter((type) => {
+    if (!Array.isArray(statusTypes) || statusTypes.length === 0) return [];
+    const normalizedTypes = normalizeExternalStatusTypes(statusTypes);
+    if (normalizedTypes.length === 0) return normalizedTypes;
+    const immuneTypes = statusImmuneTypes instanceof Set ? statusImmuneTypes : new Set(statusImmuneTypes);
+    return normalizedTypes.filter((type) => {
         if (isUniqueStatusType(type)) return true;
         const cap = statusStackCaps[type];
         return !immuneTypes.has(type) && !(Number.isFinite(cap) && (cap ?? 0) <= 0);

@@ -24,6 +24,7 @@ import {
     DISABLING_CONDITIONING_MOD_PATH,
     DEADLY_MANEUVERS_MOD_PATH,
     emptyEffect,
+    ENERGY_CHANNEL_MOD_PATH,
     FLUX_OVERDRIVE_MOD_PATH,
     NIGHTWATCH_NAPALM_MOD_PATH,
     NECROPHAGIC_VIGOR_MOD_PATH,
@@ -279,6 +280,10 @@ export interface ModEffect {
     criticalMutationCritChanceAndDamagePerKill: number;
     /** Flux Overdrive's max oscillating Status Chance multiplier; timing is supplied through a Burst snapshot. */
     fluxOverdriveMaxOscillatingStatusChanceBonus?: number;
+    /** Energy Channel's raw bonus damage per energy spent; used only for a manual next-hit Burst estimate. */
+    energyChannelBonusDamagePerEnergy?: number;
+    /** Energy Channel's rank-specific raw bonus damage cap. */
+    energyChannelMaximumBonusDamage?: number;
     /** Sentient Barrage's rank-scaled bonus to both crit stats when its next-discharge snapshot is ready. */
     sentientBarrageCritChanceAndDamageBonus: number;
     finalCritMultiplierBonus: number;
@@ -1833,6 +1838,31 @@ function buildCaches(): ModCaches {
                         !/^Status Chance fluctuates between \+?\d+(?:\.\d+)?%$/i.test(text) &&
                         !/^\+?\d+(?:\.\d+)?% over 5s while (?:the )?beam is fired\.?$/i.test(text);
                 });
+            });
+        }
+        if (path === ENERGY_CHANNEL_MOD_PATH) {
+            // Keep Energy Channel separate from ordinary weapon damage. The
+            // planner can display one raw next-hit Burst bonus, but its damage
+            // type and target-pool behavior are not verified for target-aware
+            // objectives or Auto Optimize.
+            // https://wiki.warframe.com/w/Energy_Channel
+            parsedLevelStats.forEach((levelStat, rank) => {
+                const effect = effectsByRank[rank];
+                if (!effect) return;
+                const stat = (levelStat.stats ?? [])
+                    .flatMap(explodeStatLines)
+                    .map((line) => stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim())
+                    .find((line) => /^Converts \d+(?:\.\d+)?% of Energy used to up to [\d,]+ Bonus Damage on next Melee Attack\.?$/i.test(line));
+                const match = stat?.match(/^Converts (\d+(?:\.\d+)?)% of Energy used to up to ([\d,]+) Bonus Damage on next Melee Attack\.?$/i);
+                if (!match) return;
+                effectsByRank[rank] = emptyEffect();
+                effectsByRank[rank]!.energyChannelBonusDamagePerEnergy = Number(match[1]) / 100;
+                effectsByRank[rank]!.energyChannelMaximumBonusDamage = Number(match[2].replace(/,/g, ""));
+                unparsedStatsByRank[rank] = (unparsedStatsByRank[rank] ?? []).filter((line) =>
+                    !/^Converts \d+(?:\.\d+)?% of Energy used to up to [\d,]+ Bonus Damage on next Melee Attack\.?$/i.test(
+                        stripColorTags(line).replace(/\\n/g, " ").replace(/\s+/g, " ").trim(),
+                    ),
+                );
             });
         }
         if (path === SENTIENT_BARRAGE_MOD_PATH) {
