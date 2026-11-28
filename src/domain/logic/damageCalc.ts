@@ -312,6 +312,12 @@ export interface ModdedWeaponStats {
     energyChannelNextHitBonusDamage: number;
     /** Energy assumed spent before the next successful melee strike (0–100). */
     energyChannelEnergySpent: number;
+    /** Active Spontaneous Singularity Bonus Damage for its dedicated Simulor impact row. */
+    spontaneousSingularityDamageBonus: number;
+    /** Rank chance that a Spontaneous Singularity orb creates a singularity instead of exploding. */
+    spontaneousSingularityChance: number;
+    /** Expected share of impact orbs that explode; only populated for the dedicated attack row. */
+    spontaneousSingularityExpectedExplosionShare: number;
     /** Raw Avenging Truth bonus from assumed blocked incoming damage for one Heavy Attack Burst snapshot. */
     avengingTruthStoredDamage: number;
     /** Incoming damage before the selected rank's Avenging Truth absorption fraction (Burst snapshot only). */
@@ -2361,6 +2367,22 @@ export function calculateBuild(
     }
 
     damageBonus += conditionalDamageBonus;
+    const isSpontaneousSingularityImpact = weapon.selectedAttackUsesSpontaneousSingularityImpact === true;
+    const spontaneousSingularityDamageBonus = isSpontaneousSingularityImpact
+        ? Math.max(0, ...mods.map((effect) => effect?.spontaneousSingularityDamageBonus ?? 0))
+        : 0;
+    const spontaneousSingularityChance = isSpontaneousSingularityImpact && spontaneousSingularityDamageBonus > 0
+        ? Math.max(0, Math.min(1, Math.max(0, ...mods.map((effect) => effect?.spontaneousSingularityChance ?? 0))))
+        : 0;
+    const spontaneousSingularityExpectedExplosionShare = isSpontaneousSingularityImpact
+        ? spontaneousSingularityDamageBonus > 0 ? 1 - spontaneousSingularityChance : 0
+        : 0;
+    if (isSpontaneousSingularityImpact && spontaneousSingularityDamageBonus > 0) {
+        // Treat the Wiki's Bonus Damage as additive with ordinary weapon Damage
+        // mods. The rank's singularity roll replaces the explosion, so scale
+        // expected damage/procs by only the non-singularity branch.
+        damageBonus += spontaneousSingularityDamageBonus;
+    }
     critChanceBonus += conditionalCritChanceBonus;
     finalCritChanceBonus += conditionalFinalCritChanceBonus;
     critMultBonus += conditionalCritMultBonus;
@@ -2433,6 +2455,11 @@ export function calculateBuild(
     const weaponBaseDamage = Object.fromEntries(
         DAMAGE_KEYS.map((key) => [key, weapon.damage[key] * chargeDamageScale * battacorAltFireChargeMultiplier]),
     ) as Record<DamageKey, number>;
+    if (isSpontaneousSingularityImpact) {
+        for (const key of DAMAGE_KEYS) {
+            weaponBaseDamage[key] *= spontaneousSingularityExpectedExplosionShare;
+        }
+    }
     const napalmGrenadesDamageConversion = mods.some((effect) => effect?.napalmGrenadesDamageConversion === true);
     const pentaProfile = ["Penta", "Carmine Penta", "Secura Penta"].includes(weapon.name);
     const selectedPentaSequenceEvent = ["grenade impact", "grenade detonation"].includes(
@@ -2728,7 +2755,8 @@ export function calculateBuild(
     const baseStatusChance = weapon.statusChance + statusChanceFromCritChanceBonus;
     const statusChance = (baseStatusChance * (
         1 + statusChanceBonus + selectedAreaDamageStatusChanceBonus + comboStatusChanceBonus * comboTiersAboveBase
-    ) + finalStatusChanceBonus) * fluxOverdriveStatusChanceMultiplier;
+    ) + finalStatusChanceBonus) * fluxOverdriveStatusChanceMultiplier *
+        (isSpontaneousSingularityImpact ? spontaneousSingularityExpectedExplosionShare : 1);
 
     const magazineSize = ignoresReloadAndMagazine
         ? Math.max(1, weapon.selectedAttackIsIncarnon
@@ -2984,7 +3012,10 @@ export function calculateBuild(
             ) + finalStatusChanceBonus;
             const fluxAdjustedChanceWithMods = chanceWithMods * fluxOverdriveStatusChanceMultiplier;
             const chanceWithTargetState = fluxAdjustedChanceWithMods * (type === "tau" ? 1 : tauStatusChanceMultiplier);
-            const perHitChance = Math.min(1, Math.max(0, chanceWithTargetState));
+            const perHitChance = Math.min(
+                1,
+                Math.max(0, chanceWithTargetState) * (isSpontaneousSingularityImpact ? spontaneousSingularityExpectedExplosionShare : 1),
+            );
             if (perHitChance <= 0) continue;
             const expectedCount = Math.max(0, moddedMultishot) * perHitChance;
             independentRandomProcCountPerShot[type] = (independentRandomProcCountPerShot[type] ?? 0) + expectedCount;
@@ -3625,6 +3656,9 @@ export function calculateBuild(
         fluxOverdriveOscillatingStatusChanceBonus,
         energyChannelNextHitBonusDamage,
         energyChannelEnergySpent: energyChannelNextHitBonusDamage > 0 ? energyChannelEnergySpent : 0,
+        spontaneousSingularityDamageBonus,
+        spontaneousSingularityChance,
+        spontaneousSingularityExpectedExplosionShare,
         avengingTruthStoredDamage,
         avengingTruthIncomingDamageBlocked: avengingTruthStoredDamage > 0
             ? avengingTruthIncomingDamageBlocked

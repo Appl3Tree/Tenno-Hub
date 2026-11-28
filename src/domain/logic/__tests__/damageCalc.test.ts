@@ -1798,6 +1798,56 @@ describe("source-backed charged attack cadence gates", () => {
     });
 });
 
+describe("Spontaneous Singularity impact Burst model", () => {
+    it("parses both rank values and scores the expected unmerged impact-explosion branch", () => {
+        const expectedRanks = [
+            [0.15, 0.03],
+            [0.30, 0.06],
+            [0.45, 0.09],
+            [0.60, 0.12],
+            [0.75, 0.15],
+            [0.90, 0.18],
+        ];
+
+        for (const weaponName of ["Simulor", "Synoid Simulor"]) {
+            const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
+            expect(weapon, weaponName).toBeDefined();
+            const mod = getModsForWeapon(weapon!).find((candidate) => candidate.name === "Spontaneous Singularity");
+            expect(mod, weaponName).toBeDefined();
+            expect(mod!.effectsByRank).toHaveLength(6);
+            for (const [rank, [damageBonus, singularityChance]] of expectedRanks.entries()) {
+                expect(mod!.effectsByRank[rank]?.spontaneousSingularityDamageBonus).toBeCloseTo(damageBonus, 10);
+                expect(mod!.effectsByRank[rank]?.spontaneousSingularityChance).toBeCloseTo(singularityChance, 10);
+                expect(mod!.unparsedStatsByRank?.[rank]).toEqual([]);
+            }
+
+            const impactIndex = weapon!.attacks.findIndex((attack) => attack.spontaneousSingularityImpact === true);
+            const explosionIndex = weapon!.attacks.findIndex((attack) => attack.name === "Orb Explosion");
+            expect(impactIndex).toBeGreaterThanOrEqual(0);
+            expect(explosionIndex).toBeGreaterThanOrEqual(0);
+            const impact = weapon!.attacks[impactIndex]!;
+            expect(impact.isAreaDamage).toBe(true);
+            expect(impact.maximumRangeMeters).toBe(12);
+            expect(impact.maximumRangeBehavior).toBe("hardHitCap");
+            expect(impact.damageFalloff).toBeUndefined();
+
+            const selectedImpact = withSelectedAttack(weapon!, impactIndex);
+            const noAugment = calculateBuild(selectedImpact, []).modded;
+            expect(noAugment.averageShotDamage).toBe(0);
+            expect(noAugment.spontaneousSingularityExpectedExplosionShare).toBe(0);
+
+            const maxRank = calculateBuild(selectedImpact, [mod!.effectsByRank[5]!]).modded;
+            const unmergedExplosion = calculateBuild(withSelectedAttack(weapon!, explosionIndex), []).modded;
+            expect(maxRank.spontaneousSingularityDamageBonus).toBeCloseTo(0.9, 10);
+            expect(maxRank.spontaneousSingularityChance).toBeCloseTo(0.18, 10);
+            expect(maxRank.spontaneousSingularityExpectedExplosionShare).toBeCloseTo(0.82, 10);
+            expect(maxRank.averageShotDamage / unmergedExplosion.averageShotDamage).toBeCloseTo(1.9 * 0.82, 8);
+            expect(maxRank.statusChance).toBeCloseTo(selectedImpact.statusChance * 0.82, 8);
+            expect(maxRank.forcedProcsPerShot.electricity).toBeUndefined();
+        }
+    });
+});
+
 describe("source-backed per-attack Auto-Charge profiles", () => {
     const catalog = getWeaponCatalog();
 

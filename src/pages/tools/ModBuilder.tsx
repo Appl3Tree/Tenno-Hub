@@ -5267,6 +5267,8 @@ export default function ModBuilder() {
     );
     const activeBattacorAltFireSelected = activeCalcWeapon?.name === "Battacor" &&
         activeCalcWeapon.selectedAttackName === "Secondary Fire" && activeCalcWeapon.selectedAttackIsAreaDamage === false;
+    const activeBurstOnlyAttackLimitation = activeCalcWeapon?.selectedAttackBurstOnlyModelLimitation;
+    const activeBurstOnlyScoringBlocked = Boolean(activeBurstOnlyAttackLimitation && goal !== "burst");
     const activeSentientIncisionSelected = activeBuildEffects.some((effect) =>
         (effect?.sentientIncisionDamageBonus ?? 0) > 0,
     );
@@ -5280,11 +5282,13 @@ export default function ModBuilder() {
         activeTargetAssumptions.overguard > 0,
     );
     const activeAttackModelLimitationBlocksScoring = Boolean(
-        activeCalcWeapon?.selectedAttackModelLimitation && !activePelletHitEstimateEnabled,
+        (activeCalcWeapon?.selectedAttackModelLimitation && !activePelletHitEstimateEnabled) ||
+        activeBurstOnlyScoringBlocked,
     );
     const activeFiniteAttackModelLimitationBlocksScoring = Boolean(
         activeAttackModelLimitationBlocksScoring || activeOverpressuredBurstSnapshotApplies ||
-        activeSentientIncisionUnsupportedTarget || activeSentientIncisionOverguardTimelineLimit || activeBattacorAltFireSelected,
+        activeSentientIncisionUnsupportedTarget || activeSentientIncisionOverguardTimelineLimit || activeBattacorAltFireSelected ||
+        activeBurstOnlyAttackLimitation,
     );
     const pelletEstimateConditionalState = useMemo(
         () => activePelletHitEstimateEnabled
@@ -5509,7 +5513,8 @@ export default function ModBuilder() {
         activeNonSentientSustainedDpsUnavailable ||
         activeSentientIncisionUnsupportedTarget ||
         activeSentientIncisionOverguardTimelineLimit ||
-        activeBattacorAltFireSelected,
+        activeBattacorAltFireSelected ||
+        activeBurstOnlyAttackLimitation,
     );
     const currentBuildExportWithScoreContext = useMemo(() => {
         if (!currentBuildExport) return null;
@@ -5528,6 +5533,7 @@ export default function ModBuilder() {
             }
             : currentBuildExport.calculated;
         const limitation = activeCalcWeapon?.selectedAttackModelLimitation;
+        const burstOnlyLimitation = activeCalcWeapon?.selectedAttackBurstOnlyModelLimitation;
         return {
             ...currentBuildExport,
             calculated,
@@ -5539,6 +5545,8 @@ export default function ModBuilder() {
                             ? "Sentient Incision needs a supported target faction or active Overguard to choose its adaptive element."
                             : activeBattacorAltFireSelected
                                 ? "Battacor Alt-Fire is scored only for direct single-target Burst with a 1–3 current-charge snapshot."
+                            : burstOnlyLimitation && goal !== "burst"
+                                ? burstOnlyLimitation.reason
                             : limitation?.reason ?? "This attack's selected damage effect is not modeled for the current context.",
                         ...(activeSentientIncisionUnsupportedTarget
                             ? { sourceUrl: "https://wiki.warframe.com/w/Sentient_Incision" }
@@ -5556,7 +5564,9 @@ export default function ModBuilder() {
                                 ? "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type."
                             : activeSentientIncisionOverguardTimelineLimit
                                 ? "Sentient Incision selects Corrosive against the initial Overguard pool, then changes to the target faction element when Overguard breaks; that damage-type timeline is not modeled."
-                            : limitation?.reason ?? "Sustained scoring is unavailable for this attack model.",
+                            : burstOnlyLimitation
+                                ? burstOnlyLimitation.reason
+                                : limitation?.reason ?? "Sustained scoring is unavailable for this attack model.",
                     }
                     : {}),
                 dotDpsAvailable: !activeSustainedDpsUnavailable,
@@ -5570,7 +5580,9 @@ export default function ModBuilder() {
                                 ? "Sentient Incision needs a supported target faction or active Overguard to select its adaptive damage type; DoT DPS is unavailable."
                             : activeSentientIncisionOverguardTimelineLimit
                                 ? "Sentient Incision's adaptive element changes when Overguard breaks; its sustained DoT timeline is not modeled."
-                            : limitation?.reason ?? "DoT DPS is unavailable for this attack model.",
+                            : burstOnlyLimitation
+                                ? burstOnlyLimitation.reason
+                                : limitation?.reason ?? "DoT DPS is unavailable for this attack model.",
                     }
                     : {}),
                 finiteTargetScoringAvailable: !activeFiniteAttackModelLimitationBlocksScoring,
@@ -5584,12 +5596,14 @@ export default function ModBuilder() {
                                 ? "Sentient Incision needs a supported target faction or active Overguard to choose its adaptive element."
                             : activeSentientIncisionOverguardTimelineLimit
                                 ? "Sentient Incision changes from Corrosive to the target faction element when Overguard breaks; finite attack history is not modeled."
-                            : limitation?.reason ?? "This attack does not have a supported finite target-scoring model.",
+                            : burstOnlyLimitation
+                                ? burstOnlyLimitation.reason
+                                : limitation?.reason ?? "This attack does not have a supported finite target-scoring model.",
                     }
                     : {}),
             },
         };
-    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeSustainedDpsUnavailable, activeOverpressuredRoundsSelected, activeFiniteAttackModelLimitationBlocksScoring, activeOverpressuredBurstSnapshotApplies, activeSentientIncisionUnsupportedTarget, activeSentientIncisionOverguardTimelineLimit, activeBattacorAltFireSelected, activeCalcWeapon]);
+    }, [currentBuildExport, activeMetrics, finiteMetrics, activeAttackDpsUnavailable, activeSustainedDpsUnavailable, activeOverpressuredRoundsSelected, activeFiniteAttackModelLimitationBlocksScoring, activeOverpressuredBurstSnapshotApplies, activeSentientIncisionUnsupportedTarget, activeSentientIncisionOverguardTimelineLimit, activeBattacorAltFireSelected, activeCalcWeapon, goal]);
     const displayedMath = (reasoningContextAtOptimization === currentReasoningContextKey ? reasoningMath : null) ?? currentBuildExportWithScoreContext?.math ?? null;
     const attackDamageRampNote = activeCalcWeapon?.selectedAttackDamageRamp && activeMetrics
         ? `Damage ramps from ${fmt(activeCalcWeapon.selectedAttackDamageRamp.minimumDamageMultiplier * 100, 0)}% to 100% over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.rampToFullSeconds, 2)}s. It starts decaying after ${fmt(activeCalcWeapon.selectedAttackDamageRamp.idleBeforeDecaySeconds, 2)}s idle and reaches the minimum over ${fmt(activeCalcWeapon.selectedAttackDamageRamp.decayToMinimumSeconds, 2)}s. Burst DPS averages the fresh magazine at ${fmt(activeMetrics.modded.freshMagazineDamageMultiplier * 100, 1)}%; sustained DPS uses the repeating-magazine level at ${fmt(activeMetrics.modded.sustainedDamageMultiplier * 100, 1)}%. The initial one-hit target estimate uses the minimum; sequence and finite-encounter estimates advance it per attack. The encounter applies the ramp to per-attack DoT/Blast seeds as an assumption; the Wiki does not specify seed inheritance separately.`
@@ -5936,6 +5950,14 @@ export default function ModBuilder() {
             setOptimizerNotice(
                 `${goal === "timeToKill" ? "Expected TTK" : "5s Avg DPS"} is unavailable for ${weapon.attacks[selectedAttackIdx]?.name ?? weapon.name}: ` +
                 `${selectedAttackAutoSpoolLimitation.reason} Wiki: ${selectedAttackAutoSpoolLimitation.sourceUrl}`,
+            );
+            return;
+        }
+        const selectedAttackBurstOnlyLimitation = weapon.attacks[selectedAttackIdx]?.burstOnlyModelLimitation;
+        if (selectedAttackBurstOnlyLimitation && goal !== "burst") {
+            setOptimizerNotice(
+                `${GOAL_OPTIONS.find((option) => option.key === goal)?.label ?? goal} is unavailable for ${weapon.attacks[selectedAttackIdx]?.name ?? weapon.name}: ` +
+                `${selectedAttackBurstOnlyLimitation.reason} Wiki: ${selectedAttackBurstOnlyLimitation.sourceUrl}`,
             );
             return;
         }
@@ -6875,6 +6897,15 @@ export default function ModBuilder() {
                                                     >Wiki source</a>
                                                 </p>
                                             )}
+                                            {weapon?.attacks[selectedAttackIdx]?.spontaneousSingularityImpact && (
+                                                <p role="note" className="basis-full text-left text-[10px] leading-relaxed text-sky-300">
+                                                    {activeMetrics?.modded.spontaneousSingularityDamageBonus
+                                                        ? `Burst uses +${fmt(activeMetrics.modded.spontaneousSingularityDamageBonus * 100, 0)}% Bonus Damage and assumes ${fmt(activeMetrics.modded.spontaneousSingularityChance * 100, 0)}% of impacts create a singularity instead of exploding, so ${fmt(activeMetrics.modded.spontaneousSingularityExpectedExplosionShare * 100, 0)}% of the Orb Explosion damage is expected. `
+                                                        : "Equip Spontaneous Singularity to enable this event row; Auto Optimize can select it from the available mod pool. "}
+                                                    {activeBurstOnlyAttackLimitation?.reason} The Damage bonus is treated as additive with ordinary weapon Damage mods. {" "}
+                                                    <a href={weapon.attacks[selectedAttackIdx].burstOnlyModelLimitation?.sourceUrl ?? "https://wiki.warframe.com/w/Spontaneous_Singularity"} target="_blank" rel="noreferrer" className="underline underline-offset-2">Wiki source</a>
+                                                </p>
+                                            )}
                                             <button
                                                 onClick={() => setShowOptimizeOptions(v => !v)}
                                                 className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
@@ -6884,7 +6915,7 @@ export default function ModBuilder() {
                                             <div className="flex items-stretch overflow-hidden rounded-xl border border-amber-600/60 bg-amber-950/30">
                                                 <button
                                                     onClick={optimizing ? cancelOptimization : handleOptimize}
-                                                    disabled={!optimizing && (!weapon || !!weapon.attacks[selectedAttackIdx]?.modelLimitation || selectedAttackOutOfRange || (weapon.name === "Battacor" && weapon.attacks[selectedAttackIdx]?.name === "Secondary Fire" && (goal !== "burst" || battacorAltFireChargeCount <= 0)))}
+                                                disabled={!optimizing && (!weapon || !!weapon.attacks[selectedAttackIdx]?.modelLimitation || (weapon.attacks[selectedAttackIdx]?.burstOnlyModelLimitation && goal !== "burst") || selectedAttackOutOfRange || (weapon.name === "Battacor" && weapon.attacks[selectedAttackIdx]?.name === "Secondary Fire" && (goal !== "burst" || battacorAltFireChargeCount <= 0)))}
                                                     className={[
                                                         "px-4 py-2 text-sm transition-colors font-semibold disabled:opacity-50",
                                                         optimizing ? "text-rose-300 hover:bg-rose-950/50" : "text-amber-300 hover:bg-amber-900/40",

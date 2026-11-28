@@ -216,6 +216,10 @@ export interface WeaponAttack {
     modelLimitation?: WeaponAttackModelLimitation;
     /** Source-backed boundary shown while keeping a useful single-target score available. */
     scoreBoundaryNote?: WeaponAttackScoreBoundaryNote;
+    /** This event has a Burst-only mean-value model; repeated target and proc branches are not simulated. */
+    burstOnlyModelLimitation?: WeaponAttackModelLimitation;
+    /** Marks the synthetic Simulor impact explosion row that exists only with Spontaneous Singularity. */
+    spontaneousSingularityImpact?: boolean;
     /** Wiki-listed falloff for this attack. AoE profiles measure target offset from the explosion center. */
     damageFalloff?: WeaponAttackDamageFalloff;
     /** Verified attack cone used only by the configurable experimental pellet-hit estimate. */
@@ -372,6 +376,10 @@ export interface WeaponEntry {
     selectedAttackAutoSpoolTimingLimitation?: WeaponAutoSpoolTimingLimitation;
     /** Source-backed reason the selected attack cannot be represented by the standard damage model. */
     selectedAttackModelLimitation?: WeaponAttackModelLimitation;
+    /** Why this selected attack is available only for the Burst objective. */
+    selectedAttackBurstOnlyModelLimitation?: WeaponAttackModelLimitation;
+    /** True for the Simulor impact-explosion event created by Spontaneous Singularity. */
+    selectedAttackUsesSpontaneousSingularityImpact?: boolean;
     /** True when the selected attack's projectile count is fixed and ignores multishot modifiers. */
     selectedAttackMultishotLocked?: boolean;
     /** Linked damage component emitted by each selected attack projectile. */
@@ -3689,6 +3697,48 @@ export function getWeaponCatalog(): WeaponEntry[] {
                 ...(damageRamp ? { damageRamp } : {}),
             };
         });
+        const simulorProfile = uniqueName === "/Lotus/Weapons/Cephalon/Primary/CephPrimary/CephPrimary"
+            ? { sourceUrl: "https://wiki.warframe.com/w/Simulor" }
+            : uniqueName === "/Lotus/Weapons/Syndicates/CephalonSuda/LongGuns/CSSimulor"
+                ? { sourceUrl: "https://wiki.warframe.com/w/Synoid_Simulor" }
+                : null;
+        const orbLaunch = attacks.find((attack) => attack.name.trim().toLowerCase() === "orb launch");
+        const orbExplosion = attacks.find((attack) => attack.name.trim().toLowerCase() === "orb explosion");
+        if (simulorProfile && orbLaunch && orbExplosion) {
+            // Spontaneous Singularity replaces the ordinary bounce/merge path
+            // with an immediate explosion when an orb strikes an enemy. Keep
+            // the source rows above reference-only and expose this distinct
+            // event row using the unmerged Orb Explosion's damage profile.
+            // https://wiki.warframe.com/w/Spontaneous_Singularity
+            // https://wiki.warframe.com/w/Simulor
+            attacks.push({
+                ...orbLaunch,
+                name: "Orb Impact (Spontaneous Singularity)",
+                isAreaDamage: true,
+                modelLimitation: undefined,
+                damage: orbExplosion.damage,
+                damageTotal: orbExplosion.damageTotal,
+                critChance: orbExplosion.critChance,
+                critMultiplier: orbExplosion.critMultiplier,
+                statusChance: orbExplosion.statusChance,
+                forcedProcs: {},
+                uniqueStatusProcs: [],
+                forcedProcDistributions: [],
+                damageFalloff: undefined,
+                maximumRangeMeters: 12,
+                maximumRangeBehavior: "hardHitCap",
+                maximumRangeSourceUrl: simulorProfile.sourceUrl,
+                spontaneousSingularityImpact: true,
+                scoreBoundaryNote: {
+                    sourceUrl: "https://wiki.warframe.com/w/Spontaneous_Singularity",
+                    reason: "This row scores only the immediate Orb Explosion against one struck target, assumed at the blast center. The rank's listed damage bonus is applied to the base explosion; the chance that creates a singularity is treated as a no-explosion branch. Singularity damage/pull and other targets are omitted. The Wiki does not explicitly confirm the guaranteed Electricity proc for this impact trigger, so it is not applied here.",
+                },
+                burstOnlyModelLimitation: {
+                    sourceUrl: "https://wiki.warframe.com/w/Spontaneous_Singularity",
+                    reason: "Only direct single-target Burst is supported. The singularity branch's damage and later target interactions are unspecified; expected TTK, Sustained DPS, 5s Avg DPS, and other objectives cannot represent that branch. Projectile travel time is also omitted.",
+                },
+            });
+        }
         const heavyAttackDamage = n(item.heavyAttackDamage);
         if ((PROVA_HEAVY_ATTACK_PROFILES.has(uniqueName) || SILVA_AND_AEGIS_HEAVY_ATTACK_PROFILES.has(uniqueName)) &&
             heavyAttackDamage > 0 && dmg.total > 0 &&
