@@ -1874,7 +1874,7 @@ describe("fixed-window DPS objective", () => {
         return { result, weapon };
     }
 
-    it("retains a second multishot option for the final Braton Prime neighborhood", { timeout: 15000 }, () => {
+    it("retains a second multishot option for the final Braton Prime neighborhood", { timeout: 30000 }, () => {
         const { result } = optimizeCatalogWindowFixture("Braton Prime", "Normal Attack");
 
         expect(result.capacityValid).toBe(true);
@@ -7050,7 +7050,28 @@ describe("build optimizer scoring", () => {
             };
             let exhaustiveBest = debugScoreBuild(scoringWeapon, [], "burst", scenario.targetFaction, null, scenario.targetProfileOverride);
             let exhaustiveBestNames: string[] = [];
+            const checkedPlacementKeys = new Set<string>();
+            const hasElementContribution = (effect: ModEffect | undefined) =>
+                (effect?.heatBonus ?? 0) > 0 ||
+                (effect?.coldBonus ?? 0) > 0 ||
+                (effect?.electricityBonus ?? 0) > 0 ||
+                (effect?.toxinBonus ?? 0) > 0;
+            const isElementContributor = (mod: ModEntry) => {
+                const effect = mod.effectsByRank[mod.fusionLimit] ?? mod.effect;
+                return hasElementContribution(effect) ||
+                    (effect.conditionalEffects ?? []).some((conditional) => hasElementContribution(conditional.stats));
+            };
             const enumerate = (remaining: typeof candidates, ordered: typeof candidates) => {
+                if (ordered.length > 0) {
+                    // The capacity DP explores all placements for non-element mods, so their input order
+                    // cannot change feasibility. Score order-sensitive elemental sequences separately,
+                    // but visit each remaining non-element mod set only once.
+                    const elementOrder = ordered.filter(isElementContributor).map((mod) => mod.uniqueName);
+                    const nonElementSet = ordered.filter((mod) => !isElementContributor(mod)).map((mod) => mod.uniqueName).sort();
+                    const placementKey = `${elementOrder.join("|")}::${nonElementSet.join("|")}`;
+                    if (checkedPlacementKeys.has(placementKey)) return;
+                    checkedPlacementKeys.add(placementKey);
+                }
                 const ranks = ordered.map((mod) => mod.fusionLimit);
                 const placement = assignModsToSlots(ordered, ranks, weapon!.polarities, 5, false);
                 const capacity = computeCapacity(

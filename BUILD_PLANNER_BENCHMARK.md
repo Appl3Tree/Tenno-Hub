@@ -1,3 +1,19 @@
+## D3-OPT-ORACLE-RUNTIME-001 — exact permutation-equivalent oracle reduction (2026-11-28)
+
+The nine-candidate, five-slot Burst oracle in `buildOptimizer.test.ts` exceeded its 60s Vitest timeout on the current source (62.03s observed). The test enumerates legal slot placements to compare Auto Optimize against an exact sampled-pool maximum. The capacity assignment DP tries all placements for non-element mods; damage-type composition remains order-sensitive for primary elements. The oracle now keys visited prefixes by the exact sequence of direct or conditional primary-element contributors and the sorted set of remaining non-element mods. It retains every distinct mod subset and every elemental order, then performs the same capacity and score check once for each equivalent placement class.
+
+The optimized ten-fixture oracle passes in 16.63s of test time (20.04s total), down from the 62.03s timeout. An isolated copy of the original test was run with only its timeout raised from 60s to 180s; it passed in 61.52s. Both original and reduced oracles match Auto Optimize for all ten representative weapon/attack/target fixtures. This changes test enumeration only: application scores, search breadth, and optimizer results are unchanged. `damageCalc.test.ts` passes 204/204, the focused oracle passes, `tsc -b` and focused ESLint pass. The repository-wide suite was not rerun.
+
+### Application allocation trial — reverted
+
+A temporary `calculateBuild` rewrite removed per-mod temporary primary-element ordering arrays, `Set`s, and lookup objects while preserving the exact elemental sequence. On the same Torid Incarnon Grenade Impact / Scaling / Corpus / Realistic / eight-slot / 3-Forma / 104-mod pool, the original three-run times were 29.181, 29.900, and 29.996s (29.900s median); the candidate times were 29.170, 29.574, and 29.743s (29.574s median). The runs overlap and the median difference is only 1.1%. Exact selected mods, legality, and score `371633.2833` were unchanged. Matching CPU profiles also showed no material shift: post-change `calculateBuild` accounted for 57.6% of samples and garbage collection 20.8%, comparable with the previously recorded 57.64% and 21.37%. The application rewrite was reverted; it does not establish a reliable latency gain. Continue profiling repeated calculator work without shrinking search breadth or approximating scoring.
+
+This checkpoint addresses slow validation fixtures, not full-pool optimizer latency. The full repository suite, browser Worker tail latency, Underframe parity, and global optimality remain open.
+
+### Braton fixed-window regression timeout budget (2026-11-28)
+
+The separate full-catalog Braton Prime / Normal Attack / Grineer / Realistic fixed-window test exceeded its 15s explicit budget in an isolated run (15.95s test body). The same optimizer configuration measured 17.225s in `auditFixedWindowDpsFullPool.ts` with one run and `--optimizer-only` (106 candidates, 62 score-eligible). Its test timeout is now 30s to accommodate the observed exact-search cost and ordinary host variance; the test passes within that budget. This is a test reliability change, not a production speedup; full-catalog Worker latency remains open. A one-run Node CPU profile of the standalone search contained 13,008 samples, with 6,233 in `calculateBuild` (47.9%) and 2,391 in garbage collection (18.4%).
+
 ## D3-MOD-HUNTERS-BONESAW-GROUND-FINISHER-DISPOSITION-001 — rank-aware unscored explanation (2026-11-28)
 
 The generated mod catalog lists Hunter's Bonesaw's six ranks as +20% through +120% Finisher Damage against prone enemies. The official [Update 34 notes](https://www.warframe.com/en/patch-notes/pc/34-0-0) confirm that Ground Finishers began dealing Finisher Damage instead of Status Chance, and the [current Wiki page](https://wiki.warframe.com/w/Hunter%27s_Bonesaw) identifies the mod as a Ground Finisher damage bonus. This distinguishes the mechanic from ordinary Ripkas attack rows.
