@@ -6,7 +6,7 @@ The Build Planner now explains the selected rank's range, duration, and stack ca
 
 The focused optimizer regression checks all six source-export rank values, the link and explanation, and the empty-slot optimizer result. It passes 1/1. Test-project TypeScript, focused ESLint, source validation, the mod-effect audit, diff check, and the 994-module production build pass. The audit remains at 699 weapon profiles, 527/600 mod records with parsed effects, 73 without a parsed effect, and 73 conservative candidates (56 partial, 17 fully unparsed); this adds a source-backed explanation only.
 
-Current-source visual review was attempted in IAB on Vite preview port 5199 via both localhost and the machine's 10.0.0.40 interface; both requests timed out. The port-80 local host mapping remains stale, so no rendered UI confirmation is claimed. This disposition does not establish live-game accuracy or Underframe parity.
+Current-source visual review was attempted in IAB on Vite preview port 5199 via both localhost and the machine's 10.0.0.40 interface; both requests timed out. After release, deployed PR [#448](https://github.com/Appl3Tree/Tenno-Hub/pull/448) at version `3ef466b` was reviewed in IAB. Broken War with Spring-Loaded Blade R5 showed +1 Range for 24s, up to two stacks, the unmodeled timed-stack/reach-coverage boundary, the Auto Optimize exclusion, and the Wiki link. Auto Optimize replaced the mod with eligible choices; the temporary build was reset without saving. This verifies the deployed explanation and exclusion, not live-game reach behavior or Underframe parity.
 
 ## D3-OPT-ORACLE-RUNTIME-001 — exact permutation-equivalent oracle reduction (2026-11-28)
 

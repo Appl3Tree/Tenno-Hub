@@ -4,12 +4,14 @@ Last updated: 2026-11-28
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
-## CURRENT WORKING CHECKPOINT — 2026-11-28 (Spring-Loaded Blade audit explanation)
+## CURRENT WORKING CHECKPOINT — 2026-11-28 (Spring-Loaded Blade release reconciled)
 
 - **Disposition:** Spring-Loaded Blade's public rank data lists a Status Effect trigger, a rank-specific Range amount and duration, and a two-stack cap. The planner does not track timed Range stacks or whether increased reach changes the selected strike's target coverage. Its effect remains unscored and Auto Optimize excludes the mod.
 - **Change:** the mod card now gives a rank-specific explanation and direct Wiki link, including the selected amount, duration, and stack cap. A focused optimizer regression checks all six rank records and confirms a Spring-Loaded Blade-only search leaves the slot empty; scoring is unchanged.
 - **Validation:** the focused regression passes 1/1; `tsc -b`, focused ESLint, source validation, the mod-effect coverage audit, `git diff --check`, and a 994-module production build pass. The audit remains 527/600 parsed, 73 with no parsed effect, and 73 conservative candidates (56 partial / 17 fully unparsed).
-- **Rendered review:** current-source IAB preview requests to `localhost:5199` and `10.0.0.40:5199` both timed out. The supplied port-80 site remains stale per the existing host-mapping note; rendered confirmation is open.
+- **Release:** PR [#448](https://github.com/Appl3Tree/Tenno-Hub/pull/448) squash-merged as `3ef466b03cd1753fb7cb0e49d8b2e20f94f3c87e`; Pages run [#527](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/46141757911) succeeded.
+- **Rendered review:** deployed IAB selected Broken War and Spring-Loaded Blade R5. The selected card showed +1 Range for 24s, up to two stacks, the missing timed-stack/reach-coverage boundary, the unscored/Auto Optimize exclusion, and the direct Wiki link. Auto Optimize replaced it with eligible mods; the temporary build was reset without saving. This verifies the deployed explanation and exclusion, not live-game reach behavior.
+- **Scope reconciliation:** the user's later Energy Channel Burst-snapshot selection matches the already released PR #430 / run #509 implementation. No duplicate code change was needed; its damage typing and target mitigation remain unresolved.
 - **Next:** continue source-backed mod triage, exact-winner-protected full-pool profiling, and the read-only Underframe comparison corpus. Keep the repository-wide suite, Underframe parity, global optimizer quality, local serving, finisher-event scoring, and live-game accuracy open.
 
 ## PREVIOUS CHECKPOINT — 2026-11-28 (Exact-winner oracle runtime reduced; PR #446 deployed)
