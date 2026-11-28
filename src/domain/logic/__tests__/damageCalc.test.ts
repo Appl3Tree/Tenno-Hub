@@ -2158,11 +2158,19 @@ describe("Volatile Variant Wiki modeling", () => {
                 directBaseline.attachedAttackDamageSequence!.profile.statusRollsPerAttack * 1.5,
                 10,
             );
+            const moddedLinkedStatusChance = directModded.attachedAttackDamageSequence?.profile.statusChance;
+            expect(moddedLinkedStatusChance).toBeDefined();
+            expect(Number(moddedLinkedStatusChance)).toBeCloseTo(
+                directBaseline.attachedAttackDamageSequence!.profile.statusChance! * 1.5,
+                10,
+            );
             const fastModded = calculateBuild(directWeapon, [maxRankEffect], "", {
                 includeDoTTickDetails: false,
             }).modded;
-            expect(fastModded.attachedAttackDamageSequence?.profile.steadyStateDotDamageByTypePerTick?.slash)
-                .toBeCloseTo(directModded.attachedAttackDamageSequence!.profile.steadyStateDotDamageByTypePerTick!.slash, 8);
+            const fastSlashSeed = fastModded.attachedAttackDamageSequence?.profile.steadyStateDotDamageByTypePerTick?.slash ?? 0;
+            const detailedSlashSeed = directModded.attachedAttackDamageSequence!.profile.steadyStateDotDamageByTypePerTick!.slash ?? 0;
+            expect(fastSlashSeed).toBeGreaterThan(0);
+            expect(fastSlashSeed).toBeCloseTo(detailedSlashSeed, 8);
 
             const areaBaseline = calculateBuild(areaWeapon, []).modded;
             const areaModded = calculateBuild(areaWeapon, [maxRankEffect]).modded;

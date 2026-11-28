@@ -171,6 +171,8 @@ export interface AttachedAttackTickProfile {
     hitLocation: HitLocationDamageProfile;
     expectedProjectiles: number;
     expectedDamageMultiplier: number;
+    /** Final Status Chance per linked-component projectile after component-specific effects. */
+    statusChance?: number;
     statusProcWeightsByType: Partial<Record<StatusDamageType, number>>;
     statusRollsPerAttack: number;
     forcedStatusApplicationsPerAttackByType: Partial<Record<StatusDamageType, number>>;
@@ -3852,6 +3854,7 @@ export function calculateBuild(
                     hitLocation: componentStats.hitLocation,
                     expectedProjectiles: componentStats.multishot,
                     expectedDamageMultiplier: componentStats.damageWeightedMultishot,
+                    statusChance: componentStats.statusChance,
                     statusProcWeightsByType: componentStats.damageBreakdownBeforePerStatus,
                     statusRollsPerAttack: componentStats.multishot * componentStats.statusChance,
                     forcedStatusApplicationsPerAttackByType:
