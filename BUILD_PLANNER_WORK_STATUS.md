@@ -4,6 +4,12 @@ Last updated: 2026-11-28
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
+## CURRENT WORKING CHECKPOINT — 2026-11-28 (Napalm Grenades bounded sequence; awaiting rendered review)
+
+- **Model:** Napalm Grenades now converts each Penta `Grenade Impact` / `Grenade Detonation` event to pure Heat using the Wiki's ~73% total-damage increase split evenly across the two components. It exactly reproduces the sourced Secura Penta 325 + 325 example; applying the same ratio to Penta and Carmine Penta is disclosed as an inference. The six rank-specific Final Status Chance values remain active. The separate 100 Heat direct proc and entry-triggered fire-patch proc are not fully specified/modelled, so the mod stays out of Auto Optimize.
+- **Validation:** Napalm/Penta focused calculator and optimizer tests pass; the full `damageCalc.test.ts` passes 203/203. Test-project TypeScript, focused ESLint, `npm run validate:sources`, mod-effect audit, `npm run build` (994 modules), and `git diff --check` pass. Audit totals remain 699 weapon profiles, 526/600 parsed mod records, 74 with no parsed effect, and 73 conservative candidates (55 partial / 18 unsupported). Auto Optimize scoring is intentionally unchanged for this mod.
+- **Next:** review the current-source UI in the in-app browser, then publish/merge and verify Pages if rendered behavior is correct. Continue source-backed audit triage and optimizer quality work. Keep Napalm's direct proc/fire-patch behavior, full-suite timeouts, full-pool optimizer latency, Underframe parity/matched corpus, current local serving, and live-game accuracy open.
+
 ## CURRENT CONTINUATION CHECKPOINT — 2026-11-28 (Avenging Truth deployed; rendered review complete)
 
 - **Release:** PR [#433](https://github.com/Appl3Tree/Tenno-Hub/pull/433) merged as `1de92fbe9d2d98a0aba66dac24cb006b60fd644b`; Pages run [#512](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/46122173474) succeeded.
