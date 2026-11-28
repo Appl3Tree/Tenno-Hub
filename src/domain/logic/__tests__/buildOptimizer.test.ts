@@ -4610,27 +4610,63 @@ describe("build optimizer scoring", () => {
         expect(unsupportedFinite.slots).toEqual([null]);
     });
 
-    it("keeps Volatile Variant out of automatic builds until its direct-hit explosion behavior is modeled", () => {
-        const weapon = getWeaponCatalog().find((entry) => entry.name === "Sporothrix");
-        expect(weapon).toBeDefined();
-        const volatileVariant = getModsForWeapon(weapon!).find((entry) => entry.name === "Volatile Variant");
-        expect(volatileVariant).toBeDefined();
-        expect(volatileVariant!.effect.areaDamageStatusChanceBonus).toBe(0.5);
-        expect(getUnmodeledDamageEffectLines(volatileVariant!, volatileVariant!.fusionLimit)).toContain(
-            "Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.",
-        );
+    it("scores the bounded Volatile Variant direct-hit sequence for both Sporothrix profiles", () => {
+        const sourceUrl = "https://wiki.warframe.com/w/Volatile_Variant";
+        for (const name of ["Sporothrix", "Coda Sporothrix"]) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === name);
+            expect(weapon).toBeDefined();
+            const volatileVariant = getModsForWeapon(weapon!).find((entry) => entry.name === "Volatile Variant");
+            expect(volatileVariant).toBeDefined();
+            expect(volatileVariant!.effect.areaDamageStatusChanceBonus).toBe(0.5);
+            expect(getUnmodeledDamageEffectSourceUrl(volatileVariant!)).toBe(sourceUrl);
 
-        const areaAttackIndex = weapon!.attacks.findIndex((attack) => attack.isAreaDamage === true);
-        const result = optimizeBuild(
-            withSelectedAttack(weapon!, areaAttackIndex),
-            [volatileVariant!],
-            normalizeOptimizeGoal("status"),
-            1,
-            { allowForma: false },
-        );
+            const directAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "Normal Attack");
+            const areaAttackIndex = weapon!.attacks.findIndex((attack) => attack.name === "AoE");
+            const directWeapon = withSelectedAttack(weapon!, directAttackIndex);
+            const directContext = {
+                selectedGoal: "burst",
+                selectedWeaponName: weapon!.name,
+                selectedAttackName: "Normal Attack",
+                selectedAttackIsAreaDamage: false,
+            };
+            const supportedLines = getUnmodeledDamageEffectLines(
+                volatileVariant!,
+                volatileVariant!.fusionLimit,
+                directContext,
+            );
+            expect(supportedLines).toContain(
+                "Volatile Variant's Normal Attack sequence includes the immediate AoE explosion on the directly struck target and applies this rank's AoE Status Chance bonus. Its 3m Punch Through, extra 4m radius against neighbors, and additional enemy hits are outside this single-target score. Wiki: https://wiki.warframe.com/w/Volatile_Variant",
+            );
+            expect(supportedLines.every((line) => !/Auto Optimize skips/i.test(line))).toBe(true);
+            expect(getUnmodeledDamageEffectBadgeLabel(volatileVariant!, "picker", directContext))
+                .toBe("Direct-hit sequence scored; group hits omitted");
 
-        expect(result.mods).toEqual([]);
-        expect(result.slots.filter(Boolean)).toHaveLength(0);
+            const directResult = optimizeBuild(
+                directWeapon,
+                [volatileVariant!],
+                "burst",
+                1,
+                { allowForma: false, targetFaction: "Grineer" },
+            );
+            expect(directResult.mods.map((mod) => mod?.name)).toContain("Volatile Variant");
+
+            const finiteResult = optimizeBuild(
+                directWeapon,
+                [volatileVariant!],
+                "timeToKill",
+                1,
+                { allowForma: false, targetFaction: "Grineer" },
+            );
+            expect(finiteResult.mods.map((mod) => mod?.name)).toContain("Volatile Variant");
+
+            expect(() => optimizeBuild(
+                withSelectedAttack(weapon!, areaAttackIndex),
+                [volatileVariant!],
+                "burst",
+                1,
+                { allowForma: false, targetFaction: "Grineer" },
+            )).toThrow(/reference-only/i);
+        }
     });
 
     it("matches brute-force scoring for a small capacity-constrained candidate set", () => {
@@ -14884,6 +14920,75 @@ describe("Critical Precision and Unseen Dread optimizer scope", () => {
 });
 
 describe("seeded Burst and Scaling optimizer oracles", () => {
+    it("matches exhaustive owned Volatile Variant ranks across randomized target snapshots", () => {
+        let seed = 20261128;
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x1_0000_0000;
+        };
+        const factions = ["Grineer", "Corpus", "Infested", "Corrupted"];
+
+        for (const weaponName of ["Sporothrix", "Coda Sporothrix"]) {
+            const weapon = getWeaponCatalog().find((entry) => entry.name === weaponName);
+            expect(weapon, weaponName).toBeTruthy();
+            const mod = getModsForWeapon(weapon!).find((entry) => entry.name === "Volatile Variant");
+            expect(mod, `${weaponName} Volatile Variant`).toBeTruthy();
+            const attack = weapon!.attacks.find((entry) => entry.name === "Normal Attack");
+            expect(attack, `${weaponName} Normal Attack`).toBeTruthy();
+            const scoringWeapon = withSelectedAttack(weapon!, weapon!.attacks.indexOf(attack!));
+            const maxOwnedRank = Math.min(mod!.fusionLimit, 5);
+
+            for (let scenarioIndex = 0; scenarioIndex < 4; scenarioIndex++) {
+                const targetFaction = factions[scenarioIndex];
+                const targetProfileOverride = {
+                    health: 4_000 + Math.floor(random() * 26_000),
+                    shields: scenarioIndex % 2 === 0 ? 0 : 1_000 + Math.floor(random() * 8_000),
+                    armor: [0, 150, 600, 1_200][Math.floor(random() * 4)],
+                    overguard: scenarioIndex === 3 ? 800 + Math.floor(random() * 4_000) : 0,
+                };
+                const ownedRanks = Array.from({ length: maxOwnedRank + 1 }, (_, rank) => rank)
+                    .filter(() => random() < 0.55);
+                if (ownedRanks.length === 0) ownedRanks.push(Math.floor(random() * (maxOwnedRank + 1)));
+                const rankCounts = Object.fromEntries(ownedRanks.map((rank) => [String(rank), 1 + Math.floor(random() * 3)]));
+
+                for (const goal of ["burst", "scaling", "timeToKill", "windowDps"] as const) {
+                    const result = optimizeBuild(scoringWeapon, [mod!], goal, 1, {
+                        targetFaction,
+                        targetProfileOverride,
+                        allowForma: false,
+                        allowNonMaxRank: true,
+                        ownedModUniqueNames: new Set([mod!.uniqueName]),
+                        ownedModMaxRankByUniqueName: { [mod!.uniqueName]: maxOwnedRank },
+                        ownedModRankCountsByUniqueName: { [mod!.uniqueName]: rankCounts },
+                        capacityConfig: { weaponRank: 30, hasCatalyst: true, masteryRank: 30, canOverLevel: weapon!.canOverLevel },
+                        slotPolarities: [weapon!.polarities[0] ?? ""],
+                        defaultSlotPolarities: [weapon!.polarities[0] ?? ""],
+                        optimizeExilus: false,
+                        optimizeArcane: false,
+                    });
+                    const score = (rank: number | null) => debugScoreBuild(
+                        scoringWeapon,
+                        rank === null ? [] : [mod!.effectsByRank[rank] ?? mod!.effect],
+                        goal,
+                        targetFaction,
+                        null,
+                        targetProfileOverride,
+                    );
+                    const exhaustiveBest = Math.max(score(null), ...ownedRanks.map(score));
+                    const selectedSlot = result.slots.findIndex((entry) => entry?.uniqueName === mod!.uniqueName);
+                    const optimizedScore = selectedSlot < 0 ? score(null) : score(result.slotRanks[selectedSlot] ?? maxOwnedRank);
+
+                    expect(result.capacityValid, `${weaponName} seed ${scenarioIndex} ${goal} capacity`).toBe(true);
+                    expect(optimizedScore, `${weaponName} seed ${scenarioIndex} ${goal} exact owned-rank winner`)
+                        .toBeCloseTo(exhaustiveBest, 8);
+                    if (selectedSlot >= 0) {
+                        expect(ownedRanks).toContain(result.slotRanks[selectedSlot]);
+                    }
+                }
+            }
+        }
+    });
+
     it("matches four randomized, rank-limited three-slot pools for both objectives", { timeout: 300000 }, () => {
         let seed = 20261156;
         const random = () => {

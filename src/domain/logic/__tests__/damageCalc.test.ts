@@ -2071,7 +2071,7 @@ describe("Cull the Weak Wiki modeling", () => {
 });
 
 describe("Volatile Variant Wiki modeling", () => {
-    it("applies the rank-scaled Status Chance only to Sporothrix explosion attacks", () => {
+    it("models rank-scaled explosion Status Chance and removes the direct-hit embed delay", () => {
         const expectedBonuses = [0.25, 0.3, 0.35, 0.4, 0.45, 0.5];
         for (const weaponName of ["Sporothrix", "Coda Sporothrix"]) {
             const weapon = getWeaponCatalog().find((candidate) => candidate.name === weaponName);
@@ -2081,10 +2081,11 @@ describe("Volatile Variant Wiki modeling", () => {
 
             expect(mod!.effectsByRank.map((effect) => effect.areaDamageStatusChanceBonus)).toEqual(expectedBonuses);
             expect(mod!.effectsByRank.map((effect) => effect.statusChanceBonus)).toEqual([0, 0, 0, 0, 0, 0]);
+            expect(mod!.effectsByRank.map((effect) => effect.volatileVariantInstantExplosion)).toEqual(Array(6).fill(true));
             for (let rank = 0; rank <= mod!.fusionLimit; rank++) {
                 const unmodeled = getUnmodeledDamageEffectLines(mod!, rank);
                 expect(unmodeled).toContain(
-                    "Punch Through, instant direct-hit barb-explosion timing, and its added radius are not modeled; the rank-specific Status Chance bonus applies only to a selected AoE attack.",
+                    "Volatile Variant removes the 0.9s barb embed delay and adds rank-scaled Status Chance to the AoE explosion. The planner scores the direct-hit sequence only for Sporothrix/Coda Sporothrix Normal Attack against the struck target; the standalone AoE row is reference-only. Punch Through, the extra 4m radius against neighbors, and additional enemy hits are not modeled, so Auto Optimize skips the mod outside the supported single-target sequence. Wiki: https://wiki.warframe.com/w/Volatile_Variant",
                 );
                 expect(unmodeled.some((line) => /\+\d+% Status Chance/.test(line))).toBe(false);
             }
@@ -2100,6 +2101,18 @@ describe("Volatile Variant Wiki modeling", () => {
             const directBaseline = calculateBuild(directWeapon, []).modded;
             const directModded = calculateBuild(directWeapon, [maxRankEffect]).modded;
             expect(directModded.statusChance).toBeCloseTo(directBaseline.statusChance, 12);
+            expect(directBaseline.attachedAttackDamageSequence?.rule.firstTickDelaySeconds).toBe(0.9);
+            expect(directModded.attachedAttackDamageSequence?.rule.firstTickDelaySeconds).toBe(0);
+            expect(directModded.attachedAttackDamageSequence?.rule.componentAttackName).toBe("AoE");
+            expect(directModded.attachedAttackDamageSequence?.profile.statusRollsPerAttack).toBeCloseTo(
+                directBaseline.attachedAttackDamageSequence!.profile.statusRollsPerAttack * 1.5,
+                10,
+            );
+            const fastModded = calculateBuild(directWeapon, [maxRankEffect], "", {
+                includeDoTTickDetails: false,
+            }).modded;
+            expect(fastModded.attachedAttackDamageSequence?.profile.steadyStateDotDamageByTypePerTick?.slash)
+                .toBeCloseTo(directModded.attachedAttackDamageSequence!.profile.steadyStateDotDamageByTypePerTick!.slash, 8);
 
             const areaBaseline = calculateBuild(areaWeapon, []).modded;
             const areaModded = calculateBuild(areaWeapon, [maxRankEffect]).modded;

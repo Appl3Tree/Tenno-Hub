@@ -2435,6 +2435,34 @@ const VERIFIED_ATTACK_LINGERING_DAMAGE_OVERRIDES: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackLingeringDamageRule>>
 >> = Object.freeze({
+    // A Sporothrix barb applies its separate Viral/Slash AoE after a 0.9s
+    // embed delay when it directly strikes an enemy. Volatile Variant removes
+    // that delay; the selected direct hit then includes this AoE immediately.
+    // The linked component is scored only on the directly struck target.
+    // Verified 2026-11-28: https://wiki.warframe.com/w/Sporothrix and
+    // https://wiki.warframe.com/w/Volatile_Variant
+    "/Lotus/Weapons/Infested/LongGuns/InfSniperRifle/InfSniperRifle": Object.freeze({
+        "normal attack": Object.freeze({
+            componentAttackName: "AoE",
+            firstTickDelaySeconds: 0.9,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Sporothrix",
+        }),
+    }),
+    "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaSporothrix": Object.freeze({
+        "normal attack": Object.freeze({
+            componentAttackName: "AoE",
+            firstTickDelaySeconds: 0.9,
+            tickIntervalSeconds: 1,
+            tickCount: 1,
+            attachedToDirectTarget: true,
+            stacks: true,
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Sporothrix",
+        }),
+    }),
     // One Battacor Alt-Fire discharge binds its direct beam and same-target
     // explosion into one immediate event. Sentient Barrage suppresses this
     // component; the explosion itself is not affected by Multishot.
@@ -2718,6 +2746,22 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
     string,
     Readonly<Record<string, WeaponAttackModelLimitation>>
 >> = Object.freeze({
+    // The AoE row is a component of each normal barb projectile, not an
+    // independently selectable firing mode. Select Normal Attack to score
+    // the initial strike and its delayed/immediate attached explosion.
+    // Verified 2026-11-28: https://wiki.warframe.com/w/Sporothrix
+    "/Lotus/Weapons/Infested/LongGuns/InfSniperRifle/InfSniperRifle": Object.freeze({
+        "aoe": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Sporothrix",
+            reason: "AoE is the separate explosion component of each Normal Attack barb, not a standalone firing mode. Select Normal Attack to include the linked explosion; the component row is reference-only to prevent double counting.",
+        }),
+    }),
+    "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaSporothrix": Object.freeze({
+        "aoe": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Sporothrix",
+            reason: "AoE is the separate explosion component of each Normal Attack barb, not a standalone firing mode. Select Normal Attack to include the linked explosion; the component row is reference-only to prevent double counting.",
+        }),
+    }),
     // Grenade Explosion is a component of the direct impact sequence. Select
     // Grenade Impact to score one bounded event and avoid double counting.
     // Verified 2026-11-23: https://wiki.warframe.com/w/Tonkor and
@@ -3051,6 +3095,18 @@ const VERIFIED_ATTACK_MODEL_LIMITATIONS: Readonly<Record<
 const VERIFIED_ATTACK_SCORE_BOUNDARY_NOTES: Readonly<
     Record<string, Readonly<Record<string, WeaponAttackScoreBoundaryNote>>>
 > = Object.freeze({
+    "/Lotus/Weapons/Infested/LongGuns/InfSniperRifle/InfSniperRifle": Object.freeze({
+        "normal attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Sporothrix",
+            reason: "This score includes the direct barb hit and one linked AoE explosion on the directly struck target. The explosion normally follows after 0.9s; Volatile Variant removes that delay and applies its rank-specific Status Chance to the explosion. The target is assumed to remain at the impact point. Extra Punch Through, the augment's additional 4m radius against neighbors, other-enemy hits, and area coverage are not modeled.",
+        }),
+    }),
+    "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaSporothrix": Object.freeze({
+        "normal attack": Object.freeze({
+            sourceUrl: "https://wiki.warframe.com/w/Coda_Sporothrix",
+            reason: "This score includes the direct barb hit and one linked AoE explosion on the directly struck target. The explosion normally follows after 0.9s; Volatile Variant removes that delay and applies its rank-specific Status Chance to the explosion. The target is assumed to remain at the impact point. Extra Punch Through, the augment's additional 4m radius against neighbors, other-enemy hits, and area coverage are not modeled.",
+        }),
+    }),
     "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon": Object.freeze({
         "normal attack": Object.freeze({
             sourceUrl: "https://wiki.warframe.com/w/Vinquibus",

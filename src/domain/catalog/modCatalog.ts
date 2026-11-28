@@ -294,6 +294,8 @@ export interface ModEffect {
     statusChanceBonus: number;
     /** Volatile Variant's additive Status Chance bonus on selected AoE explosion attacks only. */
     areaDamageStatusChanceBonus: number;
+    /** Volatile Variant removes Sporothrix's embed delay on its linked direct-hit explosion. */
+    volatileVariantInstantExplosion?: boolean;
     /** Status chance per combo tier above 1x (e.g. Weeping Wounds). */
     comboStatusChanceBonus: number;
     multishotBonus: number;
@@ -2043,11 +2045,14 @@ function buildCaches(): ModCaches {
             });
         }
         if (path === VOLATILE_VARIANT_MOD_PATH) {
-            // The Wiki says this additive Status Chance applies only to Volatile
-            // Variant's explosion. Apply it only when the selected attack row is
-            // classified as AoE; the direct-hit explosion timing, radius, and
-            // Punch Through stay disclosed as unsupported.
+            // The Wiki's rank value increases Status Chance only for Volatile
+            // Variant's explosion. The linked AoE is selected while calculating
+            // the Normal Attack sequence, where this rank value applies; that
+            // sequence also removes the barb's embed delay.
             // https://wiki.warframe.com/w/Volatile_Variant
+            effectsByRank.forEach((rankEffect) => {
+                if (rankEffect) rankEffect.volatileVariantInstantExplosion = true;
+            });
             parsedLevelStats.forEach((levelStat, rank) => {
                 const rankEffect = effectsByRank[rank];
                 if (!rankEffect) return;
