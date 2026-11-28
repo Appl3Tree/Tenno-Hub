@@ -42,6 +42,7 @@ export const STRAIN_FEVER_MOD_PATH = "/Lotus/Upgrades/Mods/Sets/Strain/HelminthS
 export const STATIC_DISCHARGE_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/CorpusArena/ProvaCorpusArenaMod";
 export const SWIPE_MOD_PATH = "/Lotus/Types/Friendly/Pets/CatbrowPetPrecepts/CatbrowSwipePrecept";
 export const SENTIENT_BARRAGE_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Nightwave/NightwaveBattacorAugmentMod";
+export const SPRING_LOADED_BLADE_MOD_PATH = "/Lotus/Upgrades/Mods/Syndicate/MeleeRangeOnProcMod";
 const HOLSTERED_RELOAD_MOD_WIKI_URLS: Record<string, string> = {
     "/Lotus/Upgrades/Mods/PvPMods/Pistol/PassiveReloadMod": "https://wiki.warframe.com/w/Eject_Magazine",
     "/Lotus/Upgrades/Mods/PvPMods/Shotgun/PassiveReloadMod": "https://wiki.warframe.com/w/Lock_and_Load",
@@ -326,6 +327,15 @@ export function getUnmodeledDamageEffectLines(
             !(supportedVolatileVariantSequence && mod.path === VOLATILE_VARIANT_MOD_PATH) &&
             !(truthFlameCycleScope && /^CURSE:/i.test(line)) &&
             DAMAGE_RELEVANT_UNPARSED_STAT.test(line));
+    if (mod.path === SPRING_LOADED_BLADE_MOD_PATH) {
+        const rankText = (mod.unparsedStatsByRank?.[rank] ?? []).find((line) =>
+            /^On Status Effect:\s*\+[\d.]+\s+Range for \d+s\. Stacks up to \d+ times\.$/i.test(line));
+        const match = rankText?.match(/^On Status Effect:\s*\+([\d.]+)\s+Range for (\d+)s\. Stacks up to (\d+) times\.$/i);
+        const rankEffect = match
+            ? `+${match[1]} Range for ${match[2]}s, up to ${match[3]} stacks`
+            : "a rank-scaled temporary Range bonus";
+        lines.push(`Spring-Loaded Blade R${rank} grants ${rankEffect} after a Status Effect. The planner does not track its active stacks or expiry, or how temporary melee Range changes reach and target coverage, so the effect is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Spring-Loaded_Blade`);
+    }
     if (mod.path === NAPALM_GRENADES_MOD_PATH) {
         const selectedPentaImpact = ["Penta", "Carmine Penta", "Secura Penta"].includes(context?.selectedWeaponName ?? "") &&
             context?.selectedAttackName?.trim().toLowerCase() === "grenade impact" &&
@@ -672,6 +682,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     path?: string;
     unparsedStatsByRank?: string[][];
 }): string | undefined {
+    if (mod.path === SPRING_LOADED_BLADE_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Spring-Loaded_Blade";
+    }
     if (mod.path === ENERGY_CHANNEL_MOD_PATH) {
         return "https://wiki.warframe.com/w/Energy_Channel";
     }

@@ -3468,6 +3468,32 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("explains Spring-Loaded Blade's rank-specific temporary Range and keeps it out of Auto Optimize", () => {
+        const melee = getWeaponCatalog().find((candidate) => candidate.name === "Broken War");
+        expect(melee).toBeDefined();
+        const springLoadedBlade = getModsForWeapon(melee!).find((mod) => mod.name === "Spring-Loaded Blade");
+        expect(springLoadedBlade).toBeDefined();
+        expect(getUnmodeledDamageEffectSourceUrl(springLoadedBlade!)).toBe(
+            "https://wiki.warframe.com/w/Spring-Loaded_Blade",
+        );
+
+        const rankValues = [
+            ["0.2", 4], ["0.3", 8], ["0.5", 12], ["0.7", 16], ["0.8", 20], ["1", 24],
+        ] as const;
+        for (let rank = 0; rank <= springLoadedBlade!.fusionLimit; rank++) {
+            const [range, duration] = rankValues[rank];
+            expect(springLoadedBlade!.unparsedStatsByRank?.[rank]).toContain(
+                `On Status Effect: +${range} Range for ${duration}s. Stacks up to 2 times.`,
+            );
+            expect(getUnmodeledDamageEffectLines(springLoadedBlade!, rank)).toContain(
+                `Spring-Loaded Blade R${rank} grants +${range} Range for ${duration}s, up to 2 stacks after a Status Effect. The planner does not track its active stacks or expiry, or how temporary melee Range changes reach and target coverage, so the effect is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Spring-Loaded_Blade`,
+            );
+        }
+
+        const result = optimizeBuild(melee!, [springLoadedBlade!], "burst", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
     it("keeps Bursting Mass out of Auto Optimize while disclosing its stored-projectile sequence", () => {
         const mutalistQuanta = getWeaponCatalog().find((candidate) => candidate.name === "Mutalist Quanta");
         expect(mutalistQuanta).toBeDefined();
