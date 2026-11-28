@@ -3453,6 +3453,21 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Hunter's Bonesaw out of Auto Optimize while explaining its Ground Finisher boundary", () => {
+        const ripkas = getWeaponCatalog().find((candidate) => candidate.name === "Ripkas");
+        expect(ripkas).toBeDefined();
+        const huntersBonesaw = getModsForWeapon(ripkas!).find((mod) => mod.name === "Hunter's Bonesaw");
+        expect(huntersBonesaw).toBeDefined();
+        expect(getUnmodeledDamageEffectSourceUrl(huntersBonesaw!)).toBe("https://wiki.warframe.com/w/Hunter%27s_Bonesaw");
+        for (let rank = 0; rank <= huntersBonesaw!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(huntersBonesaw!, rank)).toContain(
+                "Hunter's Bonesaw adds rank-scaled Finisher Damage to Ground Finishers against prone enemies. The planner does not represent Ground Finisher attacks or the required prone-target state, so this bonus is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Hunter%27s_Bonesaw",
+            );
+        }
+        const result = optimizeBuild(ripkas!, [huntersBonesaw!], "meleeDps", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
     it("keeps Bursting Mass out of Auto Optimize while disclosing its stored-projectile sequence", () => {
         const mutalistQuanta = getWeaponCatalog().find((candidate) => candidate.name === "Mutalist Quanta");
         expect(mutalistQuanta).toBeDefined();

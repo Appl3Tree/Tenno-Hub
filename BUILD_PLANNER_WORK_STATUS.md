@@ -4,7 +4,13 @@ Last updated: 2026-11-28
 
 This is the concise continuation checkpoint for the active Damage 3.0 / Build Planner objective. Read it before starting new work. `AGENTS.md` remains the detailed task history and acceptance criteria; do not reopen completed entries unless fresh evidence shows a regression.
 
-## CURRENT WORKING CHECKPOINT — 2026-11-28 (Volatile Variant linked math trace deployed; rendered review complete)
+## CURRENT WORKING CHECKPOINT — 2026-11-28 (Hunter's Bonesaw audit boundary implemented; release/review pending)
+
+- **Disposition:** Hunter's Bonesaw's rank-scaled Finisher Damage is limited to Ground Finishers on prone enemies. The planner has neither a Ground Finisher attack event nor a prone-target state, so the effect stays out of scores and Auto Optimize. Its mod explanation now states the boundary and links the Wiki.
+- **Validation:** the focused optimizer regression passes at every rank and confirms the mod is not selected; test-project TypeScript, focused ESLint, source validation, mod-effect audit, and 994-module production build pass. Audit counts remain 527/600 parsed effects and 73 conservative candidates (56 partial / 17 fully unparsed). Local current-source IAB preview timed out on port 5178; rendered review remains pending.
+- **Next:** publish and review this explanation-only audit disposition, then continue source triage, measured full-pool latency work, and the read-only Underframe matched corpus. Ground Finisher scoring, repository-wide validation, Underframe parity, global optimizer quality, local host mapping, and live-game accuracy remain open.
+
+## PREVIOUS CHECKPOINT — 2026-11-28 (Volatile Variant linked math trace deployed; rendered review complete)
 
 - **Explanation:** Detailed Build Math now traces the linked Sporothrix AoE Status Chance per projectile after Volatile Variant's component-only modifier and reports expected ordinary rolls after multishot. At R5, the deployed trace shows 79.500% and 0.795 rolls per linked event. This is an explanation-only follow-up; linked-event damage and optimizer scores are unchanged.
 - **Release:** PR [#442](https://github.com/Appl3Tree/Tenno-Hub/pull/442) merged as `225c2493ab61bf821c270ab072a4ddaa23b9abf8`; Pages run [#521](https://github.com/Appl3Tree/Tenno-Hub/actions/runs/46135268400) succeeded.

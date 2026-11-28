@@ -9,6 +9,7 @@ export const COMBUSTION_BEAM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/WeaponBeamEx
 export const VULCAN_BLITZ_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/JatKittagNightwatchMod";
 export const ENTROPY_DETONATION_MOD_PATH = "/Lotus/Upgrades/Mods/Syndicate/ObexMod";
 export const FINISHING_TOUCH_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/WeaponMeleeFinisherDamageMod";
+export const HUNTERS_BONESAW_MOD_PATH = "/Lotus/Upgrades/Mods/Melee/Event/ProjectNightwatch/RipkasNightwatchMod";
 export const BURSTING_MASS_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/Arbitration/InfCrpShockSwarmRifleArbitrationMod";
 export const AMALGAM_FURAX_BODY_COUNT_MOD_PATH = "/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod";
 export const NIGHTWATCH_NAPALM_MOD_PATH = "/Lotus/Upgrades/Mods/Rifle/Event/ProjectNightwatch/OgrisNightwatchMod";
@@ -428,6 +429,9 @@ export function getUnmodeledDamageEffectLines(
     if (mod.path === FINISHING_TOUCH_MOD_PATH) {
         lines.push("Finishing Touch adds rank-scaled Finisher Damage to melee finisher events. The planner's attack rows do not represent Stealth, Counterattack, or Ground Finisher events, so this bonus is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Finishing_Touch");
     }
+    if (mod.path === HUNTERS_BONESAW_MOD_PATH) {
+        lines.push("Hunter's Bonesaw adds rank-scaled Finisher Damage to Ground Finishers against prone enemies. The planner does not represent Ground Finisher attacks or the required prone-target state, so this bonus is unscored and Auto Optimize skips the mod. Wiki: https://wiki.warframe.com/w/Hunter%27s_Bonesaw");
+    }
     const holsteredReloadWikiUrl = mod.path ? HOLSTERED_RELOAD_MOD_WIKI_URLS[mod.path] : undefined;
     if (holsteredReloadWikiUrl) {
         lines.push(`${mod.name ?? "This mod"} restores a rank-scaled portion of its magazine each second while holstered. Weapon switching, holstered time, and magazine-refill history are not modeled, so Auto Optimize skips the mod. Wiki: ${holsteredReloadWikiUrl}`);
@@ -709,6 +713,9 @@ export function getUnmodeledDamageEffectSourceUrl(mod: {
     }
     if (mod.path === FINISHING_TOUCH_MOD_PATH) {
         return "https://wiki.warframe.com/w/Finishing_Touch";
+    }
+    if (mod.path === HUNTERS_BONESAW_MOD_PATH) {
+        return "https://wiki.warframe.com/w/Hunter%27s_Bonesaw";
     }
     if (mod.path && HOLSTERED_RELOAD_MOD_WIKI_URLS[mod.path]) {
         return HOLSTERED_RELOAD_MOD_WIKI_URLS[mod.path];
