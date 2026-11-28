@@ -94,6 +94,8 @@ Tasks are organized by priority. Update this list as work progresses.
 
 ### Working Queue
 
+- [ ] D3-MOD-BURSTING-MASS-EVENT-MODEL-001 — Bursting Mass is now source-linked and explicitly excluded from Auto Optimize because scoring requires Mutalist Quanta orb placement, eligible projectile pass-through and typed-damage accumulation, possible linked-weapon/ability contributors, and manual/expiration detonation timing. The 15m blast and non-crit/non-status behavior are disclosed; no score is claimed. Implement only when this event sequence can be modeled and tested. Focused audit disposition and the incomplete full-suite timing evidence are in `BUILD_PLANNER_BENCHMARK.md`.
+
 - [x] D3-MOD-ENERGY-CHANNEL-BURST-SNAPSHOT-001 — released in PR #430 / Pages run #509. The saved 0–100 Energy input scores a separate raw next-hit bonus on direct single-target melee Burst; deployed IAB review showed 50 Energy → +100 raw bonus after crit. Damage typing/target mitigation, finite/sustained objectives, multi-hit/area attacks, and Auto Optimize remain excluded. See `BUILD_PLANNER_WORK_STATUS.md` / `BUILD_PLANNER_BENCHMARK.md`.
 
 - [x] D3-MOD-FINISHER-AUDIT-DISCLOSURE-001 — PR #430 adds rank-aware, source-linked Finishing Touch explanations and retains Auto Optimize exclusion because selectable weapon rows do not model Stealth, Counterattack, or Ground Finisher events. Reopen when those events and their attack/target multipliers are represented.

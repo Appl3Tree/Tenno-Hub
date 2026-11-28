@@ -3422,6 +3422,21 @@ describe("build optimizer scoring", () => {
         expect(result.slots).toEqual([null]);
     });
 
+    it("keeps Bursting Mass out of Auto Optimize while disclosing its stored-projectile sequence", () => {
+        const mutalistQuanta = getWeaponCatalog().find((candidate) => candidate.name === "Mutalist Quanta");
+        expect(mutalistQuanta).toBeDefined();
+        const burstingMass = getModsForWeapon(mutalistQuanta!).find((mod) => mod.name === "Bursting Mass");
+        expect(burstingMass).toBeDefined();
+        expect(getUnmodeledDamageEffectSourceUrl(burstingMass!)).toBe("https://wiki.warframe.com/w/Bursting_Mass");
+        for (let rank = 0; rank <= burstingMass!.fusionLimit; rank++) {
+            expect(getUnmodeledDamageEffectLines(burstingMass!, rank)).toContain(
+                "Bursting Mass stores rank-scaled damage from eligible projectiles passing through Mutalist Quanta's mass, then Alt-Fire or expiration detonates a 15m explosion. Its Wiki entry says the blast preserves accumulated damage types, excludes critical bonus, cannot crit or proc status, and applies orb-configuration and Multishot-specific changes. Orb placement, cross-weapon projectile or ability contributors, accumulated typed damage, and detonation timing are not modeled, so Auto Optimize skips this mod. Wiki: https://wiki.warframe.com/w/Bursting_Mass",
+            );
+        }
+        const result = optimizeBuild(mutalistQuanta!, [burstingMass!], "burst", 1, { allowForma: false });
+        expect(result.slots).toEqual([null]);
+    });
+
     it("keeps holstered magazine reload mods out of Auto Optimize until weapon-switch timing is modeled", () => {
         const cases = [
             { weaponName: "Lato", modName: "Eject Magazine", wikiUrl: "https://wiki.warframe.com/w/Eject_Magazine" },
