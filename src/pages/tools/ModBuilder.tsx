@@ -1756,8 +1756,12 @@ function buildMathBreakdown(
             ? "The linked component also affects the directly struck target"
             : "The linked component does not affect the directly struck target";
         const stacking = rule.stacks ? "Linked events from separate attacks stack." : "Linked events from separate attacks do not stack.";
+        const linkedStatusLine = stats.attachedAttackDamageSequence.profile.statusChance !== undefined
+            ? `Linked ${rule.componentAttackName} Status Chance = ${fmt(stats.attachedAttackDamageSequence.profile.statusChance * 100, 3)}% per projectile; ${fmt(stats.attachedAttackDamageSequence.profile.statusRollsPerAttack, 3)} expected ordinary status rolls per event after multishot and component-specific modifiers.`
+            : null;
         return [
             `${rule.componentAttackName} is linked to each direct hit: ${eventTiming}. ${targetScope}. ${stacking}`,
+            ...(linkedStatusLine ? [linkedStatusLine] : []),
             `Finite scoring follows this linked sequence on one target. It excludes area coverage on other targets, environmental impacts away from the struck target, movement, and multi-target overlap. Source: ${rule.sourceUrl}${rule.tickCount > 1 ? " · https://wiki.warframe.com/w/Damage_over_Time#Weapons" : ""}`,
         ];
     })() : [];
